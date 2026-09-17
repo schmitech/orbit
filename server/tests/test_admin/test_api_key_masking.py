@@ -113,3 +113,49 @@ class TestMaskApiKeyForAmbiguousIdentifiers:
         masked = mask_api_key(raw_key, show_last=True, prefix="***")
         assert raw_key not in masked
         assert masked == "***wxyz"
+
+
+# ---------------------------------------------------------------------------
+# services/mcp_client_service.py usage: show_both=True
+#
+# Reproduces the exact behavior of the former MCPClientManager._mask_secret,
+# which this mode replaces — first/last num_chars plus a length, e.g.
+# "Bear...k123 (len=41)", enough to confirm a value against a known-good
+# copy (same token, same length) without ever logging it in full.
+# ---------------------------------------------------------------------------
+
+class TestMaskApiKeyShowBoth:
+
+    def test_empty_string_masks_to_itself(self):
+        # Unlike the other modes, "" is a valid degenerate value here, not a
+        # "missing key" sentinel — matches the former _mask_secret("") == "".
+        assert mask_api_key("", show_both=True) == ""
+
+    def test_none_returns_none_string(self):
+        assert mask_api_key(None, show_both=True) == "None"
+
+    def test_length_at_threshold_is_fully_masked(self):
+        # num_chars=4 default -> threshold is 2*4+2 = 10
+        value = "a" * 10
+        assert mask_api_key(value, show_both=True) == "*" * 10
+
+    def test_length_one_above_threshold_shows_both_ends(self):
+        value = "a" * 11
+        assert mask_api_key(value, show_both=True) == "aaaa...aaaa (len=11)"
+
+    def test_matches_former_mask_secret_format(self):
+        value = "Bearer-secret-token-k123"
+        masked = mask_api_key(value, show_both=True)
+        assert masked == f"{value[:4]}...{value[-4:]} (len={len(value)})"
+        assert value not in masked
+
+    def test_never_leaks_full_value_for_short_strings(self):
+        for value in ["a", "ab", "abcdefghij"]:
+            masked = mask_api_key(value, show_both=True)
+            assert value not in masked or masked == "*" * len(value)
+
+    def test_show_last_is_ignored_when_show_both_is_true(self):
+        value = "abcdefghijklmnop"
+        assert mask_api_key(value, show_both=True, show_last=True) == mask_api_key(
+            value, show_both=True, show_last=False
+        )

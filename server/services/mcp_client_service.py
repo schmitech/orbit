@@ -34,6 +34,7 @@ from contextlib import asynccontextmanager, AsyncExitStack
 from typing import Optional, Any
 
 from services.mcp_connection_pool import MCPConnection, ServerConnectionPool
+from utils.text_utils import mask_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -699,20 +700,14 @@ class MCPClientManager:
     _SENSITIVE_HEADER_HINTS = ("authorization", "cookie", "token", "secret", "key", "auth")
 
     @classmethod
-    def _mask_secret(cls, value: str) -> str:
-        """First/last 4 characters plus a length, e.g. 'Bear...k123 (len=41)'
-        — enough to confirm against a working `curl` call (same token,
-        same length, no stray whitespace) without ever logging the secret
-        itself."""
-        if len(value) <= 10:
-            return "*" * len(value)
-        return f"{value[:4]}...{value[-4:]} (len={len(value)})"
-
-    @classmethod
     def _header_display_value(cls, name: str, value: str) -> str:
+        """Mask a header value if its name looks sensitive — first/last 4
+        characters plus a length, e.g. 'Bear...k123 (len=41)', enough to
+        confirm against a working `curl` call (same token, same length, no
+        stray whitespace) without ever logging the secret itself."""
         lname = name.lower()
         if any(hint in lname for hint in cls._SENSITIVE_HEADER_HINTS):
-            return cls._mask_secret(value)
+            return mask_api_key(str(value), show_both=True)
         return value
 
     @classmethod

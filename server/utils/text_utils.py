@@ -203,20 +203,44 @@ def sanitize_error_message(message: str) -> str:
     return sanitized
 
 
-def mask_api_key(api_key: str, show_last: bool = False, num_chars: int = 4, prefix: str = "...") -> str:
+def mask_api_key(
+    api_key: str,
+    show_last: bool = False,
+    num_chars: int = 4,
+    prefix: str = "...",
+    show_both: bool = False,
+) -> str:
     """
     Mask an API key for secure logging.
 
     Args:
         api_key: The API key to mask
-        show_last: If True, show the last num_chars of the key, otherwise show the first num_chars
+        show_last: If True, show the last num_chars of the key, otherwise show the first num_chars.
+            Ignored when show_both is True.
         num_chars: Number of characters to show
         prefix: String used in place of the masked characters, and as the fallback
             when the key is missing or too short to mask
+        show_both: If True, show both the first and last num_chars plus the key's
+            length (e.g. "Bear...k123 (len=41)") — enough to confirm a value against
+            a known-good copy (same value, same length) without ever logging it in
+            full. Values too short to mask both ends are fully masked instead
+            (an empty string masks to itself, "", rather than falling back to
+            "None" — an empty value is meaningfully different from a missing one
+            for a header being masked for display).
 
     Returns:
         A masked version of the API key
     """
+    if show_both:
+        # Unlike the other modes, an empty string is a valid (if degenerate)
+        # value to mask here, not a "missing key" sentinel — the caller
+        # (header masking) needs "" to stay "" rather than become "None".
+        if api_key is None:
+            return "None" if prefix == "..." else prefix
+        if len(api_key) <= num_chars * 2 + 2:
+            return "*" * len(api_key)
+        return f"{api_key[:num_chars]}{prefix}{api_key[-num_chars:]} (len={len(api_key)})"
+
     if not api_key:
         return "None" if prefix == "..." else prefix
 

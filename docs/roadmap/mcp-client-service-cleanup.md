@@ -14,14 +14,22 @@ shims into one `_compat_attr` helper) already shipped directly and are not
 tracked here.
 
 Phases 2 and 3 are independent of everything else and of each other. Phase 1
-and Phase 4 are **not** fully independent: Phase 4's optional trimming keeps
-header redaction (`_mask_secret`/`_header_display_value` or their
-replacement), so if both are done, land Phase 1 first and have Phase 4 call
-the Phase-1 helper rather than the old `_mask_secret`.
+is complete (see below); Phase 4, if pursued, should call the Phase-1
+`mask_api_key(..., show_both=True)` helper for header redaction rather than
+reintroducing a separate masking implementation.
 
 ---
 
-## Phase 1 — Move secret masking into `text_utils.mask_api_key`
+## Phase 1 — Move secret masking into `text_utils.mask_api_key` (✅ Complete)
+
+**Shipped:** `mask_api_key()` gained a `show_both` mode reproducing
+`_mask_secret`'s exact format, including the empty-string edge case
+(masks to `""`, not `"None"` — a review pass caught this before it shipped
+incorrectly). `_header_display_value` now calls
+`mask_api_key(str(value), show_both=True)`; `_mask_secret` is deleted. Tests
+added to `test_api_key_masking.py`'s `TestMaskApiKeyShowBoth` class. Non-string
+header values are coerced to `str()` before masking. All `text_utils` and
+`mcp_client_service` tests pass with no output-format change.
 
 **Finding (reuse):** `_mask_secret` (lines ~695-703) reimplements secret
 masking that `server/utils/text_utils.py`'s `mask_api_key(api_key,
@@ -36,23 +44,24 @@ affect other callers of `mask_api_key`; out of scope for a same-file cleanup
 pass.
 
 **Tasks:**
-- [ ] Add an optional mode to `mask_api_key` (e.g. `show_both=True` or a
+- [x] Add an optional mode to `mask_api_key` (e.g. `show_both=True` or a
       `style="boundary+length"` param) that reproduces `_mask_secret`'s
       `first4...last4 (len=N)` format without changing the default behavior
       for existing callers.
-- [ ] Add unit tests for the new mode in `text_utils`'s existing test file.
-- [ ] Replace `MCPClientManager._mask_secret` with a call to the extended
+- [x] Add unit tests for the new mode in `text_utils`'s existing test file.
+- [x] Replace `MCPClientManager._mask_secret` with a call to the extended
       `mask_api_key`, and delete `_mask_secret`.
-- [ ] Cover the same edge cases `_mask_secret` currently handles (and that
+- [x] Cover the same edge cases `_mask_secret` currently handles (and that
       the new `mask_api_key` mode must preserve):
       - value length ≤ 10 → fully masked (`"*" * len(value)`)
       - value length exactly 11 → first boundary case where the
         `first4...last4 (len=N)` form kicks in
-      - empty string
-      - non-string header values reaching `_header_display_value` (e.g. an
-        int or `None` from a misconfigured header) — decide and test
-        whether these are coerced to `str` first or rejected
-- [ ] Re-run `server/tests/` for both `text_utils` and
+      - empty string → masks to `""`, not `"None"` (caught and fixed in
+        review — `show_both` now checks for `None` specifically rather
+        than falling through the generic falsy-value fallback)
+      - non-string header values reaching `_header_display_value` — coerced
+        to `str()` before masking
+- [x] Re-run `server/tests/` for both `text_utils` and
       `mcp_client_service` to confirm output format is unchanged for the
       HTTP debug-log path (`_header_display_value` / `_log_http_request`).
 
