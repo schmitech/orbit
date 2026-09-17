@@ -5,6 +5,7 @@
 ### Technical Improvements
 - **MCP Client Service Cleanup**: Deduplicated the connection-init path in `_create_connection` (stdio/http branches shared one `session.initialize()` call instead of two copies) and consolidated the `input_schema`/`inputSchema` and tool-annotation snake_case/camelCase compatibility shims into one `_compat_attr()` helper. No behavior change. Remaining findings from the same review (secret-masking reuse, breaker-state encapsulation, tool-list caching, curl-repro trimming) are tracked as phased follow-ups in `docs/roadmap/mcp-client-service-cleanup.md`.
 - **MCP Client Service Cleanup (Phase 1)**: Added a `show_both` mode to `text_utils.mask_api_key()` reproducing the former `MCPClientManager._mask_secret`'s `first...last (len=N)` format, and switched HTTP header masking in `mcp_client_service.py` to call it instead of maintaining a duplicate implementation. Empty header values still mask to `""` rather than `"None"`, matching prior behavior exactly. No behavior change.
+- **MCP Client Service Cleanup (Phase 2)**: Added `ServerConnectionPool.is_reachable()` and `should_retry_discovery()` as the single source of truth for circuit-breaker reachability/retry checks, replacing three call sites in `mcp_client_service.py` that previously re-derived the same breaker-state logic with inconsistent nuance. No behavior change.
 
 ## [2.17.10] - 2026-09-15
 

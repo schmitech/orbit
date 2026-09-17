@@ -65,7 +65,22 @@ pass.
       `mcp_client_service` to confirm output format is unchanged for the
       HTTP debug-log path (`_header_display_value` / `_log_http_request`).
 
-## Phase 2 — Encapsulate breaker "is this server retryable" checks
+## Phase 2 — Encapsulate breaker "is this server retryable" checks (✅ Complete)
+
+**Shipped:** `ServerConnectionPool.is_reachable()` and
+`should_retry_discovery()` added per the exact contract below —
+`should_retry_discovery()` reproduces the full `state != "closed" and not
+is_open` expression, not just `not is_open`. All three call sites in
+`mcp_client_service.py` (`is_reachable`, `_any_server_marked_failed`,
+`_ensure_cache_populated`) now call the pool methods; no direct
+`.breaker.state`/`.breaker.is_open` reads remain outside
+`mcp_connection_pool.py` itself. `TestServerConnectionPoolReachability`
+added to `test_mcp_client_service.py`, covering `closed`, `open` before/
+after the recovery timeout, the `open`→`half_open` transition (and that
+`is_reachable()` never triggers it), and both `half_open`→`closed` and
+`half_open`→`open` transitions. Audit confirmed no other MCP-related
+caller reads breaker internals directly; `cache_backends`' own unrelated
+`CircuitBreaker` usage was left untouched.
 
 **Finding (altitude):** breaker internals leak into `MCPClientManager` at
 three call sites, each re-deriving retry/reachability semantics with
@@ -113,14 +128,14 @@ code, not a private MCP class). Its relevant semantics:
   `True`) once the recovery timeout has elapsed for a non-closed breaker.
 
 **Tasks:**
-- [ ] In `mcp_connection_pool.py`, add `ServerConnectionPool.is_reachable()`
+- [x] In `mcp_connection_pool.py`, add `ServerConnectionPool.is_reachable()`
       and `ServerConnectionPool.should_retry_discovery()` per the contract
       above, as the single source of truth for these two questions.
-- [ ] Update `mcp_client_service.py`'s three call sites
+- [x] Update `mcp_client_service.py`'s three call sites
       (`is_reachable`, `_any_server_marked_failed`,
       `_ensure_cache_populated`) to call the new pool methods instead of
       inspecting `.breaker.state`/`.breaker.is_open` directly.
-- [ ] Add/extend `mcp_connection_pool` unit tests covering the full state
+- [x] Add/extend `mcp_connection_pool` unit tests covering the full state
       machine both methods must report correctly: `closed` →
       (failure) → `open` → (time elapses, `should_retry_discovery()`
       called) → `half_open` → (success) → `closed`, and separately
@@ -128,7 +143,7 @@ code, not a private MCP class). Its relevant semantics:
       stays `False` for both `open` and `half_open`, and that calling
       `is_reachable()` itself never mutates `half_open`/`open` state
       (only `should_retry_discovery()` may).
-- [ ] Confirm no other **MCP-related** caller reads `.breaker.state`/
+- [x] Confirm no other **MCP-related** caller reads `.breaker.state`/
       `.breaker.is_open` directly and migrate any found. Scope the audit to
       `server/services/mcp_client_service.py`,
       `server/services/mcp_connection_pool.py`, and their tests —

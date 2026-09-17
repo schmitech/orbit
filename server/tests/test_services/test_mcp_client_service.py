@@ -1448,6 +1448,73 @@ class TestConnectionPooling:
 
 
 # ---------------------------------------------------------------------------
+# ServerConnectionPool.is_reachable() / should_retry_discovery()
+#
+# The breaker (services.cache_backends.base.CircuitBreaker) has three states:
+# closed -> open -> half_open -> closed. Reading `is_open` while `open` and
+# past its recovery timeout is what actually flips it to `half_open` — these
+# tests exercise that full transition, not just "non-closed".
+# ---------------------------------------------------------------------------
+
+class TestServerConnectionPoolReachability:
+
+    def _pool(self, recovery_timeout=30):
+        return pool_mod.ServerConnectionPool(
+            pool_size=2, idle_timeout=0, breaker_recovery_timeout=recovery_timeout
+        )
+
+    def test_closed_breaker_is_reachable_and_not_retryable(self):
+        pool = self._pool()
+        assert pool.is_reachable()
+        assert not pool.should_retry_discovery()
+
+    def test_open_breaker_before_recovery_timeout_is_unreachable_and_not_retryable(self):
+        pool = self._pool(recovery_timeout=9999)
+        pool.breaker.record_failure()
+        assert pool.breaker.state == "open"
+        assert not pool.is_reachable()
+        assert not pool.should_retry_discovery()
+
+    def test_open_breaker_past_recovery_timeout_becomes_retryable_and_transitions_to_half_open(self):
+        pool = self._pool(recovery_timeout=0)
+        pool.breaker.record_failure()
+        assert pool.breaker.state == "open"
+        # recovery_timeout=0 means elapsed immediately.
+        assert pool.should_retry_discovery()
+        assert pool.breaker.state == "half_open"
+        # Still not reachable while half_open.
+        assert not pool.is_reachable()
+
+    def test_is_reachable_never_mutates_open_or_half_open_state(self):
+        pool = self._pool(recovery_timeout=0)
+        pool.breaker.record_failure()
+        assert pool.breaker.state == "open"
+        assert not pool.is_reachable()
+        # is_reachable() must not itself trigger the open->half_open
+        # transition (only reading is_open, via should_retry_discovery, may).
+        assert pool.breaker.state == "open"
+
+    def test_half_open_success_closes_breaker(self):
+        pool = self._pool(recovery_timeout=0)
+        pool.breaker.record_failure()
+        assert pool.should_retry_discovery()
+        assert pool.breaker.state == "half_open"
+        pool.breaker.record_success()
+        assert pool.breaker.state == "closed"
+        assert pool.is_reachable()
+        assert not pool.should_retry_discovery()
+
+    def test_half_open_failure_reopens_breaker(self):
+        pool = self._pool(recovery_timeout=0)
+        pool.breaker.record_failure()
+        assert pool.should_retry_discovery()
+        assert pool.breaker.state == "half_open"
+        pool.breaker.record_failure()
+        assert pool.breaker.state == "open"
+        assert not pool.is_reachable()
+
+
+# ---------------------------------------------------------------------------
 # HTTP diagnostic hooks (_log_http_request / _log_http_response)
 #
 # These surface the real request/response the MCP SDK's Streamable HTTP

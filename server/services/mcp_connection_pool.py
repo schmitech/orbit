@@ -62,6 +62,19 @@ class ServerConnectionPool:
         # this (already discarded) pool's idle list and never get drained.
         self._draining = False
 
+    def is_reachable(self) -> bool:
+        """Whether the breaker is closed (server not currently marked as
+        failed). Pure read — never mutates breaker state."""
+        return self.breaker.state == "closed"
+
+    def should_retry_discovery(self) -> bool:
+        """Whether a previously-failed server is now eligible for a
+        rediscovery attempt: not closed (a closed breaker has nothing to
+        retry) and not still open (open, but past its recovery timeout,
+        transitions to half_open as a side effect of reading `is_open` —
+        that transition is what actually makes this return True)."""
+        return self.breaker.state != "closed" and not self.breaker.is_open
+
     def reset_breaker(self) -> None:
         """Start a fresh breaker without disturbing pooled connections —
         used when only discovery/retry state should reset (a config change

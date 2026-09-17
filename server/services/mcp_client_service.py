@@ -232,7 +232,7 @@ class MCPClientManager:
         """Whether the server's circuit breaker is currently closed (i.e. not
         marked as failed). Servers never discovered yet are reported reachable."""
         pool = self._pools.get(server_name)
-        return pool is None or pool.breaker.state == "closed"
+        return pool is None or pool.is_reachable()
 
     def server_instructions(self, server_name: str) -> Optional[str]:
         """The server's self-described `instructions` from MCP `initialize`,
@@ -460,8 +460,7 @@ class MCPClientManager:
             else:
                 server_names = [
                     name for name in sorted(self._server_configs)
-                    if self._pool_for(name).breaker.state != "closed"
-                    and not self._pool_for(name).breaker.is_open
+                    if self._pool_for(name).should_retry_discovery()
                 ]
                 if not server_names:
                     return
@@ -488,7 +487,7 @@ class MCPClientManager:
             logger.debug("Could not evaluate tool-skill catalog overflow: %s", exc)
 
     def _any_server_marked_failed(self) -> bool:
-        return any(p.breaker.state != "closed" for p in self._pools.values())
+        return any(not p.is_reachable() for p in self._pools.values())
 
     async def _discover_server(self, server_name: str) -> None:
         """List tools on one server, recording it as failed on any error.
