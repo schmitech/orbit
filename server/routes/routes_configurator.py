@@ -12,7 +12,7 @@ import json
 import uuid
 import logging
 from typing import Optional, Any
-from fastapi import FastAPI, Request, Depends, HTTPException, Response
+from fastapi import APIRouter, FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from pydantic import BaseModel, Field
@@ -137,17 +137,15 @@ class RouteConfigurator:
     
     def _create_health_service_dependency(self):
         """Create health service dependency."""
-        async def get_health_service(request: Request):
-            if not hasattr(request.app.state, 'health_service'):
-                from services.health_service import HealthService
-                request.app.state.health_service = HealthService(
-                    config=request.app.state.config,
-                    datasource_client=getattr(request.app.state, 'datasource_client', None),
-                    llm_client=request.app.state.llm_client
-                )
-            return request.app.state.health_service
-        return get_health_service
-    
+        async def build(request: Request):
+            from services.health_service import HealthService
+            return HealthService(
+                config=request.app.state.config,
+                datasource_client=getattr(request.app.state, 'datasource_client', None),
+                llm_client=request.app.state.llm_client
+            )
+        return self._create_lazy_service_dependency('health_service', build)
+
     def _resolve_api_key(self, request: Request) -> Optional[str]:
         """Return the raw API key from X-API-Key or Authorization: Bearer (in that order)."""
         header_name = self.config.get('api_keys', {}).get('header_name', 'X-API-Key')
@@ -163,63 +161,65 @@ class RouteConfigurator:
         async def get_api_key_service(request: Request):
             return request.app.state.api_key_service
         return get_api_key_service
-    
+
     def _create_prompt_service_dependency(self):
         """Create prompt service dependency."""
         async def get_prompt_service(request: Request):
             return request.app.state.prompt_service
         return get_prompt_service
-    
+
+    def _create_lazy_service_dependency(self, attr_name: str, build):
+        """Create a dependency that lazily constructs and caches a service on app.state.
+
+        `build` is an async factory receiving the request and returning an
+        initialized service instance.
+        """
+        async def get_service(request: Request):
+            if not hasattr(request.app.state, attr_name):
+                service = await build(request)
+                if hasattr(service, 'initialize'):
+                    await service.initialize()
+                setattr(request.app.state, attr_name, service)
+            return getattr(request.app.state, attr_name)
+        return get_service
+
     def _create_thread_service_dependency(self):
         """Create thread service dependency."""
-        async def get_thread_service(request: Request):
-            if not hasattr(request.app.state, 'thread_service'):
-                # Initialize thread service if not already initialized
-                from services.thread_service import ThreadService
-                # Use shared thread_dataset_service if available
-                thread_dataset_service = getattr(request.app.state, 'thread_dataset_service', None)
-                database_service = getattr(request.app.state, 'database_service', None)
-                thread_service = ThreadService(
-                    request.app.state.config,
-                    database_service=database_service,
-                    dataset_service=thread_dataset_service
-                )
-                await thread_service.initialize()
-                request.app.state.thread_service = thread_service
-            return request.app.state.thread_service
-        return get_thread_service
+        async def build(request: Request):
+            from services.thread_service import ThreadService
+            # Use shared thread_dataset_service if available
+            thread_dataset_service = getattr(request.app.state, 'thread_dataset_service', None)
+            database_service = getattr(request.app.state, 'database_service', None)
+            return ThreadService(
+                request.app.state.config,
+                database_service=database_service,
+                dataset_service=thread_dataset_service
+            )
+        return self._create_lazy_service_dependency('thread_service', build)
 
     def _create_feedback_service_dependency(self):
         """Create feedback service dependency."""
-        async def get_feedback_service(request: Request):
-            if not hasattr(request.app.state, 'feedback_service'):
-                from services.feedback_service import FeedbackService
-                database_service = getattr(request.app.state, 'database_service', None)
-                feedback_service = FeedbackService(
-                    request.app.state.config,
-                    database_service=database_service
-                )
-                await feedback_service.initialize()
-                request.app.state.feedback_service = feedback_service
-            return request.app.state.feedback_service
-        return get_feedback_service
+        async def build(request: Request):
+            from services.feedback_service import FeedbackService
+            database_service = getattr(request.app.state, 'database_service', None)
+            return FeedbackService(
+                request.app.state.config,
+                database_service=database_service
+            )
+        return self._create_lazy_service_dependency('feedback_service', build)
 
     def _create_autocomplete_service_dependency(self):
         """Create autocomplete service dependency."""
-        async def get_autocomplete_service(request: Request):
-            if not hasattr(request.app.state, 'autocomplete_service'):
-                # Initialize autocomplete service if not already initialized
-                from services.autocomplete_service import AutocompleteService
-                adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-                cache_service = getattr(request.app.state, 'cache_service', None)
-                autocomplete_service = AutocompleteService(
-                    request.app.state.config,
-                    adapter_manager=adapter_manager,
-                    cache_service=cache_service
-                )
-                request.app.state.autocomplete_service = autocomplete_service
-            return request.app.state.autocomplete_service
-        return get_autocomplete_service
+        async def build(request: Request):
+            from services.autocomplete_service import AutocompleteService
+            adapter_manager = getattr(request.app.state, 'adapter_manager', None)
+            cache_service = getattr(request.app.state, 'cache_service', None)
+            return AutocompleteService(
+                request.app.state.config,
+                adapter_manager=adapter_manager,
+                cache_service=cache_service
+            )
+        return self._create_lazy_service_dependency('autocomplete_service', build)
     
     def _create_session_validator(self):
         """Create session ID validation dependency."""
@@ -926,7 +926,6 @@ class RouteConfigurator:
             metadata = parent_message.get('metadata', {})
             if not isinstance(metadata, dict):
                 try:
-                    import json
                     if isinstance(metadata, str):
                         metadata = json.loads(metadata)
                     elif hasattr(metadata, '__dict__'):
@@ -940,7 +939,6 @@ class RouteConfigurator:
             # The metadata might be stored as metadata_json in SQLite
             if 'metadata_json' in parent_message:
                 try:
-                    import json
                     metadata_json = json.loads(parent_message['metadata_json'])
                     metadata.update(metadata_json)
                 except (json.JSONDecodeError, TypeError, AttributeError):
@@ -1157,49 +1155,23 @@ class RouteConfigurator:
         health_router = create_health_router()
         app.include_router(health_router)
         logger.debug("Health routes registered")
-        
-        # Include metrics routes (WebSocket + Prometheus)
-        try:
-            from routes.metrics_routes import create_metrics_router
-            metrics_router = create_metrics_router()
-            app.include_router(metrics_router)
-            logger.debug("Metrics routes registered")
-        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
-            logger.warning(f"Failed to register metrics routes: {e}")
 
-        # Include admin panel routes
-        try:
-            from routes.admin_panel_routes import create_admin_panel_router
-            admin_panel_router = create_admin_panel_router()
-            app.include_router(admin_panel_router)
-            logger.debug("Admin panel routes registered")
-        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
-            logger.warning(f"Failed to register admin panel routes: {e}")
-
-        # Include file routes for file upload and management
-        try:
-            from routes.file_routes import create_file_router
-            file_router = create_file_router()
-            app.include_router(file_router)
-            logger.debug("File routes registered")
-        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
-            logger.warning(f"Failed to register file routes: {e}")
-
-        # Include voice routes for real-time voice conversations
-        try:
-            from routes.voice_routes import router as voice_router
-            app.include_router(voice_router)
-            logger.debug("Voice routes registered")
-        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
-            logger.warning(f"Failed to register voice routes: {e}")
-
-        # Include A2A (Agent-to-Agent) protocol routes
-        try:
-            from routes.a2a_routes import create_a2a_router
-            a2a_router = create_a2a_router()
-            app.include_router(a2a_router)
-            logger.debug("A2A routes registered (/.well-known/agent.json, /a2a)")
-        except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
-            logger.warning(f"Failed to register A2A routes: {e}")
+        # Optional routers: registration failure must not crash app boot.
+        optional_routers = [
+            ("routes.metrics_routes", "create_metrics_router", "Metrics"),
+            ("routes.admin_panel_routes", "create_admin_panel_router", "Admin panel"),
+            ("routes.file_routes", "create_file_router", "File"),
+            ("routes.voice_routes", "router", "Voice"),
+            ("routes.a2a_routes", "create_a2a_router", "A2A (/.well-known/agent.json, /a2a)"),
+        ]
+        for module_path, attr_name, label in optional_routers:
+            try:
+                module = __import__(module_path, fromlist=[attr_name])
+                attr = getattr(module, attr_name)
+                router = attr if isinstance(attr, APIRouter) else attr()
+                app.include_router(router)
+                logger.debug(f"{label} routes registered")
+            except Exception as e:  # noqa: BLE001 - optional router registration must not crash app boot
+                logger.warning(f"Failed to register {label.lower()} routes: {e}")
     
     
