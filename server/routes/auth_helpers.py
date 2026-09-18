@@ -408,6 +408,26 @@ async def resolve_authenticated_user_id(request: Request, header_name: str = "au
     return str(auth_user_id).strip() if auth_user_id else None
 
 
+def resolve_api_key(
+    request: Request,
+    config: dict[str, Any],
+    allow_bearer_fallback: bool = True,
+) -> Optional[str]:
+    """Return the raw API key from X-API-Key or, if enabled, Authorization: Bearer.
+
+    `allow_bearer_fallback` must be False for call sites that only ever
+    accepted `X-API-Key` — enabling it there would newly accept
+    `Authorization: Bearer <token>` as an API key, a behavior expansion.
+    """
+    header_name = config.get('api_keys', {}).get('header_name', 'X-API-Key')
+    api_key = request.headers.get(header_name)
+    if not api_key and allow_bearer_fallback:
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            api_key = auth_header[len('Bearer '):]
+    return api_key
+
+
 async def authenticate_websocket_admin(websocket: WebSocket) -> bool:
     """Validate admin auth for WebSocket connections."""
     auth_service = getattr(websocket.app.state, 'auth_service', None)

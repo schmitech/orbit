@@ -15,7 +15,17 @@ lazy-init-on-`app.state` service dependencies (health, thread, feedback,
 autocomplete) and the five optional-router `try/except` blocks in
 `_include_admin_routes`.
 
-## Phase 1 — Consolidate API key resolution (bearer-fallback opt-in only)
+## Phase 1 — Consolidate API key resolution (bearer-fallback opt-in only) — COMPLETE
+
+Implemented: `resolve_api_key(request, config, allow_bearer_fallback)` added to
+`routes/auth_helpers.py`; `RouteConfigurator._resolve_api_key` and the inline
+extraction in `get_api_key` now delegate to it with the same bearer-fallback
+condition each enforced before. `auth_dependencies.permission_or_api_key`,
+`file_routes.py`, and `discovery_routes.py` were left unmigrated per the
+"leave unchanged" option below — their required/optional `X-API-Key`-only
+`Header(...)` contracts are untouched. Covered by
+`server/tests/test_routes/test_resolve_api_key.py`; full `test_routes/` suite
+(378 tests) passes unchanged.
 
 **Problem.** `_resolve_api_key` (routes_configurator.py) re-derives "X-API-Key
 header, else `Authorization: Bearer`" and duplicates the equivalent inline

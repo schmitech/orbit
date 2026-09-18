@@ -24,6 +24,7 @@ from ai_services.services.inference_service import OpenAIResponseFormatter
 from routes.auth_helpers import (
     resolve_authenticated_user,
     resolve_authenticated_user_id,
+    resolve_api_key,
     is_authenticated_user_required,
 )
 
@@ -148,13 +149,7 @@ class RouteConfigurator:
 
     def _resolve_api_key(self, request: Request) -> Optional[str]:
         """Return the raw API key from X-API-Key or Authorization: Bearer (in that order)."""
-        header_name = self.config.get('api_keys', {}).get('header_name', 'X-API-Key')
-        api_key = request.headers.get(header_name)
-        if not api_key:
-            auth_header = request.headers.get('Authorization', '')
-            if auth_header.startswith('Bearer '):
-                api_key = auth_header[len('Bearer '):]
-        return api_key
+        return resolve_api_key(request, self.config, allow_bearer_fallback=True)
 
     def _create_api_key_service_dependency(self):
         """Create API key service dependency."""
@@ -367,12 +362,7 @@ class RouteConfigurator:
             # Get API key from X-API-Key or Authorization: Bearer for OpenAI-compatible
             # clients. In strict mode, Authorization: Bearer is reserved for the user
             # token and must never be re-read as an API key, valid or not.
-            header_name = config.get('api_keys', {}).get('header_name', 'X-API-Key')
-            api_key = request.headers.get(header_name)
-            if not api_key and not global_strict:
-                auth_header = request.headers.get('Authorization', '')
-                if auth_header.startswith('Bearer '):
-                    api_key = auth_header[len('Bearer '):]
+            api_key = resolve_api_key(request, config, allow_bearer_fallback=not global_strict)
 
             if is_health and not require_for_health:
                 return "default", None
