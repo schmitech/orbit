@@ -64,6 +64,7 @@ from bin.orbit.commands.admin import AdminReloadAdaptersCommand, AdminReloadTemp
 from bin.orbit.commands.quota import (
     QuotaGetCommand, QuotaSetCommand, QuotaResetCommand, QuotaReportCommand
 )
+from bin.orbit.commands.mcp import MCPLoginCommand, MCPStatusCommand
 
 # Version information
 __version__ = "2.17.11"
@@ -264,6 +265,9 @@ Report issues at: https://github.com/schmitech/orbit/issues
 
         # Quota management commands
         self._add_quota_commands(subparsers)
+
+        # MCP OAuth login/status commands
+        self._add_mcp_commands(subparsers)
 
         return parser
     
@@ -606,6 +610,25 @@ Report issues at: https://github.com/schmitech/orbit/issues
         report_cmd = QuotaReportCommand(self._get_api_service(), self.formatter)
         report_cmd.add_arguments(report_parser)
         report_parser.set_defaults(func=lambda args, cmd=report_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
+
+    def _add_mcp_commands(self, subparsers):
+        """Add MCP OAuth login/status commands.
+
+        Unlike every other command group, these are local-filesystem-only
+        (no api_service) — see bin/orbit/commands/mcp.py for why.
+        """
+        mcp_parser = subparsers.add_parser('mcp', help='Manage MCP server OAuth login')
+        mcp_subparsers = mcp_parser.add_subparsers(dest='mcp_command', help='MCP operations', required=False)
+
+        login_parser = mcp_subparsers.add_parser('login', help='Log in to an OAuth-protected MCP server')
+        login_cmd = MCPLoginCommand(self.formatter)
+        login_cmd.add_arguments(login_parser)
+        login_parser.set_defaults(func=lambda args, cmd=login_cmd: cmd.execute(args))
+
+        status_parser = mcp_subparsers.add_parser('status', help='Show OAuth login status for MCP servers')
+        status_cmd = MCPStatusCommand(self.formatter)
+        status_cmd.add_arguments(status_parser)
+        status_parser.set_defaults(func=lambda args, cmd=status_cmd: cmd.execute(args))
 
     def execute(self, args):
         """Execute the parsed command."""

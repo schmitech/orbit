@@ -134,6 +134,48 @@ supports exactly those two — the legacy HTTP+SSE transport is not configurable
 > transport. See the [MCP transport
 > specification](https://modelcontextprotocol.io/specification/draft/basic/transports).
 
+**OAuth 2.0 servers (browser login, no pre-minted token)** — some hosted MCP
+servers (Google Drive, Cloudflare, Firecrawl, Microsoft 365, and similar)
+don't accept a static bearer token at all; they require a one-time
+browser-based OAuth login. ORBIT stores the resulting token and
+auto-refreshes it **when the authorization server issues a
+`refresh_token`** — not every provider does by default (Google's web OAuth
+flow, for example, only returns one when offline access is explicitly
+requested; see [playbook-mcp-oauth-login.md](playbook-mcp-oauth-login.md)
+for the current limitation this creates). Use `auth:` instead of `headers:`
+for these — the two are mutually exclusive on the same server:
+
+```yaml
+- name: "google-drive"
+  transport: "http"
+  url: "https://drivemcp.googleapis.com/mcp/v1"
+  auth:
+    type: "oauth2"
+    scopes: ["https://www.googleapis.com/auth/drive"]
+    client_id: "${GOOGLE_OAUTH_CLIENT_ID}"
+    client_secret: "${GOOGLE_OAUTH_CLIENT_SECRET}"
+    # client_id/client_secret and redirect_port are optional in general —
+    # omit client_id to let a provider that supports RFC 7591 dynamic
+    # client registration register one automatically. Google does not, so
+    # both are required here — see playbook-mcp-oauth-login.md for the
+    # exact Google Cloud Console setup this example needs.
+  enabled: true
+```
+
+Then run the login once from the CLI:
+
+```bash
+./bin/orbit.sh mcp login google-drive   # opens a browser, completes the OAuth flow
+./bin/orbit.sh mcp status               # shows whether a token is stored (not whether it's still valid)
+```
+
+No config field ever holds a raw access/refresh token — those live only in
+`~/.orbit/mcp_oauth/<server_name>.json`, written by `mcp login` and read/
+refreshed automatically by the running server. See
+[playbook-mcp-oauth-login.md](playbook-mcp-oauth-login.md) for the full
+setup and verification walkthrough, including what a missing/expired login
+looks like in the logs.
+
 Secret values should always use `${ENV_VAR}` syntax — they are expanded at startup and never written to logs.
 
 > **Import into main config** — if `mcp_clients.yaml` is a standalone file, import it from `config/config.yaml`:
@@ -1180,6 +1222,15 @@ always-on opportunistic mode for this adapter.
     Authorization: "ApiKey ${MY_API_KEY}"
   ```
 
+### "requires OAuth login" error / `oauth2` server never discovers tools
+
+The server logs a clear message pointing at `./bin/orbit.sh mcp login <name>`
+whenever an `auth: {type: oauth2}` server has no valid stored token (never
+logged in, or a rejected/revoked refresh token). Run `mcp login <name>`,
+then `mcp status` to confirm a token is stored, and retry. See
+[playbook-mcp-oauth-login.md](playbook-mcp-oauth-login.md) for the full
+walkthrough and troubleshooting.
+
 ### HTTP transport: connection refused or timeout
 
 - Confirm the server is reachable at the configured `url`.
@@ -1328,7 +1379,11 @@ Key test classes:
 | Skill adapter config | `config/adapters/mcp-agent.yaml` | `mcp-agent-chat` adapter; exposes as `mcp-agent` skill |
 | Server config template | `config/mcp_clients.yaml` | Defaults plus example server definitions and per-client overrides |
 | Adapter registry | `config/adapters.yaml` | Imports `mcp-agent.yaml` |
+| OAuth login/status CLI | `bin/orbit/commands/mcp.py` | `mcp login`/`mcp status`; local-filesystem-only, no admin API involved |
+| OAuth token storage | `server/services/mcp_oauth_token_storage.py` | `FileTokenStorage`; shared by the CLI and the running server |
+| OAuth connection wiring | `server/services/mcp_client_service.py` | `MCPClientManager._build_oauth_provider`, `_find_oauth_error` |
 | Design document | `docs/adapters/mcp-client-skill.md` | Original architecture design and phased plan |
+| Admin panel OAuth roadmap | `docs/roadmap/mcp-oauth-admin-panel.md` | UI/status-model work not yet shipped — CLI-only today |
 
 ### `ProcessingContext` additions
 

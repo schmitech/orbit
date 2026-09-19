@@ -125,7 +125,7 @@ def _validate_mcp_settings(settings: Any, overridable: dict[str, Any], *, allow_
 # the stdio branch builds a subprocess from command/args/env alone and never
 # looks at headers. Editing it for a stdio server would silently persist a
 # value the runtime never consumes.
-_HTTP_CONNECTION_KEYS = {"url", "headers"}
+_HTTP_CONNECTION_KEYS = {"url", "headers", "auth"}
 _STDIO_CONNECTION_KEYS = {"command", "args", "env"}
 _MCP_CONNECTION_URL_MAX_LENGTH = 2048
 _MCP_CONNECTION_COMMAND_MAX_LENGTH = 512
@@ -137,6 +137,17 @@ _MCP_CONNECTION_ENV_VALUE_MAX_LENGTH = 8192
 _MCP_CONNECTION_HEADER_MAX_ENTRIES = 32
 _MCP_CONNECTION_HEADER_KEY_MAX_LENGTH = 256
 _MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH = 8192
+
+# auth is http-only, like headers, and mutually exclusive with it — see
+# MCPClientManager._build_oauth_provider, which raises if a server config
+# has both. type is the only supported value today (matches
+# _build_oauth_provider); scopes/client_id/client_secret/redirect_port map
+# 1:1 onto config/mcp_clients.yaml's auth: block fields.
+_MCP_AUTH_TYPES = {"oauth2"}
+_MCP_AUTH_FIELDS = {"type", "scopes", "client_id", "client_secret", "redirect_port"}
+_MCP_AUTH_SCOPE_MAX_COUNT = 32
+_MCP_AUTH_SCOPE_MAX_LENGTH = 512
+_MCP_AUTH_CLIENT_FIELD_MAX_LENGTH = 512
 _MCP_ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _MCP_SERVER_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 # Map keys are written unquoted into mcp_clients.yaml (only values are
@@ -259,6 +270,37 @@ def _validate_mcp_headers(headers: Any) -> None:
             )
 
 
+def _validate_mcp_auth(auth: Any) -> None:
+    if auth is None:
+        return
+    if not isinstance(auth, dict):
+        raise HTTPException(status_code=422, detail="'auth' must be an object")
+    unknown = sorted(set(auth) - _MCP_AUTH_FIELDS)
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown auth field(s): {', '.join(unknown)}")
+    if auth.get("type") not in _MCP_AUTH_TYPES:
+        raise HTTPException(status_code=422, detail="'auth.type' must be 'oauth2'")
+    if "scopes" in auth:
+        scopes = auth["scopes"]
+        if not isinstance(scopes, list) or len(scopes) > _MCP_AUTH_SCOPE_MAX_COUNT:
+            raise HTTPException(
+                status_code=422,
+                detail=f"'auth.scopes' must be a list of at most {_MCP_AUTH_SCOPE_MAX_COUNT} strings",
+            )
+        for scope in scopes:
+            if not isinstance(scope, str) or not scope or len(scope) > _MCP_AUTH_SCOPE_MAX_LENGTH:
+                raise HTTPException(status_code=422, detail="'auth.scopes' entries must be non-empty strings")
+    for key in ("client_id", "client_secret"):
+        if key in auth:
+            value = auth[key]
+            if not isinstance(value, str) or not value or len(value) > _MCP_AUTH_CLIENT_FIELD_MAX_LENGTH:
+                raise HTTPException(status_code=422, detail=f"'auth.{key}' must be a non-empty string")
+    if "redirect_port" in auth:
+        port = auth["redirect_port"]
+        if isinstance(port, bool) or not isinstance(port, int) or not (1 <= port <= 65535):
+            raise HTTPException(status_code=422, detail="'auth.redirect_port' must be an integer between 1 and 65535")
+
+
 def _validate_new_mcp_server(body: Any, block: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize the payload accepted by POST /mcp/servers."""
     if not isinstance(body, dict):
@@ -333,6 +375,21 @@ def _validate_mcp_connection(entry: dict[str, Any], connection: Any) -> None:
         _validate_mcp_env(connection["env"])
     if "headers" in connection:
         _validate_mcp_headers(connection["headers"])
+    if "auth" in connection:
+        _validate_mcp_auth(connection["auth"])
+
+    # Mutual exclusion must be checked against the *resulting* state, not
+    # just the incoming payload: an update that sends only `auth` must still
+    # be rejected if the entry already has `headers` on disk (and a partial
+    # update leaves it there) — see MCPClientManager._build_oauth_provider,
+    # which enforces the same rule server-side at connection time.
+    resulting_headers = connection["headers"] if "headers" in connection else entry.get("headers")
+    resulting_auth = connection["auth"] if "auth" in connection else entry.get("auth")
+    if resulting_headers and resulting_auth:
+        raise HTTPException(
+            status_code=422,
+            detail="'headers' and 'auth' are mutually exclusive — use one or the other.",
+        )
 
 
 def _mcp_endpoint_label(server: dict[str, Any]) -> str:
@@ -428,6 +485,7 @@ async def list_mcp_servers(request: Request):
             connection = {
                 "url": entry.get("url", ""),
                 "headers": entry.get("headers") or {},
+                "auth": entry.get("auth"),
             }
         elif transport == "stdio":
             connection = {
@@ -773,6 +831,48 @@ def _patch_yaml_map(lines: list, start: int, end: int, key: str, target_map: dic
     return lines
 
 
+def _render_yaml_scalar_or_list(value: Any) -> str:
+    """Render one auth: subvalue the same way _patch_yaml_scalars renders a
+    top-level scalar — bool/int unquoted, string quoted — plus a flow-style
+    list for `scopes`. Keeps `redirect_port` an int on disk so callers
+    (MCPClientManager._build_oauth_provider, bin/orbit/commands/mcp.py) that
+    pass it straight into HTTPServer(...) don't receive a str.
+    """
+    if isinstance(value, list):
+        return json.dumps(value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return json.dumps(str(value))
+
+
+def _patch_yaml_auth(lines: list, start: int, end: int, auth_cfg: dict[str, Any] | None, indent: str) -> list:
+    """Replace a nested `auth:` block (oauth2 config) with `auth_cfg` in full.
+
+    Unlike _patch_yaml_map, subvalues may be a scalar (type, client_id,
+    client_secret, redirect_port) or a list (scopes) rendered flow-style —
+    so the whole block is dropped and rewritten rather than patched
+    line-by-line. `auth_cfg` of None/empty removes the block entirely.
+    """
+    sub_indent = indent + "  "
+    header, body_end = _find_block_header(lines, start, end, "auth", indent)
+    if header >= 0:
+        del lines[header:body_end]
+        end -= (body_end - header)
+
+    if not auth_cfg:
+        return lines
+
+    new_lines = [f"{indent}auth:"]
+    for subkey, value in auth_cfg.items():
+        new_lines.append(f"{sub_indent}{subkey}: {_render_yaml_scalar_or_list(value)}")
+
+    insert_at = header if header >= 0 else _last_key_line(lines, start, end, indent)
+    lines[insert_at:insert_at] = new_lines
+    return lines
+
+
 def _patch_yaml_list(lines: list, start: int, end: int, key: str, values: Any, indent: str) -> list:
     """Rewrite a flow- or block-style YAML list as one flow-style line.
 
@@ -842,6 +942,10 @@ def _insert_mcp_server(lines: list, entry: dict[str, Any]) -> list:
         if entry.get("headers"):
             rendered.append(f"{field_indent}headers:")
             rendered.extend(f"{field_indent}  {key}: {json.dumps(str(value))}" for key, value in entry["headers"].items())
+        if entry.get("auth"):
+            rendered.append(f"{field_indent}auth:")
+            for key, value in entry["auth"].items():
+                rendered.append(f"{field_indent}  {key}: {_render_yaml_scalar_or_list(value)}")
     else:
         rendered.append(f"{field_indent}command: {json.dumps(entry['command'])}")
         if "args" in entry:
@@ -986,7 +1090,13 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
 
     map_fields = {k: connection[k] for k in ("env", "headers") if k in connection}
     list_fields = {k: connection[k] for k in ("args",) if k in connection}
-    scalar_connection = {k: v for k, v in connection.items() if k not in map_fields and k not in list_fields}
+    # auth isn't a flat string map (scopes is a list), so it can't go
+    # through _patch_yaml_map like env/headers — it gets its own patcher.
+    nested_fields = {k: connection[k] for k in ("auth",) if k in connection}
+    scalar_connection = {
+        k: v for k, v in connection.items()
+        if k not in map_fields and k not in list_fields and k not in nested_fields
+    }
 
     values: dict[str, Any] = dict(settings)
     values.update(scalar_connection)
@@ -1006,6 +1116,12 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
         name_line = lines[start]
         indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
         lines = _patch_yaml_list(lines, start, end, list_key, list_values, indent)
+
+    if "auth" in nested_fields:
+        start, end = _find_adapter_block(lines, server_name)
+        name_line = lines[start]
+        indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
+        lines = _patch_yaml_auth(lines, start, end, nested_fields["auth"], indent)
 
     new_content = "\n".join(lines)
 

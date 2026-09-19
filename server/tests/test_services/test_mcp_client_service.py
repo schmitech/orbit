@@ -901,6 +901,213 @@ class TestExpandHeaders:
         headers = MCPClientManager._expand_headers({"headers": {"X-Number": 42}})
         assert headers["X-Number"] == "42"
 
+
+# ---------------------------------------------------------------------------
+# _build_oauth_provider
+# ---------------------------------------------------------------------------
+
+class TestBuildOAuthProvider:
+    @pytest.mark.asyncio
+    async def test_no_auth_block_returns_none(self):
+        assert await MCPClientManager._build_oauth_provider(
+            "s", {"transport": "http", "url": "https://example.com/mcp"}, "https://example.com/mcp"
+        ) is None
+
+    @pytest.mark.asyncio
+    async def test_non_oauth2_auth_type_returns_none(self):
+        assert await MCPClientManager._build_oauth_provider(
+            "s", {"auth": {"type": "other"}}, "https://example.com/mcp"
+        ) is None
+
+    @pytest.mark.asyncio
+    async def test_headers_and_auth_together_raises(self):
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            await MCPClientManager._build_oauth_provider(
+                "s",
+                {"headers": {"Authorization": "Bearer x"}, "auth": {"type": "oauth2"}},
+                "https://example.com/mcp",
+            )
+
+    @pytest.mark.asyncio
+    async def test_oauth2_config_builds_provider_with_no_handlers(self):
+        from mcp.client.auth import OAuthClientProvider
+
+        provider = await MCPClientManager._build_oauth_provider(
+            "google-drive",
+            {"auth": {"type": "oauth2", "scopes": ["a", "b"], "redirect_port": 9999}},
+            "https://drivemcp.googleapis.com/mcp/v1",
+        )
+        assert isinstance(provider, OAuthClientProvider)
+        assert provider.context.redirect_handler is None
+        assert provider.context.callback_handler is None
+        assert provider.context.client_metadata.scope == "a b"
+        assert str(provider.context.client_metadata.redirect_uris[0]) == "http://127.0.0.1:9999/callback"
+
+    @pytest.mark.asyncio
+    async def test_prewarms_expiry_from_a_token_already_on_disk(self, tmp_path):
+        # Regression test: the SDK's own lazy _initialize() loads
+        # current_tokens but never calls update_token_expiry(), so a token
+        # restored after a restart must have its real expiry set here, or
+        # it's treated as permanently valid until the first 401 (which then
+        # fails, since this process has no redirect/callback handler).
+        from mcp.shared.auth import OAuthToken
+        from services.mcp_oauth_token_storage import FileTokenStorage
+
+        storage = FileTokenStorage("google-drive", state_dir=tmp_path)
+        await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            provider = await MCPClientManager._build_oauth_provider(
+                "google-drive",
+                {"auth": {"type": "oauth2"}},
+                "https://drivemcp.googleapis.com/mcp/v1",
+            )
+
+        assert provider.context.current_tokens.access_token == "a"
+        assert provider.context.token_expiry_time is not None
+        assert provider.context.is_token_valid()
+        assert provider._initialized is True
+
+    @pytest.mark.asyncio
+    async def test_prewarms_oauth_metadata_from_disk(self, tmp_path):
+        # Regression test: the SDK only discovers authorization-server
+        # metadata (notably token_endpoint) in-memory during a live
+        # authorization flow and never persists it — without restoring it
+        # here, a refresh after a restart falls back to
+        # OAuthClientProvider's default "<MCP resource origin>/token",
+        # which is wrong whenever the real token endpoint is on a different
+        # origin (e.g. Google Drive).
+        from mcp.shared.auth import OAuthMetadata, OAuthToken
+        from services.mcp_oauth_token_storage import FileTokenStorage
+
+        storage = FileTokenStorage("google-drive", state_dir=tmp_path)
+        await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
+        await storage.set_oauth_metadata(
+            OAuthMetadata(
+                issuer="https://accounts.google.com",
+                authorization_endpoint="https://accounts.google.com/o/oauth2/auth",
+                token_endpoint="https://oauth2.googleapis.com/token",
+                response_types_supported=["code"],
+            )
+        )
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            provider = await MCPClientManager._build_oauth_provider(
+                "google-drive",
+                {"auth": {"type": "oauth2"}},
+                "https://drivemcp.googleapis.com/mcp/v1",
+            )
+
+        assert str(provider.context.oauth_metadata.token_endpoint) == "https://oauth2.googleapis.com/token"
+
+    @pytest.mark.asyncio
+    async def test_no_oauth_metadata_on_disk_leaves_it_unset(self, tmp_path):
+        from mcp.shared.auth import OAuthToken
+        from services.mcp_oauth_token_storage import FileTokenStorage
+
+        storage = FileTokenStorage("google-drive", state_dir=tmp_path)
+        await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            provider = await MCPClientManager._build_oauth_provider(
+                "google-drive",
+                {"auth": {"type": "oauth2"}},
+                "https://drivemcp.googleapis.com/mcp/v1",
+            )
+
+        assert provider.context.oauth_metadata is None
+
+    @pytest.mark.asyncio
+    async def test_static_client_id_skips_dynamic_registration(self, tmp_path):
+        # A preregistered client_id must be used as-is: OAuthClientProvider
+        # only performs RFC 7591 dynamic client registration when
+        # context.client_info is still unset at that step, so presetting it
+        # here is what actually opts out.
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            provider = await MCPClientManager._build_oauth_provider(
+                "google-drive",
+                {"auth": {"type": "oauth2", "client_id": "preregistered-id", "client_secret": "shh"}},
+                "https://drivemcp.googleapis.com/mcp/v1",
+            )
+
+        assert provider.context.client_info.client_id == "preregistered-id"
+        assert provider.context.client_info.client_secret == "shh"
+        assert provider.context.client_info.token_endpoint_auth_method == "client_secret_post"
+        assert provider._initialized is True
+
+    @pytest.mark.asyncio
+    async def test_static_client_id_without_secret_is_a_public_client(self, tmp_path):
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            provider = await MCPClientManager._build_oauth_provider(
+                "google-drive",
+                {"auth": {"type": "oauth2", "client_id": "preregistered-id"}},
+                "https://drivemcp.googleapis.com/mcp/v1",
+            )
+
+        assert provider.context.client_info.client_id == "preregistered-id"
+        assert provider.context.client_info.client_secret is None
+        assert provider.context.client_info.token_endpoint_auth_method is None
+
+    @pytest.mark.asyncio
+    async def test_no_client_id_falls_back_to_stored_client_info(self, tmp_path):
+        # No static client_id configured: whatever a prior dynamic
+        # registration (run during `mcp login`) persisted to disk should
+        # still be honored, so registration doesn't happen again.
+        from mcp.shared.auth import OAuthClientInformationFull
+        from services.mcp_oauth_token_storage import FileTokenStorage
+
+        storage = FileTokenStorage("google-drive", state_dir=tmp_path)
+        await storage.set_client_info(
+            OAuthClientInformationFull(client_id="dynamically-registered", redirect_uris=[])
+        )
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            provider = await MCPClientManager._build_oauth_provider(
+                "google-drive",
+                {"auth": {"type": "oauth2"}},
+                "https://drivemcp.googleapis.com/mcp/v1",
+            )
+
+        assert provider.context.client_info.client_id == "dynamically-registered"
+
+
+# ---------------------------------------------------------------------------
+# _find_oauth_error
+# ---------------------------------------------------------------------------
+
+class TestFindOAuthError:
+    def test_finds_bare_oauth_flow_error(self):
+        from mcp.client.auth.exceptions import OAuthFlowError
+
+        exc = OAuthFlowError("no token")
+        assert MCPClientManager._find_oauth_error(exc) is exc
+
+    def test_returns_none_for_unrelated_exception(self):
+        assert MCPClientManager._find_oauth_error(ValueError("nope")) is None
+
+    def test_finds_oauth_error_nested_in_exception_group(self):
+        # streamable_http_client runs requests inside an anyio task group,
+        # so an OAuth failure during connection setup can arrive wrapped in
+        # a BaseExceptionGroup rather than directly.
+        from mcp.client.auth.exceptions import OAuthFlowError
+
+        inner = OAuthFlowError("no token")
+        group = BaseExceptionGroup("transport failed", [RuntimeError("unrelated"), inner])
+        assert MCPClientManager._find_oauth_error(group) is inner
+
+    def test_finds_oauth_error_nested_two_levels_deep(self):
+        from mcp.client.auth.exceptions import OAuthFlowError
+
+        inner = OAuthFlowError("no token")
+        nested_group = BaseExceptionGroup("inner group", [inner])
+        outer_group = BaseExceptionGroup("outer group", [RuntimeError("unrelated"), nested_group])
+        assert MCPClientManager._find_oauth_error(outer_group) is inner
+
+    def test_returns_none_for_exception_group_with_no_oauth_error(self):
+        group = BaseExceptionGroup("transport failed", [RuntimeError("a"), ValueError("b")])
+        assert MCPClientManager._find_oauth_error(group) is None
+
+
 # ---------------------------------------------------------------------------
 # Transport selection in _open_session
 # ---------------------------------------------------------------------------

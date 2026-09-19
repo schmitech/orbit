@@ -99,7 +99,7 @@ mcp_clients:
       command: "npx"
       args: ["-y", "@modelcontextprotocol/server-filesystem", "${ORBIT_DOCS_DIR:-/orbit/docs}"]
       enabled: true
-      allow_opportunistic: true
+      allow_opportunistic: false
       tool_timeout: 60
       max_tool_iterations: 8
     
@@ -112,13 +112,13 @@ mcp_clients:
     # 
     - name: "business-sample"
       transport: "http"
-      url: "http://15.222.5.197:8080/mcp"
+      url: "http://localhost:8080/mcp"
       headers:
         Authorization: "Bearer ${MCP_TOKEN}"
       enabled: true
       # Per-client overrides of the defaults above — remote CRM calls are
       # slower and this server is safe enough to expose on ordinary turns.
-      allow_opportunistic: true
+      allow_opportunistic: false
 
     # ════════════════════════════════════════════════════════════════════════
     # DEVELOPER WORKFLOW
@@ -256,15 +256,18 @@ mcp_clients:
 
     # ── Google Drive (remote HTTP / OAuth 2.0) ────────────────────────────
     # Search, read, and create files in Google Drive.
-    # Google provides this as a remote HTTP MCP server using OAuth 2.0. ORBIT's
-    # MCP client does not initiate OAuth login flows, so supply and refresh a
-    # valid access token outside ORBIT before enabling this example.
+    # Google provides this as a remote HTTP MCP server using OAuth 2.0. Use
+    # `auth: {type: oauth2}` instead of a static `headers:` bearer token —
+    # run `./bin/orbit.sh mcp login google-drive` once to complete the
+    # browser login; ORBIT then stores and auto-refreshes the token itself.
+    # `auth:` and `headers:` are mutually exclusive on the same server.
     # Docs: https://developers.google.com/workspace/drive/api/guides/configure-mcp-server
     # - name: "google-drive"
     #   transport: "http"
     #   url: "https://drivemcp.googleapis.com/mcp/v1"
-    #   headers:
-    #     Authorization: "Bearer ${GOOGLE_DRIVE_ACCESS_TOKEN}"
+    #   auth:
+    #     type: "oauth2"
+    #     scopes: ["https://www.googleapis.com/auth/drive"]
     #   enabled: false
 
     # ── Notion (stdio) ────────────────────────────────────────────────────

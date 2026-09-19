@@ -339,6 +339,116 @@ class TestValidateMcpConnectionHeaders:
         with pytest.raises(HTTPException):
             admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": headers})
 
+
+class TestValidateMcpConnectionAuth:
+    def test_accepts_oauth2_auth_for_http(self):
+        admin_routes._validate_mcp_connection(
+            {"transport": "http"}, {"auth": {"type": "oauth2", "scopes": ["a", "b"]}}
+        )
+
+    def test_rejects_auth_for_stdio(self):
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection(
+                {"transport": "stdio"}, {"auth": {"type": "oauth2"}}
+            )
+        assert exc.value.status_code == 422
+
+    def test_null_auth_is_allowed(self):
+        admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": None})
+
+    def test_rejects_non_dict_auth(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": "oauth2"})
+
+    def test_rejects_unsupported_auth_type(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": {"type": "basic"}})
+
+    def test_rejects_missing_auth_type(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": {"scopes": ["a"]}})
+
+    def test_rejects_unknown_auth_field(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"}, {"auth": {"type": "oauth2", "bogus": "x"}}
+            )
+
+    def test_rejects_non_list_scopes(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"}, {"auth": {"type": "oauth2", "scopes": "a b"}}
+            )
+
+    def test_rejects_non_string_scope_entry(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"}, {"auth": {"type": "oauth2", "scopes": [1]}}
+            )
+
+    def test_rejects_empty_client_id(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"}, {"auth": {"type": "oauth2", "client_id": ""}}
+            )
+
+    def test_accepts_client_id_and_secret(self):
+        admin_routes._validate_mcp_connection(
+            {"transport": "http"},
+            {"auth": {"type": "oauth2", "client_id": "abc", "client_secret": "def"}},
+        )
+
+    def test_rejects_out_of_range_redirect_port(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"}, {"auth": {"type": "oauth2", "redirect_port": 70000}}
+            )
+
+    def test_rejects_bool_redirect_port(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"}, {"auth": {"type": "oauth2", "redirect_port": True}}
+            )
+
+    def test_accepts_valid_redirect_port(self):
+        admin_routes._validate_mcp_connection(
+            {"transport": "http"}, {"auth": {"type": "oauth2", "redirect_port": 8765}}
+        )
+
+
+class TestValidateMcpConnectionMutualExclusion:
+    def test_rejects_auth_and_headers_in_same_payload(self):
+        with pytest.raises(HTTPException) as exc:
+            admin_routes._validate_mcp_connection(
+                {"transport": "http"},
+                {"headers": {"Authorization": "Bearer x"}, "auth": {"type": "oauth2"}},
+            )
+        assert exc.value.status_code == 422
+
+    def test_rejects_new_auth_when_entry_already_has_headers(self):
+        # entry reflects the on-disk state before this update is applied —
+        # an update sending only `auth` must still be rejected if `headers`
+        # would still be present afterward.
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "http", "headers": {"Authorization": "Bearer x"}},
+                {"auth": {"type": "oauth2"}},
+            )
+
+    def test_rejects_new_headers_when_entry_already_has_auth(self):
+        with pytest.raises(HTTPException):
+            admin_routes._validate_mcp_connection(
+                {"transport": "http", "auth": {"type": "oauth2"}},
+                {"headers": {"Authorization": "Bearer x"}},
+            )
+
+    def test_clearing_headers_while_setting_auth_is_allowed(self):
+        admin_routes._validate_mcp_connection(
+            {"transport": "http", "headers": {"Authorization": "Bearer x"}},
+            {"headers": {}, "auth": {"type": "oauth2"}},
+        )
+
+
 class TestValidateMcpSettings:
     def test_rejects_non_dict_settings(self):
         overridable = admin_routes._mcp_overridable()
@@ -465,6 +575,68 @@ class TestPatchYamlMap:
         assert server.get("headers") != {"X #evil": "value"}
 
 
+class TestPatchYamlAuth:
+    def _block(self, lines):
+        return lines, 0, len(lines)
+
+    def test_creates_block_when_absent(self):
+        lines, start, end = self._block(["  - name: \"x\"", "    url: \"http://x/mcp\""])
+        result = admin_routes._patch_yaml_auth(
+            lines, start, end, {"type": "oauth2", "scopes": ["a", "b"]}, "    "
+        )
+        assert result == [
+            '  - name: "x"',
+            '    url: "http://x/mcp"',
+            "    auth:",
+            '      type: "oauth2"',
+            '      scopes: ["a", "b"]',
+        ]
+
+    def test_none_on_absent_block_is_a_noop(self):
+        lines, start, end = self._block(["  - name: \"x\"", "    url: \"http://x/mcp\""])
+        result = admin_routes._patch_yaml_auth(lines, start, end, None, "    ")
+        assert result == ["  - name: \"x\"", "    url: \"http://x/mcp\""]
+
+    def test_replaces_existing_block(self):
+        lines, start, end = self._block(
+            ["  - name: \"x\"", "    auth:", '      type: "oauth2"', '      scopes: ["old"]', "    enabled: true"]
+        )
+        result = admin_routes._patch_yaml_auth(
+            lines, start, end, {"type": "oauth2", "scopes": ["new"], "redirect_port": 9000}, "    "
+        )
+        assert result == [
+            '  - name: "x"',
+            "    auth:",
+            '      type: "oauth2"',
+            '      scopes: ["new"]',
+            "      redirect_port: 9000",
+            "    enabled: true",
+        ]
+
+    def test_none_removes_existing_block(self):
+        lines, start, end = self._block(
+            ["  - name: \"x\"", "    auth:", '      type: "oauth2"', "    enabled: true"]
+        )
+        result = admin_routes._patch_yaml_auth(lines, start, end, None, "    ")
+        assert result == ["  - name: \"x\"", "    enabled: true"]
+
+    def test_round_trips_through_yaml_parser(self):
+        lines, start, end = self._block(["  - name: \"x\"", "    url: \"http://x/mcp\""])
+        result = admin_routes._patch_yaml_auth(
+            lines, start, end,
+            {"type": "oauth2", "scopes": ["a", "b"], "client_id": "cid", "redirect_port": 8765},
+            "    ",
+        )
+        reparsed = yaml.safe_load("\n".join(["mcp_clients:", "  servers:"] + ["  " + line for line in result]))
+        server = reparsed["mcp_clients"]["servers"][0]
+        assert server["auth"] == {
+            "type": "oauth2",
+            "scopes": ["a", "b"],
+            "client_id": "cid",
+            "redirect_port": 8765,
+        }
+
+
 class TestPatchYamlList:
     def test_creates_line_when_absent(self):
         lines = ["  - name: \"x\"", "    command: \"npx\""]
@@ -540,6 +712,7 @@ class TestListMcpServersConnectionField:
         assert by_name["http-server"]["connection"] == {
             "url": "http://127.0.0.1:9999/mcp",
             "headers": {"Authorization": "Bearer ${MCP_TOKEN}"},
+            "auth": None,
         }
         assert by_name["headers-server"]["connection"]["headers"] == {"Authorization": "Bearer ${OTHER_TOKEN}"}
 
@@ -678,6 +851,75 @@ class TestUpdateMcpServerConnection:
         written = yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())
         entry = next(s for s in written["mcp_clients"]["servers"] if s["name"] == "unrelated-headers-server")
         assert entry["headers"] == {"X-Trace": "abc"}
+
+    @pytest.mark.asyncio
+    async def test_sets_auth_for_http_transport(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+            with patch.object(
+                mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])
+            ):
+                result = await admin_routes.update_mcp_server(
+                    "unrelated-headers-server",
+                    request,
+                    {"connection": {"headers": {}, "auth": {"type": "oauth2", "scopes": ["a", "b"]}}},
+                )
+
+        assert result["reload_error"] is None
+        written = yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())
+        entry = next(s for s in written["mcp_clients"]["servers"] if s["name"] == "unrelated-headers-server")
+        assert "headers" not in entry
+        assert entry["auth"] == {"type": "oauth2", "scopes": ["a", "b"]}
+
+    @pytest.mark.asyncio
+    async def test_rejects_auth_when_entry_still_has_headers(self, tmp_path):
+        # "http-server" already has `headers:` on disk (see MCP_YAML) — setting
+        # `auth` without also clearing `headers` in the same call must be
+        # rejected, matching MCPClientManager._build_oauth_provider's
+        # server-side mutual-exclusion check.
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes.update_mcp_server(
+                "http-server", request, {"connection": {"auth": {"type": "oauth2"}}}
+            )
+        assert exc.value.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_removing_auth_drops_the_auth_block(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+            with patch.object(
+                mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])
+            ):
+                await admin_routes.update_mcp_server(
+                    "unrelated-headers-server",
+                    request,
+                    {"connection": {"headers": {}, "auth": {"type": "oauth2"}}},
+                )
+                result = await admin_routes.update_mcp_server(
+                    "unrelated-headers-server", request, {"connection": {"auth": None}}
+                )
+
+        assert result["reload_error"] is None
+        written_text = (tmp_path / "mcp_clients.yaml").read_text()
+        entry = next(
+            s for s in yaml.safe_load(written_text)["mcp_clients"]["servers"]
+            if s["name"] == "unrelated-headers-server"
+        )
+        assert "auth" not in entry
+        assert "auth:" not in written_text
 
     @pytest.mark.asyncio
     async def test_rejects_headers_edit_for_stdio_server(self, tmp_path):

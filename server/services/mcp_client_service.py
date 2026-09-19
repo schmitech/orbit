@@ -652,9 +652,12 @@ class MCPClientManager:
                 headers = self._expand_headers(server_config)
                 # MCP Streamable HTTP requires both JSON and SSE content types.
                 headers.setdefault("Accept", "application/json, text/event-stream")
+                auth_provider = await self._build_oauth_provider(server_name, server_config, url)
                 # Use create_mcp_http_client so the client inherits MCP defaults:
                 # follow_redirects=True, 30s general timeout, 300s SSE read timeout.
-                http_client = await stack.enter_async_context(create_mcp_http_client(headers=headers))
+                http_client = await stack.enter_async_context(
+                    create_mcp_http_client(headers=headers, auth=auth_provider)
+                )
                 # The MCP SDK swallows the real status/body of a failed HTTP
                 # exchange into a generic error (see the comment in
                 # _discover_server), so attach our own hooks here — this is
@@ -683,8 +686,26 @@ class MCPClientManager:
             session = await stack.enter_async_context(ClientSession(read, write))
             init_result = await session.initialize()
             self._record_server_instructions(server_name, init_result.instructions)
-        except BaseException:
+        except BaseException as exc:
             await stack.aclose()
+            oauth_exc = self._find_oauth_error(exc)
+            if oauth_exc is not None:
+                # Raised when OAuthClientProvider has no usable (or
+                # refreshable) token and was built with no redirect/callback
+                # handler (the server never pops a browser itself) — covers
+                # both "never logged in" and "refresh_token was revoked" —
+                # see _build_oauth_provider. streamable_http_client runs
+                # requests inside an anyio task group, so this can arrive
+                # wrapped in a BaseExceptionGroup rather than directly.
+                logger.warning(
+                    "MCP server '%s': OAuth login required or refresh failed "
+                    "(%s) — run: ./bin/orbit.sh mcp login %s",
+                    server_name, oauth_exc, server_name,
+                )
+                raise RuntimeError(
+                    f"MCP server '{server_name}' requires OAuth login — "
+                    f"run: ./bin/orbit.sh mcp login {server_name}"
+                ) from exc
             raise
 
         return MCPConnection(session=session, stack=stack)
@@ -827,6 +848,23 @@ class MCPClientManager:
         return hook
 
     @staticmethod
+    def _find_oauth_error(exc: BaseException):
+        """Find an OAuthFlowError anywhere in `exc`, including nested inside
+        a BaseExceptionGroup — streamable_http_client runs each request in
+        an anyio task group, so an OAuth failure during connection setup
+        often arrives wrapped in one rather than as a bare exception."""
+        from mcp.client.auth.exceptions import OAuthFlowError
+
+        if isinstance(exc, OAuthFlowError):
+            return exc
+        if isinstance(exc, BaseExceptionGroup):
+            for sub in exc.exceptions:
+                found = MCPClientManager._find_oauth_error(sub)
+                if found is not None:
+                    return found
+        return None
+
+    @staticmethod
     def _expand_headers(server_config: dict[str, Any]) -> dict[str, str]:
         """Build request headers from server config, expanding ${VAR} references.
 
@@ -836,6 +874,87 @@ class MCPClientManager:
         for k, v in (server_config.get("headers") or {}).items():
             result[k] = os.path.expandvars(str(v)) if isinstance(v, str) else str(v)
         return result
+
+    @staticmethod
+    async def _build_oauth_provider(server_name: str, server_config: dict[str, Any], url: str):
+        """Build the OAuthClientProvider for a server's ``auth: {type: oauth2}``
+        block, or return None if the server uses static headers instead.
+
+        The provider is built with no redirect/callback handler: this process
+        never pops a browser itself. If no usable token is on disk yet (an
+        admin hasn't run ``mcp login``), the SDK raises OAuthFlowError on the
+        first authenticated request, which _create_connection turns into a
+        clear "run mcp login" error. Token refresh, once a token exists, is
+        fully automatic via the stored refresh_token.
+        """
+        auth_cfg = server_config.get("auth") or {}
+        if auth_cfg.get("type") != "oauth2":
+            return None
+        if server_config.get("headers"):
+            raise ValueError(
+                f"MCP server '{server_name}': 'headers' and 'auth' are mutually "
+                "exclusive — use one or the other."
+            )
+
+        from mcp.client.auth import OAuthClientProvider
+        from mcp.shared.auth import OAuthClientMetadata
+
+        from services.mcp_oauth_token_storage import FileTokenStorage, build_static_client_info
+
+        redirect_port = auth_cfg.get("redirect_port", 8765)
+        scopes = auth_cfg.get("scopes") or []
+        redirect_uris = [f"http://127.0.0.1:{redirect_port}/callback"]
+        metadata = OAuthClientMetadata(
+            redirect_uris=redirect_uris,
+            grant_types=["authorization_code", "refresh_token"],
+            response_types=["code"],
+            scope=" ".join(scopes) or None,
+            client_name="ORBIT",
+        )
+        storage = FileTokenStorage(server_name)
+        provider = OAuthClientProvider(
+            server_url=url,
+            client_metadata=metadata,
+            storage=storage,
+            redirect_handler=None,
+            callback_handler=None,
+        )
+
+        # Pre-warm the provider's in-memory state from disk (plus the
+        # configured static client_id, if any) rather than relying on the
+        # SDK's own lazy _initialize(), for two reasons:
+        #  1. _initialize() loads current_tokens but never calls
+        #     update_token_expiry(), so a token restored after a process
+        #     restart would otherwise be (wrongly) treated as permanently
+        #     valid — see FileTokenStorage.get_token_expiry.
+        #  2. _initialize() always sets client_info from `storage`, which
+        #     would clobber a statically-configured client_id/client_secret
+        #     with whatever (or nothing) was last persisted, defeating the
+        #     opt-out of dynamic client registration below.
+        # Setting _initialized = True unconditionally (even with no token
+        # yet) makes this pre-warm authoritative and skips _initialize()
+        # entirely, in both cases.
+        client_id = auth_cfg.get("client_id")
+        if client_id:
+            provider.context.client_info = build_static_client_info(
+                client_id, auth_cfg.get("client_secret"), redirect_uris, metadata.scope,
+            )
+        else:
+            provider.context.client_info = await storage.get_client_info()
+
+        provider.context.current_tokens = await storage.get_tokens()
+        provider.context.token_expiry_time = await storage.get_token_expiry()
+        # RFC 8414 authorization-server metadata (notably token_endpoint):
+        # the SDK only ever discovers this in-memory during a live
+        # authorization flow and never persists it itself. Without
+        # restoring it, a refresh after a restart falls back to
+        # OAuthClientProvider's default "<MCP resource origin>/token",
+        # which is wrong whenever the token endpoint is on another origin
+        # (e.g. Google Drive) — see FileTokenStorage.get_oauth_metadata.
+        provider.context.oauth_metadata = await storage.get_oauth_metadata()
+        provider._initialized = True
+
+        return provider
 
     @staticmethod
     def _extract_text_content(content_list) -> str:
