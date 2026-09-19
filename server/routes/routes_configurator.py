@@ -856,6 +856,17 @@ class RouteConfigurator:
             health = await health_service.get_health_status()
             return health
     
+    async def _check_session_authorized(self, chat_history_service, session_id: str, api_key: str) -> bool:
+        """Return whether api_key owns session_id, or raise on a lookup failure.
+
+        Shared by the thread (legacy fallback) and feedback authorization paths,
+        which each keep their own availability check and status-code mapping
+        around this call — the two disagree on how to translate a missing or
+        failing chat_history_service into a status code, so that translation
+        is not owned here.
+        """
+        return await chat_history_service.authorize_session(session_id, api_key)
+
     def _configure_thread_endpoints(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
         """Configure thread management endpoints."""
         
@@ -1002,7 +1013,7 @@ class RouteConfigurator:
                 raise HTTPException(status_code=403, detail="Access denied")
 
             try:
-                authorized = await chat_history_service.authorize_session(parent_session_id, api_key)
+                authorized = await self._check_session_authorized(chat_history_service, parent_session_id, api_key)
             except Exception as e:  # noqa: BLE001 - route handler must not crash; deny access on unexpected ownership-check failure
                 logger.error(
                     "Ownership check failed for legacy thread %s via parent session %s: %s",
@@ -1069,8 +1080,8 @@ class RouteConfigurator:
             if chat_history_service is None:
                 raise HTTPException(status_code=503, detail="Chat history service is not available")
             try:
-                authorized = await chat_history_service.authorize_session(
-                    session_id, api_key
+                authorized = await self._check_session_authorized(
+                    chat_history_service, session_id, api_key
                 )
             except Exception:
                 logger.exception("Failed to authorize feedback session")
