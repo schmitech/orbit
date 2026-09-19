@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.11] - 2026-09-19
 
 ### Technical Improvements
 - **Route Configurator Cleanup**: Consolidated lazy service dependencies, optional-router registration, API-key resolution, and session-authorization delegation; replaced the dependency closure dictionary with named configurator attributes and removed redundant route imports. Existing fallback rules, status mappings, and runtime behavior are unchanged, with expanded route regression coverage. Follow-up findings are documented in `docs/roadmap/complete/routes-configurator-cleanup.md`.
