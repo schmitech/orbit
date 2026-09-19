@@ -178,7 +178,25 @@ unmodified. Diff review should confirm every `dependencies['get_x']` call
 site was mechanically replaced with `self.get_x`, with no dropped or
 reordered dependencies.
 
-## Phase 4 — Streaming serialize/reparse round trip: defer, reframed as a pipeline refactor
+## Phase 4 — Streaming serialize/reparse round trip: defer, reframed as a pipeline refactor — SPUN OUT
+
+Scoped (not implemented) as its own document:
+`docs/roadmap/pipeline-streaming-structured-events.md`. Tracing the chunk's
+origin found `/v1/chat` has no extra round trip at all (it relays the SSE
+string directly, unparsed); `StreamingHandler.process_stream` parses each
+chunk once for its own state bookkeeping but forwards the original string
+unchanged rather than re-serializing; and only the OpenAI-compatible
+endpoint and `a2a_routes.py` add a genuine extra parse-and-reserialize at
+their protocol boundary. That document also flags an existing
+`StreamingHandler.process_stream_raw` method that already returns structured
+dicts (by inefficiently re-parsing its own SSE output) as the natural
+inversion point, notes that a full pipeline-wide conversion may be
+containable to `pipeline.py` rather than every step (since steps yield plain
+text and `Pipeline.process_stream` is what builds the JSON envelopes), flags
+that today's stream has no terminal event at all on cancellation (any
+"exactly one terminal event" rule must account for that), and lists what's
+still missing (event-contract spec, a route/protocol-only vs. pipeline-wide
+scope decision, a consumer audit) before this can be scheduled as tasks.
 
 **Problem, corrected.** `openai_stream_generator`
 (routes_configurator.py:626-703) `json.loads`s each SSE chunk emitted by
