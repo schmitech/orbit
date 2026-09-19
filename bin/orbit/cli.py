@@ -66,7 +66,7 @@ from bin.orbit.commands.quota import (
 )
 
 # Version information
-__version__ = "2.17.10"
+__version__ = "2.17.11"
 __author__ = "Remsy Schmilinsky"
 
 # Initialize rich console
