@@ -9,6 +9,7 @@ export const ENDPOINTS = {
   reloadTemplates: "/admin/reload-templates", restart: "/admin/restart", shutdown: "/admin/shutdown", pause: "/admin/pause",
   resume: "/admin/resume", adminExport: "/admin/export", login: "/admin/login", configSections: "/admin/config/sections",
   mcpServers: "/admin/mcp/servers", mcpTools: "/admin/mcp/tools", mcpDefaults: "/admin/mcp/defaults", mcpReload: "/admin/mcp/reload",
+  mcpTestConnection: "/admin/mcp/test-connection",
   adapterConfigs: "/admin/adapters/config", adapterSpecs: "/admin/adapters/specs", adapterCreate: "/admin/adapters",
   adapterPreview: "/admin/adapters/preview", adapterImport: "/admin/adapters/import",
   adapterAnswerOptions: "/admin/adapters/answer-options",

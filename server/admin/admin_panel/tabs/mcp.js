@@ -636,12 +636,27 @@ export function createMcpTab({
         mcpSettingCopy("Transport", "How ORBIT connects to this server"),
         el("span", { className: "mcp-setting-control" }, transport)
       ));
+      // A successful Test connection is required before Create is enabled
+      // for http — set below, once testCtl exists — so an unreachable URL
+      // can no longer be saved unchecked. stdio has no equivalent ad-hoc
+      // test (it would mean spawning an arbitrary local subprocess from this
+      // request rather than dialing a URL) so it's exempt from the gate.
+      var testCtl = null;
+      var syncCreateBtn = function () {}; // replaced once createBtn exists below
       if (draft.transport === "http") {
-        ledger.appendChild(mcpConnectionRow("URL", "Streamable HTTP endpoint", draft.url, function (next) { draft.url = next; },
-          { type: "url", maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }));
-        mapEditor = mcpKeyValueRows("Headers", "HTTP headers; declare ${VAR} values in .env or export them before use", draft.headers, function (next) { draft.headers = next; },
-          { keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH, valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH, maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES, keyPattern: /^[A-Za-z0-9_-]+$/ });
+        ledger.appendChild(mcpUrlRow("URL", "Streamable HTTP endpoint", draft.url, function (next) {
+          draft.url = next;
+          if (testCtl) testCtl.onFieldEdited();
+          syncCreateBtn();
+        }, { maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }));
+        mapEditor = mcpKeyValueRows("Headers", "HTTP headers; declare ${VAR} values in .env or export them before use", draft.headers, function (next) {
+          draft.headers = next;
+          if (testCtl) testCtl.onFieldEdited();
+          syncCreateBtn();
+        }, { keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH, valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH, maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES, keyPattern: /^[A-Za-z0-9_-]+$/ });
         ledger.appendChild(mapEditor);
+        testCtl = mcpTestConnectionButton(function () { return draft.url; }, function () { return draft.headers; }, function () { syncCreateBtn(); });
+        ledger.appendChild(testCtl.row);
       } else {
         ledger.appendChild(mcpConnectionRow("Command", "Executable launched for this server", draft.command, function (next) { draft.command = next; }, { maxLength: MCP_CONNECTION_COMMAND_MAX_LENGTH }));
         ledger.appendChild(mcpArgsTextEditor("Args", "One argument per line", draft.args, function (next) { draft.args = next; }, { argMaxLength: MCP_CONNECTION_ARG_MAX_LENGTH, maxCount: MCP_CONNECTION_ARGS_MAX_COUNT }));
@@ -651,6 +666,12 @@ export function createMcpTab({
       }
       detail.appendChild(ledger);
       var createBtn = el("button", { type: "button", className: "btn btn--primary" }, "Create server");
+      syncCreateBtn = function () {
+        var needsTest = draft.transport === "http" && !(testCtl && testCtl.isVerified());
+        createBtn.disabled = needsTest;
+        createBtn.title = needsTest ? "Run Test connection successfully first." : "";
+      };
+      syncCreateBtn();
       createBtn.addEventListener("click", function () {
         withButton(createBtn, async function () {
           if (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(draft.name)) {
@@ -672,6 +693,7 @@ export function createMcpTab({
           if (draft.transport === "http") {
             var error = mcpEndpointUrlError(draft.url);
             if (error) throw new Error(error);
+            if (!testCtl.isVerified()) throw new Error("Run Test connection successfully before creating this server.");
           }
           var res = await api("POST", endpoints.mcpServers, { name: draft.name, transport: draft.transport, connection: connection });
           mcpSelected = draft.name;
@@ -689,12 +711,18 @@ export function createMcpTab({
     render();
   }
 
-  function mcpSaveRow(onSave) {
+  // `isBlocked`, when given, returns a non-empty reason string to keep Save
+  // disabled even though there are pending edits (e.g. an unverified http
+  // connection change) or a falsy value to allow it through as usual.
+  function mcpSaveRow(onSave, isBlocked) {
     var saveBtn = el("button", { type: "button", className: "btn btn--primary" }, "Save changes");
-    saveBtn.disabled = !mcpHasPendingEdits();
-    mcpDetailDirty.push(function () {
-      saveBtn.disabled = !mcpHasPendingEdits();
-    });
+    function sync() {
+      var reason = isBlocked && isBlocked();
+      saveBtn.disabled = !mcpHasPendingEdits() || !!reason;
+      saveBtn.title = reason || "";
+    }
+    sync();
+    mcpDetailDirty.push(sync);
     saveBtn.addEventListener("click", function () {
       withButton(saveBtn, onSave);
     });
@@ -717,6 +745,7 @@ export function createMcpTab({
           if (next === mcpData.enabled) delete mcpPending.enabled;
           else mcpPending.enabled = next;
           mcpSyncDirty();
+          showStatus("MCP tool calling " + (next ? "enabled" : "disabled") + ". Save changes to apply it.");
         }
       })
     );
@@ -779,6 +808,10 @@ export function createMcpTab({
 
   function mcpRenderServerDetail(detail, server) {
     var enabled = mcpPending.enabled != null ? mcpPending.enabled : server.enabled;
+    // Assigned below, http transport only — referenced (via the `testCtl &&`
+    // guards) both there and in the Save gate near the bottom of this
+    // function, which needs the outer, function-scoped `var` in reach.
+    var testCtl = null;
 
     var head = el("div", { className: "mcp-detail-head" },
       el("div", { className: "mcp-detail-title" },
@@ -795,6 +828,7 @@ export function createMcpTab({
             if (next === server.enabled) delete mcpPending.enabled;
             else mcpPending.enabled = next;
             mcpSyncDirty();
+            showStatus("Server " + server.name + " " + (next ? "enabled" : "disabled") + ". Save changes to apply it.");
           }
         }),
         el("button", {
@@ -873,7 +907,7 @@ export function createMcpTab({
         connLedger.appendChild(envRow);
         mcpDetailPendingRows.push(envRow.hasPendingRow);
       } else {
-        var urlRow = mcpConnectionRow(
+        var urlRow = mcpUrlRow(
           "URL",
           "Streamable HTTP endpoint",
           Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
@@ -881,9 +915,10 @@ export function createMcpTab({
           function (next) {
             if (next === server.connection.url) delete mcpPending["connection.url"];
             else mcpPending["connection.url"] = next;
+            if (testCtl) testCtl.onFieldEdited();
             mcpSyncDirty();
           },
-          { type: "url", maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }
+          { maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }
         );
         connLedger.appendChild(urlRow);
         mcpDetailDirty.push(function () {
@@ -897,7 +932,11 @@ export function createMcpTab({
           "HTTP headers; declare ${VAR} values in .env or export them before use",
           Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers")
             ? mcpPending["connection.headers"] : server.connection.headers,
-          function (next) { mcpPending["connection.headers"] = next; mcpSyncDirty(); },
+          function (next) {
+            mcpPending["connection.headers"] = next;
+            if (testCtl) testCtl.onFieldEdited();
+            mcpSyncDirty();
+          },
           {
             keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH,
             valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH,
@@ -908,6 +947,25 @@ export function createMcpTab({
         );
         connLedger.appendChild(headersRow);
         mcpDetailPendingRows.push(headersRow.hasPendingRow);
+
+        // A saved-but-unreachable URL is exactly what this gate exists to
+        // prevent — see mcpSaveRow's isBlocked below, which requires
+        // testCtl.isVerified() before a pending connection.url/headers edit
+        // can be saved. `var` here (not `let`/`const`) reaches that call
+        // via function-scoped hoisting despite being declared inside this
+        // http-only branch.
+        testCtl = mcpTestConnectionButton(
+          function () {
+            return Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
+              ? mcpPending["connection.url"] : server.connection.url;
+          },
+          function () {
+            return Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers")
+              ? mcpPending["connection.headers"] : server.connection.headers;
+          },
+          mcpSyncDirty
+        );
+        connLedger.appendChild(testCtl.row);
       }
 
       detail.appendChild(connLedger);
@@ -933,16 +991,34 @@ export function createMcpTab({
     // Gate on the saved `enabled` flag, not the pending toggle — see the
     // matching comment in mcpRenderList. A newly-enabled-but-unsaved server
     // isn't in the live manager yet, so pinging it would just 404.
+    //
+    // Also gate on unsaved connection.* edits: this button re-dials the
+    // server via the LIVE manager, which only knows the config on disk —
+    // it has no idea a URL/headers/command/args/env field has been retyped
+    // in the form above and not saved yet. Pinging while such an edit is
+    // pending would silently report the *old* saved endpoint's reachability
+    // (e.g. still-green against a since-abandoned remote server) while
+    // looking, to the user, like it just tested what they typed. Use "Test
+    // connection" above for that instead.
+    function mcpHasPendingConnectionEdit() {
+      return Object.keys(mcpPending).some(function (key) { return key.indexOf("connection.") === 0; });
+    }
     function syncToolsHeader() {
       var pinging = !!mcpPinging[server.name];
-      var canPing = server.enabled;
+      var pendingConnectionEdit = mcpHasPendingConnectionEdit();
+      var canPing = server.enabled && !pendingConnectionEdit;
       toolsCheckedAtCtl.setTs(mcpLastChecked[server.name] || null);
       toolsPingIcon.classList.toggle("is-spinning", pinging);
       toolsPingLabel.textContent = pinging ? "Pinging…" : "Ping server";
       toolsPingBtn.disabled = pinging || !canPing;
-      toolsPingBtn.title = canPing ? "" : "Save this server as enabled before pinging it.";
+      toolsPingBtn.title = !server.enabled
+        ? "Save this server as enabled before pinging it."
+        : pendingConnectionEdit
+          ? "Save your connection changes first — Ping checks the saved server, not this unsaved edit. Use Test connection above to check what you've typed."
+          : "";
     }
     syncToolsHeader();
+    mcpDetailDirty.push(syncToolsHeader);
 
     var toolsHeader = el("div", { className: "panel-header-row mcp-tools-header" },
       el("h3", null, "Tools"),
@@ -1084,6 +1160,10 @@ export function createMcpTab({
         var urlError = mcpEndpointUrlError(body.connection.url);
         if (urlError) { showError(urlError); return; }
       }
+      if ((body.connection.url != null || body.connection.headers != null) && !(testCtl && testCtl.isVerified())) {
+        showError("Run Test connection successfully before saving your connection changes.");
+        return;
+      }
       if (!Object.keys(body.connection).length) delete body.connection;
       var res = await api(
         "PATCH",
@@ -1095,6 +1175,12 @@ export function createMcpTab({
       mcpTools = null;
       showStatus(res.message || "Saved.");
       mcpRerender();
+    }, function () {
+      if (server.transport !== "http") return null;
+      var pendingConnectionEdit = Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
+        || Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers");
+      if (!pendingConnectionEdit || (testCtl && testCtl.isVerified())) return null;
+      return "Run Test connection successfully before saving your connection changes.";
     }));
   }
 
@@ -1308,17 +1394,38 @@ export function createMcpTab({
       className: "mcp-text",
       value: value || "",
       "aria-label": label,
+      // Browser autofill/history suggestions can silently splice in or
+      // drop characters while the user is still typing. These are config
+      // values, never a page the browser has any business remembering, so
+      // autofill and spelling assistance are switched off unconditionally
+      // rather than left to per-field opt-in.
+      autocomplete: opts.autocomplete || "off",
+      autocorrect: "off",
+      autocapitalize: "off",
+      spellcheck: "false",
     });
     if (opts.maxLength) control.maxLength = opts.maxLength;
-    if (opts.validate) {
-      function validate() {
-        control.setCustomValidity(opts.validate(control.value) || "");
-      }
-      control.addEventListener("input", validate);
-      validate();
+    function validate() {
+      if (opts.validate) control.setCustomValidity(opts.validate(control.value) || "");
     }
     control.addEventListener("input", function () {
+      validate();
       onChange(control.value);
+    });
+    validate();
+    // Whitespace a user never meant to type (a stray leading/trailing
+    // space from a paste, autofill, or a fat-fingered spacebar) is common
+    // on a URL/command field and was previously rejected outright by
+    // opts.validate instead of just being cleaned up. Trim on blur, not on
+    // every keystroke, so this can't fight the user while they're still
+    // typing mid-value.
+    control.addEventListener("blur", function () {
+      var trimmed = control.value.trim();
+      if (trimmed !== control.value) {
+        control.value = trimmed;
+        onChange(trimmed);
+        validate();
+      }
     });
 
     var provenance = el("span", { className: "mcp-provenance" });
@@ -1336,6 +1443,176 @@ export function createMcpTab({
     };
     row.sync(false);
     return row;
+  }
+
+  // A dedicated control for the endpoint URL, split into a fixed http/https
+  // segment plus a free-text "host[:port]/path" field — instead of one plain
+  // text box holding the whole "http://host/path" string.
+  //
+  // Every mitigation tried on a single text box (native type="url" removed,
+  // autocomplete/autocorrect/autocapitalize/spellcheck all off, a
+  // scheme-delimiter repair regex on every keystroke) still hasn't stopped
+  // something upstream of this code — browser, OS-level text replacement, or
+  // a password-manager extension reacting to a field that looks like a URL —
+  // from occasionally mangling the "://" while the user types. Rather than
+  // keep guessing at that layer, this removes the mangled substring from the
+  // user's typing surface entirely: the scheme is a fixed label from a
+  // dropdown, never retyped, so there is no "://" for anything to corrupt.
+  function mcpUrlRow(label, hint, value, onChange, opts) {
+    opts = opts || {};
+    var match = /^(https?):\/\/(.*)$/i.exec(value || "");
+    var protocol = match ? match[1].toLowerCase() : "http";
+    // An unparseable stored value (e.g. mid-corruption from before this
+    // control existed) is kept in full in the free-text half rather than
+    // silently dropped — better a visibly odd starting value the user can
+    // see and fix than one quietly discarded.
+    var rest = match ? match[2] : (value || "").replace(/^https?:\/*/i, "");
+
+    var protocolSelect = createSelect({
+      className: "mcp-url-protocol",
+      ariaLabel: label + " scheme",
+      options: [{ value: "http", label: "http://" }, { value: "https", label: "https://" }],
+      value: protocol,
+    });
+    var restInput = el("input", {
+      type: "text",
+      inputmode: "url",
+      className: "mcp-text mcp-url-rest",
+      value: rest,
+      "aria-label": label + " host, port, and path",
+      autocomplete: "off",
+      autocorrect: "off",
+      autocapitalize: "off",
+      spellcheck: "false",
+    });
+    // The "://" this control supplies costs 3 characters the free-text half
+    // must not also spend, or a value at the limit here would produce a
+    // currentUrl() over MCP_CONNECTION_URL_MAX_LENGTH.
+    function syncMaxLength() {
+      if (!opts.maxLength) return;
+      restInput.maxLength = Math.max(0, opts.maxLength - protocolSelect.value.length - 3);
+      // maxLength only stops future typing — it doesn't retroactively trim
+      // what's already there. Without this, switching http -> https (one
+      // character longer) on a value already at the http limit would leave
+      // the combined URL over opts.maxLength.
+      if (restInput.value.length > restInput.maxLength) {
+        restInput.value = restInput.value.slice(0, restInput.maxLength);
+      }
+    }
+    syncMaxLength();
+
+    function currentUrl() {
+      return protocolSelect.value + "://" + restInput.value;
+    }
+    function validate() {
+      if (opts.validate) restInput.setCustomValidity(opts.validate(currentUrl()) || "");
+    }
+    function fire() {
+      validate();
+      onChange(currentUrl());
+    }
+    protocolSelect.addEventListener("change", function () { syncMaxLength(); fire(); });
+    restInput.addEventListener("input", function () {
+      // A pasted full URL (the common case this control has to defend
+      // against — someone copies "https://host/path" from wherever they got
+      // it and pastes the whole thing here) would otherwise end up appended
+      // after the selected scheme, producing "http://https://host/path".
+      // Detect and absorb a re-pasted scheme into the picker instead.
+      var schemeMatch = /^(https?):\/\/(.*)$/i.exec(restInput.value);
+      if (schemeMatch) {
+        protocolSelect.value = schemeMatch[1].toLowerCase();
+        restInput.value = schemeMatch[2];
+        syncMaxLength();
+      }
+      fire();
+    });
+    restInput.addEventListener("blur", function () {
+      // A leading slash here would double up on the "://" this control
+      // already supplies — strip it, and trim incidental whitespace, same
+      // as the plain connection rows.
+      var cleaned = restInput.value.trim().replace(/^\/+/, "");
+      if (cleaned !== restInput.value) {
+        restInput.value = cleaned;
+        fire();
+      }
+    });
+    validate();
+
+    var provenance = el("span", { className: "mcp-provenance" });
+    var row = el("div", { className: "mcp-setting-row mcp-connection-row" },
+      mcpSettingCopy(label, hint),
+      el("span", { className: "mcp-setting-control mcp-url-control" }, protocolSelect, restInput),
+      provenance
+    );
+    row.sync = function (isChanged) {
+      row.classList.toggle("is-override", isChanged);
+      clear(provenance);
+      provenance.classList.toggle("is-override", isChanged);
+      if (isChanged) provenance.appendChild(document.createTextNode("changed"));
+    };
+    row.sync(false);
+    return row;
+  }
+
+  // Ad-hoc connectivity check for whatever URL/headers are currently typed
+  // into the form, via POST /mcp/test-connection — a one-shot connect/list-
+  // tools/disconnect on the backend that never touches the live
+  // MCPClientManager, so it works before the server is created or saved.
+  //
+  // Callers gate their save/create action on .isVerified(): a passing test
+  // is required before an http server's URL/headers can be persisted, since
+  // otherwise the button is just a suggestion and unreachable endpoints get
+  // saved anyway. Verification is tied to the exact URL/headers that were
+  // tested — any further edit (even retyping the same value, since we can't
+  // tell it's unchanged without also tracking that) invalidates it and
+  // requires a fresh test, so a stale pass can never wave through a
+  // different, untested value.
+  function mcpTestConnectionButton(getUrl, getHeaders, onVerifiedChange) {
+    var btn = el("button", { type: "button", className: "btn btn--neutral" }, "Test connection");
+    var status = el("span", { className: "mcp-test-status", role: "status" });
+    var verifiedUrl = null;
+    var verifiedHeaders = null;
+
+    function setVerified(url, headers) {
+      verifiedUrl = url;
+      verifiedHeaders = JSON.stringify(headers || {});
+      if (onVerifiedChange) onVerifiedChange();
+    }
+    function clearVerified() {
+      if (verifiedUrl === null) return;
+      verifiedUrl = null;
+      verifiedHeaders = null;
+      if (onVerifiedChange) onVerifiedChange();
+    }
+
+    btn.addEventListener("click", function () {
+      withButton(btn, async function () {
+        clear(status);
+        status.classList.remove("is-ok", "is-error");
+        clearVerified();
+        var url = getUrl();
+        var urlError = mcpEndpointUrlError(url);
+        if (urlError) throw new Error(urlError);
+        var headers = getHeaders();
+        var res = await api("POST", endpoints.mcpTestConnection, { transport: "http", url: url, headers: headers });
+        status.classList.add(res.reachable ? "is-ok" : "is-error");
+        status.textContent = res.reachable
+          ? "Reachable" + (res.tool_count != null ? " · " + res.tool_count + " tool" + (res.tool_count === 1 ? "" : "s") : "")
+          : "Unreachable: " + (res.error || "unknown error");
+        if (res.reachable) setVerified(url, headers);
+      });
+    });
+    // Any edit to the URL/headers fields must invalidate a prior pass —
+    // callers wire their onChange handlers to also call this.
+    function onFieldEdited() { clearVerified(); }
+
+    return {
+      row: el("div", { className: "mcp-test-row" }, btn, status),
+      onFieldEdited: onFieldEdited,
+      isVerified: function () {
+        return verifiedUrl !== null && verifiedUrl === getUrl() && verifiedHeaders === JSON.stringify(getHeaders() || {});
+      },
+    };
   }
 
   // Inline SVGs (not text glyphs) so the plus/minus render at a crisp,

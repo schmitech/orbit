@@ -99,6 +99,11 @@ export function helpTooltip(labelText, helpText, helpId) {
     className: "help-button",
     "aria-label": "Help for " + labelText,
     "aria-describedby": helpId,
+    // Keep the explanation available if a surrounding panel clips or
+    // obscures the styled tooltip. The custom tooltip still serves keyboard
+    // users and appears immediately on hover/focus; this is a browser-native
+    // fallback for pointer users.
+    title: helpText,
   }, "?");
   helpButton.addEventListener("keydown", (event) => {
     if (event.key === "Escape") helpButton.blur();

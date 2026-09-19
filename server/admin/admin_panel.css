@@ -4958,7 +4958,6 @@ button.settings-nav-group-header:hover:not(:disabled) {
 .mcp-setting-row.is-override {
   background: var(--surface);
   box-shadow: inset 3px 0 0 var(--panel-accent);
-  cursor: help;
 }
 
 .mcp-setting-copy {
@@ -5001,6 +5000,72 @@ button.settings-nav-group-header:hover:not(:disabled) {
 .mcp-connection-row {
   grid-template-columns: minmax(0, 1fr) minmax(200px, 2fr) 6rem;
 }
+
+.mcp-url-control {
+  gap: var(--sp-2);
+}
+
+/* .mcp-url-protocol lands on the trigger button (via createSelect's
+   className), but the flex item sizing this row actually cares about is its
+   .styled-select wrapper — width: 100% by default, sized for a full-width
+   form field, which is not what a two-value http/https picker needs. A
+   fixed width (not auto/min-width) on both the wrapper and its trigger
+   avoids relying on the two nested flex items to agree on a content-based
+   size — that agreement is exactly what several browsers get wrong, which
+   is what clipped the chevron entirely at auto/min-width. */
+.mcp-url-control .styled-select {
+  flex: 0 0 auto;
+  width: 8rem;
+}
+
+.mcp-url-protocol {
+  width: 100%;
+  /* Sitting right next to a plain text input, this needs its own visual
+     cue that it's a picker, not just another text box. */
+  background: var(--surface-raised);
+}
+
+.mcp-url-protocol .styled-select-chevron {
+  display: none;
+}
+
+/* Keep the affordance on the trigger itself rather than relying on the
+   shared SVG's flex sizing inside this intentionally compact select. */
+.mcp-url-protocol::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  margin-right: var(--sp-1);
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform var(--transition-fast);
+}
+
+.mcp-url-control .styled-select.is-open .mcp-url-protocol::after {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.mcp-url-rest {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mcp-test-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-1) 0;
+}
+
+.mcp-test-status {
+  font-size: var(--text-sm);
+}
+
+.mcp-test-status.is-ok    { color: var(--success-500); }
+.mcp-test-status.is-error { color: var(--danger-500); }
 
 .mcp-text {
   width: 100%;

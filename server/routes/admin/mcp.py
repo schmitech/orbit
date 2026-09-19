@@ -690,6 +690,49 @@ async def discover_mcp_tools(request: Request, server: Optional[str] = None):
     return {"available": True, "servers": servers}
 
 
+@router.post("/mcp/test-connection", dependencies=[config_auth])
+async def test_mcp_connection(payload: dict = Body(...)):
+    """One-off connectivity check for an HTTP MCP endpoint, using whatever
+    URL/headers are currently in the form — not yet saved, and not the live
+    MCPClientManager's config for this server (if it already exists).
+
+    Opens and immediately tears down its own connection outside any pool or
+    tools cache, so a check while editing never disturbs a saved server's
+    live reachability state or cached tools.
+    """
+    if payload.get("transport", "http") != "http":
+        raise HTTPException(status_code=422, detail="Only 'http' connections can be tested from the form.")
+    url = payload.get("url", "")
+    _validate_mcp_endpoint_url(url)
+    headers = payload.get("headers") or {}
+    if not isinstance(headers, dict) or any(
+        not isinstance(k, str) or not _MCP_HEADER_KEY_RE.match(k) or not isinstance(v, str)
+        for k, v in headers.items()
+    ):
+        raise HTTPException(status_code=422, detail="'headers' must be a flat object of string keys/values")
+
+    from services.mcp_client_service import MCPClientManager
+
+    manager = MCPClientManager({})
+    server_config = {"name": payload.get("name") or "connection-test", "transport": "http", "url": url, "headers": headers}
+    try:
+        conn = await manager._create_connection(server_config)
+    except Exception as exc:  # noqa: BLE001 - reachability check must report, not raise
+        return {"reachable": False, "error": str(exc)}
+    try:
+        result = await conn.session.list_tools()
+    except Exception as exc:  # noqa: BLE001 - reachability check must report, not raise
+        # Initialization succeeded but tools/list didn't — e.g. a non-MCP
+        # endpoint that happens to accept the handshake, or one that rejects
+        # the tools request. A server ORBIT can't list tools on is not one
+        # it can load tools from, so this counts as a failed test, not a
+        # best-effort partial success.
+        return {"reachable": False, "error": str(exc)}
+    finally:
+        await conn.close()
+    return {"reachable": True, "tool_count": len(result.tools)}
+
+
 def _last_key_line(lines: list, start: int, end: int, indent: str) -> int:
     """Index after the block's last real `key:` line at `indent`.
 
