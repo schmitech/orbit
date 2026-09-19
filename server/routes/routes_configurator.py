@@ -73,49 +73,47 @@ class RouteConfigurator:
             app: The FastAPI application instance
         """
         # Configure dependencies
-        dependencies = self._create_dependencies()
-        
+        self._create_dependencies()
+
         # Configure basic endpoints
         self._configure_basic_endpoints(app)
-        
+
         # Configure main chat endpoint
-        self._configure_chat_endpoint(app, dependencies)
+        self._configure_chat_endpoint(app)
 
         # Configure stop streaming endpoint
-        self._configure_stop_endpoint(app, dependencies)
+        self._configure_stop_endpoint(app)
 
         # Configure autocomplete endpoint
-        self._configure_autocomplete_endpoint(app, dependencies)
+        self._configure_autocomplete_endpoint(app)
 
         # Configure health endpoint
-        self._configure_health_endpoint(app, dependencies)
-        
+        self._configure_health_endpoint(app)
+
         # Configure thread endpoints
-        self._configure_thread_endpoints(app, dependencies)
+        self._configure_thread_endpoints(app)
 
         # Configure feedback endpoints
-        self._configure_feedback_endpoints(app, dependencies)
+        self._configure_feedback_endpoints(app)
 
         # Include admin router
         self._include_admin_routes(app)
-        
+
         logger.info("Routes configured successfully")
-    
-    def _create_dependencies(self) -> dict[str, Any]:
-        """Create and return all FastAPI dependencies."""
-        return {
-            'get_chat_service': self._create_chat_service_dependency(),
-            'get_health_service': self._create_health_service_dependency(),
-            'get_api_key_service': self._create_api_key_service_dependency(),
-            'get_prompt_service': self._create_prompt_service_dependency(),
-            'get_thread_service': self._create_thread_service_dependency(),
-            'get_feedback_service': self._create_feedback_service_dependency(),
-            'get_autocomplete_service': self._create_autocomplete_service_dependency(),
-            'validate_session_id': self._create_session_validator(),
-            'get_user_id': self._create_user_id_extractor(),
-            'get_api_key': self._create_api_key_validator(),
-            'check_not_paused': self._create_pause_check()
-        }
+
+    def _create_dependencies(self) -> None:
+        """Create all FastAPI dependencies as instance attributes."""
+        self.get_chat_service = self._create_chat_service_dependency()
+        self.get_health_service = self._create_health_service_dependency()
+        self.get_api_key_service = self._create_api_key_service_dependency()
+        self.get_prompt_service = self._create_prompt_service_dependency()
+        self.get_thread_service = self._create_thread_service_dependency()
+        self.get_feedback_service = self._create_feedback_service_dependency()
+        self.get_autocomplete_service = self._create_autocomplete_service_dependency()
+        self.validate_session_id = self._create_session_validator()
+        self.get_user_id = self._create_user_id_extractor()
+        self.get_api_key = self._create_api_key_validator()
+        self.check_not_paused = self._create_pause_check()
 
     def _create_pause_check(self):
         """Create dependency that rejects new chat requests while the server is paused."""
@@ -420,7 +418,7 @@ class RouteConfigurator:
         async def favicon():
             return Response(status_code=204)
     
-    def _configure_chat_endpoint(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
+    def _configure_chat_endpoint(self, app: FastAPI) -> None:
         """Configure the main chat endpoint."""
         class ChatRequest(BaseModel):
             messages: list[dict[str, str]]
@@ -487,11 +485,11 @@ class RouteConfigurator:
         async def chat_endpoint(
             chat_request: ChatRequest,
             request: Request,
-            _paused_check: None = Depends(dependencies['check_not_paused']),
-            chat_service = Depends(dependencies['get_chat_service']),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
-            session_id: str = Depends(dependencies['validate_session_id']),
-            user_id: Optional[str] = Depends(dependencies['get_user_id'])
+            _paused_check: None = Depends(self.check_not_paused),
+            chat_service = Depends(self.get_chat_service),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(self.get_api_key),
+            session_id: str = Depends(self.validate_session_id),
+            user_id: Optional[str] = Depends(self.get_user_id)
         ):
             """
             Process a chat request and return a response.
@@ -584,11 +582,11 @@ class RouteConfigurator:
         async def openai_chat_completions(
             chat_request: OpenAIChatCompletionRequest,
             request: Request,
-            _paused_check: None = Depends(dependencies['check_not_paused']),
-            chat_service = Depends(dependencies['get_chat_service']),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
-            session_id: str = Depends(dependencies['validate_session_id']),
-            user_id: Optional[str] = Depends(dependencies['get_user_id'])
+            _paused_check: None = Depends(self.check_not_paused),
+            chat_service = Depends(self.get_chat_service),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(self.get_api_key),
+            session_id: str = Depends(self.validate_session_id),
+            user_id: Optional[str] = Depends(self.get_user_id)
         ):
             """
             OpenAI-compatible chat completions endpoint so the official OpenAI
@@ -724,7 +722,7 @@ class RouteConfigurator:
                 threading=result.get("threading")
             )
 
-    def _configure_stop_endpoint(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
+    def _configure_stop_endpoint(self, app: FastAPI) -> None:
         """Configure the stop streaming endpoint."""
 
         class StopStreamRequest(BaseModel):
@@ -736,7 +734,7 @@ class RouteConfigurator:
         async def stop_chat_stream(
             request: Request,
             stop_request: StopStreamRequest,
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(self.get_api_key)
         ) -> dict[str, Any]:
             """
             Stop an active streaming request.
@@ -770,7 +768,7 @@ class RouteConfigurator:
                     "request_id": stop_request.request_id
                 }
 
-    def _configure_autocomplete_endpoint(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
+    def _configure_autocomplete_endpoint(self, app: FastAPI) -> None:
         """Configure the autocomplete suggestions endpoint."""
         from fastapi import Query
 
@@ -790,8 +788,8 @@ class RouteConfigurator:
                             "the adapter's own nl_examples. Set false for composers where skills are "
                             "not invokable (e.g. a threading adapter's main composer)."
             ),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
-            autocomplete_service = Depends(dependencies['get_autocomplete_service'])
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(self.get_api_key),
+            autocomplete_service = Depends(self.get_autocomplete_service)
         ) -> AutocompleteResponse:
             """
             Get autocomplete suggestions based on query prefix.
@@ -846,11 +844,11 @@ class RouteConfigurator:
                 # Return empty suggestions rather than error - autocomplete is non-critical
                 return AutocompleteResponse(suggestions=[], query=q)
 
-    def _configure_health_endpoint(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
+    def _configure_health_endpoint(self, app: FastAPI) -> None:
         """Configure the health check endpoint."""
         @app.get("/health")
         async def health_check(
-            health_service = Depends(dependencies['get_health_service'])
+            health_service = Depends(self.get_health_service)
         ):
             """Check the health of the application and its dependencies"""
             health = await health_service.get_health_status()
@@ -867,7 +865,7 @@ class RouteConfigurator:
         """
         return await chat_history_service.authorize_session(session_id, api_key)
 
-    def _configure_thread_endpoints(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
+    def _configure_thread_endpoints(self, app: FastAPI) -> None:
         """Configure thread management endpoints."""
         
         class CreateThreadRequest(BaseModel):
@@ -878,9 +876,9 @@ class RouteConfigurator:
         async def create_thread(
             request_body: CreateThreadRequest,
             request: Request,
-            thread_service = Depends(dependencies['get_thread_service']),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
-            session_id: str = Depends(dependencies['validate_session_id'])
+            thread_service = Depends(self.get_thread_service),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(self.get_api_key),
+            session_id: str = Depends(self.validate_session_id)
         ):
             """
             Create a conversation thread from a parent message.
@@ -1034,8 +1032,8 @@ class RouteConfigurator:
         async def get_thread(
             thread_id: str,
             request: Request,
-            thread_service = Depends(dependencies['get_thread_service']),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
+            thread_service = Depends(self.get_thread_service),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(self.get_api_key)
         ):
             """Get thread information by thread ID."""
             thread_info = await _authorized_thread(request, thread_service, thread_id)
@@ -1046,8 +1044,8 @@ class RouteConfigurator:
         async def delete_thread(
             thread_id: str,
             request: Request,
-            thread_service = Depends(dependencies['get_thread_service']),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
+            thread_service = Depends(self.get_thread_service),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(self.get_api_key)
         ):
             """Delete a thread and its associated dataset."""
             await _authorized_thread(request, thread_service, thread_id)
@@ -1056,7 +1054,7 @@ class RouteConfigurator:
                 raise HTTPException(status_code=404, detail="Thread not found")
             return {"status": "success", "message": "Thread deleted", "thread_id": thread_id}
     
-    def _configure_feedback_endpoints(self, app: FastAPI, dependencies: dict[str, Any]) -> None:
+    def _configure_feedback_endpoints(self, app: FastAPI) -> None:
         """Configure feedback endpoints."""
 
         from services.feedback_service import MAX_COMMENT_LENGTH
@@ -1093,9 +1091,9 @@ class RouteConfigurator:
         async def submit_feedback(
             request_body: FeedbackRequest,
             request: Request,
-            feedback_service = Depends(dependencies['get_feedback_service']),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key']),
-            user_id: Optional[str] = Depends(dependencies['get_user_id'])
+            feedback_service = Depends(self.get_feedback_service),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(self.get_api_key),
+            user_id: Optional[str] = Depends(self.get_user_id)
         ):
             """Submit or toggle feedback for a chat response."""
             adapter_name, _ = api_key_result
@@ -1125,8 +1123,8 @@ class RouteConfigurator:
         async def get_session_feedback(
             session_id: str,
             request: Request,
-            feedback_service = Depends(dependencies['get_feedback_service']),
-            api_key_result: tuple[str, Optional[ObjectId]] = Depends(dependencies['get_api_key'])
+            feedback_service = Depends(self.get_feedback_service),
+            api_key_result: tuple[str, Optional[ObjectId]] = Depends(self.get_api_key)
         ):
             """Get all feedback for a session."""
             await authorize_feedback_session(request, session_id)

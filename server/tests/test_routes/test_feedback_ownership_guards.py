@@ -40,11 +40,11 @@ def feedback_app():
     async def get_user_id():
         return "user"
 
-    RouteConfigurator({}, logging.getLogger(__name__))._configure_feedback_endpoints(app, {
-        "get_feedback_service": get_feedback_service,
-        "get_api_key": get_api_key,
-        "get_user_id": get_user_id,
-    })
+    configurator = RouteConfigurator({}, logging.getLogger(__name__))
+    configurator.get_feedback_service = get_feedback_service
+    configurator.get_api_key = get_api_key
+    configurator.get_user_id = get_user_id
+    configurator._configure_feedback_endpoints(app)
     return TestClient(app), feedback, history
 
 

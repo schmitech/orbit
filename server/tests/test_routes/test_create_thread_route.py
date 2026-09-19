@@ -66,11 +66,10 @@ def _build_app(parent_message, authorized=True):
     async def validate_session_id(request: Request):
         return "sess-1"
 
-    configurator._configure_thread_endpoints(app, {
-        'get_thread_service': get_thread_service,
-        'get_api_key': get_api_key,
-        'validate_session_id': validate_session_id,
-    })
+    configurator.get_thread_service = get_thread_service
+    configurator.get_api_key = get_api_key
+    configurator.validate_session_id = validate_session_id
+    configurator._configure_thread_endpoints(app)
     app.state.chat_history_service = chat_history_service
     return app, thread_service
 

@@ -85,7 +85,17 @@ named in the OpenAPI schema — not a handler-level 400/403 — confirming the
 migration preserved the required-header contract, not just the reject
 outcome.
 
-## Phase 2 — Extract the low-level session-ownership check only (or drop)
+## Phase 2 — Extract the low-level session-ownership check only (or drop) — COMPLETE
+
+Implemented (narrowed scope, as specified below): added
+`RouteConfigurator._check_session_authorized(chat_history_service, session_id,
+api_key)`, a one-line wrapper around `chat_history_service.authorize_session`.
+`_authorized_thread`'s legacy fallback branch and `authorize_feedback_session`
+both now call it, each keeping its own `chat_history_service` availability
+check, try/except, and status-code mapping (403 fail-closed for the thread
+path, 503 service-unavailable for feedback) unchanged. Full `test_routes/`
+suite (378 tests) passes unchanged, confirming both status-code policies are
+identical before and after.
 
 **Problem, corrected.** `_authorized_thread` and `authorize_feedback_session`
 are not two copies of the same flow. The thread path
@@ -132,7 +142,19 @@ tests pass unchanged — status codes (403 for thread-legacy-unverifiable, 503
 for feedback-service-unavailable) must be identical before and after. No new
 shared-helper test should assert a single status code for both callers.
 
-## Phase 3 — Reduce the dependency dict-of-closures indirection
+## Phase 3 — Reduce the dependency dict-of-closures indirection — COMPLETE
+
+Implemented: `_create_dependencies` now sets each dependency as a named
+instance attribute (`self.get_chat_service`, `self.get_api_key`, etc.)
+instead of returning a `dict[str, Callable]`, and every `_configure_*_endpoint`
+method dropped its `dependencies` parameter in favor of reading `self.get_x`
+directly. `configure_routes` and all six `_configure_*_endpoint` call sites
+were updated to match. Test helpers in `test_thread_ownership_guards.py`,
+`test_feedback_ownership_guards.py`, and `test_create_thread_route.py` that
+previously called `_configure_thread_endpoints`/`_configure_feedback_endpoints`
+with a raw dependencies dict were updated to set the same attributes on the
+configurator instance instead. Full `test_routes/` suite (378 tests) passes
+unchanged.
 
 **Problem.** `_create_dependencies` (routes_configurator.py:103-117) builds a
 flat `dict[str, Callable]` threaded through every `_configure_*_endpoint`
