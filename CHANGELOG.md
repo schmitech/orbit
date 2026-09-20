@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.12] - 2026-09-20
 
 ### Core Features
 - **MCP OAuth 2.0 Login for Outbound Servers**: Outbound MCP servers that require browser-based OAuth (Google Drive, Cloudflare, Firecrawl, Microsoft 365, and similar) can now be configured via an `auth: {type: oauth2}` block in `config/mcp_clients.yaml`, alongside the existing static bearer-token `headers:` path. A new `./bin/orbit.sh mcp login <name>` / `mcp status` CLI pair handles the one-time browser login and reports token status; the server automatically persists and refreshes tokens afterward, with clear errors pointing back at `mcp login` when re-authentication is needed. Admin-panel support for editing `auth:` and viewing login status is tracked separately in `docs/roadmap/mcp-oauth-admin-panel.md`.
