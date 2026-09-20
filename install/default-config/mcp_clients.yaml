@@ -214,6 +214,28 @@ mcp_clients:
     #     GDRIVE_CREDENTIALS_FILE: "${GDRIVE_CREDENTIALS_FILE}"  # path to OAuth JSON
     #   enabled: false
 
+    # ── Cloudflare (remote HTTP / OAuth 2.0) ──────────────────────────────
+    # Cloudflare hosts each product as its own separate remote MCP server —
+    # there is no single server covering the whole account. `client_id` is
+    # deliberately omitted: Cloudflare's servers support RFC 7591 dynamic
+    # client registration, so `mcp login <name>` registers a client and
+    # completes the browser login on first use, with no app to preregister.
+    # Each server below is its own OAuth resource — logging in to one does
+    # not authorize the others; run `mcp login <name>` for each you enable.
+    # Docs: https://github.com/cloudflare/mcp-server-cloudflare
+    # - name: "cloudflare"                          # Docs/search tools
+    #   transport: "http"
+    #   url: "https://mcp.cloudflare.com/mcp"
+    #   auth:
+    #     type: "oauth2"
+    #   enabled: false
+    # - name: "cloudflare-dns-analytics"             # DNS query analytics for your zones
+    #   transport: "http"
+    #   url: "https://dns-analytics.mcp.cloudflare.com/mcp"
+    #   auth:
+    #     type: "oauth2"
+    #   enabled: false
+
     # ── Notion (stdio) ────────────────────────────────────────────────────
     # Search pages, read databases, and create/update Notion content.
     # Requires a Notion integration token with access to your workspace.

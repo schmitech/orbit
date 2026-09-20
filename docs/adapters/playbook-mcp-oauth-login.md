@@ -35,14 +35,50 @@ is called out separately in step 6.
 ## 1. Register an OAuth app with a provider (one-time, outside ORBIT)
 
 Pick one of the servers already sketched (commented out) in
-`config/mcp_clients.yaml` — Google Drive is the most self-contained to test
-against, since Cloudflare/Firecrawl/M365 examples need their own accounts
-and app registrations too, but the steps are the same shape for any of
-them.
+`config/mcp_clients.yaml`. Two are documented in detail below:
 
-For Google Drive specifically (per Google's own Drive MCP setup guide —
-this is currently labeled **Developer Preview** by Google, subject to
-change independent of ORBIT):
+- **Cloudflare — recommended starting point.** Cloudflare's remote MCP
+  servers support RFC 7591 dynamic client registration, so there is
+  **no app to register, no `client_id`/`client_secret` to manage, and no
+  redirect URI to preregister anywhere** — `mcp login` handles all of it on
+  first use. This is the simplest way to see the whole flow working before
+  tackling a provider that needs preregistration.
+- **Google Drive — needs a preregistered app.** Useful if Drive access is
+  specifically what you're after, but requires the Google Cloud Console
+  steps below and carries the refresh-token limitation noted further down.
+
+Firecrawl/M365 follow the same shape as one of these two (dynamic
+registration or preregistration) depending on the provider; check their own
+OAuth docs to see which.
+
+### Cloudflare (dynamic registration, no setup)
+
+Nothing to do here — skip straight to step 2. Cloudflare hosts each product
+as its **own separate remote MCP server with its own OAuth resource**, not
+one server covering everything:
+
+| Server | URL | Notes |
+| --- | --- | --- |
+| Docs / general | `https://mcp.cloudflare.com/mcp` | Search Cloudflare's documentation. |
+| DNS Analytics | `https://dns-analytics.mcp.cloudflare.com/mcp` | Query DNS performance/errors for your own zones. |
+
+Logging in to one does **not** authorize the other — each needs its own
+`mcp login <name>` and gets its own token file, since each is a distinct
+OAuth resource/audience. See [cloudflare/mcp-server-cloudflare](https://github.com/cloudflare/mcp-server-cloudflare)
+for the full list of product servers (Workers, KV, R2, D1, Radar, and more
+follow the same per-product-server pattern).
+
+> **Cloudflare free-plan analytics window.** DNS Analytics on a free plan
+> caps the queryable time range at 6 hours (`"Maximum queryable time period
+> for the free plan is 6h0m0s"`, Cloudflare error code 1034) — ask for
+> "the last few hours," not "the last week," unless the account is on a
+> paid plan. This is a Cloudflare account limit, not an ORBIT or OAuth
+> issue.
+
+### Google Drive (preregistered app required)
+
+Per Google's own Drive MCP setup guide — this is currently labeled
+**Developer Preview** by Google, subject to change independent of ORBIT:
 
 1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
    enable **both** `drive.googleapis.com` (the Drive API itself) and
@@ -56,11 +92,12 @@ change independent of ORBIT):
 4. Add `http://127.0.0.1:8765/callback` (or whatever `redirect_port` you'll
    use) to that client's **Authorized redirect URIs**.
 
-> If the target provider supports RFC 7591 dynamic client registration,
-> steps 3–4 can be skipped entirely — omit `client_id` in the config below
-> and `mcp login` will register a client automatically on first use. Google
-> does not; a preregistered Web-application `client_id`/`client_secret` pair
-> is required for it, per the official setup above.
+> If the target provider supports RFC 7591 dynamic client registration (as
+> Cloudflare does, above), steps 3–4 can be skipped entirely — omit
+> `client_id` in the config below and `mcp login` will register a client
+> automatically on first use. Google does not; a preregistered
+> Web-application `client_id`/`client_secret` pair is required for it, per
+> the official setup above.
 
 > **Known current limitation — Google refresh tokens aren't guaranteed.**
 > Google only issues a `refresh_token` when the authorization request
@@ -73,6 +110,22 @@ change independent of ORBIT):
 > automatic-refresh claims apply unconditionally to Google specifically.
 
 ## 2. Configure the server (`config/mcp_clients.yaml`)
+
+Cloudflare (dynamic registration — no `client_id` needed):
+
+```yaml
+mcp_clients:
+  enabled: true
+  servers:
+    - name: "cloudflare-dns-analytics"
+      transport: "http"
+      url: "https://dns-analytics.mcp.cloudflare.com/mcp"
+      auth:
+        type: "oauth2"
+      enabled: true
+```
+
+Google Drive (preregistered app):
 
 ```yaml
 mcp_clients:
@@ -97,6 +150,11 @@ export GOOGLE_OAUTH_CLIENT_SECRET=xxxxxxxx
 `headers:` and `auth:` are mutually exclusive on the same server —
 `_build_oauth_provider` raises a config error (server startup/reload) if
 both are present. Confirm this server has no `headers:` block.
+
+The rest of this playbook uses `google-drive` in its examples; substitute
+`cloudflare-dns-analytics` (or whichever server you configured) throughout
+if you're following the Cloudflare path instead — the CLI/server behavior
+is identical either way.
 
 ## 3. Confirm there's nothing to log in with yet
 
@@ -272,6 +330,22 @@ more than once if revocation hasn't propagated yet. Confirm:
   this flow may only ever get a short-lived access token with no
   `refresh_token` to auto-refresh once it expires — re-running `mcp login`
   is the only recovery in that case, not a config change here.
+- **Logged in to one Cloudflare server (e.g. `cloudflare`) but a different
+  one (e.g. `cloudflare-dns-analytics`) still says OAuth login required**:
+  expected — each Cloudflare product is its own remote MCP server with its
+  own OAuth resource/audience (see step 1), so each needs its own
+  `mcp login <name>` and gets its own `~/.orbit/mcp_oauth/<name>.json`.
+  There is no single Cloudflare-wide login.
+- **Token exchange fails with `"Client must not use multiple authentication
+  methods"`** (seen against Cloudflare's token endpoint): this was a bug in
+  the installed `mcp` SDK — a dynamically-registered `client_secret_basic`
+  client had its credentials sent via both an `Authorization: Basic` header
+  and a `client_id` body parameter in the same request, which RFC 6749
+  §2.3.1 disallows and Cloudflare's token endpoint enforces strictly. Fixed
+  in `server/services/mcp_oauth_token_storage.py` (patches
+  `OAuthContext.prepare_token_auth` to drop the redundant body parameter);
+  if you see this error, confirm that fix is present before re-registering
+  a client.
 - **Admin panel doesn't show OAuth login status**: expected — this is
   CLI-only today. See `docs/roadmap/mcp-oauth-admin-panel.md` for the
   tracked follow-up work.

@@ -164,6 +164,46 @@ class TestValidateMetadataIssuerTolerantPatch:
             oauth2.validate_metadata_issuer(meta, "https://issuer.example/tenant//")
 
 
+class TestPrepareTokenAuthNoDuplicateClientIdPatch:
+    """Importing this module patches OAuthContext.prepare_token_auth so
+    client_secret_basic clients don't also send client_id in the request
+    body — some authorization servers (Cloudflare's MCP token endpoint)
+    reject a request that authenticates via both the Basic header and a body
+    parameter in the same request."""
+
+    def _context_with(self, auth_method):
+        import mcp.client.auth.oauth2 as oauth2
+
+        ctx = oauth2.OAuthContext.__new__(oauth2.OAuthContext)
+        ctx.client_info = OAuthClientInformationFull(
+            client_id="cid",
+            client_secret="secret",
+            redirect_uris=["http://127.0.0.1:8765/callback"],
+            token_endpoint_auth_method=auth_method,
+        )
+        return ctx
+
+    def test_client_secret_basic_drops_client_id_from_body(self):
+        ctx = self._context_with("client_secret_basic")
+        data = {"grant_type": "authorization_code", "code": "x", "client_id": "cid"}
+
+        new_data, headers = ctx.prepare_token_auth(data, {})
+
+        assert "client_id" not in new_data
+        assert "client_secret" not in new_data
+        assert headers["Authorization"].startswith("Basic ")
+
+    def test_client_secret_post_keeps_client_id_in_body(self):
+        ctx = self._context_with("client_secret_post")
+        data = {"grant_type": "authorization_code", "code": "x", "client_id": "cid"}
+
+        new_data, headers = ctx.prepare_token_auth(data, {})
+
+        assert new_data["client_id"] == "cid"
+        assert new_data["client_secret"] == "secret"
+        assert "Authorization" not in headers
+
+
 class TestBuildStaticClientInfo:
     def test_with_secret_uses_client_secret_post(self):
         info = build_static_client_info("cid", "secret", ["http://127.0.0.1:8765/callback"], "a b")

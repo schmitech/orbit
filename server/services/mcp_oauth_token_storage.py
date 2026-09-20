@@ -47,6 +47,35 @@ def _validate_metadata_issuer_tolerant(oauth_metadata, expected_issuer):
 
 _oauth2.validate_metadata_issuer = _validate_metadata_issuer_tolerant
 
+# When a dynamically-registered (or preregistered) client uses
+# "client_secret_basic", OAuthContext.prepare_token_auth correctly moves the
+# credentials into an HTTP Basic Authorization header — but it only strips
+# `client_secret` from the request body, not `client_id`, so the token
+# request ends up authenticating via *both* the Basic header and a body
+# parameter in the same request. RFC 6749 section 2.3.1 says a client must
+# not use more than one authentication method per request, and Cloudflare's
+# MCP token endpoint enforces that strictly, rejecting the exchange with
+# "Client must not use multiple authentication methods". There's no public
+# hook to override this, so wrap the method: call the SDK's own
+# implementation, then also drop `client_id` from the body for this one auth
+# method (client_secret_post and the public "none"/absent cases already only
+# put client_id in the body, with no competing header, and are unaffected).
+_original_prepare_token_auth = _oauth2.OAuthContext.prepare_token_auth
+
+
+def _prepare_token_auth_no_duplicate_client_id(self, data, headers=None):
+    data, headers = _original_prepare_token_auth(self, data, headers)
+    if (
+        self.client_info
+        and self.client_info.token_endpoint_auth_method == "client_secret_basic"
+        and "Authorization" in headers
+    ):
+        data = {k: v for k, v in data.items() if k != "client_id"}
+    return data, headers
+
+
+_oauth2.OAuthContext.prepare_token_auth = _prepare_token_auth_no_duplicate_client_id
+
 
 class FileTokenStorage:
     """Persists OAuth tokens and client registration info for one MCP server."""
