@@ -41,7 +41,7 @@
   <br />
   <em>Upload PDFs, documents, and images, then ask questions across all of them in one conversation.
   Context is preserved across turns, and local models keep every file and query on your infrastructure.
-  See <a href="config/adapters/multimodal.yaml">multimodal.yaml</a></em>
+  Follow the <a href="docs/tutorial/chat-with-files.md">tutorial</a> to see how it works.</em>
 </div>
 
 <br />
