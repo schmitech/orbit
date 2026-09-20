@@ -34,9 +34,7 @@ Using MongoDB's `sample_mflix` dataset:
 - "What are the top rated action movies from the 2000s?"
 - "Show me movies with Leonardo DiCaprio"
 
-<!-- MEDIA: screenshot | mongodb-queries/movie-result | Chat showing a Christopher Nolan movie query answered from MongoDB -->
-> 🖼️ **Screenshot placeholder:** a movie question answered by `intent-mongodb-mflix`.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Top-rated movies query answered from MongoDB](../assets/tutorial/mongodb-queries/movie-result.png)
 
 ---
 

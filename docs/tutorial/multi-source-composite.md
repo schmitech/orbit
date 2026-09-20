@@ -70,9 +70,7 @@ Then go to **API Keys** → **+ Create**:
 3. Select the persona you just created.
 4. Save the key and copy the `orbit_…` value shown once.
 
-<!-- MEDIA: screenshot | multi-source-composite/adapter-config | Adapters tab showing composite-multi-source's child_adapters list -->
-> 🖼️ **Screenshot placeholder:** the `composite-multi-source` adapter config.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![composite-multi-source-explorer child_adapters config](../assets/tutorial/multi-source-composite/adapter-config.png)
 
 ### See routing in action
 

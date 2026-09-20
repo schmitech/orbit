@@ -35,9 +35,7 @@ See [Template Diagnostics → Getting the Admin Token](../template-diagnostics.m
 
 Open **Admin Panel → Adapters → `intent-sql-postgres` → Test Query**, and run one of the example questions from `demo-questions.md`, e.g. *"Show me orders above $500 in the last 30 days."*
 
-<!-- MEDIA: screenshot | intent-observability/test-query-match | Test Query panel showing a matched template, similarity score, and rendered SQL for a customer-orders question -->
-> 🖼️ **Screenshot placeholder:** Test Query panel showing a matched template and rendered SQL.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Test Query panel showing a matched template and rendered SQL](../assets/tutorial/intent-observability/test-query-match.png)
 
 ### 3. Trigger a miss, then check the Misses panel
 
@@ -45,9 +43,7 @@ Ask something clearly outside the domain — *"What's the weather like in Paris?
 
 Open the **Misses** panel (next to Test Query, same adapter). Your off-domain question should appear, most recent first, along with the reason and the closest candidates it considered.
 
-<!-- MEDIA: screenshot | intent-observability/misses-panel | Misses panel listing an off-domain query with its reason and candidate scores -->
-> 🖼️ **Screenshot placeholder:** Misses panel showing a recorded miss with candidates and a "Test in diagnostics" button.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Misses panel showing a recorded miss with reason and a Test in diagnostics button](../assets/tutorial/intent-observability/misses-panel.png)
 
 Click **Test in diagnostics** on that row — it jumps back to the Test Query panel with the exact query prefilled and re-run, so you can iterate on a fix (a new `nl_example`, a lower threshold, a new template) without retyping anything. Reopening the Misses panel later refreshes the list, so anything recorded while it was closed shows up too.
 

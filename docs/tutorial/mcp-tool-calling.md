@@ -64,9 +64,7 @@ capabilities:
 
 `simple-chat` uses `inference_provider: "openai"`, which supports native tool calling, so no provider change is needed. Restart ORBIT after saving.
 
-<!-- MEDIA: screenshot | mcp-tool-calling/mcp-tab | MCP tab showing the business-sample server configured with allow_opportunistic enabled -->
-> 🖼️ **Screenshot placeholder:** the MCP tab showing `business-sample` configured.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![MCP tab showing business-sample configured with opportunistic tools enabled](../assets/tutorial/mcp-tool-calling/mcp-tab.png)
 
 ### 4. Create an API key (or reuse your first-chat key)
 

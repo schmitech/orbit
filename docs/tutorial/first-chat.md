@@ -35,13 +35,9 @@ Open `http://localhost:3000/admin`, sign in, then go to **Prompts / Personas**.
 4. Name the key `First Chat` and select the persona you just created.
 5. Save the key and copy the `orbit_…` value shown once.
 
-<!-- MEDIA: screenshot | first-chat/persona-create | Prompts/Personas tab showing the "You are a friendly assistant." persona being created -->
-> 🖼️ **Screenshot placeholder:** creating the persona in Prompts / Personas.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Creating the "You are a friendly assistant." persona](../assets/tutorial/first-chat/persona-create.png)
 
-<!-- MEDIA: screenshot | first-chat/api-key-create | API Keys tab showing the "First Chat" key creation form with simple-chat selected -->
-> 🖼️ **Screenshot placeholder:** creating the "First Chat" API key.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Creating the "First Chat" API key with simple-chat selected](../assets/tutorial/first-chat/api-key-create.png)
 
 <!-- MEDIA: video | first-chat/admin-panel-walkthrough | 90s walkthrough: create persona -> create API key -> copy the orbit_ key -->
 > 🎬 **Video placeholder:** 90-second walkthrough of the admin-panel flow above.
@@ -83,9 +79,7 @@ ORBIT_ADAPTER_KEYS='{"simple-chat":"orbit_YOUR_KEY"}' orbitchat --open
 
 Ask it anything. **If you get a response, the stack is working.** If not, skip down to [Troubleshooting](troubleshooting.md) before going further.
 
-<!-- MEDIA: screenshot | first-chat/chat-response | OrbitChat window showing a sent message and the model's reply -->
-> 🖼️ **Screenshot placeholder:** OrbitChat showing a successful reply.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![OrbitChat showing a successful reply](../assets/tutorial/first-chat/chat-response.png)
 
 Now that you have a known-good baseline, pick an example below based on what you want to chat with.
 

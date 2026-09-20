@@ -60,9 +60,7 @@ Then go to **API Keys** → **+ Create**:
 
 **Tip:** If answers come back "I don't have information about that," lower `confidence_threshold` incrementally (try 0.2, then 0.15). Thresholds behave consistently across Chroma, Qdrant, FAISS, and Milvus as of 2.6.4.
 
-<!-- MEDIA: screenshot | vector-store-qa/city-assistant-answer | Chat showing a question answered with retrieved city data and confidence score -->
-> 🖼️ **Screenshot placeholder:** the City Assistant answering from retrieved vector-store context.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![City Assistant answering from retrieved vector-store context](../assets/tutorial/vector-store-qa/city-assistant-answer.png)
 
 You've now tried all three Level 1 foundations (SQL, files, vector QA). Before moving to more advanced patterns, [Core AI Services & Data Sources](core-services/overview.md) explains what's underneath every adapter you've configured so far — worth reading now that you've seen it in practice more than once.
 

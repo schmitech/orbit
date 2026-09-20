@@ -114,9 +114,7 @@ A successful response includes image fields:
 4. `ImageGenerationStep` generates the image; the normal chat inference path is skipped for this request.
 5. The original conversation continues on `simple-chat-with-files` after the skill response.
 
-<!-- MEDIA: screenshot | skills-image-generation/generated-image | OrbitChat showing the /Image skill picker and a generated illustration -->
-> 🖼️ **Screenshot placeholder:** the `/` skill picker and a resulting generated image.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![OrbitChat showing a generated illustration from the Image skill](../assets/tutorial/skills-image-generation/generated-image.png)
 
 ## The rest of the generator cluster
 

@@ -31,9 +31,7 @@ Then go to **API Keys** → **+ Create**:
 3. Select the `HR Assistant` persona.
 4. Save the key and copy the `orbit_…` value shown once.
 
-<!-- MEDIA: screenshot | sql-database-sqlite/adapter-config | Adapters tab showing the intent-sql-sqlite-hr adapter's YAML in the Ace editor -->
-> 🖼️ **Screenshot placeholder:** the `intent-sql-sqlite-hr` adapter config in the Adapters tab.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![intent-sql-sqlite-hr adapter YAML](../assets/tutorial/sql-database-sqlite/adapter-config.png)
 
 ### 4. Test the query with `curl`
 

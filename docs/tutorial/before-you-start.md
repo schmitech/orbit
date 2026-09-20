@@ -64,9 +64,7 @@ The panel covers Users, API Keys, Prompts/Personas, Adapters (with live toggle +
 
 For a full visual tour of every tab, see [Admin Panel Tour](admin-panel-tour.md).
 
-<!-- MEDIA: screenshot | before-you-start/admin-login | Admin panel login screen at http://localhost:3000/admin -->
-> 🖼️ **Screenshot placeholder:** the admin panel login screen.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Admin panel login screen](../assets/tutorial/before-you-start/admin-login.png)
 
 ### Test a conversation from the terminal
 

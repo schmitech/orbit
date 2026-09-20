@@ -13,9 +13,7 @@ These tutorial flows use the web admin panel; the CLI remains available for auto
 3. Pick the adapter, name the key, select or create a persona, and save.
 4. The `orbit_…` key is shown once — copy it immediately; ORBIT never shows it again.
 
-<!-- MEDIA: screenshot | creating-api-keys/api-keys-tab | API Keys tab showing the key list and the "+ Create" form -->
-> 🖼️ **Screenshot placeholder:** the API Keys tab and creation form.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![API Keys tab](../assets/tutorial/creating-api-keys/api-keys-tab.png)
 
 The admin panel also lets you:
 

@@ -42,9 +42,7 @@ Good fits:
 
 > You can stick with `ollama_cloud` / `gpt-oss:120b` if you prefer local-style hosted models — just update `inference_provider` and `model` to match whatever's enabled in your `config/inference.yaml` (see [Core AI Services: Inference Providers](core-services/inference-providers.md)).
 
-<!-- MEDIA: screenshot | duckdb-analytics/query-result | Chat showing a revenue-trend question answered from DuckDB analytics data -->
-> 🖼️ **Screenshot placeholder:** an analytics question answered by `intent-duckdb-analytics`.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Top-5 products by revenue answered by intent-duckdb-analytics](../assets/tutorial/duckdb-analytics/query-result.png)
 
 ---
 

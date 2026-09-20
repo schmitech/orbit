@@ -6,9 +6,7 @@ The admin panel (`http://localhost:3000/admin`) is where you'll do almost every 
 
 Sign in with the default credentials (`admin` / the value of `ORBIT_DEFAULT_ADMIN_PASSWORD`, or `ChangeMe!2026` if unset — change this before any real deployment).
 
-<!-- MEDIA: screenshot | admin-panel-tour/login | Admin panel login screen -->
-> 🖼️ **Screenshot placeholder:** the login screen.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Admin panel login screen](../assets/tutorial/admin-panel-tour/login.png)
 
 ## The four tabs you'll use to get started
 
@@ -16,33 +14,25 @@ Sign in with the default credentials (`admin` / the value of `ORBIT_DEFAULT_ADMI
 
 The first thing you see after logging in: live server health, CPU/memory, requests/sec, error rate and response-time charts, cached adapter/provider counts, and a link to the Prometheus metrics endpoint. Check this after `./bin/orbit.sh start` to confirm the server is actually healthy before you start configuring anything.
 
-<!-- MEDIA: screenshot | admin-panel-tour/overview | Overview tab dashboard with health/metrics charts -->
-> 🖼️ **Screenshot placeholder:** the Overview dashboard.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Overview dashboard](../assets/tutorial/admin-panel-tour/overview.png)
 
 ### API Keys
 
 Create, search, and manage keys — the primary onboarding task. Each key is tied to one adapter and one persona/system-prompt. See [Creating API Keys](creating-api-keys.md) for the full walkthrough. Also supports bulk actions, quotas, and per-key notes.
 
-<!-- MEDIA: screenshot | admin-panel-tour/api-keys | API Keys tab list view -->
-> 🖼️ **Screenshot placeholder:** the API Keys list and detail view.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![API Keys list](../assets/tutorial/admin-panel-tour/api-keys.png)
 
 ### Prompts / Personas
 
 Author and edit system prompts ("personas"). Changes here propagate automatically to every API key attached to that persona — you don't need to rotate keys to change behavior. Try creating a second persona with a different tone and swapping it onto your `First Chat` key to see the effect immediately.
 
-<!-- MEDIA: screenshot | admin-panel-tour/prompts | Prompts/Personas tab showing the persona editor -->
-> 🖼️ **Screenshot placeholder:** the persona editor.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Personas list](../assets/tutorial/admin-panel-tour/prompts.png)
 
 ### Adapters
 
 List every configured adapter, toggle `enabled` live (takes effect immediately, no restart), and edit an adapter's YAML directly in an in-browser Ace editor. This is where you'll spend time once you start connecting your own data — see [Connecting Your Own Data](connecting-your-own-data.md). Also triggers `reload-adapters` / `reload-templates` without a server restart.
 
-<!-- MEDIA: screenshot | admin-panel-tour/adapters | Adapters tab showing the adapter list with enabled toggles -->
-> 🖼️ **Screenshot placeholder:** the Adapters tab with an active adapter listed.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![Adapters tab with enabled toggles](../assets/tutorial/admin-panel-tour/adapters.png)
 
 ## Tabs for when you go further
 
@@ -54,9 +44,7 @@ Create/edit/delete admin accounts, assign roles, reset passwords. Relevant once 
 
 Add and configure MCP servers — tool discovery/timeout defaults and per-server settings. Ping a server to inspect its live tools. Its **Playbooks** section lists database-authored Tool Skills whose `mcp_tools` patterns match those discovered, already-namespaced tool names. File-authored playbooks can still be active at runtime even though this cross-reference intentionally lists database records only. Only relevant once you're using [MCP tool calling](mcp-tool-calling.md); skip this tab entirely until then.
 
-<!-- MEDIA: screenshot | admin-panel-tour/mcp | MCP tab showing a configured MCP server -->
-> 🖼️ **Screenshot placeholder:** the MCP tab.
-> _(To be added — see [`_media-todo.md`](_media-todo.md))_
+![MCP tab showing a configured MCP server](../assets/tutorial/admin-panel-tour/mcp.png)
 
 ### Skills
 
