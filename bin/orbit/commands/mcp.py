@@ -36,6 +36,19 @@ _SERVER_ROOT = _PROJECT_ROOT / "server"
 if str(_SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(_SERVER_ROOT))
 
+# Unlike the running server (server/main.py's load_environment()), the CLI
+# never sourced .env — so a ${VAR}-referenced client_id/client_secret in
+# auth: would silently expand to the literal "${VAR}" text and be rejected
+# by the authorization server as an unknown/invalid client. Load it here too.
+try:
+    from dotenv import load_dotenv
+
+    _env_path = _PROJECT_ROOT / ".env"
+    if _env_path.exists():
+        load_dotenv(_env_path)
+except ImportError:
+    pass
+
 
 def _load_server_config(config_path: str, server_name: str | None = None):
     path = Path(config_path)
@@ -92,10 +105,24 @@ def _bind_loopback_listener(port: int) -> HTTPServer:
 
 def _wait_for_callback(server: HTTPServer, timeout: float = 300.0) -> _CallbackResult:
     """Block the calling thread for exactly one request on an already-bound
-    listener, then close it and return the captured callback params."""
+    listener, then close it and return the captured callback params.
+
+    If the caller cancels (Ctrl-C) and closes this same socket from the main
+    thread while this is blocked in handle_request(), that raises here too —
+    swallow it rather than let it print as an unhandled exception in a
+    thread nothing is still waiting on; the cancellation is already being
+    reported on the main thread.
+    """
     server.timeout = timeout
-    server.handle_request()
-    server.server_close()
+    try:
+        server.handle_request()
+    except OSError:
+        return server.result  # type: ignore[attr-defined]
+    finally:
+        try:
+            server.server_close()
+        except OSError:
+            pass
     return server.result  # type: ignore[attr-defined]
 
 
@@ -172,8 +199,23 @@ class MCPLoginCommand(BaseCommand):
         if client_secret:
             client_secret = os.path.expandvars(str(client_secret))
 
+        # Bound here (not inside _login) so a Ctrl-C below can close this
+        # exact socket — see the KeyboardInterrupt handler.
+        listener = _bind_loopback_listener(port)
         try:
-            asyncio.run(self._login(args.server_name, url, scopes, port, client_id, client_secret))
+            asyncio.run(self._login(args.server_name, url, scopes, port, client_id, client_secret, listener))
+        except KeyboardInterrupt:
+            # callback_handler's _wait_for_callback runs in a thread-pool
+            # executor, blocked on a synchronous socket accept() with no way
+            # to cancel it from here — Ctrl-C only interrupts the awaiting
+            # asyncio task. Left alone, that thread keeps blocking (up to its
+            # 300s timeout) and the interpreter hangs at exit trying to join
+            # it. Closing the listener's socket directly unblocks accept()
+            # immediately with an OSError, so the thread (and the process)
+            # actually exits right away instead of needing a second Ctrl-C.
+            listener.server_close()
+            self.formatter.warning("Login cancelled.")
+            return 130
         except Exception as e:  # noqa: BLE001 - surfaced to the operator as a login failure
             self.formatter.error(f"Login failed: {e}")
             return 1
@@ -191,6 +233,7 @@ class MCPLoginCommand(BaseCommand):
         port: int,
         client_id: str | None = None,
         client_secret: str | None = None,
+        listener: HTTPServer | None = None,
     ) -> None:
         from mcp.client.auth import OAuthClientProvider
         from mcp.client.session import ClientSession
@@ -199,14 +242,13 @@ class MCPLoginCommand(BaseCommand):
         from mcp.shared.auth import AuthorizationCodeResult, OAuthClientMetadata
         from services.mcp_oauth_token_storage import FileTokenStorage
 
-        # Bind the loopback listener before the SDK calls redirect_handler
-        # (which happens strictly before callback_handler — see
-        # OAuthClientProvider._perform_authorization_code_grant). Binding
-        # here, ahead of opening the browser, avoids a race where an
-        # existing browser session or instant SSO approval redirects to
-        # localhost before a listener bound only inside callback_handler
-        # would exist yet, which would otherwise hang until timeout.
-        listener = _bind_loopback_listener(port)
+        # The caller binds the loopback listener (before opening the
+        # browser, and before the SDK calls redirect_handler, which happens
+        # strictly before callback_handler — see
+        # OAuthClientProvider._perform_authorization_code_grant) so it can
+        # close this exact socket from its own KeyboardInterrupt handler.
+        if listener is None:
+            listener = _bind_loopback_listener(port)
 
         async def redirect_handler(authorize_url: str) -> None:
             console.print(f"[blue]Opening browser for authorization:[/blue]\n  {authorize_url}")
@@ -245,6 +287,27 @@ class MCPLoginCommand(BaseCommand):
                 read, write = transport[:2]
                 async with ClientSession(read, write) as session:
                     await session.initialize()
+                    # `initialize`/`tools/list` don't require credentials on
+                    # every provider (Google Drive's MCP endpoint answers both
+                    # unauthenticated) — only an actual tool call is. The SDK's
+                    # OAuthClientProvider only starts the interactive
+                    # authorization-code flow (opening the browser, exchanging
+                    # the code, storing tokens) in response to a real 401, so
+                    # without this call `initialize()` alone would report
+                    # "logged in" without ever having run the OAuth dance.
+                    # Any one authenticated tool call is enough to trigger
+                    # it — its own result (success or business-logic error) is
+                    # irrelevant here, only the 401 challenge it provokes.
+                    tools = (await session.list_tools()).tools
+                    if tools:
+                        await session.call_tool(tools[0].name, {})
+
+        if not provider.context.current_tokens or not provider.context.current_tokens.access_token:
+            raise RuntimeError(
+                f"No token was issued by '{url}' — the server may not require "
+                "OAuth for the calls this command made, or the authorization "
+                "flow did not complete."
+            )
 
         # The SDK only ever discovers authorization-server metadata (notably
         # token_endpoint) in-memory during this flow and never persists it —

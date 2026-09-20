@@ -7,6 +7,7 @@
 
 ### Bug Fixes
 - **MCP Admin Panel: Unreliable Server URL Field**: The MCP server URL field could occasionally mangle what you typed (e.g. dropping a slash), and the "Ping" button could report stale, misleading results while a URL edit was still unsaved. The URL is now entered as a protocol picker plus a plain address field, and a new "Test connection" check must pass before an HTTP server's URL or headers can be saved.
+- **MCP OAuth Login: Silent No-Op Login and Related Fixes**: `mcp login` only called the MCP handshake (`initialize`), which some OAuth-protected servers (e.g. Google Drive) answer without credentials — so the browser/token exchange never ran, yet the CLI still reported success with no token ever stored. It now drives an actual tool call to force the provider's real 401 challenge, and fails loudly if no token results. Alongside this: the CLI now loads `.env` (previously only the server process did, so a `${VAR}`-referenced `client_id`/`client_secret` silently expanded to nothing and Google rejected it as `invalid_client`); a Gemini `FunctionDeclaration` conversion error on MCP tool schemas carrying a `deprecated` JSON Schema keyword; a missing `auth` entry in the server config's known-keys list that logged a spurious "unrecognized config key" warning; a strict SDK issuer check that rejected Google's authorization-server metadata over a trailing-slash-only difference; and Ctrl-C during the browser wait hanging the CLI instead of exiting immediately.
 
 ## [2.17.11] - 2026-09-19
 

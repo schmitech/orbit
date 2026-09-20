@@ -14,10 +14,38 @@ import os
 import time
 from pathlib import Path
 
+import mcp.client.auth.oauth2 as _oauth2
 from mcp.client.auth.oauth2 import TokenStorage as _TokenStorageProtocol  # noqa: F401
 from mcp.shared.auth import OAuthClientInformationFull, OAuthMetadata, OAuthToken
 
 DEFAULT_STATE_DIR = Path.home() / ".orbit" / "mcp_oauth"
+
+# Google's real-world discovery document issues a bare-origin issuer
+# ("https://accounts.google.com", no trailing slash), but the SDK derives
+# the *expected* issuer from the protected-resource-metadata's
+# authorization_servers[0] entry, which round-trips through pydantic's
+# AnyUrl and gets a trailing slash appended. The SDK's RFC 8414 issuer
+# check (mcp.client.auth.oauth2.validate_metadata_issuer) is a strict
+# string comparison, so this false mismatch makes every Google OAuth login
+# fail with "Authorization server metadata issuer mismatch" even though the
+# two URLs are the same origin. There's no public hook to override this, so
+# patch it narrowly: only tolerate a trailing-slash difference, otherwise
+# defer to the SDK's own (still-strict) check.
+_original_validate_metadata_issuer = _oauth2.validate_metadata_issuer
+
+
+def _validate_metadata_issuer_tolerant(oauth_metadata, expected_issuer):
+    issuer = str(oauth_metadata.issuer)
+    # Tolerate exactly one side having a single extra trailing slash (the
+    # bare-origin normalization case above) — not a generic rstrip, which
+    # would also accept distinct path-based issuers that merely differ by
+    # multiple trailing slashes (e.g. ".../tenant//" vs ".../tenant").
+    if issuer == expected_issuer or issuer + "/" == expected_issuer or expected_issuer + "/" == issuer:
+        return
+    _original_validate_metadata_issuer(oauth_metadata, expected_issuer)
+
+
+_oauth2.validate_metadata_issuer = _validate_metadata_issuer_tolerant
 
 
 class FileTokenStorage:

@@ -391,10 +391,11 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
         Remove JSON Schema meta-fields that Gemini's FunctionDeclaration rejects.
 
         MCP servers commonly include '$schema', '$id', '$defs', and similar
-        draft-07 annotations, plus vendor extensions like 'x-mcp-header'.
-        Gemini's Pydantic model uses extra=forbid so any unknown key raises
-        a ValidationError. We strip them recursively so nested property
-        schemas are also cleaned.
+        draft-07 annotations, plus vendor extensions like 'x-mcp-header' and
+        JSON Schema's 'deprecated' keyword (e.g. Google Drive MCP's tool
+        schemas). Gemini's Pydantic model uses extra=forbid so any unknown
+        key raises a ValidationError. We strip them recursively so nested
+        property schemas are also cleaned.
 
         'additionalProperties' is also unsupported by Gemini's Schema type —
         the google-genai SDK round-trips it to 'additional_properties' when
@@ -416,6 +417,8 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
                 continue  # drop vendor extensions, e.g. github MCP's x-mcp-header
             if k == "additionalProperties":
                 continue  # unsupported by Gemini's Schema type
+            if k == "deprecated":
+                continue  # unsupported by Gemini's Schema type (e.g. Google Drive MCP)
             if k == "type" and isinstance(v, list):
                 non_null = [t for t in v if t != "null"]
                 v = non_null[0] if non_null else v[0]

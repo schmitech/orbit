@@ -135,7 +135,7 @@ class TestLoadServerConfigExpandsAuthEnvVars:
 
         captured = {}
 
-        async def fake_login(self, server_name, url, scopes, port, client_id=None, client_secret=None):
+        async def fake_login(self, server_name, url, scopes, port, client_id=None, client_secret=None, listener=None):
             captured["client_id"] = client_id
             captured["client_secret"] = client_secret
 
@@ -158,7 +158,7 @@ class TestLoadServerConfigExpandsAuthEnvVars:
 
         captured = {}
 
-        async def fake_login(self, server_name, url, scopes, port, client_id=None, client_secret=None):
+        async def fake_login(self, server_name, url, scopes, port, client_id=None, client_secret=None, listener=None):
             captured["client_id"] = client_id
 
         monkeypatch.setattr(mcp_cli.MCPLoginCommand, "_login", fake_login)

@@ -80,6 +80,20 @@ class TestGeminiStripSchemaMeta:
         assert cleaned["properties"]["owner"]["type"] == "string"
         assert cleaned["properties"]["repo"]["type"] == "string"
 
+    def test_strips_deprecated_field(self):
+        cleaned = GeminiInferenceService._strip_schema_meta(
+            {
+                "type": "object",
+                "properties": {
+                    "content": {"type": "string", "deprecated": True},
+                    "mimeType": {"type": "string", "deprecated": True},
+                },
+            }
+        )
+        assert "deprecated" not in cleaned["properties"]["content"]
+        assert "deprecated" not in cleaned["properties"]["mimeType"]
+        assert cleaned["properties"]["content"]["type"] == "string"
+
     def test_union_type_list_collapsed_to_first_non_null(self):
         cleaned = GeminiInferenceService._strip_schema_meta(
             {"type": ["string", "number", "boolean"], "properties": {}}

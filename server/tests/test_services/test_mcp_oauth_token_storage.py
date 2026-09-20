@@ -118,6 +118,52 @@ async def test_oauth_metadata_coexists_with_tokens_and_client_info(tmp_path):
     assert str((await storage.get_oauth_metadata()).token_endpoint) == "https://example.com/token"
 
 
+class TestValidateMetadataIssuerTolerantPatch:
+    """Importing this module patches mcp.client.auth.oauth2's strict RFC 8414
+    issuer check to tolerate a trailing-slash-only difference (Google's real
+    discovery document issues a bare-origin issuer that otherwise never
+    matches the SDK's AnyUrl-normalized expected issuer)."""
+
+    def test_tolerates_trailing_slash_only_difference(self):
+        import mcp.client.auth.oauth2 as oauth2
+
+        meta = OAuthMetadata(
+            issuer="https://accounts.google.com",
+            authorization_endpoint="https://accounts.google.com/o/oauth2/auth",
+            token_endpoint="https://oauth2.googleapis.com/token",
+            response_types_supported=["code"],
+        )
+        oauth2.validate_metadata_issuer(meta, "https://accounts.google.com/")
+
+    def test_still_rejects_a_real_mismatch(self):
+        import mcp.client.auth.oauth2 as oauth2
+        from mcp.client.auth.exceptions import OAuthFlowError
+
+        meta = OAuthMetadata(
+            issuer="https://accounts.google.com",
+            authorization_endpoint="https://accounts.google.com/o/oauth2/auth",
+            token_endpoint="https://oauth2.googleapis.com/token",
+            response_types_supported=["code"],
+        )
+        with pytest.raises(OAuthFlowError):
+            oauth2.validate_metadata_issuer(meta, "https://evil.example.com/")
+
+    def test_rejects_distinct_path_based_issuers_differing_by_multiple_slashes(self):
+        """A generic rstrip("/") would wrongly accept this; only a single
+        added trailing slash on a bare-origin issuer should be tolerated."""
+        import mcp.client.auth.oauth2 as oauth2
+        from mcp.client.auth.exceptions import OAuthFlowError
+
+        meta = OAuthMetadata(
+            issuer="https://issuer.example/tenant",
+            authorization_endpoint="https://issuer.example/tenant/authorize",
+            token_endpoint="https://issuer.example/tenant/token",
+            response_types_supported=["code"],
+        )
+        with pytest.raises(OAuthFlowError):
+            oauth2.validate_metadata_issuer(meta, "https://issuer.example/tenant//")
+
+
 class TestBuildStaticClientInfo:
     def test_with_secret_uses_client_secret_post(self):
         info = build_static_client_info("cid", "secret", ["http://127.0.0.1:8765/callback"], "a b")

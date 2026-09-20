@@ -83,7 +83,7 @@ mcp_clients:
       url: "https://drivemcp.googleapis.com/mcp/v1"
       auth:
         type: "oauth2"
-        scopes: ["https://www.googleapis.com/auth/drive.readonly"]
+        scopes: ["https://www.googleapis.com/auth/drive"]
         client_id: "${GOOGLE_OAUTH_CLIENT_ID}"
         client_secret: "${GOOGLE_OAUTH_CLIENT_SECRET}"
       enabled: true

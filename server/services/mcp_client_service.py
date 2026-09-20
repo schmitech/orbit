@@ -142,7 +142,7 @@ class MCPClientManager:
     # Per-server keys that are not settings (transport/identity/lifecycle).
     _SERVER_KEYS = {
         "name", "enabled", "transport", "command", "args", "env",
-        "url", "headers",
+        "url", "headers", "auth",
     }
 
     def __init__(
