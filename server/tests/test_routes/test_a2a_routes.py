@@ -370,13 +370,13 @@ class TestSessionAuthorization:
 
     def test_tasks_send_subscribe_returns_403(self):
         svc = self._denying_service()
-        svc.process_chat_stream = MagicMock()
+        svc.process_chat_stream_events = MagicMock()
         client = TestClient(make_app(chat_service=svc))
         body = self._body()
         body["method"] = "tasks/sendSubscribe"
         resp = client.post("/a2a", json=body)
         assert resp.status_code == 403
-        svc.process_chat_stream.assert_not_called()
+        svc.process_chat_stream_events.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -388,10 +388,6 @@ class TestStreamingErrorPropagation:
         msg = {"role": "user", "parts": [{"type": "text", "text": text}]}
         return {"jsonrpc": "2.0", "id": 1, "method": "tasks/sendSubscribe", "params": {"message": msg}}
 
-    async def _stream_chunks(self, *chunks):
-        for c in chunks:
-            yield f"data: {json.dumps(c)}\n\n"
-
     def _collect_sse_events(self, client, body):
         """Collect all SSE data lines from a streaming response."""
         events = []
@@ -402,12 +398,14 @@ class TestStreamingErrorPropagation:
         return events
 
     def test_error_in_done_chunk_marks_task_failed(self):
+        from services.chat_handlers.streaming_events import ErrorEvent, ResponseEvent
+
         async def bad_stream(**kwargs):
-            yield "data: " + json.dumps({"response": "partial"}) + "\n\n"
-            yield "data: " + json.dumps({"done": True, "error": "Pipeline failed"}) + "\n\n"
+            yield ResponseEvent(text="partial", extra={"done": False})
+            yield ErrorEvent(error="Pipeline failed", extra={"done": True})
 
         chat_svc = MagicMock()
-        chat_svc.process_chat_stream = bad_stream
+        chat_svc.process_chat_stream_events = bad_stream
         # No api_key_service — auth disabled
         client = TestClient(make_app(chat_service=chat_svc))
 
@@ -419,13 +417,39 @@ class TestStreamingErrorPropagation:
         )
         assert not completed, "Task must not be marked completed when stream reports an error"
 
-    def test_clean_stream_marks_task_completed(self):
-        async def good_stream(**kwargs):
-            yield "data: " + json.dumps({"response": "Hello!"}) + "\n\n"
-            yield "data: " + json.dumps({"done": True}) + "\n\n"
+    def test_error_event_without_done_true_does_not_fail_task(self):
+        """Matches the legacy SSE condition `if data.get("done"): if
+        data.get("error"): raise ...` — an error payload with done
+        false/absent was never raised, just silently ignored, and the stream
+        continued to a normal completion."""
+        from services.chat_handlers.streaming_events import DoneEvent, ErrorEvent, ResponseEvent
+
+        async def stream_with_ignored_error(**kwargs):
+            yield ErrorEvent(error="transient warning", extra={"done": False})
+            yield ResponseEvent(text="Hello!", extra={"done": False})
+            yield DoneEvent()
 
         chat_svc = MagicMock()
-        chat_svc.process_chat_stream = good_stream
+        chat_svc.process_chat_stream_events = stream_with_ignored_error
+        client = TestClient(make_app(chat_service=chat_svc))
+
+        events = self._collect_sse_events(client, self._body())
+
+        completed = any(
+            e.get("result", {}).get("status", {}).get("state") == "completed"
+            for e in events
+        )
+        assert completed, "An error event with done=false must not fail the task"
+
+    def test_clean_stream_marks_task_completed(self):
+        from services.chat_handlers.streaming_events import DoneEvent, ResponseEvent
+
+        async def good_stream(**kwargs):
+            yield ResponseEvent(text="Hello!", extra={"done": False})
+            yield DoneEvent()
+
+        chat_svc = MagicMock()
+        chat_svc.process_chat_stream_events = good_stream
         client = TestClient(make_app(chat_service=chat_svc))
 
         events = self._collect_sse_events(client, self._body())

@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Technical Improvements
+- **Pipeline Streaming Structured-Event Contract — Scope (a) Implemented**: Implemented steps 1-5 of `docs/roadmap/complete/pipeline-streaming-structured-events.md`'s route/protocol-layer scope: characterization tests pinning down every existing stream payload shape and ordering quirk (including the cancellation-truncates-with-no-done-event behavior); a new discriminated `StreamEvent` union (`server/services/chat_handlers/streaming_events.py`) with lossless, byte-for-byte-compatible SSE round-tripping (including verbatim relay of unparseable/non-default-formatted chunks); `StreamingHandler` and `PipelineChatService` now produce structured events canonically (`process_stream_events`, `process_chat_stream_events`, `build_done_event`), with `process_stream`/`process_chat_stream` as thin SSE-formatting wrappers over them; and `openai_stream_generator` (`/v1/chat/completions`) and A2A's `tasks/sendSubscribe` now consume structured events directly, removing their per-chunk `json.loads`/`json.dumps` round trip. `/v1/chat` and `Pipeline.process_stream` are unchanged, per the scope decision — no client-visible behavior change.
+
 ## [2.17.12] - 2026-09-20
 
 ### Core Features

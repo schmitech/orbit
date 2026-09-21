@@ -15,12 +15,19 @@ from typing import Optional, Any
 from fastapi import APIRouter, FastAPI, Request, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from utils import is_true_value
 from utils.text_utils import hash_api_key
 from services.stream_registry import stream_registry
 from ai_services.services.inference_service import OpenAIResponseFormatter
+from services.chat_handlers.streaming_events import (
+    AudioChunkEvent,
+    DoneEvent,
+    ErrorEvent,
+    RawEvent,
+    ResponseEvent,
+)
 from routes.auth_helpers import (
     resolve_authenticated_user,
     resolve_authenticated_user_id,
@@ -452,8 +459,7 @@ class RouteConfigurator:
             top_p: Optional[float] = None
             user: Optional[str] = None
 
-            class Config:
-                extra = "allow"
+            model_config = ConfigDict(extra="allow")
 
         def _prepare_chat_parameters(chat_request: Any) -> tuple[str, dict[str, Any]]:
             """Extract the last user message and shared kwargs for chat processing."""
@@ -613,7 +619,7 @@ class RouteConfigurator:
             if chat_request.stream:
                 async def openai_stream_generator():
                     stream_started = False
-                    async for chunk in chat_service.process_chat_stream(
+                    async for event in chat_service.process_chat_stream_events(
                         message=last_user_message,
                         client_ip=client_ip,
                         adapter_name=adapter_name,
@@ -623,37 +629,29 @@ class RouteConfigurator:
                         user_id=user_id,
                         **payload_kwargs
                     ):
-                        if not chunk or not chunk.startswith("data:"):
+                        if isinstance(event, RawEvent):
+                            # Unparseable pipeline chunk — nothing structured to relay.
                             continue
 
-                        chunk_payload = chunk[6:].strip()
-                        if not chunk_payload:
-                            continue
-
-                        try:
-                            chunk_data = json.loads(chunk_payload)
-                        except json.JSONDecodeError:
-                            continue
-
-                        if "error" in chunk_data:
+                        if isinstance(event, ErrorEvent):
                             error_chunk = formatter.build_stream_chunk(
                                 finish_reason="error",
-                                orbit_extension={"error": chunk_data["error"]}
+                                orbit_extension={"error": event.error}
                             )
                             yield f"data: {json.dumps(error_chunk)}\n\n"
                             yield "data: [DONE]\n\n"
                             return
 
-                        if chunk_data.get("done"):
+                        if isinstance(event, DoneEvent):
                             orbit_extension = formatter.build_orbit_extension(
-                                sources=chunk_data.get("sources"),
-                                metadata=chunk_data.get("metadata"),
-                                audio=chunk_data.get("audio"),
-                                audio_format=chunk_data.get("audioFormat"),
-                                threading=chunk_data.get("threading"),
+                                sources=event.sources,
+                                metadata=event.metadata,
+                                audio=event.audio,
+                                audio_format=event.audio_format,
+                                threading=event.threading,
                                 extra={
-                                    "total_audio_chunks": chunk_data.get("total_audio_chunks")
-                                } if chunk_data.get("total_audio_chunks") is not None else None
+                                    "total_audio_chunks": event.total_audio_chunks
+                                } if event.total_audio_chunks is not None else None
                             )
                             final_chunk = formatter.build_stream_chunk(
                                 finish_reason="stop",
@@ -663,27 +661,21 @@ class RouteConfigurator:
                             yield "data: [DONE]\n\n"
                             return
 
-                        orbit_extension = None
-                        if "audio_chunk" in chunk_data:
+                        if isinstance(event, AudioChunkEvent):
                             orbit_extension = formatter.build_orbit_extension(
                                 extra={
-                                    "audio_chunk": chunk_data["audio_chunk"],
-                                    "audioFormat": chunk_data.get("audioFormat")
+                                    "audio_chunk": event.audio_chunk,
+                                    "audioFormat": event.audio_format
                                 }
                             )
-
-                        if "response" in chunk_data and chunk_data["response"] is not None:
+                            chunk_dict = formatter.build_stream_chunk(orbit_extension=orbit_extension)
+                            yield f"data: {json.dumps(chunk_dict)}\n\n"
+                        elif isinstance(event, ResponseEvent):
                             chunk_dict = formatter.build_stream_chunk(
-                                content=chunk_data["response"],
+                                content=event.text,
                                 role="assistant" if not stream_started else None,
-                                orbit_extension=orbit_extension
                             )
                             stream_started = True
-                            yield f"data: {json.dumps(chunk_dict)}\n\n"
-                        elif orbit_extension:
-                            chunk_dict = formatter.build_stream_chunk(
-                                orbit_extension=orbit_extension
-                            )
                             yield f"data: {json.dumps(chunk_dict)}\n\n"
 
                     # If the upstream generator exits without emitting a done chunk,

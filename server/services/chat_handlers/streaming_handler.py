@@ -16,6 +16,16 @@ from collections import deque
 
 from utils.sentence_detector import SentenceDetector
 from .audio_handler import AudioHandler
+from .streaming_events import (
+    AudioChunkEvent,
+    DoneEvent,
+    ErrorEvent,
+    RawEvent,
+    ResponseEvent,
+    StreamEvent,
+    format_stream_event,
+    stream_event_to_dict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -205,9 +215,9 @@ class StreamingHandler:
             self._audio_results[chunk_index] = None  # Mark as failed
 
     async def _yield_ready_audio_chunks(
-        self, 
+        self,
         state: StreamingState
-    ) -> AsyncIterator[tuple[str, StreamingState]]:
+    ) -> AsyncIterator[tuple[StreamEvent, StreamingState]]:
         """
         Yield any ready audio chunks in order.
 
@@ -215,7 +225,7 @@ class StreamingHandler:
             state: Current streaming state
 
         Yields:
-            Tuple of (audio_chunk_string, updated_state)
+            Tuple of (AudioChunkEvent, updated_state)
         """
         # Yield chunks in order as they become available
         while self._next_chunk_index in self._audio_results:
@@ -223,8 +233,11 @@ class StreamingHandler:
             # Only yield if chunk is not None and is a valid dictionary
             if chunk and isinstance(chunk, dict):
                 state.audio_chunks_sent += 1
-                audio_chunk_json = json.dumps(chunk)
-                yield f"data: {audio_chunk_json}\n\n", state
+                yield AudioChunkEvent(
+                    audio_chunk=chunk["audio_chunk"],
+                    audio_format=chunk.get("audioFormat", "opus"),
+                    chunk_index=chunk["chunk_index"],
+                ), state
 
                 logger.debug(
                     f"Sent streaming audio chunk {state.audio_chunks_sent} "
@@ -235,16 +248,19 @@ class StreamingHandler:
                 logger.debug(f"Skipping None chunk at index {self._next_chunk_index}")
             self._next_chunk_index += 1
 
-    async def process_stream(
+    async def process_stream_events(
         self,
         pipeline_stream: AsyncIterator,
         adapter_name: str,
         tts_voice: Optional[str] = None,
         language: Optional[str] = None,
         return_audio: bool = False
-    ) -> AsyncIterator[tuple[str, StreamingState]]:
+    ) -> AsyncIterator[tuple[StreamEvent, StreamingState]]:
         """
-        Process the pipeline stream, yielding chunks and managing state.
+        Process the pipeline stream, yielding structured events and managing
+        state. This is the canonical producer — `process_stream` (SSE) and
+        `process_stream_raw` (dicts) are both thin formatting wrappers
+        around this method.
 
         Args:
             pipeline_stream: Async iterator of pipeline chunks
@@ -254,7 +270,7 @@ class StreamingHandler:
             return_audio: Whether to generate streaming audio
 
         Yields:
-            Tuple of (formatted_chunk, streaming_state)
+            Tuple of (StreamEvent, streaming_state)
         """
         state = StreamingState(return_audio=return_audio)
 
@@ -274,11 +290,7 @@ class StreamingHandler:
         # Validate pipeline_stream is not None
         if pipeline_stream is None:
             logger.error("pipeline_stream is None - cannot process stream")
-            error_chunk = json.dumps({
-                "error": "Pipeline stream is not available",
-                "done": True
-            })
-            yield f"data: {error_chunk}\n\n", state
+            yield ErrorEvent(error="Pipeline stream is not available", extra={"done": True}), state
             return
 
         try:
@@ -288,7 +300,11 @@ class StreamingHandler:
 
                     # Handle errors
                     if "error" in chunk_data:
-                        yield f"data: {chunk}\n\n", state
+                        yield ErrorEvent(
+                            error=chunk_data["error"],
+                            extra={k: v for k, v in chunk_data.items() if k != "error"},
+                            raw=chunk,
+                        ), state
                         return
 
                     # Debug: Log first chunk timing
@@ -334,7 +350,11 @@ class StreamingHandler:
                         break
 
                     # Stream text chunk immediately
-                    yield f"data: {chunk}\n\n", state
+                    yield ResponseEvent(
+                        text=chunk_data.get("response", ""),
+                        extra={k: v for k, v in chunk_data.items() if k != "response"},
+                        raw=chunk,
+                    ), state
 
                     state.chunk_count += 1
 
@@ -381,14 +401,14 @@ class StreamingHandler:
                                                 return_when=asyncio.FIRST_COMPLETED
                                             )
                                             running_audio_tasks = list(pending)
-                                            
+
                                             # Yield any ready chunks immediately
-                                            async for audio_chunk_str, updated_state in self._yield_ready_audio_chunks(state):
-                                                yield audio_chunk_str, updated_state
+                                            async for audio_event, updated_state in self._yield_ready_audio_chunks(state):
+                                                yield audio_event, updated_state
                                         else:
                                             # Check for ready chunks even if not at limit
-                                            async for audio_chunk_str, updated_state in self._yield_ready_audio_chunks(state):
-                                                yield audio_chunk_str, updated_state
+                                            async for audio_event, updated_state in self._yield_ready_audio_chunks(state):
+                                                yield audio_event, updated_state
 
                     # Handle sources
                     if "sources" in chunk_data:
@@ -396,17 +416,17 @@ class StreamingHandler:
 
                 except json.JSONDecodeError:
                     # Still yield the chunk even if we can't parse it
-                    yield f"data: {chunk}\n\n", state
+                    yield RawEvent(raw=chunk), state
                     continue
 
             # Wait for all pending audio tasks to complete (including early-started remaining audio)
             if running_audio_tasks:
                 logger.debug(f"Waiting for {len(running_audio_tasks)} pending audio tasks to complete")
                 await asyncio.gather(*running_audio_tasks, return_exceptions=True)
-                
+
                 # Yield all remaining ready chunks (including early-started remaining audio)
-                async for audio_chunk_str, updated_state in self._yield_ready_audio_chunks(state):
-                    yield audio_chunk_str, updated_state
+                async for audio_event, updated_state in self._yield_ready_audio_chunks(state):
+                    yield audio_event, updated_state
 
             # Flush any remaining batched sentences after stream completes
             if return_audio and self._pending_sentences:
@@ -428,8 +448,11 @@ class StreamingHandler:
 
                 if audio_chunk:
                     state.audio_chunks_sent += 1
-                    audio_chunk_json = json.dumps(audio_chunk)
-                    yield f"data: {audio_chunk_json}\n\n", state
+                    yield AudioChunkEvent(
+                        audio_chunk=audio_chunk["audio_chunk"],
+                        audio_format=audio_chunk.get("audioFormat", "opus"),
+                        chunk_index=audio_chunk["chunk_index"],
+                    ), state
 
                     logger.debug(
                         f"Sent final batched audio chunk {state.audio_chunks_sent} "
@@ -438,11 +461,32 @@ class StreamingHandler:
 
         except Exception as e:
             logger.error(f"Error in streaming handler: {e!s}", exc_info=True)
-            error_chunk = json.dumps({
-                "error": f"Stream processing failed: {e!s}",
-                "done": True
-            })
-            yield f"data: {error_chunk}\n\n", state
+            yield ErrorEvent(error=f"Stream processing failed: {e!s}", extra={"done": True}), state
+
+    async def process_stream(
+        self,
+        pipeline_stream: AsyncIterator,
+        adapter_name: str,
+        tts_voice: Optional[str] = None,
+        language: Optional[str] = None,
+        return_audio: bool = False
+    ) -> AsyncIterator[tuple[str, StreamingState]]:
+        """
+        Process the pipeline stream, yielding SSE-formatted chunks and
+        managing state. Thin SSE-formatting wrapper around
+        `process_stream_events`.
+
+        Yields:
+            Tuple of (formatted_chunk, streaming_state)
+        """
+        async for event, state in self.process_stream_events(
+            pipeline_stream=pipeline_stream,
+            adapter_name=adapter_name,
+            tts_voice=tts_voice,
+            language=language,
+            return_audio=return_audio,
+        ):
+            yield format_stream_event(event), state
 
     async def process_stream_raw(
         self,
@@ -468,38 +512,34 @@ class StreamingHandler:
         Yields:
             Tuple of (chunk_dict, streaming_state)
         """
-        # Process through the existing method and parse the SSE format
-        async for formatted_chunk, state in self.process_stream(
+        # Thin dict-formatting wrapper around process_stream_events. A RawEvent
+        # (a pipeline chunk that failed json.loads) has no dict form, matching
+        # the legacy behavior of this method, which skipped such chunks with a
+        # warning rather than yielding them.
+        async for event, state in self.process_stream_events(
             pipeline_stream=pipeline_stream,
             adapter_name=adapter_name,
             tts_voice=tts_voice,
             language=language,
-            return_audio=return_audio
+            return_audio=return_audio,
         ):
-            # Parse SSE format: "data: {...}\n\n"
-            if formatted_chunk.startswith("data: "):
-                chunk_json = formatted_chunk[6:].strip()
-                try:
-                    chunk_data = json.loads(chunk_json)
-                    yield chunk_data, state
-                except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse chunk JSON: {chunk_json[:100]}")
-                    continue
-            else:
-                # Unexpected format, skip
-                logger.warning(f"Unexpected chunk format: {formatted_chunk[:100]}")
+            if isinstance(event, RawEvent):
+                logger.warning(f"Skipping unparseable chunk: {event.raw[:100]}")
                 continue
+            yield stream_event_to_dict(event), state
 
-    async def generate_remaining_audio(
+    async def generate_remaining_audio_event(
         self,
         state: StreamingState,
         adapter_name: str,
         tts_voice: Optional[str] = None,
         language: Optional[str] = None
-    ) -> Optional[str]:
+    ) -> Optional[AudioChunkEvent]:
         """
         Generate audio for remaining text after streaming completes.
-        
+        Canonical producer — `generate_remaining_audio` is a thin
+        SSE-formatting wrapper around this.
+
         Note: This is now primarily a fallback. Remaining audio should be
         generated early during stream processing for better performance.
 
@@ -510,7 +550,7 @@ class StreamingHandler:
             language: Optional language code
 
         Returns:
-            Formatted audio chunk string if audio was generated
+            The audio chunk event, if audio was generated
         """
         if not state.sentence_detector or state.audio_chunks_sent == 0:
             return None
@@ -542,13 +582,12 @@ class StreamingHandler:
                     None,
                     lambda: base64.b64encode(audio_data).decode('utf-8')
                 )
-                
-                audio_chunk = {
-                    "audio_chunk": audio_base64,
-                    "audioFormat": audio_format_str or "opus",
-                    "chunk_index": state.audio_chunks_sent,
-                    "done": False
-                }
+
+                event = AudioChunkEvent(
+                    audio_chunk=audio_base64,
+                    audio_format=audio_format_str or "opus",
+                    chunk_index=state.audio_chunks_sent,
+                )
                 state.audio_chunks_sent += 1
 
                 logger.debug(
@@ -556,12 +595,108 @@ class StreamingHandler:
                     f"({len(audio_base64)} chars base64)"
                 )
 
-                return f"data: {json.dumps(audio_chunk)}\n\n"
+                return event
 
         except Exception as e:
             logger.warning(f"Failed to generate audio for remaining text: {e!s}", exc_info=True)
 
         return None
+
+    async def generate_remaining_audio(
+        self,
+        state: StreamingState,
+        adapter_name: str,
+        tts_voice: Optional[str] = None,
+        language: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Generate audio for remaining text after streaming completes. Thin
+        SSE-formatting wrapper around `generate_remaining_audio_event`.
+
+        Returns:
+            Formatted audio chunk string if audio was generated
+        """
+        event = await self.generate_remaining_audio_event(state, adapter_name, tts_voice, language)
+        return format_stream_event(event) if event else None
+
+    def build_done_event(
+        self,
+        state: StreamingState,
+        audio_data: Optional[bytes] = None,
+        audio_format_str: Optional[str] = None,
+        threading_metadata: Optional[dict[str, Any]] = None,
+        assistant_message_id: Optional[str] = None,
+        model: Optional[str] = None,
+        image: Optional[str] = None,
+        image_format: Optional[str] = None,
+        image_revised_prompt: Optional[str] = None,
+        image_url: Optional[str] = None,
+        video_url: Optional[str] = None,
+        video_format: Optional[str] = None,
+        video_revised_prompt: Optional[str] = None,
+        document_url: Optional[str] = None,
+        document_format: Optional[str] = None,
+        document_revised_prompt: Optional[str] = None,
+        generated_audio_url: Optional[str] = None,
+        generated_audio_format: Optional[str] = None,
+        generated_audio_revised_prompt: Optional[str] = None,
+    ) -> DoneEvent:
+        """
+        Build the final done event with all metadata. Canonical producer —
+        `build_done_chunk` is a thin SSE-formatting wrapper around this.
+
+        Args:
+            state: Current streaming state
+            audio_data: Optional full audio data (for non-streaming audio)
+            audio_format_str: Audio format string
+
+        Returns:
+            The done event
+        """
+        event = DoneEvent(
+            sources=state.sources if state.sources else None,
+            # Include total audio chunks count if streaming audio was used
+            total_audio_chunks=(
+                state.audio_chunks_sent if state.sentence_detector and state.audio_chunks_sent > 0 else None
+            ),
+            # Include assistant message ID for feedback support
+            assistant_message_id=assistant_message_id or None,
+            # Report the model that actually produced the response.
+            model=model or None,
+            threading=threading_metadata or None,
+            # Only include audio for non-streaming mode
+            audio=(
+                base64.b64encode(audio_data).decode('utf-8')
+                if audio_data and not (state.sentence_detector and state.audio_chunks_sent > 0)
+                else None
+            ),
+            audio_format=audio_format_str or None,
+            image=image or None,
+            image_format=image_format or None,
+            image_revised_prompt=image_revised_prompt or None,
+            image_url=image_url or None,
+            video_url=video_url or None,
+            video_format=video_format or None,
+            video_revised_prompt=video_revised_prompt or None,
+            document_url=document_url or None,
+            document_format=document_format or None,
+            document_revised_prompt=document_revised_prompt or None,
+            generated_audio_url=generated_audio_url or None,
+            generated_audio_format=generated_audio_format or None,
+            generated_audio_revised_prompt=generated_audio_revised_prompt or None,
+        )
+
+        if threading_metadata:
+            logger.debug(f"Including threading metadata in done chunk: {threading_metadata}")
+        logger.debug(
+            f"Preparing done chunk: audio_data={audio_data is not None}, "
+            f"audio_format_str={audio_format_str}, "
+            f"total_audio_chunks={state.audio_chunks_sent if state.sentence_detector else 0}"
+        )
+        if event.audio:
+            logger.debug(f"Including audio in done chunk: {len(event.audio)} chars (base64)")
+
+        return event
 
     def build_done_chunk(
         self,
@@ -586,90 +721,37 @@ class StreamingHandler:
         generated_audio_revised_prompt: Optional[str] = None,
     ) -> str:
         """
-        Build the final done chunk with all metadata.
-
-        Args:
-            state: Current streaming state
-            audio_data: Optional full audio data (for non-streaming audio)
-            audio_format_str: Audio format string
+        Build the final done chunk with all metadata. Thin SSE-formatting
+        wrapper around `build_done_event`.
 
         Returns:
             Formatted done chunk string
         """
-        done_chunk = {"done": True}
-
-        if state.sources:
-            done_chunk["sources"] = state.sources
-
-        # Include total audio chunks count if streaming audio was used
-        if state.sentence_detector and state.audio_chunks_sent > 0:
-            done_chunk["total_audio_chunks"] = state.audio_chunks_sent
-        
-        # Include assistant message ID for feedback support
-        if assistant_message_id:
-            done_chunk["assistant_message_id"] = assistant_message_id
-
-        # Report the model that actually produced the response.
-        if model:
-            done_chunk["model"] = model
-
-        # Include threading metadata if available
-        if threading_metadata:
-            done_chunk["threading"] = threading_metadata
-            logger.debug(f"Including threading metadata in done chunk: {threading_metadata}")
-
-        logger.debug(
-            f"Preparing done chunk: audio_data={audio_data is not None}, "
-            f"audio_format_str={audio_format_str}, "
-            f"total_audio_chunks={state.audio_chunks_sent if state.sentence_detector else 0}"
+        event = self.build_done_event(
+            state=state,
+            audio_data=audio_data,
+            audio_format_str=audio_format_str,
+            threading_metadata=threading_metadata,
+            assistant_message_id=assistant_message_id,
+            model=model,
+            image=image,
+            image_format=image_format,
+            image_revised_prompt=image_revised_prompt,
+            image_url=image_url,
+            video_url=video_url,
+            video_format=video_format,
+            video_revised_prompt=video_revised_prompt,
+            document_url=document_url,
+            document_format=document_format,
+            document_revised_prompt=document_revised_prompt,
+            generated_audio_url=generated_audio_url,
+            generated_audio_format=generated_audio_format,
+            generated_audio_revised_prompt=generated_audio_revised_prompt,
         )
+        formatted = format_stream_event(event)
 
-        # Only include audio in done chunk for non-streaming mode
-        if audio_data and not (state.sentence_detector and state.audio_chunks_sent > 0):
-            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
-            done_chunk["audio"] = audio_base64
-            done_chunk["audioFormat"] = audio_format_str or "mp3"
-            logger.debug(f"Including audio in done chunk: {len(audio_base64)} chars (base64)")
+        logger.debug(f"Yielding done chunk: {len(formatted)} bytes total")
+        logger.debug(f"Done chunk has audio: {event.audio is not None}")
+        logger.debug(f"Done chunk JSON preview: {formatted[:200]}...")
 
-        # Include generated image if present
-        if image:
-            done_chunk["image"] = image
-            done_chunk["image_format"] = image_format or "png"
-            if image_revised_prompt:
-                done_chunk["image_revised_prompt"] = image_revised_prompt
-            if image_url:
-                done_chunk["image_url"] = image_url
-
-        # Include generated video URL if present (bytes are never sent inline)
-        if video_url:
-            done_chunk["video_url"] = video_url
-            done_chunk["video_format"] = video_format or "mp4"
-            if video_revised_prompt:
-                done_chunk["video_revised_prompt"] = video_revised_prompt
-
-        # Include generated document URL if present (bytes are never sent inline)
-        if document_url:
-            done_chunk["document_url"] = document_url
-            done_chunk["document_format"] = document_format or "pdf"
-            if document_revised_prompt:
-                done_chunk["document_revised_prompt"] = document_revised_prompt
-
-        # Include generated (TTS-skill) audio URL if present (bytes are never sent inline)
-        if generated_audio_url:
-            done_chunk["generated_audio_url"] = generated_audio_url
-            done_chunk["generated_audio_format"] = generated_audio_format or "mp3"
-            if generated_audio_revised_prompt:
-                done_chunk["generated_audio_revised_prompt"] = generated_audio_revised_prompt
-
-        done_json = json.dumps(done_chunk)
-
-        logger.debug(f"Yielding done chunk: {len(done_json)} bytes total")
-        logger.debug(f"Done chunk keys: {list(done_chunk.keys())}, has audio: {'audio' in done_chunk}")
-        if 'audio' in done_chunk:
-            logger.debug(
-                f"Audio field present, length: {len(done_chunk['audio'])}, "
-                f"format: {done_chunk.get('audioFormat')}"
-            )
-        logger.debug(f"Done chunk JSON preview: {done_json[:200]}...")
-
-        return f"data: {done_json}\n\n"
+        return formatted

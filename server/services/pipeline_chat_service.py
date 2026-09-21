@@ -27,6 +27,13 @@ from .chat_handlers import (
     StreamingState,
     ResponseProcessor
 )
+from .chat_handlers.streaming_events import (
+    DoneEvent,
+    ErrorEvent,
+    ResponseEvent,
+    StreamEvent,
+    format_stream_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -726,6 +733,31 @@ class PipelineChatService:
             logger.warning(f"Failed to generate audio: {e}", exc_info=True)
         return None, None
 
+    async def _maybe_yield_remaining_audio_event(
+        self,
+        final_state: StreamingState,
+        adapter_name: str,
+        tts_voice: Optional[str],
+        language: Optional[str],
+    ):
+        """
+        Return an AudioChunkEvent for any sentence-streaming audio remainder,
+        or None. Only applies when audio was already sent incrementally
+        during streaming. Canonical producer — `_maybe_yield_remaining_audio_chunk`
+        is a thin SSE-formatting wrapper around this.
+        """
+        if not (final_state.sentence_detector and final_state.audio_chunks_sent > 0):
+            return None
+        remaining_text = final_state.sentence_detector.get_remaining_text()
+        if not remaining_text or not remaining_text.strip():
+            return None
+        return await self.streaming_handler.generate_remaining_audio_event(
+            state=final_state,
+            adapter_name=adapter_name,
+            tts_voice=tts_voice,
+            language=language,
+        )
+
     async def _maybe_yield_remaining_audio_chunk(
         self,
         final_state: StreamingState,
@@ -734,26 +766,19 @@ class PipelineChatService:
         language: Optional[str],
     ) -> Optional[str]:
         """
-        Return a streaming chunk for any sentence-streaming audio remainder, or None.
-        Only applies when audio was already sent incrementally during streaming.
+        Return a streaming chunk for any sentence-streaming audio remainder, or
+        None. Thin SSE-formatting wrapper around `_maybe_yield_remaining_audio_event`.
         """
-        if not (final_state.sentence_detector and final_state.audio_chunks_sent > 0):
-            return None
-        remaining_text = final_state.sentence_detector.get_remaining_text()
-        if not remaining_text or not remaining_text.strip():
-            return None
-        return await self.streaming_handler.generate_remaining_audio(
-            state=final_state,
-            adapter_name=adapter_name,
-            tts_voice=tts_voice,
-            language=language,
+        event = await self._maybe_yield_remaining_audio_event(
+            final_state, adapter_name, tts_voice, language
         )
+        return format_stream_event(event) if event else None
 
     # -------------------------------------------------------------------------
     # Pipeline stream consumer
     # -------------------------------------------------------------------------
 
-    async def _consume_pipeline_stream(
+    async def _consume_pipeline_stream_events(
         self,
         context: ProcessingContext,
         adapter_name: str,
@@ -763,14 +788,16 @@ class PipelineChatService:
         cancel_event: Optional[asyncio.Event],
     ):
         """
-        Yield (chunk, StreamingState) pairs from the pipeline stream.
+        Yield (StreamEvent, StreamingState) pairs from the pipeline stream.
+        Canonical producer — used by both `process_chat_stream_events` and,
+        via its SSE-formatting wrapper, `process_chat_stream`.
         Raises RuntimeError if the pipeline returns no stream.
         """
         pipeline_stream = self.pipeline.process_stream(context)
         if pipeline_stream is None:
             raise RuntimeError("pipeline.process_stream returned None")
 
-        async for item in self.streaming_handler.process_stream(
+        async for item in self.streaming_handler.process_stream_events(
             pipeline_stream=pipeline_stream,
             adapter_name=adapter_name,
             tts_voice=tts_voice,
@@ -1005,7 +1032,7 @@ class PipelineChatService:
             logger.error(f"Error processing chat with pipeline: {e}", exc_info=True)
             return {"error": str(e)}
 
-    async def process_chat_stream(
+    async def process_chat_stream_events(
         self,
         message: str,
         client_ip: str,
@@ -1029,15 +1056,18 @@ class PipelineChatService:
         regenerate_of_message_id: Optional[str] = None,
     ):
         """
-        Process a chat message with streaming response using the pipeline architecture.
+        Process a chat message with streaming response using the pipeline
+        architecture. Canonical producer — `process_chat_stream` is a thin
+        SSE-formatting wrapper around this.
 
-        Yields SSE-formatted data chunks, ending with a done chunk.
+        Yields StreamEvents, ending with a DoneEvent (except on cancellation
+        — see docs/roadmap/pipeline-streaming-structured-events.md).
         """
         if not message or not message.strip():
-            yield f"data: {json.dumps({'error': 'message must not be empty', 'done': True})}\n\n"
+            yield ErrorEvent(error="message must not be empty", extra={"done": True})
             return
         if not adapter_name:
-            yield f"data: {json.dumps({'error': 'adapter_name must not be empty', 'done': True})}\n\n"
+            yield ErrorEvent(error="adapter_name must not be empty", extra={"done": True})
             return
 
         try:
@@ -1054,13 +1084,8 @@ class PipelineChatService:
                 )
                 cached = await self._get_cached_response(stream_cache_key)
                 if cached:
-                    yield f"data: {json.dumps({'response': cached.get('response', ''), 'done': False})}\n\n"
-                    done_data: dict[str, Any] = {"done": True}
-                    if cached.get("sources"):
-                        done_data["sources"] = cached["sources"]
-                    if cached.get("metadata"):
-                        done_data["metadata"] = cached["metadata"]
-                    yield f"data: {json.dumps(done_data)}\n\n"
+                    yield ResponseEvent(text=cached.get('response', ''), extra={"done": False})
+                    yield DoneEvent(sources=cached.get("sources") or None, metadata=cached.get("metadata") or None)
                     return
 
             await self.response_processor.log_request_details(
@@ -1136,7 +1161,7 @@ class PipelineChatService:
                 # Invalid client-supplied input (e.g. requested_model not in
                 # allowed_models) — a normal validation failure, not a server fault.
                 logger.warning(f"Invalid chat stream request for adapter '{adapter_name}': {e}")
-                yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+                yield ErrorEvent(error=str(e), extra={"done": True})
                 return
             from inference.pipeline.steps._utils import add_usage_component
             add_usage_component(context, embedding_usage, "embedding")
@@ -1144,18 +1169,18 @@ class PipelineChatService:
             final_state = None
 
             try:
-                async for chunk, state in self._consume_pipeline_stream(
+                async for event, state in self._consume_pipeline_stream_events(
                     context, adapter_name, tts_voice, language,
                     return_audio or False, cancel_event,
                 ):
-                    yield chunk
+                    yield event
                     final_state = state
             except Exception as stream_error:
                 logger.error(f"Error in pipeline streaming: {stream_error}", exc_info=True)
                 await self._audit_usage_only_request(
                     context, message, client_ip, adapter_name, api_key, user_id
                 )
-                yield f"data: {json.dumps({'error': str(stream_error), 'done': True})}\n\n"
+                yield ErrorEvent(error=str(stream_error), extra={"done": True})
                 return
 
             # A blocked context (safety-filter refusal, FetchStep failure, or
@@ -1173,8 +1198,8 @@ class PipelineChatService:
             # Emit the refusal message directly without storing it in conversation history.
             if final_state is None and context.is_blocked:
                 refusal = context.error or "Message blocked by content moderator"
-                yield f"data: {json.dumps({'response': refusal, 'done': False})}\n\n"
-                yield f"data: {json.dumps({'done': True})}\n\n"
+                yield ResponseEvent(text=refusal, extra={"done": False})
+                yield DoneEvent()
                 return
 
             # Image/video/document generation: the pipeline emits a single {"done":true,...} chunk.
@@ -1194,7 +1219,7 @@ class PipelineChatService:
                 final_state = StreamingState()
                 final_state.accumulated_text = context.response
                 final_state.stream_completed = True
-                yield f"data: {json.dumps({'response': context.response, 'done': False})}\n\n"
+                yield ResponseEvent(text=context.response, extra={"done": False})
 
             if not (final_state and final_state.stream_completed
                     and (final_state.accumulated_text or context.image or context.video
@@ -1215,7 +1240,7 @@ class PipelineChatService:
                 )
                 return
 
-            async for chunk in self._process_post_stream(
+            async for event in self._process_post_stream_events(
                 final_state=final_state,
                 context=context,
                 message=message,
@@ -1229,7 +1254,7 @@ class PipelineChatService:
                 language=language,
                 regenerate_of_message_id=regenerate_of_message_id,
             ):
-                yield chunk
+                yield event
 
             if self._query_cache_enabled and not audio_input and not return_audio:
                 if final_state.accumulated_text:
@@ -1244,13 +1269,67 @@ class PipelineChatService:
 
         except Exception as e:
             logger.error(f"Error processing chat stream with pipeline: {e}", exc_info=True)
-            yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+            yield ErrorEvent(error=str(e), extra={"done": True})
+
+    async def process_chat_stream(
+        self,
+        message: str,
+        client_ip: str,
+        adapter_name: str,
+        system_prompt_id: Optional[ObjectId] = None,
+        api_key: Optional[str] = None,
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        file_ids: Optional[list[str]] = None,
+        thread_id: Optional[str] = None,
+        audio_input: Optional[str] = None,
+        audio_format: Optional[str] = None,
+        language: Optional[str] = None,
+        return_audio: Optional[bool] = None,
+        tts_voice: Optional[str] = None,
+        source_language: Optional[str] = None,
+        target_language: Optional[str] = None,
+        cancel_event: Optional[asyncio.Event] = None,
+        requested_model: Optional[str] = None,
+        skill: Optional[str] = None,
+        regenerate_of_message_id: Optional[str] = None,
+    ):
+        """
+        Process a chat message with streaming response using the pipeline
+        architecture. Thin SSE-formatting wrapper around
+        `process_chat_stream_events`.
+
+        Yields SSE-formatted data chunks, ending with a done chunk.
+        """
+        async for event in self.process_chat_stream_events(
+            message=message,
+            client_ip=client_ip,
+            adapter_name=adapter_name,
+            system_prompt_id=system_prompt_id,
+            api_key=api_key,
+            session_id=session_id,
+            user_id=user_id,
+            file_ids=file_ids,
+            thread_id=thread_id,
+            audio_input=audio_input,
+            audio_format=audio_format,
+            language=language,
+            return_audio=return_audio,
+            tts_voice=tts_voice,
+            source_language=source_language,
+            target_language=target_language,
+            cancel_event=cancel_event,
+            requested_model=requested_model,
+            skill=skill,
+            regenerate_of_message_id=regenerate_of_message_id,
+        ):
+            yield format_stream_event(event)
 
     # -------------------------------------------------------------------------
     # Post-stream finalization
     # -------------------------------------------------------------------------
 
-    async def _process_post_stream(
+    async def _process_post_stream_events(
         self,
         final_state: StreamingState,
         context: ProcessingContext,
@@ -1267,7 +1346,9 @@ class PipelineChatService:
     ):
         """
         Finalize a completed stream: store the response, emit optional warning and
-        audio chunks, then yield the done chunk with threading metadata.
+        audio events, then yield the done event with threading metadata.
+        Canonical producer — `_process_post_stream` is a thin SSE-formatting
+        wrapper around this.
         """
         backend = self._determine_inference_backend(context)
         model = self._determine_inference_model(context)
@@ -1303,13 +1384,16 @@ class PipelineChatService:
             session_id, adapter_name, context.runtime_param_overrides, context.runtime_provider
         )
         if warning:
-            yield f"data: {json.dumps({'response': f'{chr(10)}{chr(10)}---{chr(10)}{warning}', 'done': False})}\n\n"
+            yield ResponseEvent(
+                text=f"{chr(10)}{chr(10)}---{chr(10)}{warning}",
+                extra={"done": False},
+            )
 
-        remaining_chunk = await self._maybe_yield_remaining_audio_chunk(
+        remaining_event = await self._maybe_yield_remaining_audio_event(
             final_state, adapter_name, tts_voice, language
         )
-        if remaining_chunk:
-            yield remaining_chunk
+        if remaining_event:
+            yield remaining_event
 
         audio_data, audio_format_str = await self._maybe_generate_full_audio(
             final_response, final_state, adapter_name, tts_voice, language, return_audio
@@ -1328,7 +1412,7 @@ class PipelineChatService:
         await self._persist_generated_document(context)
         await self._persist_generated_audio(context)
 
-        yield self.streaming_handler.build_done_chunk(
+        yield self.streaming_handler.build_done_event(
             state=final_state,
             audio_data=audio_data,
             audio_format_str=audio_format_str,
@@ -1349,3 +1433,39 @@ class PipelineChatService:
             generated_audio_format=context.generated_audio_format,
             generated_audio_revised_prompt=context.generated_audio_revised_prompt,
         )
+
+    async def _process_post_stream(
+        self,
+        final_state: StreamingState,
+        context: ProcessingContext,
+        message: str,
+        client_ip: str,
+        adapter_name: str,
+        session_id: Optional[str],
+        user_id: Optional[str],
+        api_key: Optional[str],
+        return_audio: Optional[bool],
+        tts_voice: Optional[str],
+        language: Optional[str],
+        regenerate_of_message_id: Optional[str] = None,
+    ):
+        """
+        Finalize a completed stream: store the response, emit optional warning and
+        audio chunks, then yield the done chunk with threading metadata. Thin
+        SSE-formatting wrapper around `_process_post_stream_events`.
+        """
+        async for event in self._process_post_stream_events(
+            final_state=final_state,
+            context=context,
+            message=message,
+            client_ip=client_ip,
+            adapter_name=adapter_name,
+            session_id=session_id,
+            user_id=user_id,
+            api_key=api_key,
+            return_audio=return_audio,
+            tts_voice=tts_voice,
+            language=language,
+            regenerate_of_message_id=regenerate_of_message_id,
+        ):
+            yield format_stream_event(event)

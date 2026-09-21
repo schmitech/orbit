@@ -36,6 +36,7 @@ def _build_service(cancelled: bool):
     """
     from services.pipeline_chat_service import PipelineChatService
     from services.chat_handlers.streaming_handler import StreamingState
+    from services.chat_handlers.streaming_events import DoneEvent, ResponseEvent
     from inference.pipeline.base import ProcessingContext
 
     svc = PipelineChatService.__new__(PipelineChatService)
@@ -54,7 +55,7 @@ def _build_service(cancelled: bool):
     svc.conversation_handler.check_limit_warning = AsyncMock(return_value=None)
 
     svc.streaming_handler = MagicMock()
-    svc.streaming_handler.build_done_chunk = MagicMock(return_value='data: {"done": true}\n\n')
+    svc.streaming_handler.build_done_event = MagicMock(return_value=DoneEvent())
 
     real_context = ProcessingContext(
         message="Write a 2000 word essay about distributed systems.",
@@ -70,10 +71,10 @@ def _build_service(cancelled: bool):
     completed_state.accumulated_text = "the full essay response"
     completed_state.stream_completed = True
 
-    async def fake_consume_pipeline_stream(*args, **kwargs):
-        yield 'data: {"response": "the full essay response", "done": false}\n\n', completed_state
+    async def fake_consume_pipeline_stream_events(*args, **kwargs):
+        yield ResponseEvent(text="the full essay response", extra={"done": False}), completed_state
 
-    svc._consume_pipeline_stream = fake_consume_pipeline_stream
+    svc._consume_pipeline_stream_events = fake_consume_pipeline_stream_events
 
     cancel_event = asyncio.Event()
     if cancelled:

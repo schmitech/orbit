@@ -133,11 +133,56 @@ class TestStreamingHandler:
             chunks.append(chunk)
             final_state = state
 
-        # Should yield 2 text chunks (done is not yielded)
-        assert len(chunks) == 2
+        # Should yield 2 text chunks (done is not yielded), relayed exactly
+        # as received — the source chunks have no "done" key, so none must
+        # be added.
+        assert chunks == [
+            'data: {"response": "Hello "}\n\n',
+            'data: {"response": "world!"}\n\n',
+        ]
         assert final_state.accumulated_text == "Hello world!"
         assert final_state.sources == [{"title": "Source 1"}]
         assert final_state.stream_completed is True
+
+    @pytest.mark.asyncio
+    async def test_process_stream_relays_compact_json_chunk_byte_for_byte(
+        self, base_config, mock_audio_handler
+    ):
+        """A parseable chunk with non-default JSON formatting (no spaces after
+        ':' or ',') must be relayed with its exact original bytes, not
+        re-serialized through json.dumps — which would normalize the
+        whitespace and is not guaranteed to preserve key order either."""
+
+        async def mock_stream():
+            yield '{"response":"hi","status":"ok"}'  # compact, non-default spacing
+
+        handler = StreamingHandler(config=base_config, audio_handler=mock_audio_handler)
+
+        chunks = [chunk async for chunk, _ in handler.process_stream(
+            pipeline_stream=mock_stream(), adapter_name="test_adapter"
+        )]
+
+        assert chunks == ['data: {"response":"hi","status":"ok"}\n\n']
+
+    @pytest.mark.asyncio
+    async def test_process_stream_relays_response_chunk_with_done_false(
+        self, base_config, mock_audio_handler
+    ):
+        """The real pipeline (Pipeline.process_stream) emits non-terminal
+        response chunks as {"response": ..., "done": false} — that exact
+        shape must survive relay unchanged, not just the bare-response
+        shape used elsewhere in these tests."""
+
+        async def mock_stream():
+            yield json.dumps({"response": "hi", "done": False})
+
+        handler = StreamingHandler(config=base_config, audio_handler=mock_audio_handler)
+
+        chunks = [chunk async for chunk, _ in handler.process_stream(
+            pipeline_stream=mock_stream(), adapter_name="test_adapter"
+        )]
+
+        assert chunks == ['data: {"response": "hi", "done": false}\n\n']
 
     @pytest.mark.asyncio
     async def test_process_stream_handles_errors(self, base_config, mock_audio_handler):
@@ -158,8 +203,189 @@ class TestStreamingHandler:
         ):
             chunks.append(chunk)
 
-        assert len(chunks) == 1
-        assert "error" in chunks[0]
+        # The source chunk had no "done" key at all — must be relayed as-is,
+        # not gain one, matching the legacy verbatim-relay behavior.
+        assert chunks == ['data: {"error": "Something went wrong"}\n\n']
+
+    @pytest.mark.asyncio
+    async def test_process_stream_preserves_extra_error_fields(self, base_config, mock_audio_handler):
+        """An error chunk with fields beyond error/done (e.g. a provider status
+        code) must not be silently dropped by the structured-event refactor."""
+
+        async def mock_stream():
+            yield json.dumps({"error": "rate limited", "status": 429, "done": True})
+
+        handler = StreamingHandler(
+            config=base_config,
+            audio_handler=mock_audio_handler
+        )
+
+        chunks = []
+        async for chunk, state in handler.process_stream(
+            pipeline_stream=mock_stream(),
+            adapter_name="test_adapter"
+        ):
+            chunks.append(chunk)
+
+        assert chunks == ['data: {"error": "rate limited", "status": 429, "done": true}\n\n']
+
+    @pytest.mark.asyncio
+    async def test_process_stream_raw_preserves_extra_error_fields(self, base_config, mock_audio_handler):
+        async def mock_stream():
+            yield json.dumps({"error": "rate limited", "status": 429, "done": True})
+
+        handler = StreamingHandler(
+            config=base_config,
+            audio_handler=mock_audio_handler
+        )
+
+        chunks = []
+        async for chunk_data, state in handler.process_stream_raw(
+            pipeline_stream=mock_stream(),
+            adapter_name="test_adapter"
+        ):
+            chunks.append(chunk_data)
+
+        assert chunks == [{"error": "rate limited", "status": 429, "done": True}]
+
+    @pytest.mark.asyncio
+    async def test_process_stream_error_without_done_key_stays_absent(self, base_config, mock_audio_handler):
+        """An error chunk with no `done` key at all must not gain one — the
+        legacy code relayed it byte-for-byte with nothing added."""
+
+        async def mock_stream():
+            yield json.dumps({"error": "boom"})
+
+        handler = StreamingHandler(config=base_config, audio_handler=mock_audio_handler)
+
+        chunks = [chunk async for chunk, _ in handler.process_stream(
+            pipeline_stream=mock_stream(), adapter_name="test_adapter"
+        )]
+
+        assert chunks == ['data: {"error": "boom"}\n\n']
+
+    @pytest.mark.asyncio
+    async def test_process_stream_error_with_done_false_is_preserved(self, base_config, mock_audio_handler):
+        """An error chunk with an explicit done=false must keep that exact
+        value, not be coerced to true."""
+
+        async def mock_stream():
+            yield json.dumps({"error": "boom", "done": False})
+
+        handler = StreamingHandler(config=base_config, audio_handler=mock_audio_handler)
+
+        chunks = [chunk async for chunk, _ in handler.process_stream(
+            pipeline_stream=mock_stream(), adapter_name="test_adapter"
+        )]
+
+        assert chunks == ['data: {"error": "boom", "done": false}\n\n']
+
+    @pytest.mark.asyncio
+    async def test_process_stream_none_pipeline_stream_yields_single_error_chunk(
+        self, base_config, mock_audio_handler
+    ):
+        """A None pipeline_stream produces one terminal error chunk with
+        done=True, not an exception."""
+        handler = StreamingHandler(
+            config=base_config,
+            audio_handler=mock_audio_handler
+        )
+
+        chunks = []
+        async for chunk, state in handler.process_stream(
+            pipeline_stream=None,
+            adapter_name="test_adapter"
+        ):
+            chunks.append(chunk)
+
+        assert chunks == [
+            'data: {"error": "Pipeline stream is not available", "done": true}\n\n'
+        ]
+
+    @pytest.mark.asyncio
+    async def test_process_stream_relays_unparseable_chunk_as_is(
+        self, base_config, mock_audio_handler
+    ):
+        """A chunk that fails json.loads is relayed verbatim (SSE-wrapped)
+        rather than dropped or turned into an error."""
+
+        async def mock_stream():
+            yield "not valid json"
+
+        handler = StreamingHandler(
+            config=base_config,
+            audio_handler=mock_audio_handler
+        )
+
+        chunks = []
+        async for chunk, state in handler.process_stream(
+            pipeline_stream=mock_stream(),
+            adapter_name="test_adapter"
+        ):
+            chunks.append(chunk)
+
+        assert chunks == ["data: not valid json\n\n"]
+
+    @pytest.mark.asyncio
+    async def test_process_stream_raw_yields_dicts_matching_process_stream(
+        self, base_config, mock_audio_handler
+    ):
+        """process_stream_raw is a thin dict-yielding wrapper around the same
+        canonical event producer as process_stream — it must classify chunks
+        identically, just without SSE framing."""
+
+        async def mock_stream():
+            yield json.dumps({"response": "Hello "})
+            yield json.dumps({"response": "world!"})
+            yield json.dumps({"done": True, "sources": [{"title": "Source 1"}]})
+
+        handler = StreamingHandler(
+            config=base_config,
+            audio_handler=mock_audio_handler
+        )
+
+        chunks = []
+        final_state = None
+        async for chunk_data, state in handler.process_stream_raw(
+            pipeline_stream=mock_stream(),
+            adapter_name="test_adapter",
+            return_audio=False
+        ):
+            chunks.append(chunk_data)
+            final_state = state
+
+        assert chunks == [
+            {"response": "Hello "},
+            {"response": "world!"},
+        ]
+        assert final_state.accumulated_text == "Hello world!"
+        assert final_state.sources == [{"title": "Source 1"}]
+
+    @pytest.mark.asyncio
+    async def test_process_stream_raw_skips_unparseable_chunks(
+        self, base_config, mock_audio_handler
+    ):
+        """A RawEvent (unparseable chunk) has no dict form, so
+        process_stream_raw skips it with a warning — same as its legacy
+        behavior, unlike process_stream which relays it verbatim."""
+
+        async def mock_stream():
+            yield "not valid json"
+            yield json.dumps({"response": "ok"})
+
+        handler = StreamingHandler(
+            config=base_config,
+            audio_handler=mock_audio_handler
+        )
+
+        chunks = []
+        async for chunk_data, state in handler.process_stream_raw(
+            pipeline_stream=mock_stream(),
+            adapter_name="test_adapter"
+        ):
+            chunks.append(chunk_data)
+
+        assert chunks == [{"response": "ok"}]
 
     @pytest.mark.asyncio
     async def test_process_stream_invalid_json(self, base_config, mock_audio_handler):

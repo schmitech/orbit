@@ -27,6 +27,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from routes.auth_helpers import resolve_authenticated_user, is_authenticated_user_required
+from services.chat_handlers.streaming_events import DoneEvent, ErrorEvent, ResponseEvent
 
 logger = logging.getLogger(__name__)
 
@@ -375,31 +376,26 @@ async def _tasks_send_subscribe(
             client_ip = request.client.host if request.client else "unknown"
             accumulated = []
 
-            async for chunk in chat_service.process_chat_stream(
+            async for event in chat_service.process_chat_stream_events(
                 message=user_text,
                 client_ip=client_ip,
                 adapter_name=effective_adapter,
                 session_id=task_id,
                 api_key=api_key,
             ):
-                if not chunk or not chunk.startswith("data:"):
-                    continue
-                payload = chunk[6:].strip()
-                if not payload:
-                    continue
-                try:
-                    data = json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
+                # Match the legacy condition exactly: `if data.get("done"): if
+                # data.get("error"): raise ...`. An error payload with done
+                # false/absent was never raised nor treated as terminal — it
+                # was silently ignored and the stream continued. Only a
+                # truthy `done` alongside the error reproduces that.
+                if isinstance(event, ErrorEvent) and event.extra.get("done"):
+                    raise RuntimeError(event.error)
 
-                if data.get("done"):
-                    if data.get("error"):
-                        raise RuntimeError(data["error"])
+                if isinstance(event, DoneEvent):
                     break
 
-                text = data.get("response")
-                if text:
-                    accumulated.append(text)
+                if isinstance(event, ResponseEvent) and event.text:
+                    accumulated.append(event.text)
                     yield _sse(
                         _ok(
                             rpc_id,
@@ -407,7 +403,7 @@ async def _tasks_send_subscribe(
                                 "id": task_id,
                                 "artifact": {
                                     "name": "response",
-                                    "parts": [{"type": "text", "text": text}],
+                                    "parts": [{"type": "text", "text": event.text}],
                                     "append": True,
                                     "lastChunk": False,
                                 },

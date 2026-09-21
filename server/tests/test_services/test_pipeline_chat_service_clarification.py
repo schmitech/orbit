@@ -121,11 +121,11 @@ async def test_non_clarification_block_still_returns_error():
 
 def _build_streaming_service(*, blocked_text: str, real_error: bool = False):
     """Mirrors _build_service but for process_chat_stream: mocks
-    _consume_pipeline_stream as an empty async generator (exactly what
-    streaming_handler.process_stream does for a single {"response": ..., "done":
-    true} pipeline chunk — it accumulates the text internally and yields
-    nothing), leaving final_state None. That's the situation the streaming
-    is_blocked handling at pipeline_chat_service.py:~1153 exists for."""
+    _consume_pipeline_stream_events as an empty async generator (exactly what
+    streaming_handler.process_stream_events does for a single {"response": ...,
+    "done": true} pipeline chunk — it accumulates the text internally and
+    yields nothing), leaving final_state None. That's the situation the
+    streaming is_blocked handling at pipeline_chat_service.py:~1153 exists for."""
     from services.pipeline_chat_service import PipelineChatService
     from inference.pipeline.base import ProcessingContext
 
@@ -161,7 +161,7 @@ def _build_streaming_service(*, blocked_text: str, real_error: bool = False):
         return
         yield  # pragma: no cover - makes this an async generator
 
-    svc._consume_pipeline_stream = _empty_stream
+    svc._consume_pipeline_stream_events = _empty_stream
 
     return svc, context
 
