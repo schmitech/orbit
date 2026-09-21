@@ -28,9 +28,9 @@ Follow the main installation guide in the project root:
 
 ```bash
 # Download and extract the latest release
-curl -L https://github.com/schmitech/orbit/releases/download/v2.17.12/orbit-2.17.12.tar.gz -o orbit-2.17.12.tar.gz
-tar -xzf orbit-2.17.12.tar.gz
-cd orbit-2.17.12
+curl -L https://github.com/schmitech/orbit/releases/download/v2.17.13/orbit-2.17.13.tar.gz -o orbit-2.17.13.tar.gz
+tar -xzf orbit-2.17.13.tar.gz
+cd orbit-2.17.13
 
 # Install ORBIT
 ./install/setup.sh --profile default
