@@ -4,6 +4,10 @@
 
 ### Core Features
 - **Cohere Parse OCR Provider**: Added a new native `cohere_parse` OCR provider (`files.processing.ai_document.provider`) backed by Cohere's dedicated Parse API (`client.parse`), alongside the existing Mistral/Gemini native providers and the vision-backed `cohere` OCR path. Since Parse accepts image input only, PDFs are rasterized page-by-page (reusing the vision-backed OCR path's rasterization/frame-splitting logic) before each page is sent through Parse and its markdown recombined. Configure via a new `cohere_parse:` block in `ocr.yaml`.
+- **More Accurate Language Detection**: Language detection is now more reliable and far less likely to be confidently wrong. Languages that share a writing system (e.g. Hindi/Marathi/Nepali, Arabic/Persian/Urdu, Russian/Ukrainian/Bulgarian) are no longer collapsed into one. When a message carries no clear language signal (emoji, numbers, links, "OK"), the detector now reports it as unknown instead of assuming English, and the model is asked to reply in the user's language. Malformed language codes are no longer misread (e.g. Filipino as Finnish). On the new benchmark, high-confidence errors fell from 22 to 5. Config: `fallback_language` is renamed `ambiguous_response_language` (the old key still works), and `min_letters` and `script_fast_path` are added. See Phase 1 of `docs/roadmap/language-detection-accuracy.md`.
+
+### Technical Improvements
+- **Language Detection Benchmark**: Added a versioned benchmark of 334 synthetic prompts in 55 languages, with a frozen tuning/held-out split, a runner that reports accuracy, abstention and calibration metrics, and a regression test that fails if detection gets worse (`server/tests/language_eval/`). Phase 0 and Phase 1 baseline reports are checked in.
 
 ## [2.17.13] - 2026-09-21
 

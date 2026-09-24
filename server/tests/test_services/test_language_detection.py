@@ -55,12 +55,11 @@ class MockContainer:
                 'min_margin': 0.2,
                 'prefer_english_for_ascii': True,
                 'enable_stickiness': True,
-                'fallback_language': 'en',
+                'ambiguous_response_language': 'en',
                 'backend_timeout': 10.0,
                 'heuristic_nudges': {
                     'en_boost': 0.2,
-                    'es_penalty': 0.1,
-                    'script_boost': 0.2
+                    'es_penalty': 0.1
                 },
                 'mixed_language_threshold': 0.3,
                 'use_chat_history_prior': False,  # Disable for unit tests
@@ -128,11 +127,45 @@ class TestLanguageCodeNormalization:
         assert normalize_language_code('ZH-CN') == 'zh'
 
     def test_unknown_codes(self):
-        """Unknown codes should be truncated or passed through."""
-        assert normalize_language_code('unknown-lang') == 'un'
-        assert normalize_language_code('xyz') == 'xy'
+        """Unsupported or malformed codes become unknown, never a truncated guess."""
+        assert normalize_language_code('unknown-lang') == 'unknown'
+        assert normalize_language_code('xyz') == 'unknown'
+        assert normalize_language_code('123') == 'unknown'
+        assert normalize_language_code('e') == 'unknown'
+        assert normalize_language_code('und') == 'unknown'
         assert normalize_language_code('') == 'unknown'
         assert normalize_language_code(None) == 'unknown'
+
+    def test_legacy_and_backend_specific_codes(self):
+        assert normalize_language_code('iw') == 'he'   # CLD2 still emits iw
+        assert normalize_language_code('ji') == 'yi'
+        assert normalize_language_code('in') == 'id'
+        assert normalize_language_code('fil') == 'tl'  # not 'fi' (Finnish)
+        assert normalize_language_code('nb') == 'no'
+        assert normalize_language_code('nn') == 'no'
+
+    def test_bcp47_tags_keep_base_language(self):
+        assert normalize_language_code('zh-Hant') == 'zh'
+        assert normalize_language_code('zh-Hans-CN') == 'zh'
+        assert normalize_language_code('pt-BR') == 'pt'
+        assert normalize_language_code('pt_BR') == 'pt'
+        assert normalize_language_code('sr-Latn') == 'sr'
+        assert normalize_language_code('es-419') == 'es'
+        assert normalize_language_code('en-US-x-twain') == 'en'
+        assert normalize_language_code('de-CH-1996') == 'de'
+
+    @pytest.mark.parametrize("tag", [
+        'en--US', 'en-@', 'en-abcdefghi', 'en-', '-en', 'en US', 'en-US-', 'en-x', 'zh-hans--cn',
+    ])
+    def test_malformed_bcp47_tags_are_unknown(self, tag):
+        """A valid primary subtag does not rescue a malformed tag."""
+        assert normalize_language_code(tag) == 'unknown'
+
+    def test_iso_639_2_and_3_codes_validated(self):
+        assert normalize_language_code('fre') == 'fr'   # bibliographic
+        assert normalize_language_code('ger') == 'de'
+        assert normalize_language_code('ceb') == 'ceb'  # no 639-1 code exists
+        assert normalize_language_code('kaz') == 'kk'
 
 
 class TestScriptDetection:
@@ -144,11 +177,11 @@ class TestScriptDetection:
         return LanguageDetectionStep(container)
 
     # East Asian Scripts
-    def test_chinese_detection(self, detector):
-        """Chinese characters should be detected with high confidence."""
+    def test_han_only_is_ambiguous_between_chinese_and_japanese(self, detector):
+        """Han without kana can be kanji-only Japanese, so the script stage doesn't decide."""
         result = detector._detect_by_script("你好世界")
-        assert result.language == 'zh'
-        assert result.confidence >= 0.9
+        assert result.language == 'unknown'
+        assert set(result.raw_results['candidates']) == {'zh', 'ja'}
 
     def test_japanese_hiragana(self, detector):
         """Japanese hiragana should be detected."""
@@ -168,37 +201,59 @@ class TestScriptDetection:
         assert result.language == 'ko'
         assert result.confidence >= 0.9
 
-    # Middle Eastern Scripts
-    def test_arabic_detection(self, detector):
-        """Arabic script should be detected."""
-        result = detector._detect_by_script("مرحبا بالعالم")
-        assert result.language == 'ar'
-        assert result.confidence >= 0.9
+    # Shared scripts: the script stage narrows candidates, backends choose
+    @pytest.mark.parametrize("text,script_candidates", [
+        ("مرحبا بالعالم", {'ar', 'fa', 'ur'}),
+        ("שלום עולם", {'he', 'yi'}),
+        ("नमस्ते दुनिया", {'hi', 'mr', 'ne'}),
+        ("হ্যালো বিশ্ব", {'bn', 'as'}),
+        ("Привет мир", {'ru', 'uk', 'bg', 'sr'}),
+    ])
+    def test_shared_script_does_not_select_a_language(self, detector, text, script_candidates):
+        result = detector._detect_by_script(text)
+        assert result.language == 'unknown'
+        assert script_candidates <= set(result.raw_results['candidates'])
 
-    def test_hebrew_detection(self, detector):
-        """Hebrew script should be detected."""
-        result = detector._detect_by_script("שלום עולם")
-        assert result.language == 'he'
-        assert result.confidence >= 0.9
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text,expected", [
+        ("مرحبا بالعالم", 'ar'),
+        ("שלום עולם", 'he'),
+        ("नमस्ते दुनिया", 'hi'),
+        ("হ্যালো বিশ্ব", 'bn'),
+    ])
+    async def test_shared_script_resolved_by_backends(self, detector, text, expected):
+        result = await detector._detect_language_ensemble_async(text)
+        assert result.language == expected
+        assert result.method == 'ensemble_voting'
 
-    def test_persian_detection(self, detector):
-        """Persian-specific Arabic-script characters should be detected before Arabic."""
-        result = detector._detect_by_script("سلام چطوری")
-        assert result.language == 'fa'
-        assert result.confidence >= 0.9
+    def test_persian_letters_rule_out_arabic(self, detector):
+        """Persian letters (shared with Urdu/Pashto) exclude Arabic without selecting Persian."""
+        text = "سلام چطوری"
+        candidates = detector._narrow_candidates(text, detector._script_evidence(text))
+        assert 'ar' not in candidates
+        assert {'fa', 'ur', 'ps'} <= candidates
 
-    # South Asian Scripts
-    def test_hindi_devanagari(self, detector):
-        """Hindi in Devanagari should be detected."""
-        result = detector._detect_by_script("नमस्ते दुनिया")
-        assert result.language == 'hi'
-        assert result.confidence >= 0.9
+    def test_urdu_and_pashto_letters_narrow_further(self, detector):
+        urdu, pashto = "میرا آرڈر کہاں ہے؟", "ته څنګه یې؟"
+        assert detector._narrow_candidates(urdu, detector._script_evidence(urdu)) == {'ur'}
+        assert detector._narrow_candidates(pashto, detector._script_evidence(pashto)) == {'ps'}
+
+    def test_plain_arabic_text_is_not_narrowed_to_arabic(self, detector):
+        text = "مرحبا بالعالم"
+        candidates = detector._narrow_candidates(text, detector._script_evidence(text))
+        assert {'ar', 'fa', 'ur', 'ps'} <= candidates
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text", ["да", "न", "ب", "ש", "中"])
+    async def test_single_shared_script_character_is_never_high_confidence(self, detector, text):
+        result = await detector._detect_language_ensemble_async(text)
+        assert result.abstained
+        assert result.confidence < 0.9
 
     def test_bengali_detection(self, detector):
-        """Bengali script should be detected."""
+        """Bengali script narrows to Bengali/Assamese rather than selecting Bengali."""
         result = detector._detect_by_script("হ্যালো বিশ্ব")
-        assert result.language == 'bn'
-        assert result.confidence >= 0.9
+        assert set(result.raw_results['candidates']) == {'bn', 'as'}
 
     def test_tamil_detection(self, detector):
         """Tamil script should be detected."""
@@ -221,10 +276,10 @@ class TestScriptDetection:
         assert result.confidence >= 0.9
 
     def test_cyrillic_detection(self, detector):
-        """Cyrillic script should be detected (with lower confidence due to multi-language)."""
+        """Cyrillic is shared by many languages; the script stage only narrows them."""
         result = detector._detect_by_script("Привет мир")
-        assert result.language == 'ru'
-        assert result.confidence >= 0.7
+        assert result.language == 'unknown'
+        assert {'ru', 'uk', 'bg', 'sr', 'mk', 'be', 'kk'} <= set(result.raw_results['candidates'])
 
     # Other Scripts
     def test_georgian_detection(self, detector):
@@ -354,22 +409,24 @@ class TestMultiLanguageScenarios:
 
     @pytest.mark.asyncio
     async def test_short_text_cjk(self, detector):
-        """Very short CJK text should still be detected."""
-        result = await detector._detect_language_ensemble_async("你好")
-        assert result.language == 'zh'
+        """Short unique-script text is still detected; short Han-only text abstains."""
+        assert (await detector._detect_language_ensemble_async("네")).language == 'ko'
+        assert (await detector._detect_language_ensemble_async("はい")).language == 'ja'
+        assert (await detector._detect_language_ensemble_async("你好")).abstained
 
     @pytest.mark.asyncio
     async def test_empty_text(self, detector):
-        """Empty text should return fallback language."""
+        """Empty text abstains instead of becoming the response fallback language."""
         result = await detector._detect_language_ensemble_async("")
-        assert result.language == 'en'
-        assert result.method == 'length_fallback'
+        assert result.language == 'unknown'
+        assert result.method == 'abstained'
+        assert result.raw_results['reason'] == 'no_letters'
 
     @pytest.mark.asyncio
     async def test_whitespace_only(self, detector):
-        """Whitespace-only text should return fallback."""
+        """Whitespace-only text abstains."""
         result = await detector._detect_language_ensemble_async("   \n\t  ")
-        assert result.language == 'en'
+        assert result.language == 'unknown'
 
     @pytest.mark.asyncio
     async def test_disabled_direct_process_uses_defaults(self):
@@ -383,8 +440,9 @@ class TestMultiLanguageScenarios:
 
         result = await detector.process(context)
 
-        assert result.detected_language == 'en'
-        assert result.language_detection_meta['method'] == 'all_backends_failed'
+        assert result.detected_language == 'unknown'
+        assert result.language_detection_meta['method'] == 'abstained'
+        assert result.language_detection_meta['raw_results']['reason'] == 'all_backends_failed'
 
     @pytest.mark.asyncio
     async def test_code_removal(self, detector):
@@ -502,13 +560,17 @@ class TestRealWorldPrompts:
     async def test_chinese_questions(self, detector):
         """Chinese questions should be detected correctly."""
         prompts = [
-            "如何用Python创建REST API?",
             "机器学习是什么?",
             "请帮我解释这个错误",
         ]
         for prompt in prompts:
             result = await detector._detect_language_ensemble_async(prompt)
             assert result.language == 'zh', f"Failed for: {prompt}"
+
+        # More Latin code identifiers than Han letters: backends split, so
+        # abstaining is acceptable, but a wrong language is not.
+        result = await detector._detect_language_ensemble_async("如何用Python创建REST API?")
+        assert result.language in ('zh', 'unknown')
 
     @pytest.mark.asyncio
     async def test_japanese_questions(self, detector):
@@ -1102,3 +1164,183 @@ class TestFrenchDetectionRegression:
 # Run tests with: pytest server/tests/test_language_detection.py -v
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestUnicodePreprocessing:
+    """Phase 1.1: NFC normalization and letter-based evidence."""
+
+    @pytest.fixture
+    def detector(self):
+        return LanguageDetectionStep(MockContainer())
+
+    def test_cleaning_normalizes_to_nfc(self, detector):
+        decomposed = "café où"
+        assert detector._clean_text_for_detection(decomposed) == "café où"
+
+    @pytest.mark.asyncio
+    async def test_decomposed_diacritics_detect_like_composed(self, detector):
+        composed = "¿Dónde está mi pedido? Necesito ayuda urgente."
+        import unicodedata
+        decomposed = unicodedata.normalize('NFD', composed)
+        assert decomposed != composed
+        a = await detector._detect_language_ensemble_async(composed)
+        b = await detector._detect_language_ensemble_async(decomposed)
+        assert (a.language, a.method) == (b.language, b.method)
+
+    def test_only_script_letters_count_as_evidence(self, detector):
+        assert detector._script_evidence("👍 12345 !!! ... $49.99").letters == 0
+        # The prolonged-sound mark is Common script, not kana evidence
+        evidence = detector._script_evidence("コンピューター")
+        assert evidence.counts == {'Japanese': 5}
+
+    def test_dominant_script_does_not_depend_on_order(self, detector):
+        a = detector._script_evidence("ok привет мир")
+        b = detector._script_evidence("привет мир ok")
+        assert a.dominant == b.dominant == 'Cyrillic'
+        assert a.coverage == b.coverage
+
+    def test_kana_makes_han_letters_japanese_evidence(self, detector):
+        evidence = detector._script_evidence("関数の使い方")
+        assert evidence.dominant == 'Japanese'
+        assert evidence.coverage == 1.0
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text", ["👍", "🙂🙂", "12345", "???", "...", "2024-05-01", "$49.99",
+                                      "https://example.com/docs", "user@example.com", "```\nprint(1)\n```"])
+    async def test_no_letters_abstains_without_calling_backends(self, detector, text):
+        detector._run_backend_with_timeout = AsyncMock(side_effect=AssertionError("backend called"))
+        result = await detector._detect_language_ensemble_async(text)
+        assert result.abstained
+        assert result.raw_results['reason'] == 'no_letters'
+
+
+class TestShortAndAmbiguousText:
+    """Phase 1.3: low-evidence text abstains or uses a trustworthy prior."""
+
+    @pytest.fixture
+    def detector(self):
+        return LanguageDetectionStep(MockContainer())
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text", ["sí", "да", "ça", "OK", "no", "ja", "API", "USA"])
+    async def test_low_evidence_text_abstains(self, detector, text):
+        result = await detector._detect_language_ensemble_async(text)
+        assert result.abstained
+        assert result.raw_results['reason'] == 'low_evidence'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("text,expected", [("네", 'ko'), ("はい", 'ja'), ("ขอบคุณ", 'th'), ("Γειά", 'el')])
+    async def test_unique_script_short_text_is_detected(self, detector, text, expected):
+        result = await detector._detect_language_ensemble_async(text)
+        assert result.language == expected
+        assert result.method == 'script_detection'
+
+    @pytest.mark.asyncio
+    async def test_short_text_uses_sticky_previous_language(self, detector):
+        # MockContainer enables stickiness
+        result = await detector._detect_language_ensemble_async("sí", previous_language='es')
+        assert result.language == 'es'
+        assert result.method == 'sticky_previous'
+
+    @pytest.mark.asyncio
+    async def test_short_text_uses_chat_history_prior_without_high_confidence(self):
+        container = MockContainer()
+        container._config['language_detection']['enable_stickiness'] = False
+        detector = LanguageDetectionStep(container)
+        result = await detector._detect_language_ensemble_async("OK", chat_history_prior={'fr': 1.0})
+        assert result.language == 'fr'
+        assert result.method == 'chat_history_prior'
+        # Below retrieval_min_confidence: a prior must not re-rank documents
+        assert result.confidence < 0.7
+
+    @pytest.mark.asyncio
+    async def test_weak_mixed_prior_is_not_used(self):
+        container = MockContainer()
+        container._config['language_detection']['enable_stickiness'] = False
+        detector = LanguageDetectionStep(container)
+        result = await detector._detect_language_ensemble_async("OK", chat_history_prior={'fr': 0.4, 'en': 0.4})
+        assert result.abstained
+
+    @pytest.mark.asyncio
+    async def test_min_letters_is_configurable(self):
+        container = MockContainer()
+        container._config['language_detection']['min_letters'] = 2
+        detector = LanguageDetectionStep(container)
+        detector._run_backend_with_timeout = AsyncMock(return_value=None)
+        result = await detector._detect_language_ensemble_async("sí")
+        # Backends were consulted (they returned nothing), rather than a low-evidence abstention
+        assert result.raw_results['reason'] == 'all_backends_failed'
+
+
+class TestUnknownIsSeparateFromFallback:
+    """Phase 1.5: abstention is an explicit outcome and is never stored as evidence."""
+
+    @pytest.fixture
+    def cache_service(self):
+        service = MagicMock()
+        service.enabled = True
+        service.get_json = AsyncMock(return_value=None)
+        service.store_json = AsyncMock(return_value=True)
+        return service
+
+    @pytest.fixture
+    def detector(self, cache_service):
+        container = MockContainer()
+        container.register('cache_service', cache_service)
+        return LanguageDetectionStep(container)
+
+    @pytest.mark.asyncio
+    async def test_process_exposes_abstention(self, detector, cache_service):
+        context = create_context("👍", session_id="s1")
+        await detector.process(context)
+        assert context.detected_language == 'unknown'
+        assert context.language_detection_meta['abstained'] is True
+        assert 'last_detected_language' not in context.metadata
+        assert 'last_detected_language_confidence' not in context.metadata
+        cache_service.store_json.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_prior_derived_result_is_not_stored_as_evidence(self, detector, cache_service):
+        context = create_context("sí", session_id="s1")
+        cache_service.get_json = AsyncMock(return_value={'language': 'es'})
+        await detector.process(context)
+        assert context.detected_language == 'es'
+        assert context.language_detection_meta['method'] == 'sticky_previous'
+        cache_service.store_json.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_detected_result_is_stored(self, detector, cache_service):
+        context = create_context("¿Dónde está mi pedido? Necesito ayuda, por favor.", session_id="s1")
+        await detector.process(context)
+        assert context.detected_language == 'es'
+        assert context.language_detection_meta['abstained'] is False
+        assert context.metadata['last_detected_language'] == 'es'
+        cache_service.store_json.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_below_threshold_ascii_text_abstains_instead_of_english(self):
+        detector = LanguageDetectionStep(MockContainer())
+        detector._run_backend_with_timeout = AsyncMock(side_effect=[
+            DetectionResult('de', 0.5, 'langdetect'),
+            DetectionResult('nl', 0.5, 'langid'),
+            DetectionResult('fr', 0.5, 'pycld2'),
+        ])
+        result = await detector._detect_language_ensemble_async("zorgvuldig afgestemd plan")
+        assert result.abstained
+        assert result.raw_results['reason'] == 'below_threshold'
+
+    @pytest.mark.asyncio
+    async def test_backend_unknown_answer_is_not_a_vote(self):
+        detector = LanguageDetectionStep(MockContainer())
+        detector._run_backend_with_timeout = AsyncMock(return_value=DetectionResult('un', 0.9, 'pycld2'))
+        result = await detector._detect_language_ensemble_async("zorgvuldig afgestemd plan")
+        assert result.abstained
+        assert result.raw_results['reason'] == 'all_backends_failed'
+
+    @pytest.mark.asyncio
+    async def test_process_error_abstains(self, detector):
+        detector._detect_language_ensemble_async = AsyncMock(side_effect=RuntimeError("boom"))
+        context = create_context("Hello world")
+        await detector.process(context)
+        assert context.detected_language == 'unknown'
+        assert context.language_detection_meta['abstained'] is True

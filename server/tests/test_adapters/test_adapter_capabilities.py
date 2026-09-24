@@ -195,6 +195,16 @@ class TestAdapterCapabilities:
         assert kwargs['custom_param2'] == 'value2'
         assert 'custom_param3' not in kwargs
 
+    @pytest.mark.parametrize("detected,expected", [('fr', 'fr'), ('unknown', None), (None, None)])
+    def test_build_retriever_kwargs_language_filtering(self, detected, expected):
+        """An abstained ('unknown') detection is not forwarded as a language filter."""
+        capabilities = AdapterCapabilities(supports_language_filtering=True)
+        context = Mock(detected_language=detected)
+
+        kwargs = capabilities.build_retriever_kwargs(context)
+
+        assert kwargs.get('detected_language') == expected
+
 
 class TestAdapterCapabilityRegistry:
     """Test AdapterCapabilityRegistry class"""

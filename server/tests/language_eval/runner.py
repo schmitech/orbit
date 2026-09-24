@@ -43,7 +43,7 @@ from inference.pipeline.steps import language_detection as ld
 BENCHMARK_VERSION = "v1"
 DATASET_PATH = os.path.join(HERE, "data", f"benchmark_{BENCHMARK_VERSION}.jsonl")
 CANONICAL_CONFIG_PATH = os.path.join(REPO_ROOT, "config", "config.yaml")
-BASELINE_REPORT_PATH = os.path.join(HERE, "reports", f"phase0_baseline_{BENCHMARK_VERSION}.json")
+BASELINE_REPORT_PATH = os.path.join(HERE, "reports", f"phase1_baseline_{BENCHMARK_VERSION}.json")
 
 BACKEND_MODES = ("langdetect", "langid", "pycld2")
 PIPELINE_MODES = ("pipeline", "pipeline+context")

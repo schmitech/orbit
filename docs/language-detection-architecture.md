@@ -40,7 +40,7 @@ The language detection system is a pipeline step that runs before LLM inference 
 │                                        ▼                                │
 │                      ┌──────────────────────────────────────────────┐  │
 │                      │         Script Detection (Fast Path)         │  │
-│                      │  • 25 Unicode script patterns                │  │
+│                      │  • Unicode script evidence (unique/shared)   │  │
 │                      │  • French phrase patterns                    │  │
 │                      │  • Latin word patterns (17 languages)        │  │
 │                      └──────────────────────────────────────────────┘  │
@@ -103,25 +103,33 @@ Text is cleaned to remove elements that confuse statistical detectors:
 - Excessive punctuation/numbers: 123-456-789
 ```
 
-### 2. Script Detection (Fast Path)
+### 2. Script Evidence and Short Text
 
-Before calling heavyweight backends, script-based detection provides high-confidence results for non-Latin scripts:
+The cleaned text is NFC-normalized. Evidence is then counted as Unicode letters
+and combining marks, using the `regex` package's `\p{Script=...}` properties.
+Digits, punctuation, emoji and other Common/Inherited characters are not
+evidence. All scripts are counted before any decision, so the dominant script
+does not depend on pattern order.
 
-| Script | Unicode Range | Languages | Confidence |
-|--------|---------------|-----------|------------|
-| CJK Unified | U+4E00-U+9FFF | Chinese | 0.95 |
-| Hiragana/Katakana | U+3040-U+30FF | Japanese | 0.95 |
-| Hangul | U+AC00-U+D7AF | Korean | 0.95 |
-| Arabic | U+0600-U+06FF | Arabic | 0.95 |
-| Devanagari | U+0900-U+097F | Hindi, Marathi | 0.95 |
-| Bengali | U+0980-U+09FF | Bengali | 0.95 |
-| Tamil | U+0B80-U+0BFF | Tamil | 0.95 |
-| Thai | U+0E00-U+0E7F | Thai | 0.95 |
-| Cyrillic | U+0400-U+04FF | Russian, etc. | 0.80 |
-| Greek | U+0370-U+03FF | Greek | 0.95 |
-| Georgian | U+10A0-U+10FF | Georgian | 0.95 |
-| Armenian | U+0530-U+058F | Armenian | 0.95 |
-| ... | ... | ... | ... |
+| Outcome | Rule |
+|---|---|
+| No letters (emoji, numbers, URLs, code only) | Abstain: `unknown`, reason `no_letters`; backends are not called. |
+| Single-language script | Selects its language (`script_detection`, 0.95) when it has at least `script_fast_path.min_letters` letters and covers at least `script_fast_path.min_coverage` of them. Applies to Hangul, Thai, Greek, Georgian, Armenian, Tamil, Telugu and similar scripts, and to Japanese when kana is present. |
+| Shared script | Narrows the candidates the backends may choose from, but only when it covers at least `min_coverage` of the letters. Cyrillic, Arabic, Devanagari, Bengali, Hebrew, Ethiopic, and Han without kana (`zh`/`ja`) are shared. |
+| Fewer than `min_letters` letters | Uses a conversation prior (stickiness or chat history) if one is available, at a confidence below `retrieval_min_confidence`. Otherwise abstains with reason `low_evidence`. |
+
+Arabic-script letters narrow the candidates further:
+- The Persian letters پ چ ژ گ rule out Arabic but do not select Persian, because
+  Urdu and Pashto use them too.
+- Urdu-only letters narrow the candidates to `ur`.
+- Pashto-only letters narrow the candidates to `ps`.
+
+If no backend votes for a candidate, the result is `unknown`. The exception is
+when distinctive letters narrowed the set to a single language: that language
+is returned as `script_letters` at 0.75.
+
+Backend votes outside the candidate set still count toward the vote total, so
+dropping them cannot inflate confidence.
 
 ### 3. Word Pattern Detection
 
@@ -181,14 +189,46 @@ total_votes = sum(language_votes.values())
 best_confidence = best_score / total_votes
 second_confidence = second_score / total_votes
 margin = best_confidence - second_confidence
-
-# Script boost is applied after margin is locked
-best_confidence = min(0.95, best_confidence + script_boost * script_coverage)
 ```
 
 `total_votes` is the sum of all weighted language scores after backend weighting,
 chat-history priors, and heuristic vote nudges. This is not the same as the sum
-of configured backend weights.
+of configured backend weights. The result is a vote share, not a calibrated
+probability (see `docs/roadmap/language-detection-accuracy.md`, Phase 3). The
+former `script_boost` nudge has been removed: it only ever applied to Russian,
+as an artifact of script-pattern order.
+
+When confidence or margin is below threshold, the detector tries these in order:
+1. the sticky previous language, when stickiness is enabled;
+2. the English ASCII heuristic, when English markers are present;
+3. the best-voted language, when a non-English Latin word pattern matched.
+
+Otherwise it abstains with reason `below_threshold`. It never substitutes a
+default language.
+
+## Abstention and the Response Language
+
+`unknown` is a first-class outcome. When detection abstains:
+- `method` is `abstained`, `language_detection_meta.abstained` is `true`, and
+  `raw_results.reason` says why;
+- nothing is stored as evidence for later turns, neither in the session cache
+  nor in `last_detected_language`;
+- retrieval applies no language boost, and `unknown` is not passed to
+  retrievers as a language filter;
+- the prompt asks the model to reply in the user's language, and to use
+  `ambiguous_response_language` only if the language is unclear. It never
+  states that English was detected.
+
+Results that come from conversation state (`sticky_previous`,
+`chat_history_prior`) are not stored as new evidence either.
+
+Language codes are normalized to a base ISO 639 code:
+- BCP-47 subtags are dropped (`zh-Hant` → `zh`, `pt-BR` → `pt`), because
+  prompting and retrieval key only on the base language;
+- legacy codes are mapped (`iw` → `he`, `in` → `id`, `fil` → `tl`, `nb`/`nn` →
+  `no`);
+- 3-letter codes are validated with `pycountry`;
+- malformed or unsupported codes become `unknown` instead of being truncated.
 
 ## Heuristic Biasing
 
@@ -221,7 +261,6 @@ This prevents queries like "Car crime statistics Vancouver" from being classifie
 heuristic_nudges:
   en_boost: 0.2       # Added to English votes in ASCII text
   es_penalty: 0.1     # Subtracted from Spanish in pure ASCII
-  script_boost: 0.2   # Added when script matches ensemble winner
 ```
 
 ### Chat History Prior
@@ -237,7 +276,7 @@ if chat_history_prior:
 ## Language Stickiness
 
 ### Problem
-Users typing in one language may occasionally produce ambiguous short messages (e.g., "OK", "Yes", numbers). Without stickiness, these would reset to English.
+Users typing in one language may occasionally produce ambiguous short messages (e.g., "OK", "Yes", numbers). Without stickiness or a chat-history prior, these abstain (`unknown`) rather than resetting to English.
 
 ### Solution
 1. Store detected language in session (Redis or context metadata)
@@ -322,8 +361,15 @@ language_detection:
   # Session stickiness
   enable_stickiness: false
 
-  # Fallback when detection fails
-  fallback_language: "en"
+  # Reply language when detection abstains; never recorded as a detected
+  # language. Replaces `fallback_language`, which is still read if present.
+  ambiguous_response_language: "en"
+
+  # Evidence thresholds (chosen on the benchmark tune split)
+  min_letters: 5           # Fewer letters: conversation prior or abstain
+  script_fast_path:
+    min_letters: 1
+    min_coverage: 0.8
 
   # Backend timeout
   backend_timeout: 10.0
@@ -332,7 +378,6 @@ language_detection:
   heuristic_nudges:
     en_boost: 0.2
     es_penalty: 0.1
-    script_boost: 0.2
 
   # Mixed-language detection threshold
   mixed_language_threshold: 0.3

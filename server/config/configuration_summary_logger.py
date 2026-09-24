@@ -393,7 +393,11 @@ class ConfigurationSummaryLogger:
             backends = lang_detect_config.get('backends', ['langdetect'])
             self.logger.info(f"  Backends: {', '.join(backends)}")
             self.logger.info(f"  Min confidence: {lang_detect_config.get('min_confidence', 0.7)}")
-            self.logger.info(f"  Fallback language: {lang_detect_config.get('fallback_language', 'en')}")
+            response_language = (
+                lang_detect_config.get('ambiguous_response_language')
+                or lang_detect_config.get('fallback_language', 'en')
+            )
+            self.logger.info(f"  Ambiguous-input response language: {response_language}")
 
     def generate_configuration_report(self) -> dict[str, Any]:
         """

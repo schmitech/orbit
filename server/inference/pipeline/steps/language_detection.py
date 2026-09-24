@@ -18,10 +18,15 @@ import asyncio
 import logging
 import re
 import math
+import unicodedata
 import urllib.parse
+from collections import Counter
+from functools import lru_cache
 from typing import Any, Optional
 from re import Pattern
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+import regex
 
 from ..base import PipelineStep, ProcessingContext
 
@@ -57,11 +62,12 @@ try:
 except ImportError:
     PYCLD2_AVAILABLE = False
 
-# Optional pycountry for language code normalization
+# Optional pycountry for validating ISO 639 codes during normalization
 try:
-    import pycountry  # noqa: F401 - used for availability check
+    import pycountry
     PYCOUNTRY_AVAILABLE = True
 except ImportError:
+    pycountry = None
     PYCOUNTRY_AVAILABLE = False
 
 
@@ -71,43 +77,64 @@ except ImportError:
 
 AMBIGUOUS_LATIN_LANGS = frozenset({'de', 'nl', 'no', 'da', 'fi', 'id'})
 
-# Script detection patterns - covers 20+ scripts
-# NOTE: Order matters for overlapping scripts - check Japanese before Chinese
-SCRIPT_PATTERNS: list[tuple[str, Pattern, float]] = [
-    # East Asian - Japanese MUST come before Chinese (Kanji overlaps with CJK)
-    ('ja', re.compile(r'[\u3040-\u309f\u30a0-\u30ff]'), 0.95),       # Japanese (Hiragana + Katakana)
-    ('zh', re.compile(r'[\u4e00-\u9fff]'), 0.95),                    # Chinese (CJK Unified)
-    ('ko', re.compile(r'[\uac00-\ud7af]'), 0.95),                    # Korean (Hangul)
+# Result language when detection abstains. Never a response-language default.
+UNKNOWN_LANGUAGE = 'unknown'
 
-    # Middle Eastern
-    ('fa', re.compile(r'[\u067e\u0686\u0698\u06af]'), 0.92),         # Persian (unique chars)
-    ('ar', re.compile(r'[\u0600-\u06ff]'), 0.95),                    # Arabic
-    ('he', re.compile(r'[\u0590-\u05ff]'), 0.95),                    # Hebrew
+# Methods whose language comes from conversation state, not the current message.
+PRIOR_METHODS = frozenset({'sticky_previous', 'chat_history_prior'})
 
-    # South Asian
-    ('hi', re.compile(r'[\u0900-\u097f]'), 0.95),                    # Devanagari (Hindi, Marathi, Sanskrit)
-    ('bn', re.compile(r'[\u0980-\u09ff]'), 0.95),                    # Bengali
-    ('ta', re.compile(r'[\u0b80-\u0bff]'), 0.95),                    # Tamil
-    ('te', re.compile(r'[\u0c00-\u0c7f]'), 0.95),                    # Telugu
-    ('kn', re.compile(r'[\u0c80-\u0cff]'), 0.95),                    # Kannada
-    ('ml', re.compile(r'[\u0d00-\u0d7f]'), 0.95),                    # Malayalam
-    ('gu', re.compile(r'[\u0a80-\u0aff]'), 0.95),                    # Gujarati
-    ('pa', re.compile(r'[\u0a00-\u0a7f]'), 0.95),                    # Punjabi (Gurmukhi)
-    ('or', re.compile(r'[\u0b00-\u0b7f]'), 0.95),                    # Odia
-    ('si', re.compile(r'[\u0d80-\u0dff]'), 0.95),                    # Sinhala
+# Candidate languages per Unicode script. A script with one candidate may
+# select that language (script fast path); a shared script only narrows the
+# candidates the statistical backends may choose from. Latin, and scripts not
+# listed here, impose no restriction.
+SCRIPT_CANDIDATES: dict[str, tuple[str, ...]] = {
+    'Hangul': ('ko',),
+    'Japanese': ('ja',),        # Kana present; Han letters in the same text count as Japanese
+    'Han': ('zh', 'ja'),        # Han without kana: Chinese, or kanji-only Japanese
+    'Cyrillic': ('ru', 'uk', 'bg', 'sr', 'mk', 'be', 'kk', 'ky', 'mn', 'tg'),
+    'Arabic': ('ar', 'fa', 'ur', 'ps', 'ku', 'sd', 'ug'),
+    'Hebrew': ('he', 'yi'),
+    'Devanagari': ('hi', 'mr', 'ne', 'sa'),
+    'Bengali': ('bn', 'as'),
+    'Ethiopic': ('am', 'ti'),
+    'Greek': ('el',),
+    'Armenian': ('hy',),
+    'Georgian': ('ka',),
+    'Gurmukhi': ('pa',),
+    'Gujarati': ('gu',),
+    'Oriya': ('or',),
+    'Tamil': ('ta',),
+    'Telugu': ('te',),
+    'Kannada': ('kn',),
+    'Malayalam': ('ml',),
+    'Sinhala': ('si',),
+    'Thai': ('th',),
+    'Lao': ('lo',),
+    'Myanmar': ('my',),
+    'Khmer': ('km',),
+}
 
-    # Southeast Asian
-    ('th', re.compile(r'[\u0e00-\u0e7f]'), 0.95),                    # Thai
-    ('lo', re.compile(r'[\u0e80-\u0eff]'), 0.95),                    # Lao
-    ('my', re.compile(r'[\u1000-\u109f]'), 0.95),                    # Myanmar (Burmese)
-    ('km', re.compile(r'[\u1780-\u17ff]'), 0.95),                    # Khmer
+# Script-letter evidence (letters and combining marks; Common/Inherited
+# characters such as digits, punctuation, emoji and the kana prolonged-sound
+# mark are not evidence). One pass; the matching group names the script.
+_SCRIPT_NAMES = [s for s in SCRIPT_CANDIDATES if s != 'Japanese'] + ['Latin']
+SCRIPT_LETTER_PATTERN = regex.compile(
+    '(?V1)' + '|'.join(
+        [f'(?P<{s}>[\\p{{Script={s}}}&&[\\p{{L}}\\p{{M}}]])' for s in _SCRIPT_NAMES if s != 'Han']
+        + [r'(?P<Kana>[[\p{Script=Hiragana}\p{Script=Katakana}]&&[\p{L}\p{M}]])',
+           r'(?P<Han>[\p{Script=Han}&&[\p{L}\p{M}]])',
+           r'(?P<Other>[[\p{L}\p{M}]--[\p{Script=Common}\p{Script=Inherited}]])']
+    )
+)
 
-    # Other
-    ('ka', re.compile(r'[\u10a0-\u10ff]'), 0.95),                    # Georgian
-    ('hy', re.compile(r'[\u0530-\u058f]'), 0.95),                    # Armenian
-    ('am', re.compile(r'[\u1200-\u137f]'), 0.95),                    # Amharic (Ethiopic)
-    ('el', re.compile(r'[\u0370-\u03ff]'), 0.95),                    # Greek
-    ('ru', re.compile(r'[\u0400-\u04ff]'), 0.80),                    # Cyrillic (lower confidence - multi-language)
+# Letters that narrow Arabic-script candidates. The Persian letters are shared
+# with Urdu and Pashto, so they rule out Arabic rather than select Persian.
+ARABIC_SCRIPT_MARKERS: list[tuple[Pattern, frozenset[str]]] = [
+    (re.compile(r'[\u067e\u0686\u0698\u06af]'),                        # \u067e \u0686 \u0698 \u06af
+     frozenset(SCRIPT_CANDIDATES['Arabic']) - {'ar'}),
+    (re.compile(r'[\u0679\u0688\u0691\u06ba\u06d2]'), frozenset({'ur'})),  # \u0679 \u0688 \u0691 \u06ba \u06d2
+    (re.compile(r'[\u067c\u0689\u0693\u069a\u0696\u0681\u0685\u06bc\u06ab]'),
+     frozenset({'ps'})),                                               # \u067c \u0689 \u0693 \u069a \u0696 \u0681 \u0685 \u06bc \u06ab
 ]
 
 # French phrase patterns for disambiguation
@@ -351,17 +378,66 @@ LANGUAGE_CODE_MAP = {
     'ind': 'id', 'msa': 'ms', 'fin': 'fi', 'vie': 'vi',
     'ron': 'ro', 'hun': 'hu',
     'eng': 'en', 'english': 'en',
-    # CLD2 specific
-    'un': 'unknown', 'xxx': 'unknown',
+    # Legacy ISO 639-1 codes (CLD2 still emits 'iw')
+    'iw': 'he', 'ji': 'yi', 'in': 'id', 'jw': 'jv', 'mo': 'ro',
+    # Backends emit 'tl' for Filipino/Tagalog; keep one code for both
+    'fil': 'tl',
+    # Norwegian written standards share the macrolanguage code
+    'nb': 'no', 'nn': 'no',
+    # Undetermined / not linguistic content
+    'un': UNKNOWN_LANGUAGE, 'und': UNKNOWN_LANGUAGE, 'xxx': UNKNOWN_LANGUAGE,
+    'zxx': UNKNOWN_LANGUAGE, 'mul': UNKNOWN_LANGUAGE, UNKNOWN_LANGUAGE: UNKNOWN_LANGUAGE,
 }
 
+# Well-formed RFC 5646 langtag with a 2-3 letter primary language (lowercased).
+_BCP47_TAG_PATTERN = re.compile(r"""
+    (?P<primary>[a-z]{2,3})
+    (?:-[a-z]{3}){0,3}                    # extlang
+    (?:-[a-z]{4})?                        # script
+    (?:-(?:[a-z]{2}|\d{3}))?              # region
+    (?:-(?:[a-z\d]{5,8}|\d[a-z\d]{3}))*   # variants
+    (?:-[a-wyz\d](?:-[a-z\d]{2,8})+)*     # extensions
+    (?:-x(?:-[a-z\d]{1,8})+)?             # private use
+""", re.VERBOSE)
 
-def normalize_language_code(code: str) -> str:
-    """Normalize language code to ISO 639-1 format."""
+
+def _validate_iso639(code: str) -> str:
+    """Return the ISO 639-1 code (or 639-3 when none exists), or unknown."""
+    if not PYCOUNTRY_AVAILABLE:
+        return code
+    try:
+        if len(code) == 2:
+            language = pycountry.languages.get(alpha_2=code)
+        else:
+            language = pycountry.languages.get(alpha_3=code) or pycountry.languages.get(bibliographic=code)
+    except (KeyError, LookupError):  # older pycountry raises instead of returning None
+        language = None
+    if language is None:
+        return UNKNOWN_LANGUAGE
+    return getattr(language, 'alpha_2', None) or language.alpha_3
+
+
+@lru_cache(maxsize=1024)
+def normalize_language_code(code: Optional[str]) -> str:
+    """Normalize a backend language code or BCP-47 tag to a base language code.
+
+    Only the base language is kept (``zh-Hant`` -> ``zh``, ``pt-BR`` -> ``pt``):
+    prompt building and retrieval both key on it. The whole tag must be
+    well-formed before subtags are dropped, so ``en--US`` is not English.
+    Unsupported or malformed codes return ``unknown`` rather than a guess.
+    """
     if not code:
-        return 'unknown'
-    code_lower = code.lower().strip()
-    return LANGUAGE_CODE_MAP.get(code_lower, code_lower[:2] if len(code_lower) > 2 else code_lower)
+        return UNKNOWN_LANGUAGE
+    tag = str(code).strip().lower().replace('_', '-')
+    if tag in LANGUAGE_CODE_MAP:
+        return LANGUAGE_CODE_MAP[tag]
+    match = _BCP47_TAG_PATTERN.fullmatch(tag)
+    if not match:
+        return UNKNOWN_LANGUAGE
+    primary = match.group('primary')
+    if primary in LANGUAGE_CODE_MAP:
+        return LANGUAGE_CODE_MAP[primary]
+    return _validate_iso639(primary)
 
 
 # ============================================================================
@@ -379,6 +455,34 @@ class DetectionResult:
     def __post_init__(self):
         # Normalize language code on creation
         self.language = normalize_language_code(self.language)
+
+    @property
+    def abstained(self) -> bool:
+        return self.language == UNKNOWN_LANGUAGE
+
+
+def abstain(reason: str, **raw: Any) -> DetectionResult:
+    """An explicit "language unknown" outcome; never replaced by a default language."""
+    return DetectionResult(
+        language=UNKNOWN_LANGUAGE,
+        confidence=0.0,
+        method='abstained',
+        raw_results={'reason': reason, **raw},
+    )
+
+
+@dataclass(frozen=True)
+class ScriptEvidence:
+    """Script-letter counts for a text, computed once before any decision."""
+    letters: int
+    counts: dict[str, int] = field(default_factory=dict)
+    dominant: Optional[str] = None
+    coverage: float = 0.0
+
+    @property
+    def candidates(self) -> tuple[str, ...]:
+        """Languages the dominant script allows; empty means unrestricted."""
+        return SCRIPT_CANDIDATES.get(self.dominant or '', ())
 
 
 @dataclass(frozen=True)
@@ -419,7 +523,9 @@ class LanguageDetectionStep(PipelineStep):
         self.backends = []
         self.min_confidence = 0.7
         self.min_margin = 0.2
-        self.fallback_language = 'en'
+        self.min_letters = 5
+        self.script_fast_path_min_letters = 1
+        self.script_fast_path_min_coverage = 0.8
         self.prefer_english_for_ascii = True
         self.enable_stickiness = False
         self.heuristic_nudges = {}
@@ -463,13 +569,18 @@ class LanguageDetectionStep(PipelineStep):
         self.min_margin = lang_config.get('min_margin', 0.2)
         self.prefer_english_for_ascii = lang_config.get('prefer_english_for_ascii', True)
         self.enable_stickiness = lang_config.get('enable_stickiness', False)
-        self.fallback_language = lang_config.get('fallback_language', 'en')
+
+        # Evidence thresholds: below min_letters the text is too short for the
+        # statistical backends; the script fast path needs its own minimums.
+        self.min_letters = lang_config.get('min_letters', 5)
+        script_fast_path = lang_config.get('script_fast_path', {}) or {}
+        self.script_fast_path_min_letters = script_fast_path.get('min_letters', 1)
+        self.script_fast_path_min_coverage = script_fast_path.get('min_coverage', 0.8)
 
         # Configurable heuristic nudges (new)
         self.heuristic_nudges = lang_config.get('heuristic_nudges', {
             'en_boost': 0.2,      # Boost for English in ASCII-heavy text
             'es_penalty': 0.1,    # Penalty for Spanish in pure ASCII
-            'script_boost': 0.2,  # Boost when script matches ensemble winner
         })
 
         # Mixed language detection threshold
@@ -525,6 +636,7 @@ class LanguageDetectionStep(PipelineStep):
             meta_update = {
                 'confidence': result.confidence,
                 'method': result.method,
+                'abstained': result.abstained,
                 'raw_results': result.raw_results
             }
 
@@ -545,9 +657,14 @@ class LanguageDetectionStep(PipelineStep):
             # Persist to session storage for stickiness across API calls
             await self._save_session_language(context, result)
 
-            # Store in context metadata (used by context_retrieval for language boosting)
-            context.metadata['last_detected_language'] = result.language
-            context.metadata['last_detected_language_confidence'] = result.confidence
+            # Store in context metadata (used by context_retrieval for language boosting).
+            # An abstention is not language evidence, so it clears rather than records.
+            if result.abstained:
+                context.metadata.pop('last_detected_language', None)
+                context.metadata.pop('last_detected_language_confidence', None)
+            else:
+                context.metadata['last_detected_language'] = result.language
+                context.metadata['last_detected_language_confidence'] = result.confidence
 
             config = self.container.get_or_none('config') or {}
             if config.get('general', {}).get('verbose', False):
@@ -557,14 +674,16 @@ class LanguageDetectionStep(PipelineStep):
                     f"for message: {(context.message or '')[:50]}..."
                 )
 
-        except Exception as e:  # noqa: BLE001 - pipeline step must not crash the request; falls back to configured language
+        except Exception as e:  # noqa: BLE001 - pipeline step must not crash the request; abstains instead
             logger.error(f"Error during language detection: {e!s}")
-            context.detected_language = self.fallback_language
+            context.detected_language = UNKNOWN_LANGUAGE
             if not hasattr(context, 'language_detection_meta'):
                 context.language_detection_meta = {}
             context.language_detection_meta.update({
                 'confidence': 0.0,
-                'method': 'fallback',
+                'method': 'abstained',
+                'abstained': True,
+                'raw_results': {'reason': 'error'},
                 'error': str(e)
             })
 
@@ -601,6 +720,11 @@ class LanguageDetectionStep(PipelineStep):
             return
 
         if not context.session_id:
+            return
+
+        # Only independently detected languages are evidence for later turns;
+        # abstentions and prior-derived results would feed the prior back into itself.
+        if result.abstained or result.method in PRIOR_METHODS:
             return
 
         try:
@@ -679,43 +803,25 @@ class LanguageDetectionStep(PipelineStep):
         """
         Detect language using ensemble of multiple backends with async execution.
         """
-        text = text or ""
-        # Handle very short text - but try script detection first for CJK
-        text_stripped = text.strip()
-        if not text_stripped:
-            return DetectionResult(
-                language=self.fallback_language,
-                confidence=0.1,
-                method='length_fallback',
-                raw_results={'reason': 'empty_text'}
-            )
-
-        # For very short text (1-2 chars), try script detection for CJK
-        if len(text_stripped) < 3:
-            script_result = self._detect_by_script(text_stripped)
-            if script_result.confidence > 0.9:
-                return script_result
-            if self.enable_stickiness and previous_language:
-                return DetectionResult(
-                    language=previous_language,
-                    confidence=0.7,
-                    method='sticky_previous',
-                    raw_results={'reason': 'short_ambiguous_text'}
-                )
-            return DetectionResult(
-                language=self.fallback_language,
-                confidence=0.1,
-                method='length_fallback',
-                raw_results={'reason': 'text_too_short'}
-            )
-
         # Pre-clean text to avoid URL/code bias
-        clean_text = self._clean_text_for_detection(text)
+        clean_text = self._clean_text_for_detection(text or "")
+        evidence = self._script_evidence(clean_text)
+        if evidence.letters == 0:
+            return abstain('no_letters')
 
-        # First try high-confidence script-based detection
-        script_result = self._detect_by_script(clean_text)
+        # Unique-script fast path, or high-confidence Latin phrase patterns
+        script_result = self._detect_by_script(clean_text, evidence)
         if script_result.confidence > 0.9:
             return script_result
+
+        # Too little text for the statistical backends: use a trustworthy
+        # conversation prior if there is one, otherwise abstain.
+        if evidence.letters < self.min_letters:
+            return self._short_text_prior(previous_language, chat_history_prior) or abstain(
+                'low_evidence', letters=evidence.letters
+            )
+
+        candidates = self._narrow_candidates(clean_text, evidence)
 
         # Run all available backends in parallel
         backend_results = []
@@ -745,13 +851,10 @@ class LanguageDetectionStep(PipelineStep):
                         'confidence': result.confidence
                     }
 
+        # A backend answering "unknown" (e.g. CLD2 'un') has no vote to cast.
+        backend_results = [entry for entry in backend_results if not entry[0].abstained]
         if not backend_results:
-            return DetectionResult(
-                language=self.fallback_language,
-                confidence=0.0,
-                method='all_backends_failed',
-                raw_results=raw_results
-            )
+            return abstain('all_backends_failed', raw=raw_results)
 
         signals = self._compute_heuristic_signals(clean_text)
 
@@ -780,13 +883,30 @@ class LanguageDetectionStep(PipelineStep):
         language_votes = self._aggregate_backend_votes(backend_results, chat_history_prior)
         self._apply_nudges(language_votes, signals)
 
+        # A shared script restricts which languages may win; votes outside the
+        # candidates still count toward the total so dropping them cannot
+        # inflate confidence.
+        eligible_votes = language_votes
+        if candidates:
+            raw_results['script_candidates'] = sorted(candidates)
+            eligible_votes = {lang: v for lang, v in language_votes.items() if lang in candidates and v > 0}
+            if not eligible_votes:
+                if len(candidates) == 1:
+                    return DetectionResult(
+                        language=next(iter(candidates)),
+                        confidence=0.75,
+                        method='script_letters',
+                        raw_results={'reason': 'distinctive_letters', 'votes': language_votes, 'raw': raw_results},
+                    )
+                return abstain('no_candidate_votes', votes=language_votes, raw=raw_results)
+
         # Sort to get top candidates
-        sorted_votes = sorted(language_votes.items(), key=lambda kv: kv[1], reverse=True)
+        sorted_votes = sorted(eligible_votes.items(), key=lambda kv: kv[1], reverse=True)
         best_language, best_score = sorted_votes[0]
         second_score = sorted_votes[1][1] if len(sorted_votes) > 1 else 0.0
 
-        # Compute confidence as proportion of total votes (true posterior probability)
-        # This gives realistic confidence values that can exceed the retrieval threshold
+        # Confidence is the winner's share of all weighted top-1 votes. It is a
+        # vote share, not a posterior probability (see roadmap Phase 3).
         total_votes = sum(language_votes.values())
         if total_votes > 0:
             raw_best_confidence = best_score / total_votes
@@ -796,14 +916,6 @@ class LanguageDetectionStep(PipelineStep):
         second_confidence = (second_score / total_votes) if total_votes > 0 else 0.0
         margin = raw_best_confidence - second_confidence
         best_confidence = raw_best_confidence
-
-        # Script detection confidence boost
-        script_boost = self.heuristic_nudges.get('script_boost', 0.2)
-        if script_result.confidence > 0.5 and script_result.language == best_language:
-            # Scale boost by script coverage
-            script_coverage = self._compute_script_coverage(clean_text, script_result.language)
-            actual_boost = script_boost * script_coverage
-            best_confidence = min(0.95, best_confidence + actual_boost)
 
         # Check for mixed language
         if len(sorted_votes) > 1:
@@ -818,7 +930,7 @@ class LanguageDetectionStep(PipelineStep):
         # Margin is now the difference in confidence (proportion), not raw scores
         if raw_best_confidence < self.min_confidence or margin < self.min_margin:
             # Prefer sticky previous language when enabled and plausible
-            if self.enable_stickiness and previous_language and previous_language in language_votes:
+            if self.enable_stickiness and previous_language and previous_language in eligible_votes:
                 # Decay stickiness based on how different the current detection is
                 sticky_confidence = min(0.9, max(best_confidence, 0.7))
                 return DetectionResult(
@@ -852,11 +964,12 @@ class LanguageDetectionStep(PipelineStep):
                         }
                     )
 
-            # Fallback — if non-English Latin patterns matched, trust the best voted
-            # language instead of defaulting to English
-            fallback_lang = best_language if signals.non_en_latin_matched else self.fallback_language
+            # If non-English Latin patterns matched, trust the best voted language;
+            # otherwise the evidence is insufficient and detection abstains.
+            if not signals.non_en_latin_matched:
+                return abstain('below_threshold', votes=language_votes, raw=raw_results)
             return DetectionResult(
-                language=fallback_lang,
+                language=best_language,
                 confidence=best_confidence,
                 method='threshold_fallback',
                 raw_results={'votes': language_votes, 'raw': raw_results}
@@ -965,17 +1078,93 @@ class LanguageDetectionStep(PipelineStep):
             logger.warning(f"Backend {backend_name} failed: {e}")
             return None
 
-    def _detect_by_script(self, text: str) -> DetectionResult:
-        """High-confidence script-based detection with comprehensive patterns."""
-        # Check script patterns
-        for lang_code, pattern, confidence in SCRIPT_PATTERNS:
-            if pattern.search(text):
+    def _script_evidence(self, text: str) -> ScriptEvidence:
+        """Count script letters across the whole text before choosing anything."""
+        counts = Counter(m.lastgroup for m in SCRIPT_LETTER_PATTERN.finditer(text))
+        # Kana marks the text as Japanese; its kanji are Japanese evidence too.
+        if counts.get('Kana'):
+            counts['Japanese'] = counts.pop('Kana') + counts.pop('Han', 0)
+        letters = sum(counts.values())
+        if not letters:
+            return ScriptEvidence(letters=0)
+        dominant, dominant_count = counts.most_common(1)[0]
+        return ScriptEvidence(
+            letters=letters,
+            counts=dict(counts),
+            dominant=dominant,
+            coverage=dominant_count / letters,
+        )
+
+    def _narrow_candidates(self, text: str, evidence: ScriptEvidence) -> frozenset[str]:
+        """Candidate languages for the statistical stage; empty means unrestricted.
+
+        Only a script covering enough of the text restricts candidates, so
+        mixed-script input is not forced into its first script's languages.
+        """
+        if evidence.coverage < self.script_fast_path_min_coverage:
+            return frozenset()
+        candidates = frozenset(evidence.candidates)
+        if evidence.dominant == 'Arabic':
+            for pattern, languages in ARABIC_SCRIPT_MARKERS:
+                if pattern.search(text) and candidates & languages:
+                    candidates &= languages
+        return candidates
+
+    def _short_text_prior(
+        self,
+        previous_language: Optional[str],
+        chat_history_prior: Optional[dict[str, float]],
+    ) -> Optional[DetectionResult]:
+        """Conversation-derived language for text too short to detect.
+
+        Confidence stays below retrieval_min_confidence: a prior may pick the
+        reply language but should not re-rank retrieved documents.
+        """
+        if self.enable_stickiness and previous_language and previous_language != UNKNOWN_LANGUAGE:
+            return DetectionResult(
+                language=previous_language,
+                confidence=0.6,
+                method='sticky_previous',
+                raw_results={'reason': 'low_evidence'},
+            )
+        if chat_history_prior:
+            language, share = max(chat_history_prior.items(), key=lambda kv: kv[1])
+            if share >= 0.5 and language != UNKNOWN_LANGUAGE:
                 return DetectionResult(
-                    language=lang_code,
-                    confidence=confidence,
-                    method='script_detection',
-                    raw_results={'matched_script': lang_code}
+                    language=language,
+                    confidence=round(0.6 * share, 4),
+                    method='chat_history_prior',
+                    raw_results={'reason': 'low_evidence', 'prior': chat_history_prior},
                 )
+        return None
+
+    def _detect_by_script(self, text: str, evidence: Optional[ScriptEvidence] = None) -> DetectionResult:
+        """Unique-script fast path, then Latin phrase/word patterns.
+
+        A script selects a language only when it maps to a single candidate and
+        has enough letters and coverage. Shared scripts return ``unknown`` with
+        their candidates so the statistical stage can choose among them.
+        """
+        evidence = evidence or self._script_evidence(text)
+        candidates = evidence.candidates
+        if (
+            len(candidates) == 1
+            and evidence.counts.get(evidence.dominant, 0) >= self.script_fast_path_min_letters
+            and evidence.coverage >= self.script_fast_path_min_coverage
+        ):
+            return DetectionResult(
+                language=candidates[0],
+                confidence=0.95,
+                method='script_detection',
+                raw_results={'script': evidence.dominant, 'coverage': round(evidence.coverage, 4)}
+            )
+        if evidence.dominant != 'Latin':
+            return DetectionResult(
+                language=UNKNOWN_LANGUAGE,
+                confidence=0.0,
+                method='script_detection',
+                raw_results={'script': evidence.dominant, 'candidates': list(candidates)}
+            )
 
         # Check French phrase patterns
         text_lower = text.lower()
@@ -1019,21 +1208,13 @@ class LanguageDetectionStep(PipelineStep):
             raw_results={'reason': 'no_patterns_matched'}
         )
 
-    def _compute_script_coverage(self, text: str, lang_code: str) -> float:
-        """Compute what fraction of text matches the detected script."""
-        # Find the pattern for this language
-        for code, pattern, _ in SCRIPT_PATTERNS:
-            if code == lang_code:
-                matches = pattern.findall(text)
-                if not matches:
-                    return 0.0
-                # Count characters matched
-                matched_chars = sum(len(m) for m in matches)
-                return min(1.0, matched_chars / max(1, len(text)))
-        return 0.0
-
     def _clean_text_for_detection(self, text: str) -> str:
-        """Lightweight cleaning to remove tokens that confuse detectors."""
+        """NFC-normalize, then remove tokens that confuse detectors.
+
+        NFC (not NFKC) so composed and decomposed diacritics compare equal
+        without folding compatibility characters such as full-width forms.
+        """
+        text = unicodedata.normalize('NFC', text)
         text = URL_PATTERN.sub(' ', text)
         text = EMAIL_PATTERN.sub(' ', text)
         text = CODE_FENCE_PATTERN.sub(' ', text)

@@ -226,3 +226,48 @@ async def test_build_system_message_prefix_is_stable_across_calls():
     assert content1[:prefix_len1] == content2[:prefix_len2]
     # The volatile tail (time instruction) differs between the two calls.
     assert content1 != content2
+
+
+def _language_builder(**lang_config):
+    return PromptInstructionBuilder(
+        config={"language_detection": {"enabled": True, **lang_config}},
+        prompt_service=None,
+        prompt_cache=OrderedDict(),
+    )
+
+
+def _language_context(message, language, **meta):
+    context = ProcessingContext(message=message, adapter_name="test")
+    context.detected_language = language
+    context.language_detection_meta = meta
+    return context
+
+
+def test_unknown_language_asks_model_to_match_user_without_claiming_english():
+    builder = _language_builder(ambiguous_response_language="en")
+    context = _language_context("ok", "unknown", method="abstained", confidence=0.0, abstained=True)
+
+    instruction = builder.build_language_instruction(context)
+
+    assert "same language the user is writing in" in instruction
+    assert "unclear, reply in English" in instruction
+    assert "appears to be in English" not in instruction
+    assert "Respond entirely in English" not in instruction
+
+
+def test_unknown_language_uses_configured_response_language():
+    builder = _language_builder(ambiguous_response_language="fr")
+    instruction = builder.build_language_instruction(_language_context("👍", "unknown", method="abstained"))
+    assert "unclear, reply in French" in instruction
+
+
+def test_unknown_language_honors_legacy_fallback_language_key():
+    builder = _language_builder(fallback_language="de")
+    instruction = builder.build_language_instruction(_language_context("👍", "unknown", method="abstained"))
+    assert "unclear, reply in German" in instruction
+
+
+def test_confident_detection_still_names_the_language():
+    builder = _language_builder()
+    context = _language_context("¿Dónde está mi pedido?", "es", method="ensemble_voting", confidence=0.95)
+    assert "The user is writing in Spanish" in builder.build_language_instruction(context)

@@ -23,6 +23,7 @@ from adapters.capabilities import (
     FormattingStyle
 )
 from ._utils import add_usage_component, finalize_usage_components
+from .language_detection import UNKNOWN_LANGUAGE, normalize_language_code
 
 logger = logging.getLogger(__name__)
 
@@ -334,7 +335,7 @@ class ContextRetrievalStep(PipelineStep):
             detected_language = getattr(context, 'detected_language', None)
             language_confidence = context.metadata.get('last_detected_language_confidence', 0.0)
 
-            if detected_language and language_confidence > 0.5:
+            if detected_language and detected_language != UNKNOWN_LANGUAGE and language_confidence > 0.5:
                 docs = self._apply_language_boost(docs, detected_language, language_confidence)
 
             context.retrieved_docs = docs
@@ -462,10 +463,13 @@ class ContextRetrievalStep(PipelineStep):
 
             if doc_language:
                 # Normalize document language code
-                doc_lang_normalized = doc_language.lower()[:2] if len(doc_language) > 2 else doc_language.lower()
-                user_lang_normalized = detected_language.lower()[:2] if len(detected_language) > 2 else detected_language.lower()
+                doc_lang_normalized = normalize_language_code(doc_language)
+                user_lang_normalized = normalize_language_code(detected_language)
 
-                if doc_lang_normalized == user_lang_normalized:
+                if doc_lang_normalized == UNKNOWN_LANGUAGE:
+                    # Unrecognized document language tag: neither boost nor penalize
+                    pass
+                elif doc_lang_normalized == user_lang_normalized:
                     # Boost matching language documents
                     new_score = min(1.0, current_score + (match_boost * language_confidence))
                     doc_copy['confidence'] = new_score

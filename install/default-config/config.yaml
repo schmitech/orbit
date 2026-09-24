@@ -63,18 +63,21 @@ language_detection:
     langdetect: 1.0
     langid: 1.2
     pycld2: 1.5
-  min_confidence: 0.7               # Min confidence for the winning language; below -> fallback_language
-  min_margin: 0.2                   # Min lead over the runner-up; below -> fallback_language
+  min_confidence: 0.7               # Min confidence for the winning language; below -> unknown (abstain)
+  min_margin: 0.2                   # Min lead over the runner-up; below -> unknown (abstain)
   prefer_english_for_ascii: true    # Bias pure-ASCII text toward English (avoids es/de/nl false positives)
   enable_stickiness: false          # Reuse the session's previous language for short/ambiguous messages
-  fallback_language: "en"           # Language assumed when detection is uncertain
+  ambiguous_response_language: "en"  # Reply language when detection abstains; never recorded as detected
+  min_letters: 5                    # Fewer letters is too little evidence: use a conversation prior or abstain
+  script_fast_path:                 # A single-language script (e.g. Hangul, Thai) selects its language directly
+    min_letters: 1
+    min_coverage: 0.8               # Also the coverage a shared script needs to restrict candidates
   backend_timeout: 10.0  # Timeout per backend in seconds (increase for cold starts)
 
   # Configurable heuristic nudges for voting adjustments
   heuristic_nudges:
     en_boost: 0.2       # Boost for English in ASCII-heavy text
     es_penalty: 0.1     # Penalty for Spanish in pure ASCII (avoids es/en confusion)
-    script_boost: 0.2   # Boost when script detection matches ensemble winner
 
   # Mixed language detection
   mixed_language_threshold: 0.3  # Min confidence for secondary language to flag as mixed

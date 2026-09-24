@@ -32,7 +32,8 @@ skip is not an accuracy signal.
 |---|---|
 | `data/benchmark_v1.jsonl` | Frozen corpus, one JSON record per line. |
 | `runner.py` | Runs a detector mode over the corpus and writes a JSON report plus a Markdown summary. |
-| `reports/phase0_baseline_v1.json` | Baseline for the pre-Phase-1 detector: metrics, environment, config and per-record pipeline predictions. |
+| `reports/phase0_baseline_v1.json` | Baseline for the pre-Phase-1 detector: metrics, environment, config and per-record pipeline predictions. Kept for comparison. |
+| `reports/phase1_baseline_v1.json` | Baseline after Phase 1. This is the one the regression gate reads (`BASELINE_REPORT_PATH`). |
 | `test_benchmark.py` | Schema and split checks, a determinism check, and the held-out regression gate. |
 
 ## Record schema

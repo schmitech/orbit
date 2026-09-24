@@ -248,30 +248,30 @@ or ensemble algorithm.
 
 ### 1.1 Unicode preprocessing
 
-- [ ] Normalize detector input with a documented Unicode normalization form.
+- [x] Normalize detector input with a documented Unicode normalization form.
       Prefer NFC unless benchmark evidence shows that compatibility
       normalization is needed.
-- [ ] Count Unicode letters separately from whitespace, punctuation, digits,
+- [x] Count Unicode letters separately from whitespace, punctuation, digits,
       emoji, and code when calculating evidence length and script coverage.
-- [ ] Handle the case where preprocessing removes all meaningful text and
+- [x] Handle the case where preprocessing removes all meaningful text and
       return `unknown` rather than invoking backends on an empty string.
-- [ ] Use the already-installed `regex` package's Unicode script properties,
+- [x] Use the already-installed `regex` package's Unicode script properties,
       or an equivalently complete mechanism, instead of incomplete hand-coded
       Basic Multilingual Plane ranges.
 
 ### 1.2 Script evidence
 
-- [ ] Replace `(language, regex, confidence)` script entries with script
+- [x] Replace `(language, regex, confidence)` script entries with script
       evidence that maps to one or more candidate languages.
-- [ ] Require configurable minimum matching letters and minimum script
+- [x] Require configurable minimum matching letters and minimum script
       coverage before taking a script-only fast path.
-- [ ] Do not fast-return for shared scripts. Pass their candidate language set
+- [x] Do not fast-return for shared scripts. Pass their candidate language set
       to the statistical stage.
-- [ ] Make Japanese detection use kana as strong Japanese evidence while
+- [x] Make Japanese detection use kana as strong Japanese evidence while
       treating Han-only text as ambiguous between relevant candidates.
-- [ ] Make Persian-specific characters positive Persian evidence without
+- [x] Make Persian-specific characters positive Persian evidence without
       treating all other Arabic-script text as Arabic.
-- [ ] Calculate all script evidence before choosing a result so mixed-script
+- [x] Calculate all script evidence before choosing a result so mixed-script
       inputs are not dependent on pattern order.
 
 Suggested configuration:
@@ -288,36 +288,36 @@ values above.
 
 ### 1.3 Short and ambiguous text
 
-- [ ] Remove the unconditional `< 3` character fallback.
-- [ ] For low-evidence text, return `unknown` or use a trustworthy conversation
+- [x] Remove the unconditional `< 3` character fallback.
+- [x] For low-evidence text, return `unknown` or use a trustworthy conversation
       prior. Do not manufacture high confidence.
-- [ ] Preserve clear unique-script evidence for short text.
-- [ ] Add tests for meaningful two-character inputs, emoji-only messages,
+- [x] Preserve clear unique-script evidence for short text.
+- [x] Add tests for meaningful two-character inputs, emoji-only messages,
       punctuation-only messages, numbers, acronyms, and names.
 
 ### 1.4 Language-code normalization
 
-- [ ] Replace arbitrary first-two-character truncation with an explicit ISO
+- [x] Replace arbitrary first-two-character truncation with an explicit ISO
       639/BCP-47 normalizer.
-- [ ] Add mappings for legacy and backend-specific codes such as `iw`/`he`,
+- [x] Add mappings for legacy and backend-specific codes such as `iw`/`he`,
       `fil`, and Chinese script/region variants.
-- [ ] Decide and document whether downstream components need only a base
+- [x] Decide and document whether downstream components need only a base
       language or also a normalized full tag. If both are useful, store both.
-- [ ] Either use `pycountry` for validated conversions or remove the unused
+- [x] Either use `pycountry` for validated conversions or remove the unused
       dependency. Do not use it as a substitute for explicit legacy and
       BCP-47 mappings it cannot resolve reliably.
-- [ ] Return `unknown` for unsupported or malformed codes.
+- [x] Return `unknown` for unsupported or malformed codes.
 
 ### 1.5 Separate unknown from response fallback
 
-- [ ] Add an explicit outcome for `unknown`/abstained detection.
-- [ ] Keep a separate configuration value such as
+- [x] Add an explicit outcome for `unknown`/abstained detection.
+- [x] Keep a separate configuration value such as
       `ambiguous_response_language: en` for prompt behavior.
-- [ ] Ensure `unknown` does not trigger language-based retrieval boosting.
-- [ ] Update `PromptBuilder` so an unknown result asks the model to match the
+- [x] Ensure `unknown` does not trigger language-based retrieval boosting.
+- [x] Update `PromptBuilder` so an unknown result asks the model to match the
       user's language, optionally falling back to the configured response
       language, without claiming that English was detected.
-- [ ] Do not store fallback results as language evidence for later turns.
+- [x] Do not store fallback results as language evidence for later turns.
 
 ### Gate
 
@@ -328,6 +328,108 @@ values above.
   reduction in coverage is explicitly reported.
 - Existing callers handle `unknown` without errors or incorrect retrieval
   boosts.
+
+**Status: met.**
+
+- **Shared-script and short-text cases:** covered by regression tests in
+  `test_language_detection.py` (`TestScriptDetection`,
+  `TestUnicodePreprocessing`, `TestShortAndAmbiguousText`).
+- **No single shared-script character yields high confidence:** a
+  parametrized test checks this, and single-character input now abstains.
+- **Callers handle `unknown`:**
+  - `test_prompt_builder.py`: prompt instruction;
+  - `test_context_retrieval_language_boost.py`: no retrieval boost,
+    normalized document tags;
+  - `test_adapter_capabilities.py`: `unknown` is not forwarded as a retriever
+    filter.
+- **Benchmark:** the numbers are below. The regression gate now reads
+  `reports/phase1_baseline_v1.json`.
+
+### Phase 1 decisions
+
+- **Thresholds from the tune split only.**
+  - Sweep: `min_letters` ∈ {2, 3, 4, 5, 6, 8}, `script_fast_path.min_letters`
+    ∈ {1, 2} and `min_coverage` ∈ {0.6, 0.7, 0.8, 0.9}.
+  - Selection rule: maximize acceptable outcomes, then break ties by higher
+    coverage.
+  - `min_letters` 5 and 6 tied at 149/168, so 5 was chosen for its higher
+    coverage (0.726 against 0.708).
+  - `min_coverage` made no difference between 0.6 and 0.9, so the plan's value
+    of 0.8 was kept. A fast-path minimum of 1 letter beat 2, so a single Hangul
+    syllable or kana word is enough.
+- **Han weighting rejected.** Counting each Han character as two letters made
+  no difference on the tune split, so it was not added. Short Han-only
+  messages (≤ 4 characters) therefore abstain.
+- **Base language only.** Downstream components store and compare the base
+  language (`zh-Hant` → `zh`); a full BCP-47 tag is not stored. Prompting and
+  retrieval both key on the base language. Preserving Chinese script
+  variants is deferred.
+- **Filipino.** `fil` maps to `tl`, the code the backends emit, so Filipino and
+  Tagalog share one code.
+- **`pycountry` is kept.** It validates 3-letter and bibliographic codes. The
+  explicit table handles the legacy codes it cannot resolve (`iw`, `in`,
+  `ji`).
+- **Config keys.**
+  - `fallback_language` → `ambiguous_response_language`. `PromptBuilder`
+    still reads the old key as a fallback.
+  - Added: `min_letters` and `script_fast_path.{min_letters, min_coverage}`.
+  - Removed: `heuristic_nudges.script_boost`. It only ever applied to Russian,
+    as an artifact of pattern order.
+- **Priors on short text.** A prior used for short text (`sticky_previous`,
+  `chat_history_prior`) gets confidence at most 0.6. That is below
+  `retrieval_min_confidence`, so a prior can choose the reply language but
+  never re-rank documents. Prior-derived results are not stored back as new
+  evidence.
+
+### Phase 1 results (held-out split, benchmark v1)
+
+| Pipeline | Top-1 acc | Macro F1 | Acceptable | Coverage | Selective acc | High-conf errors | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|
+| Phase 0 | 0.716 | 0.715 | 112/166 | 1.000 | 0.675 | 22 | 0.205 | 0.180 |
+| **Phase 1** | 0.684 | 0.789 | **139/166** | 0.693 | **0.922** | **5** | 0.070 | 0.070 |
+| Phase 1 + context | 0.710 | 0.795 | 139/166 | 0.717 | 0.924 | 5 | 0.072 | 0.082 |
+
+Latency is unchanged: p50 2.9 ms and p95 10 ms, the same as Phase 0. Full
+report: `server/tests/language_eval/reports/phase1_baseline_v1.json`.
+
+**Coverage fell from 1.000 to 0.693. This is the intended effect.** Phase 0
+never abstained. Top-1 accuracy falls because it counts abstentions as wrong.
+Selective accuracy and high-confidence errors are the gated metrics.
+
+Where it improved:
+- **No-language input:** 8/9 now abstain correctly, up from 0/9.
+- **Devanagari:** Nepali and Marathi are now resolved (`ne` 3/3, `mr` 2/2),
+  where both used to be read as Hindi.
+- **Short text:** 1–2 letters are acceptable in 10/11 cases (from 7/11), and
+  single words in 15/24 (from 9/24).
+- **Follow-ups:** 8/9, up from 4/9.
+- **ASCII-only Latin:** 47/62, up from 33/62.
+- **Romanized text:** 5/6, up from 0/6, but only because the detector now
+  abstains on it, not because it detects it.
+
+Six held-out records went from acceptable to abstaining:
+- `谢谢` and `天气预报`: short Han text;
+- `请帮我检查一下这个 pull request 有没有问题`: Han and Latin split, and backends
+  disagree;
+- `invoice` and `track package`: short ASCII English;
+- `سلام، حالت چطوره؟`: Persian letters exclude Arabic, but the Arabic votes
+  still count toward the total.
+
+Five high-confidence errors remain:
+- `благодаря→ru` and `рахмет→ru`: short Cyrillic, where all backends agree on
+  Russian;
+- pinyin→`sw`;
+- two cases where the English ASCII heuristic overrides Dutch and Italian text
+  that contains English words.
+
+The ASCII heuristic and unanimous-but-weak votes are Phase 3 scope.
+
+Known limitations carried forward:
+- Single-word names and acronyms with 5 or more letters still reach the
+  backends (`ORBIT→pt`, `Montréal→fr`).
+- The mixed-language flag still never fires (Phase 4).
+- The `pipeline+context` mode shows a prior would help, but production does
+  not persist `detected_language` yet (Phase 2).
 
 ## Phase 2 — Conversation prior and stickiness
 

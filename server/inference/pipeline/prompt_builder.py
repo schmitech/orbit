@@ -184,16 +184,6 @@ class PromptInstructionBuilder:
         min_conf = lang_detect_config.get("min_confidence", 0.7)
         prefer_ascii_en = lang_detect_config.get("prefer_english_for_ascii", True)
 
-        if not detected_language:
-            msg = context.message or ""
-            ascii_ratio = (sum(1 for c in msg if ord(c) < 128) / len(msg)) if msg else 1.0
-            if prefer_ascii_en and ascii_ratio > 0.95:
-                return "\nIMPORTANT: Reply entirely in English. Do not include any other language."
-            return (
-                "\nIMPORTANT: Reply in the same language the user is using. "
-                "Always match the user's language. Do not provide translations or explanations in other languages."
-            )
-
         language_names = {
             "en": "English",
             "es": "Spanish",
@@ -213,6 +203,22 @@ class PromptInstructionBuilder:
             "he": "Hebrew",
         }
 
+        # Detection abstained (or did not run): ask the model to match the user
+        # without claiming a language was detected. The configured response
+        # language is only a tie-breaker for genuinely unclear messages.
+        if not detected_language or detected_language == "unknown":
+            response_language = (
+                lang_detect_config.get("ambiguous_response_language")
+                or lang_detect_config.get("fallback_language")  # pre-Phase-1 key
+                or "en"
+            )
+            response_name = language_names.get(response_language, response_language.upper())
+            return (
+                "\nIMPORTANT: Reply in the same language the user is writing in. "
+                f"If the user's language is unclear, reply in {response_name}. "
+                "Do not provide translations or explanations in other languages."
+            )
+
         language_name = language_names.get(detected_language, detected_language.upper())
 
         method = detection_meta.get("method", "")
@@ -228,7 +234,7 @@ class PromptInstructionBuilder:
         trusted_non_en_fallback = method == "threshold_fallback" and detected_language != "en"
         low_conf_or_heuristic = (
             confidence < min_conf and not trusted_method and not trusted_non_en_fallback
-        ) or method in ("heuristic_ascii_bias", "all_backends_failed", "length_fallback")
+        ) or method == "heuristic_ascii_bias"
         if prefer_ascii_en and ascii_ratio > 0.95 and low_conf_or_heuristic:
             return (
                 "\nIMPORTANT: The user's message appears to be in English or ambiguous. "

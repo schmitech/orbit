@@ -289,7 +289,8 @@ class AdapterCapabilities:
         # Add detected_language if language filtering is supported
         if self.supports_language_filtering:
             detected_lang = getattr(context, 'detected_language', None)
-            if detected_lang:
+            # 'unknown' means detection abstained; it is not a language to filter on
+            if detected_lang and detected_lang != 'unknown':
                 kwargs['detected_language'] = detected_lang
 
         # Add any required/optional parameters from context
