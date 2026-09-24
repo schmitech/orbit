@@ -79,3 +79,8 @@ server/tests/perf/load_test_config.json
 .antigravitycli
 .gitkeep
 .orbit-out
+
+# Language-eval benchmark: ad-hoc reports are ignored; recorded baselines ARE
+# committed since the regression gate reads them.
+server/tests/language_eval/reports/*.json
+!server/tests/language_eval/reports/phase*_baseline_*.json
