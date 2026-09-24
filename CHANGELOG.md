@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **Cohere Parse OCR Provider**: Added a new native `cohere_parse` OCR provider (`files.processing.ai_document.provider`) backed by Cohere's dedicated Parse API (`client.parse`), alongside the existing Mistral/Gemini native providers and the vision-backed `cohere` OCR path. Since Parse accepts image input only, PDFs are rasterized page-by-page (reusing the vision-backed OCR path's rasterization/frame-splitting logic) before each page is sent through Parse and its markdown recombined. Configure via a new `cohere_parse:` block in `ocr.yaml`.
+
 ## [2.17.13] - 2026-09-21
 
 ### Technical Improvements

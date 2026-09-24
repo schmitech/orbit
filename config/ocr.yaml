@@ -7,6 +7,8 @@
 # Two kinds of backends:
 #   - mistral / azure_mistral / gemini: native OCR (single call) — ingests a
 #     PDF/image directly and returns extracted text. No rasterization.
+#   - cohere_parse: native Parse endpoint — image input only, so PDF pages
+#     are rasterized first, then each page image is sent through Parse.
 #   - openai / anthropic / azure / ...: "vision-backed" — PDF pages are
 #     rasterized to images and sent through the provider's vision model.
 #     These reuse the per-provider settings from vision.yaml (visions:), so
@@ -57,7 +59,26 @@ ocr:
   gemini:
     enabled: true
     api_key: ${GOOGLE_API_KEY}
-    model: "gemini-3.6-flash"
+    model: "gemini-3.8-flash"
+
+  # Cohere Parse (native document parsing endpoint). Parse only accepts
+  # image input, so PDFs are rasterized page-by-page before being sent.
+  # Distinct from the vision-backed "cohere" entry below, which drives
+  # Cohere's chat/vision model instead of the dedicated Parse endpoint.
+  cohere_parse:
+    enabled: true
+    api_key: ${COHERE_API_KEY}
+    base_url: "https://api.cohere.ai/v2"  # Must use v2 API for the parse endpoint
+    model: "parse-v5.0"
+    timeout:
+      connect: 15000
+      total: 120000
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
 
   # Vision-backed providers — reuse settings from vision.yaml (visions:).
   # Enable the one you set as files.processing.ai_document.provider.

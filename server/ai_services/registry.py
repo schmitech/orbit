@@ -172,6 +172,7 @@ def register_ocr_services(config: dict[str, Any] = None) -> None:
         ("azure_mistral", "AzureMistralOcrService", "Azure Mistral OCR"),
         ("openai", "OpenAIOcrService", "OpenAI"),
         ("gemini", "GeminiOcrService", "Gemini"),
+        ("cohere_parse", "CohereParseOcrService", "Cohere Parse"),
         ("anthropic", "AnthropicOcrService", "Anthropic"),
         ("cohere", "CohereOcrService", "Cohere"),
         ("ollama", "OllamaOcrService", "Ollama"),

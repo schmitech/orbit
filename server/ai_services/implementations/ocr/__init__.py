@@ -3,6 +3,7 @@ OCR service implementations.
 
 Available providers:
     - MistralOcrService / AzureMistralOcrService / GeminiOcrService: native OCR endpoints (PDF/image-direct)
+    - CohereParseOcrService: native Parse endpoint (image-input only; PDFs rasterized first)
     - OpenAIOcrService / AnthropicOcrService / ... :
       vision-backed OCR (rasterize PDF pages, reuse the vision provider)
 """
@@ -17,6 +18,7 @@ _implementations = [
     ('mistral_ocr_service', 'MistralOcrService'),
     ('azure_mistral_ocr_service', 'AzureMistralOcrService'),
     ('gemini_ocr_service', 'GeminiOcrService'),
+    ('cohere_parse_ocr_service', 'CohereParseOcrService'),
     ('vision_ocr_service', 'OpenAIOcrService'),
     ('vision_ocr_service', 'AnthropicOcrService'),
     ('vision_ocr_service', 'CohereOcrService'),
