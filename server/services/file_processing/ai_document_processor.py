@@ -12,7 +12,7 @@ resolved from config/ocr.yaml.
 
 import logging
 import mimetypes
-from typing import Any, Optional
+from typing import Any
 
 from .base_processor import FileProcessor
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class AIDocumentProcessor(FileProcessor):
     """Universal processor that extracts text via an AI/LLM OCR service."""
 
-    def __init__(self, enabled: bool = True, config: Optional[dict[str, Any]] = None):
+    def __init__(self, enabled: bool = True, config: dict[str, Any] | None = None):
         """
         Initialize the AI document processor.
 
@@ -48,11 +48,11 @@ class AIDocumentProcessor(FileProcessor):
         # FileProcessor.extract_text() only returns a bare str, so callers that
         # want usage (_extract_content) read this instance attribute right
         # after calling it, rather than widening that shared return contract.
-        self.last_usage: Optional[dict[str, Any]] = None
+        self.last_usage: dict[str, Any] | None = None
         # The OCR service's actually-resolved model (may differ from
         # model_override, which is usually unset) — set by extract_text(),
         # read by _extract_content() for pricing.
-        self.last_model: Optional[str] = None
+        self.last_model: str | None = None
 
     def supports_mime_type(self, mime_type: str) -> bool:
         """Supports PDFs and images."""
@@ -61,7 +61,7 @@ class AIDocumentProcessor(FileProcessor):
         mime_type = (mime_type or '').lower()
         return mime_type == 'application/pdf' or mime_type.startswith('image/')
 
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """Extract markdown text via the configured OCR service."""
         if not self._enabled:
             raise ValueError("AI document processor is disabled")
@@ -101,7 +101,7 @@ class AIDocumentProcessor(FileProcessor):
 
         return result.get('text', '')
 
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Metadata for AI-OCR extraction (page count computed locally, no extra API call)."""
         metadata = await super().extract_metadata(file_data, filename)
         mime_type = self._detect_mime_type(file_data, filename)
@@ -128,7 +128,7 @@ class AIDocumentProcessor(FileProcessor):
         }
         return AIServiceFactory.create_service(ServiceType.OCR, self.provider, service_config)
 
-    def _detect_mime_type(self, file_data: bytes, filename: Optional[str]) -> str:
+    def _detect_mime_type(self, file_data: bytes, filename: str | None) -> str:
         """Detect MIME type from magic bytes, falling back to the filename extension."""
         if file_data[:4] == b'%PDF':
             return 'application/pdf'
@@ -155,6 +155,7 @@ class AIDocumentProcessor(FileProcessor):
         if mime_type.startswith('image/'):
             try:
                 from io import BytesIO
+
                 from PIL import Image
                 source_count = getattr(Image.open(BytesIO(file_data)), 'n_frames', 1)
             except Exception:  # noqa: BLE001 - PIL has no documented, stable exception hierarchy for malformed image data

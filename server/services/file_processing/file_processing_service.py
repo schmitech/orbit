@@ -5,17 +5,22 @@ Main service for processing uploaded files: extraction, chunking, and storage pr
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import uuid
-import hashlib
 import weakref
-from typing import Any, Optional
-from datetime import datetime, UTC
+from datetime import UTC, datetime
+from typing import Any
 
-from services.file_processing.processor_registry import FileProcessorRegistry
+from services.file_metadata.metadata_store import FileMetadataStore
 from services.file_processing.chunking import (
-    FixedSizeChunker, SemanticChunker, TokenChunker, RecursiveChunker, MarkdownHeaderChunker, Chunk
+    Chunk,
+    FixedSizeChunker,
+    MarkdownHeaderChunker,
+    RecursiveChunker,
+    SemanticChunker,
+    TokenChunker,
 )
 from services.file_processing.magika_detector import (
     FileValidationError,
@@ -23,10 +28,13 @@ from services.file_processing.magika_detector import (
     canonicalize_label,
     canonicalize_mime_type,
 )
+from services.file_processing.processor_registry import FileProcessorRegistry
 from services.file_storage import (
-    FileStorageBackend, create_storage_backend, FileEncryptor, EncryptedFileStorageBackend,
+    EncryptedFileStorageBackend,
+    FileEncryptor,
+    FileStorageBackend,
+    create_storage_backend,
 )
-from services.file_metadata.metadata_store import FileMetadataStore
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +60,10 @@ _DANGEROUS_CONTENT_PATTERNS = (
     b'onload=',
     b'onclick=',
 )
+
+
+class FileExtractionError(Exception):
+    """Raised when audio or vision extraction cannot produce content from a file."""
 
 
 class FileProcessingService:
@@ -210,7 +222,7 @@ class FileProcessingService:
             logger.info(f"Default STT service configured: provider={self.default_audio_provider}, model={model}")
             logger.info("STT provider can be overridden per-upload based on API key's adapter configuration")
 
-    def _init_magika_detector(self) -> Optional[MagikaDetector]:
+    def _init_magika_detector(self) -> MagikaDetector | None:
         """Initialize Magika upload inspection if configured."""
         if not self.magika_config.get('enabled', False):
             return None
@@ -231,7 +243,7 @@ class FileProcessingService:
         """Initialize storage backend (filesystem, s3/minio, or azure)."""
         return create_storage_backend(self.config)
 
-    def _init_file_encryptor(self, files_config: dict[str, Any]) -> Optional[FileEncryptor]:
+    def _init_file_encryptor(self, files_config: dict[str, Any]) -> FileEncryptor | None:
         """
         Initialize the shared FileEncryptor if files.encryption.enabled is true.
 
@@ -341,7 +353,7 @@ class FileProcessingService:
                 logger.debug(f"  Fixed-size chunker configured: mode={mode}")
             return chunker
 
-    def _resolve_supported_type(self, mime_type: Optional[str], label: Optional[str] = None) -> Optional[str]:
+    def _resolve_supported_type(self, mime_type: str | None, label: str | None = None) -> str | None:
         """Resolve a MIME type or Magika label to one of the configured supported types."""
         candidates = []
 
@@ -475,9 +487,9 @@ class FileProcessingService:
         self,
         api_key: str,
         filename: str,
-        provider: Optional[str],
-        model: Optional[str],
-        usage: Optional[dict[str, Any]],
+        provider: str | None,
+        model: str | None,
+        usage: dict[str, Any] | None,
         call_type: str,
     ) -> None:
         """
@@ -569,7 +581,7 @@ class FileProcessingService:
             {'visions': live_config.get('visions', {})}
         )
 
-    async def _get_vision_provider_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> str:
+    async def _get_vision_provider_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> str:
         """
         Get the vision provider for a given API key by looking up its adapter configuration.
 
@@ -618,7 +630,7 @@ class FileProcessingService:
         logger.debug(f"Using default vision provider '{self.default_vision_provider}' for api_key: {api_key[:8]}...")
         return self.default_vision_provider
 
-    async def _get_audio_provider_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> str:
+    async def _get_audio_provider_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> str:
         """
         Get the STT provider for a given API key by looking up its adapter configuration.
 
@@ -667,7 +679,7 @@ class FileProcessingService:
         logger.debug(f"Using default STT provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
         return self.default_audio_provider
 
-    async def _requires_encryption_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> bool:
+    async def _requires_encryption_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> bool:
         """
         Check whether the adapter associated with this API key requires
         encrypted file storage (capabilities.requires_encryption).
@@ -789,8 +801,8 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        current_user_id: Optional[str] = None,
-        current_user_email: Optional[str] = None
+        current_user_id: str | None = None,
+        current_user_email: str | None = None
     ) -> str:
         """
         Quick file upload - stores file and returns file_id immediately.
@@ -864,9 +876,9 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        vision_prompt: Optional[str] = None,
-        current_user_id: Optional[str] = None,
-        current_user_email: Optional[str] = None
+        vision_prompt: str | None = None,
+        current_user_id: str | None = None,
+        current_user_email: str | None = None
     ) -> None:
         """
         Process file content (extraction, chunking, indexing) in background.
@@ -992,12 +1004,12 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        transcription_language: Optional[str] = None,
-        current_user_id: Optional[str] = None,
-        current_user_email: Optional[str] = None
+        transcription_language: str | None = None,
+        current_user_id: str | None = None,
+        current_user_email: str | None = None
     ) -> tuple[str, dict[str, Any]]:
         """Extract content from audio file using audio services for transcription."""
-        import asyncio
+
         from ai_services import AIServiceFactory, ServiceType
 
         try:
@@ -1021,7 +1033,7 @@ class FileProcessingService:
             except ValueError as e:
                 # This happens when STT is globally disabled or provider is not registered
                 logger.error(f"Failed to create audio service: {e!s}")
-                raise Exception("Audio transcription is not available. Please check that STT services are enabled in the configuration.")
+                raise FileExtractionError("Audio transcription is not available. Please check that STT services are enabled in the configuration.")
 
             # Initialize if needed
             if not audio_service.initialized:
@@ -1057,12 +1069,12 @@ class FileProcessingService:
                         filename=filename,
                         mime_type=mime_type
                     )
-            except asyncio.TimeoutError as e:
+            except TimeoutError as e:
                 logger.error(f"Audio transcription API timeout for {filename}: {e}")
-                raise Exception("Audio transcription API request timed out. The audio file may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
+                raise FileExtractionError("Audio transcription API request timed out. The audio file may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
             except Exception as e:  # noqa: BLE001 - third-party transcription provider call; wrapped into a clear user-facing error
                 logger.error(f"Audio transcription API error for {filename}: {e}")
-                raise Exception(f"Audio transcription failed: {e!s}")
+                raise FileExtractionError(f"Audio transcription failed: {e!s}")
 
             logger.info(f"Audio transcription completed for {filename}")
 
@@ -1087,7 +1099,7 @@ class FileProcessingService:
             # Validate that we got meaningful content
             if not text.strip():
                 logger.warning(f"Audio service returned empty transcription for {filename}")
-                raise Exception("Audio service did not transcribe any content from the audio file")
+                raise FileExtractionError("Audio service did not transcribe any content from the audio file")
 
             return text, metadata
 
@@ -1103,7 +1115,7 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        current_user_id: Optional[str] = None
+        current_user_id: str | None = None
     ) -> dict[str, Any]:
         """
         Process an uploaded file through the complete pipeline.
@@ -1234,7 +1246,7 @@ class FileProcessingService:
             return False
         
         # Special handling for image and audio files (handled by vision/audio services, not processors)
-        if mime_type.startswith('image/') or mime_type.startswith('audio/'):
+        if mime_type.startswith(('image/', 'audio/')):
             return True
         
         # Check if processor exists for other file types
@@ -1247,9 +1259,9 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        vision_prompt: Optional[str] = None,
-        current_user_id: Optional[str] = None,
-        current_user_email: Optional[str] = None
+        vision_prompt: str | None = None,
+        current_user_id: str | None = None,
+        current_user_email: str | None = None
     ) -> tuple[str, dict[str, Any]]:
         """Extract text and metadata from file."""
         # Check if this is an image file. When the AI OCR processor is the active
@@ -1315,9 +1327,9 @@ class FileProcessingService:
         filename: str,
         mime_type: str,
         api_key: str,
-        vision_prompt: Optional[str] = None,
-        current_user_id: Optional[str] = None,
-        current_user_email: Optional[str] = None
+        vision_prompt: str | None = None,
+        current_user_id: str | None = None,
+        current_user_email: str | None = None
     ) -> tuple[str, dict[str, Any]]:
         """Extract content from image using vision services."""
         import asyncio
@@ -1378,12 +1390,12 @@ class FileProcessingService:
                             vision_service.extract_text_from_image(file_data),
                             vision_service.describe_image(file_data)
                         )
-            except asyncio.TimeoutError as e:
+            except TimeoutError as e:
                 logger.error(f"Vision API timeout for {filename}: {e}")
-                raise Exception("Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
+                raise FileExtractionError("Vision API request timed out. The image may be too large or the API is experiencing latency. Please try again or contact support if the issue persists.")
             except Exception as e:  # noqa: BLE001 - third-party vision provider call; wrapped into a clear user-facing error
                 logger.error(f"Vision API error for {filename}: {e}")
-                raise Exception(f"Vision processing failed: {e!s}")
+                raise FileExtractionError(f"Vision processing failed: {e!s}")
 
             logger.info(f"Vision processing completed for {filename}")
 
@@ -1412,7 +1424,7 @@ class FileProcessingService:
             # Validate that we got meaningful content
             if not text.strip() or (not description and not extracted_text):
                 logger.warning(f"Vision service returned empty content for {filename}")
-                raise Exception("Vision service did not extract any content from the image")
+                raise FileExtractionError("Vision service did not extract any content from the image")
 
             return text, metadata
 
@@ -1449,7 +1461,7 @@ class FileProcessingService:
         
         return chunks
     
-    async def _get_adapter_config_for_api_key(self, api_key: str, current_user_id: Optional[str] = None, current_user_email: Optional[str] = None) -> dict[str, Any]:
+    async def _get_adapter_config_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> dict[str, Any]:
         """
         Get the adapter configuration for a given API key.
 
@@ -1545,8 +1557,8 @@ class FileProcessingService:
         api_key: str,
         chunks: list[Chunk],
         requires_encryption: bool = False,
-        filename: Optional[str] = None,
-    ) -> Optional[tuple]:
+        filename: str | None = None,
+    ) -> tuple | None:
         """
         Index chunks into vector store with provider-aware collection naming.
 
@@ -1646,12 +1658,12 @@ class FileProcessingService:
         storage = self._select_storage_for_read(file_info)
         return await storage.get_file(storage_key)
     
-    async def delete_file(self, file_id: str, api_key: str, current_user_id: Optional[str] = None) -> bool:
+    async def delete_file(self, file_id: str, api_key: str, current_user_id: str | None = None) -> bool:
         """Delete a file without racing its background processor."""
         async with self._get_file_operation_lock(file_id):
             return await self._delete_file_locked(file_id, api_key, current_user_id=current_user_id)
 
-    async def _delete_file_locked(self, file_id: str, api_key: str, current_user_id: Optional[str] = None) -> bool:
+    async def _delete_file_locked(self, file_id: str, api_key: str, current_user_id: str | None = None) -> bool:
         """Delete file and all associated chunks from vector store, storage, and metadata store."""
         file_info = await self.metadata_store.get_file_info(file_id)
 
@@ -1683,7 +1695,7 @@ class FileProcessingService:
         
         return metadata_deleted
     
-    async def _delete_file_chunks(self, file_id: str, api_key: str, current_user_id: Optional[str] = None) -> bool:
+    async def _delete_file_chunks(self, file_id: str, api_key: str, current_user_id: str | None = None) -> bool:
         """
         Delete a file's chunks from the vector store and metadata store.
 
@@ -1712,8 +1724,8 @@ class FileProcessingService:
         self,
         file_id: str,
         api_key: str,
-        vision_prompt: Optional[str] = None,
-        current_user_id: Optional[str] = None
+        vision_prompt: str | None = None,
+        current_user_id: str | None = None
     ) -> None:
         """
         Re-extract and re-index an already-uploaded file using the currently

@@ -33,10 +33,9 @@ class FileProcessor(ABC):
         Returns:
             True if supported, False otherwise
         """
-        pass
     
     @abstractmethod
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """
         Extract plain text from file.
         
@@ -47,9 +46,8 @@ class FileProcessor(ABC):
         Returns:
             Extracted text content
         """
-        pass
     
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """
         Extract metadata from file.
         

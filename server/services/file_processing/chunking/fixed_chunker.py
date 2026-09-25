@@ -6,10 +6,10 @@ Supports both character-based and token-based chunking.
 """
 
 import logging
-from typing import Any, Optional, Union
+from typing import Any
 
-from .base_chunker import TextChunker, Chunk
-from .utils import TokenizerProtocol, TokenInt
+from .base_chunker import Chunk, TextChunker
+from .utils import TokenInt, TokenizerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class FixedSizeChunker(TextChunker):
         chunk_size: int = 1000,
         overlap: int = 200,
         use_tokens: bool = False,
-        tokenizer: Optional[Union[str, TokenizerProtocol]] = None
+        tokenizer: str | TokenizerProtocol | None = None
     ):
         """
         Initialize fixed-size chunker.

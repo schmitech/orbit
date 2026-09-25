@@ -6,13 +6,15 @@ Handles PDF files using pypdf (formerly PyPDF2).
 
 import logging
 from typing import Any
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
 
 try:
-    from pypdf import PdfReader
     from io import BytesIO
+
+    from pypdf import PdfReader
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
@@ -31,7 +33,7 @@ class PDFProcessor(FileProcessor):
         """Check if this processor supports the MIME type."""
         return PDF_AVAILABLE and mime_type.lower() == 'application/pdf'
     
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """Extract text from PDF."""
         if not PDF_AVAILABLE:
             raise ImportError("pypdf not available")
@@ -58,7 +60,7 @@ class PDFProcessor(FileProcessor):
             logger.error(f"Error processing PDF: {e}")
             raise
     
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from PDF."""
         metadata = await super().extract_metadata(file_data, filename)
         

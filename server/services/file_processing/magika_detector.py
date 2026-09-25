@@ -5,8 +5,6 @@ Magika-backed upload inspection helpers.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
-
 
 GENERIC_TEXT_LABEL = "txt"
 GENERIC_BINARY_LABEL = "unknown"
@@ -64,7 +62,7 @@ class MagikaDetector:
 
         self._detector = Magika(prediction_mode=selected_mode)
 
-    def identify_bytes(self, file_data: bytes) -> Optional[MagikaDetection]:
+    def identify_bytes(self, file_data: bytes) -> MagikaDetection | None:
         """Return normalized detection data for the provided bytes."""
         if not self.enabled or self._detector is None:
             return None
@@ -193,14 +191,14 @@ MIME_TO_CANONICAL_TYPE: dict[str, str] = {
 }
 
 
-def canonicalize_mime_type(mime_type: Optional[str]) -> Optional[str]:
+def canonicalize_mime_type(mime_type: str | None) -> str | None:
     """Collapse known MIME aliases into the canonical type used by Orbit."""
     if not mime_type:
         return None
     return MIME_TO_CANONICAL_TYPE.get(mime_type.lower())
 
 
-def canonicalize_label(label: Optional[str]) -> Optional[str]:
+def canonicalize_label(label: str | None) -> str | None:
     """Map a Magika label to Orbit's canonical MIME type."""
     if not label:
         return None

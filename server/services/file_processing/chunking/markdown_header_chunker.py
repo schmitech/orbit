@@ -9,10 +9,10 @@ header-less text.
 
 import logging
 import re
-from typing import Any, Optional, Union
+from typing import Any
 
 from .base_chunker import Chunk
-from .recursive_chunker import RecursiveChunker, RecursiveRules, RecursiveLevel
+from .recursive_chunker import RecursiveChunker, RecursiveLevel, RecursiveRules
 from .utils import TokenizerProtocol
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class MarkdownHeaderChunker(RecursiveChunker):
         self,
         chunk_size: int = 2048,
         min_characters_per_chunk: int = 24,
-        tokenizer: Optional[Union[str, TokenizerProtocol]] = None
+        tokenizer: str | TokenizerProtocol | None = None
     ):
         """
         Initialize markdown header chunker.

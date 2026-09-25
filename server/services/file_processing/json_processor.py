@@ -7,9 +7,10 @@ Provides schema extraction and smart sampling instead of dumping entire content.
 Configuration is read from config.yaml under files.processing.json
 """
 
-import logging
 import json
-from typing import Any, Optional
+import logging
+from typing import Any
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ class JSONProcessor(FileProcessor):
     Supports: application/json
     """
 
-    def __init__(self, config: Optional[dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """
         Initialize JSON processor with optional configuration.
 
@@ -52,7 +53,7 @@ class JSONProcessor(FileProcessor):
         super().__init__()
         self._load_config(config)
 
-    def _load_config(self, config: Optional[dict[str, Any]] = None):
+    def _load_config(self, config: dict[str, Any] | None = None):
         """Load settings from config or use defaults."""
         json_config = {}
         if config:
@@ -102,7 +103,7 @@ class JSONProcessor(FileProcessor):
             return "object"
         return type(value).__name__
 
-    def _truncate_string(self, s: str, max_len: int = None) -> str:
+    def _truncate_string(self, s: str, max_len: int | None = None) -> str:
         """Truncate long strings with ellipsis."""
         if max_len is None:
             max_len = self.max_string_length
@@ -142,7 +143,7 @@ class JSONProcessor(FileProcessor):
                 schema["items"] = self._extract_schema(first_item, depth + 1, f"{path}[0]")
                 # Check if array is homogeneous
                 if len(data) > 1:
-                    types = set(self._get_type_name(item) for item in data[:10])
+                    types = {self._get_type_name(item) for item in data[:10]}
                     schema["homogeneous"] = len(types) == 1
             return schema
         elif isinstance(data, dict):
@@ -195,7 +196,7 @@ class JSONProcessor(FileProcessor):
             return f"{{{', '.join(items)}}}"
         return str(value)
 
-    def _format_array_sample(self, data: list, max_items: int = None) -> str:
+    def _format_array_sample(self, data: list, max_items: int | None = None) -> str:
         """Format a sample of array items."""
         if max_items is None:
             max_items = self.max_array_preview_items
@@ -265,7 +266,7 @@ class JSONProcessor(FileProcessor):
         else:
             return f"  [{index}]: {self._format_value_compact(item)}"
 
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """
         Extract token-efficient text representation from JSON.
 
@@ -303,7 +304,7 @@ class JSONProcessor(FileProcessor):
 
                 if data:
                     # Determine item type
-                    item_types = set(self._get_type_name(item) for item in data[:10])
+                    item_types = {self._get_type_name(item) for item in data[:10]}
                     if len(item_types) == 1:
                         lines.append(f"Item type: {item_types.pop()}")
                     else:
@@ -346,7 +347,7 @@ class JSONProcessor(FileProcessor):
             logger.error(f"Error processing JSON: {e}")
             raise
     
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from JSON."""
         metadata = await super().extract_metadata(file_data, filename)
         
@@ -356,7 +357,7 @@ class JSONProcessor(FileProcessor):
             if isinstance(data, dict):
                 metadata.update({
                     'object_type': 'dict',
-                    'keys': ', '.join(str(k) for k in data.keys()),  # Convert to comma-separated string
+                    'keys': ', '.join(str(k) for k in data),  # Convert to comma-separated string
                     'key_count': len(data),
                 })
             elif isinstance(data, list):

@@ -6,14 +6,16 @@ Handles PowerPoint PPTX files using python-pptx.
 
 import logging
 from typing import Any
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
 
 try:
+    from io import BytesIO
+
     from pptx import Presentation
     from pptx.util import Inches, Pt  # noqa: F401
-    from io import BytesIO
     PPTX_AVAILABLE = True
 except ImportError:
     PPTX_AVAILABLE = False
@@ -36,7 +38,7 @@ class PPTXProcessor(FileProcessor):
         ]
         return PPTX_AVAILABLE and mime_type.lower() in pptx_types
 
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """Extract text from PPTX."""
         if not PPTX_AVAILABLE:
             raise ImportError("python-pptx not available")
@@ -78,7 +80,7 @@ class PPTXProcessor(FileProcessor):
             logger.error(f"Error processing PPTX: {e}")
             raise
 
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from PPTX."""
         metadata = await super().extract_metadata(file_data, filename)
 

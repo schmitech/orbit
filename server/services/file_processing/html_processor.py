@@ -6,6 +6,7 @@ Handles HTML files using BeautifulSoup.
 
 import logging
 from typing import Any
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class HTMLProcessor(FileProcessor):
         """Check if this processor supports the MIME type."""
         return HTML_AVAILABLE and mime_type.lower() == 'text/html'
     
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """Extract text from HTML."""
         if not HTML_AVAILABLE:
             raise ImportError("beautifulsoup4 not available")
@@ -58,7 +59,7 @@ class HTMLProcessor(FileProcessor):
             logger.error(f"Error processing HTML: {e}")
             raise
     
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from HTML."""
         metadata = await super().extract_metadata(file_data, filename)
         

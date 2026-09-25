@@ -7,10 +7,10 @@ Enhanced with advanced techniques from chonkie.
 """
 
 import logging
-from typing import Any, Optional, Union
+from typing import Any
 
-from .base_chunker import TextChunker, Chunk
-from .utils import split_sentences, TokenizerProtocol
+from .base_chunker import Chunk, TextChunker
+from .utils import TokenizerProtocol, split_sentences
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class SemanticChunker(TextChunker):
         self,
         chunk_size: int = 10,
         overlap: int = 2,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
         use_advanced: bool = False,
         threshold: float = 0.8,
         similarity_window: int = 3,
@@ -58,8 +58,8 @@ class SemanticChunker(TextChunker):
         filter_window: int = 5,
         filter_polyorder: int = 3,
         filter_tolerance: float = 0.2,
-        tokenizer: Optional[Union[str, TokenizerProtocol]] = None,
-        chunk_size_tokens: Optional[int] = None
+        tokenizer: str | TokenizerProtocol | None = None,
+        chunk_size_tokens: int | None = None
     ):
         """
         Initialize semantic chunker.
@@ -392,9 +392,8 @@ class SemanticChunker(TextChunker):
         
         # Create chunks
         chunks = []
-        chunk_index = 0
         
-        for group in sentence_groups:
+        for chunk_index, group in enumerate(sentence_groups):
             chunk_text = ' '.join(group)
             
             # Generate chunk ID
@@ -415,7 +414,6 @@ class SemanticChunker(TextChunker):
             )
             
             chunks.append(chunk)
-            chunk_index += 1
         
         logger.debug(f"Chunked text into {len(chunks)} semantic chunks (advanced mode)")
         return chunks

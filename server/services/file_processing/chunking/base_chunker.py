@@ -7,9 +7,9 @@ Abstract base class for text chunking strategies.
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional, Union
+from typing import Any
 
-from .utils import get_tokenizer, TokenizerProtocol, TokenInt
+from .utils import TokenInt, TokenizerProtocol, get_tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class TextChunker(ABC):
     - Structure-aware chunking
     """
     
-    def __init__(self, tokenizer: Optional[Union[str, TokenizerProtocol]] = None):
+    def __init__(self, tokenizer: str | TokenizerProtocol | None = None):
         """
         Initialize chunker.
         
@@ -111,7 +111,6 @@ class TextChunker(ABC):
         Returns:
             List of Chunk objects
         """
-        pass
     
     def _generate_chunk_id(self, file_id: str, chunk_index: int) -> str:
         """Generate unique chunk ID."""

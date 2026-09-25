@@ -6,15 +6,16 @@ Better for LLM context windows than character-based chunking.
 """
 
 import logging
-from typing import Any, Optional, Union
+from typing import Any
 
-from .base_chunker import TextChunker, Chunk
-from .utils import SimpleTokenizer, TokenInt, TokenizerProtocol
 from utils.embedding_budget import (
     EmbeddingBudget,
     resolve_embedding_budget,
     split_text_to_budget,
 )
+
+from .base_chunker import Chunk, TextChunker
+from .utils import SimpleTokenizer, TokenInt, TokenizerProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,8 @@ class TokenChunker(TextChunker):
         self,
         chunk_size: int = 2048,
         overlap: int = 0,
-        tokenizer: Optional[Union[str, TokenizerProtocol]] = "character",
-        budget: Optional[EmbeddingBudget] = None,
+        tokenizer: str | TokenizerProtocol | None = "character",
+        budget: EmbeddingBudget | None = None,
     ):
         """
         Initialize token chunker.
@@ -62,13 +63,14 @@ class TokenChunker(TextChunker):
             or isinstance(self._tokenizer, SimpleTokenizer)
         )
 
-        if not self._is_character_mode:
-            # Must implement full TokenizerProtocol with callable encode and decode
-            if not (callable(getattr(self._tokenizer, "encode", None)) and callable(getattr(self._tokenizer, "decode", None))):
-                raise TypeError(
-                    f"Tokenizer must implement full TokenizerProtocol with callable 'encode' and 'decode' methods, "
-                    f"got {type(self._tokenizer).__name__}"
-                )
+        # Must implement full TokenizerProtocol with callable encode and decode
+        if not self._is_character_mode and not (
+            callable(getattr(self._tokenizer, "encode", None)) and callable(getattr(self._tokenizer, "decode", None))
+        ):
+            raise TypeError(
+                f"Tokenizer must implement full TokenizerProtocol with callable 'encode' and 'decode' methods, "
+                f"got {type(self._tokenizer).__name__}"
+            )
 
         if budget is not None:
             self.budget = budget
@@ -165,10 +167,9 @@ class TokenChunker(TextChunker):
 
         # Decode token groups to text
         chunks = []
-        chunk_index = 0
         current_text_pos = 0
 
-        for token_group in token_groups:
+        for chunk_index, token_group in enumerate(token_groups):
             decode_failed = False
             try:
                 # Decode tokens to text
@@ -208,7 +209,6 @@ class TokenChunker(TextChunker):
             )
 
             chunks.append(chunk)
-            chunk_index += 1
 
         logger.debug(f"Chunked text into {len(chunks)} token-based chunks")
         return chunks

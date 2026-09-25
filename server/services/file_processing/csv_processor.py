@@ -9,14 +9,16 @@ Configuration is read from config.yaml under files.processing.csv
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
 
 try:
-    import pandas as pd
     from io import StringIO
+
+    import pandas as pd
     CSV_AVAILABLE = True
 except ImportError:
     CSV_AVAILABLE = False
@@ -49,7 +51,7 @@ class CSVProcessor(FileProcessor):
     Requires: pandas
     """
 
-    def __init__(self, config: Optional[dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         """
         Initialize CSV processor with optional configuration.
 
@@ -59,7 +61,7 @@ class CSVProcessor(FileProcessor):
         super().__init__()
         self._load_config(config)
 
-    def _load_config(self, config: Optional[dict[str, Any]] = None):
+    def _load_config(self, config: dict[str, Any] | None = None):
         """Load settings from config or use defaults."""
         csv_config = {}
         if config:
@@ -87,7 +89,7 @@ class CSVProcessor(FileProcessor):
         """Check if this processor supports the MIME type."""
         return CSV_AVAILABLE and mime_type.lower() == 'text/csv'
 
-    def _truncate_value(self, value: Any, max_len: int = None) -> str:
+    def _truncate_value(self, value: Any, max_len: int | None = None) -> str:
         """Truncate long values with ellipsis."""
         if max_len is None:
             max_len = self.max_column_width
@@ -148,7 +150,7 @@ class CSVProcessor(FileProcessor):
             parts.append("(text)")
             if "unique_values" in col_info:
                 parts.append(f"{col_info['unique_values']} unique")
-            if "values" in col_info and col_info["values"]:
+            if col_info.get("values"):
                 vals = [self._truncate_value(v, 20) for v in col_info["values"][:5]]
                 parts.append(f"values: [{', '.join(vals)}]")
             elif "sample_values" in col_info:
@@ -171,7 +173,7 @@ class CSVProcessor(FileProcessor):
                 parts.append(f"{col}={self._truncate_value(val, 30)}")
         return " | ".join(parts)
 
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """
         Extract text representation from CSV.
 
@@ -251,7 +253,7 @@ class CSVProcessor(FileProcessor):
         logger.debug(f"CSVProcessor extracted {len(result)} chars from {filename or 'unknown'}")
         return result
 
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from CSV."""
         metadata = await super().extract_metadata(file_data, filename)
 

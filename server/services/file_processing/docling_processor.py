@@ -7,6 +7,7 @@ Supports: PDF, DOCX, PPTX, XLSX, HTML, Markdown, AsciiDoc, XML, images, VTT, and
 
 import logging
 from typing import Any
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -28,11 +29,12 @@ except Exception:  # noqa: BLE001 - optional torch.xpu shim, must not break CPU-
     torch = None  # type: ignore
 
 try:
-    from docling.document_converter import DocumentConverter
-    from docling.datamodel.base_models import InputFormat  # noqa: F401
-    from io import BytesIO  # noqa: F401
-    import tempfile
     import os
+    import tempfile
+    from io import BytesIO  # noqa: F401
+
+    from docling.datamodel.base_models import InputFormat  # noqa: F401
+    from docling.document_converter import DocumentConverter
     DOCLING_AVAILABLE = True
 except ImportError:
     DOCLING_AVAILABLE = False
@@ -130,7 +132,7 @@ class DoclingProcessor(FileProcessor):
         
         return mime_type.lower() in supported_types
     
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """Extract text from document using Docling."""
         if not self._enabled:
             raise ValueError("Docling processor is disabled")
@@ -189,7 +191,7 @@ class DoclingProcessor(FileProcessor):
             logger.error(f"[Docling] Error processing document '{filename or 'unknown'}': {e}")
             raise
     
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from document."""
         metadata = await super().extract_metadata(file_data, filename)
         

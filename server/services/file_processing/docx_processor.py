@@ -6,13 +6,15 @@ Handles DOCX files using python-docx.
 
 import logging
 from typing import Any
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
 
 try:
-    from docx import Document
     from io import BytesIO
+
+    from docx import Document
     DOCX_AVAILABLE = True
 except ImportError:
     DOCX_AVAILABLE = False
@@ -35,7 +37,7 @@ class DOCXProcessor(FileProcessor):
         ]
         return DOCX_AVAILABLE and mime_type.lower() in docx_types
     
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """Extract text from DOCX."""
         if not DOCX_AVAILABLE:
             raise ImportError("python-docx not available")
@@ -65,7 +67,7 @@ class DOCXProcessor(FileProcessor):
             logger.error(f"Error processing DOCX: {e}")
             raise
     
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from DOCX."""
         metadata = await super().extract_metadata(file_data, filename)
         

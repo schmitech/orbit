@@ -5,7 +5,7 @@ Manages available file processors and routes requests to appropriate processors.
 """
 
 import logging
-from typing import Optional
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ class FileProcessorRegistry:
     Automatically discovers and manages file format processors.
     """
     
-    def __init__(self, config: Optional[dict] = None):
+    def __init__(self, config: dict | None = None):
         """
         Initialize processor registry.
         
@@ -171,7 +171,7 @@ class FileProcessorRegistry:
             self._processors.append(processor)
             logger.debug(f"Registered processor: {processor.__class__.__name__}")
     
-    def get_processor(self, mime_type: str) -> Optional[FileProcessor]:
+    def get_processor(self, mime_type: str) -> FileProcessor | None:
         """
         Get the first processor for a given MIME type.
 

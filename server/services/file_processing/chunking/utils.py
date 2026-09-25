@@ -6,7 +6,6 @@ Shared utilities for sentence splitting and tokenization.
 
 import logging
 import re
-from typing import Optional, Union
 
 # Protocol is available in typing from Python 3.8+, but use typing_extensions for compatibility
 try:
@@ -69,7 +68,7 @@ class SimpleTokenizer:
         return [self.count_tokens(text) for text in texts]
 
 
-def get_tokenizer(tokenizer: Optional[Union[str, TokenizerProtocol]] = None) -> TokenizerProtocol:
+def get_tokenizer(tokenizer: str | TokenizerProtocol | None = None) -> TokenizerProtocol:
     """
     Get a tokenizer instance.
     
@@ -107,8 +106,8 @@ def get_tokenizer(tokenizer: Optional[Union[str, TokenizerProtocol]] = None) -> 
 
 def split_sentences(
     text: str,
-    delimiters: Optional[list[str]] = None,
-    include_delim: Optional[str] = "prev",
+    delimiters: list[str] | None = None,
+    include_delim: str | None = "prev",
     min_characters_per_sentence: int = 12
 ) -> list[str]:
     """
@@ -151,7 +150,7 @@ def split_sentences(
 def _split_sentences_python(
     text: str,
     delimiters: list[str],
-    include_delim: Optional[str],
+    include_delim: str | None,
     min_characters_per_sentence: int
 ) -> list[str]:
     """Python fallback for sentence splitting."""
@@ -196,7 +195,7 @@ def _split_sentences_python(
 def split_by_regex(
     text: str,
     pattern: str,
-    include_delim: Optional[str] = "next",
+    include_delim: str | None = "next",
     min_characters_per_segment: int = 1
 ) -> list[str]:
     """

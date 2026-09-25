@@ -6,16 +6,16 @@ Supports PDF, DOCX, CSV, TXT, MD, HTML, JSON, etc.
 """
 
 from .base_processor import FileProcessor
-from .processor_registry import FileProcessorRegistry
+from .chunking import Chunk, FixedSizeChunker, SemanticChunker, TextChunker
 from .file_processing_service import FileProcessingService
-from .chunking import TextChunker, Chunk, FixedSizeChunker, SemanticChunker
+from .processor_registry import FileProcessorRegistry
 
 __all__ = [
+    'Chunk',
+    'FileProcessingService',
     'FileProcessor',
     'FileProcessorRegistry',
-    'FileProcessingService',
-    'TextChunker',
-    'Chunk',
     'FixedSizeChunker',
     'SemanticChunker',
+    'TextChunker',
 ]

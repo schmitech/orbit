@@ -6,13 +6,15 @@ Handles WebVTT subtitle files using webvtt-py.
 
 import logging
 from typing import Any
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
 
 try:
-    import webvtt
     from io import StringIO
+
+    import webvtt
     VTT_AVAILABLE = True
 except ImportError:
     VTT_AVAILABLE = False
@@ -35,7 +37,7 @@ class VTTProcessor(FileProcessor):
         ]
         return VTT_AVAILABLE and mime_type.lower() in vtt_types
 
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """Extract text from VTT file."""
         if not VTT_AVAILABLE:
             raise ImportError("webvtt-py not available")
@@ -76,7 +78,7 @@ class VTTProcessor(FileProcessor):
             logger.error(f"Error processing VTT: {e}")
             raise
 
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from VTT file."""
         metadata = await super().extract_metadata(file_data, filename)
 

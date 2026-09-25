@@ -6,11 +6,11 @@ Handles complex document structures better than simple chunking.
 """
 
 import logging
-from typing import Any, Optional, Union, Literal
 from dataclasses import dataclass
+from typing import Any, Literal
 
-from .base_chunker import TextChunker, Chunk
-from .utils import split_sentences, split_by_regex, TokenizerProtocol
+from .base_chunker import Chunk, TextChunker
+from .utils import TokenizerProtocol, split_by_regex, split_sentences
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +27,10 @@ class RecursiveLevel:
         regex: If set, split on every match of this pattern instead of literal
             delimiters (e.g. markdown header lines)
     """
-    delimiters: Optional[list[str]] = None
-    include_delim: Optional[Literal["prev", "next"]] = "prev"
+    delimiters: list[str] | None = None
+    include_delim: Literal["prev", "next"] | None = "prev"
     whitespace: bool = False
-    regex: Optional[str] = None
+    regex: str | None = None
 
 
 class RecursiveRules:
@@ -45,7 +45,7 @@ class RecursiveRules:
         ])
     """
     
-    def __init__(self, levels: Optional[list[RecursiveLevel]] = None):
+    def __init__(self, levels: list[RecursiveLevel] | None = None):
         """
         Initialize recursive rules.
         
@@ -92,8 +92,8 @@ class RecursiveChunker(TextChunker):
         self,
         chunk_size: int = 2048,
         min_characters_per_chunk: int = 24,
-        rules: Optional[RecursiveRules] = None,
-        tokenizer: Optional[Union[str, TokenizerProtocol]] = None
+        rules: RecursiveRules | None = None,
+        tokenizer: str | TokenizerProtocol | None = None
     ):
         """
         Initialize recursive chunker.
