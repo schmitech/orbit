@@ -161,6 +161,7 @@ class TestConversationHistoryHandler:
             adapter_name='test_adapter',
             runtime_param_overrides=None,
             runtime_provider=None,
+            user_metadata=None,
         )
 
     @pytest.mark.asyncio

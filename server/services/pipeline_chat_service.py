@@ -19,6 +19,7 @@ from inference.pipeline_factory import PipelineFactory
 from utils.text_utils import hash_api_key
 
 from inference.pipeline import ProcessingContext
+from inference.pipeline.steps.language_detection import language_evidence
 from .chat_handlers import (
     ConversationHistoryHandler,
     AudioHandler,
@@ -986,6 +987,7 @@ class PipelineChatService:
                 usage=result.metadata.get("usage") if result.metadata else None,
                 audit_adapter_name=context.adapter_name,
                 sources=result.sources,
+                language_detection=language_evidence(context),
             )
 
             audio_data, audio_format_str = await self._maybe_generate_full_audio(
@@ -1378,6 +1380,7 @@ class PipelineChatService:
             usage=context.metadata.get("usage") if context.metadata else None,
             audit_adapter_name=context.adapter_name,
             sources=context.sources,
+            language_detection=language_evidence(context),
         )
 
         warning = await self.conversation_handler.check_limit_warning(

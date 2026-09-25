@@ -150,7 +150,8 @@ class ConversationHistoryHandler:
         metadata: Optional[dict[str, Any]] = None,
         regenerate_of_message_id: Optional[str] = None,
         runtime_param_overrides: Optional[dict[str, Any]] = None,
-        runtime_provider: Optional[str] = None
+        runtime_provider: Optional[str] = None,
+        user_metadata: Optional[dict[str, Any]] = None
     ) -> tuple[Optional[Any], Optional[Any]]:
         """
         Store a conversation turn in chat history.
@@ -170,6 +171,7 @@ class ConversationHistoryHandler:
                 selected allowed_models entry, layered on top of the adapter's own
             runtime_provider: Optional provider from the same runtime-selected
                 allowed_models entry (see get_context)
+            user_metadata: Optional metadata stored on the user message only
 
         Returns:
             Tuple of (user_message_id, assistant_message_id)
@@ -199,7 +201,8 @@ class ConversationHistoryHandler:
                 regenerate_of_message_id=regenerate_of_message_id,
                 adapter_name=adapter_name,
                 runtime_param_overrides=runtime_param_overrides,
-                runtime_provider=runtime_provider
+                runtime_provider=runtime_provider,
+                user_metadata=user_metadata
             )
 
             logger.debug(f"Stored conversation turn for session {session_id} (threading={has_retrieved_docs})")

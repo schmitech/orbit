@@ -437,35 +437,35 @@ Fix persistence before enabling stickiness in canonical configuration.
 
 ### Tasks
 
-- [ ] Add detected language, calibrated/raw confidence, method, and abstention
+- [x] Add detected language, calibrated/raw confidence, method, and abstention
       status to stored **user-message** metadata in the normal chat persistence
       path.
-- [ ] Do not attach the user's detected language to assistant messages as if it
+- [x] Do not attach the user's detected language to assistant messages as if it
       were independently detected assistant-language evidence.
-- [ ] Update `_get_chat_history_language_prior()` to read the canonical stored
+- [x] Update `_get_chat_history_language_prior()` to read the canonical stored
       keys and ignore assistant/system messages.
-- [ ] Weight history by confidence and recency instead of occurrence count
+- [x] Weight history by confidence and recency instead of occurrence count
       alone.
-- [ ] Exclude `unknown`, response fallbacks, backend failures, and low-confidence
+- [x] Exclude `unknown`, response fallbacks, backend failures, and low-confidence
       heuristic results from the prior.
-- [ ] Prevent the prior from overriding strong contradictory evidence in the
+- [x] Prevent the prior from overriding strong contradictory evidence in the
       current message.
-- [ ] Consolidate chat-history prior and Redis stickiness into one documented
+- [x] Consolidate chat-history prior and Redis stickiness into one documented
       decision policy so they do not independently double-count the same prior.
-- [ ] Make the cache TTL configurable and align its documented meaning with the
+- [x] Make the cache TTL configurable and align its documented meaning with the
       actual session policy; do not claim that one hour matches a 12-hour
       session duration.
-- [ ] After tests and benchmark validation, decide whether to enable stickiness
+- [x] After tests and benchmark validation, decide whether to enable stickiness
       by default in both canonical configuration files.
 
 ### Tests
 
-- [ ] Persisted user metadata is readable on the next request.
-- [ ] Assistant messages are excluded from the prior.
-- [ ] `OK` follows a strong recent language when stickiness is enabled.
-- [ ] A clear language switch overrides history immediately.
-- [ ] Low-confidence and fallback results do not poison later turns.
-- [ ] Cache unavailable, history unavailable, and multi-worker paths degrade
+- [x] Persisted user metadata is readable on the next request.
+- [x] Assistant messages are excluded from the prior.
+- [x] `OK` follows a strong recent language when stickiness is enabled.
+- [x] A clear language switch overrides history immediately.
+- [x] Low-confidence and fallback results do not poison later turns.
+- [x] Cache unavailable, history unavailable, and multi-worker paths degrade
       safely.
 
 ### Gate
@@ -474,6 +474,75 @@ Fix persistence before enabling stickiness in canonical configuration.
   context, and demonstrates that the next turn consumes the persisted prior.
 - Conversation tests use the same stickiness default as production config, or
   explicitly construct the alternate policy they are testing.
+
+**Status: met.**
+- **Gate:** `test_persisted_turn_is_the_prior_for_the_next_request` stores a
+  French turn through `ResponseProcessor` into SQLite chat history. A second
+  step instance, standing in for another worker, then reads it and answers
+  `OK` in French (`chat_history_prior`).
+- **Tests:** `server/tests/test_services/test_language_conversation_prior.py`.
+  They load the canonical config (`enable_stickiness: false`) and turn
+  stickiness on explicitly where they test it. The mock config in
+  `test_language_detection.py` now matches the production default.
+
+### Phase 2 decisions
+
+- **Stored shape.** `metadata.language_detection = {language, confidence,
+  method, abstained}` on the user message only. Abstentions are stored too, so
+  the record is complete; the reader filters them. Raw backend results are
+  not stored. Calibrated confidence arrives with Phase 3.
+- **One policy.** The current message decides first; the prior is consulted
+  only for letterless (emoji, numbers, links), short or below-threshold text, and below threshold only if the
+  current votes include the prior's language.
+  - The prior's top language needs at least half the weight.
+  - Its confidence is at most 0.6, so it never re-ranks documents.
+- **Vote nudge removed.** `chat_history_prior_weight` added the prior to the
+  backend votes, which counted the same turns a second time and could flip an
+  accepted result. The key is no longer read.
+- **One source per request.** Chat history comes first; the session cache is
+  used only when history yields nothing. The two are never combined.
+- **Weighting.** Each user message contributes its confidence × 0.5^age, where
+  age counts newer user messages. After one turn in a new language, that
+  language leads.
+- **Trusted evidence.** A stored result counts only if it:
+  - is not an abstention;
+  - is not prior-derived;
+  - is not a `threshold_fallback`;
+  - has confidence ≥ `prior_min_confidence` (0.7).
+  
+  On the tune split, 0.8 dropped 9 correct detections to remove one error; the
+  remaining 5 errors all had confidence 0.9–1.0, so no threshold separates them.
+- **TTL.** `stickiness_ttl_seconds` (default 3600) is documented as an idle
+  window after the last trusted detection, not as a session duration.
+- **Stickiness stays off by default.** The chat-history prior is on by default,
+  is shared across workers and is now persisted, so it covers the main path.
+  The session cache only adds coverage for adapters that do not store history.
+  The benchmark cannot measure it, since no v1 record has a session cache, so
+  it stays opt-in.
+
+### Phase 2 results (held-out split, benchmark v1)
+
+- `pipeline`: unchanged, 106/115 accepted correct (0.922), coverage 0.693,
+  5 high-confidence errors;
+- `pipeline+context`: 110/119 (0.924) → 111/120 (0.925), coverage 0.717 →
+  0.723, 5 high-confidence errors.
+
+The benchmark's simulated history now uses the persisted shape. Only 4 of 334
+context-mode predictions changed across both splits:
+- two letterless follow-ups now take the prior instead of abstaining, both
+  correctly: `👍` after Portuguese (held-out) and `2` after Spanish (tune);
+- two changed because the vote nudge was removed:
+  - `followup-fr-03`: `es`, wrong either way, is now accepted at 0.70 instead
+    of as a `threshold_fallback` at 0.63;
+  - `followup-es-02`: correct, 0.738 → 0.716.
+
+The baseline was not re-recorded.
+
+Known limitations:
+- v1 has no language-switch or multi-turn records, so recency and switching
+  are covered by unit tests only.
+- Editing a message (edit+regenerate) replaces its text but keeps the
+  detection stored with the original text.
 
 ## Phase 3 — Candidate distributions and calibrated confidence
 

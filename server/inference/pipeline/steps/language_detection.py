@@ -83,6 +83,17 @@ UNKNOWN_LANGUAGE = 'unknown'
 # Methods whose language comes from conversation state, not the current message.
 PRIOR_METHODS = frozenset({'sticky_previous', 'chat_history_prior'})
 
+# Results that must not become evidence for later turns: a prior would feed
+# back into itself, and a threshold fallback is below acceptance by definition.
+UNTRUSTED_EVIDENCE_METHODS = PRIOR_METHODS | {'abstained', 'threshold_fallback'}
+
+# Conversation prior policy: each older user turn counts half as much as the
+# next newer one; the prior decides only when its top language holds at least
+# half the weight, at a confidence below retrieval_min_confidence.
+PRIOR_RECENCY_DECAY = 0.5
+PRIOR_MIN_SHARE = 0.5
+PRIOR_MAX_CONFIDENCE = 0.6
+
 # Candidate languages per Unicode script. A script with one candidate may
 # select that language (script fast path); a shared script only narrows the
 # candidates the statistical backends may choose from. Latin, and scripts not
@@ -472,6 +483,42 @@ def abstain(reason: str, **raw: Any) -> DetectionResult:
 
 
 @dataclass(frozen=True)
+class ConversationPrior:
+    """Language distribution from earlier turns of the same conversation.
+
+    ``source`` is ``chat_history`` (persisted user-message evidence) or
+    ``session_cache`` (last trusted detection, when stickiness is enabled).
+    """
+    distribution: dict[str, float]
+    source: str
+
+    @property
+    def method(self) -> str:
+        return 'chat_history_prior' if self.source == 'chat_history' else 'sticky_previous'
+
+    def top(self) -> tuple[str, float]:
+        return max(self.distribution.items(), key=lambda kv: kv[1])
+
+
+def language_evidence(context: Any) -> Optional[dict[str, Any]]:
+    """This turn's detection, in the shape stored on the user message.
+
+    Stored even when abstained, so the record is complete; the prior reader
+    decides what is trustworthy.
+    """
+    language = getattr(context, 'detected_language', None)
+    meta = getattr(context, 'language_detection_meta', None)
+    if not language or not meta:
+        return None
+    return {
+        'language': language,
+        'confidence': meta.get('confidence'),
+        'method': meta.get('method'),
+        'abstained': bool(meta.get('abstained')),
+    }
+
+
+@dataclass(frozen=True)
 class ScriptEvidence:
     """Script-letter counts for a text, computed once before any decision."""
     letters: int
@@ -531,8 +578,9 @@ class LanguageDetectionStep(PipelineStep):
         self.heuristic_nudges = {}
         self.backend_timeout = 10.0
         self.use_chat_history_prior = True
-        self.chat_history_prior_weight = 0.3
         self.chat_history_messages_count = 5
+        self.prior_min_confidence = 0.7
+        self.stickiness_ttl_seconds = 3600
         self.mixed_language_threshold = 0.3
 
         config = self.container.get_or_none('config') or {}
@@ -586,10 +634,11 @@ class LanguageDetectionStep(PipelineStep):
         # Mixed language detection threshold
         self.mixed_language_threshold = lang_config.get('mixed_language_threshold', 0.3)
 
-        # Chat history prior settings
+        # Conversation prior settings
         self.use_chat_history_prior = lang_config.get('use_chat_history_prior', True)
-        self.chat_history_prior_weight = lang_config.get('chat_history_prior_weight', 0.3)
         self.chat_history_messages_count = lang_config.get('chat_history_messages_count', 5)
+        self.prior_min_confidence = lang_config.get('prior_min_confidence', 0.7)
+        self.stickiness_ttl_seconds = lang_config.get('stickiness_ttl_seconds', 3600)
 
         # Backend timeout (default 2.0s to handle cold starts when models need to load)
         self.backend_timeout = lang_config.get('backend_timeout', 10.0)
@@ -611,20 +660,10 @@ class LanguageDetectionStep(PipelineStep):
         logger.debug("Detecting language of user message")
 
         try:
-            # Get previous language from session storage if available
-            previous_language = await self._get_session_language(context)
-
-            # Get chat history language prior if enabled
-            chat_history_prior = None
-            if self.use_chat_history_prior:
-                chat_history_prior = await self._get_chat_history_language_prior(context)
+            prior = await self._get_conversation_prior(context)
 
             # Detect language using ensemble method
-            result = await self._detect_language_ensemble_async(
-                context.message,
-                previous_language=previous_language,
-                chat_history_prior=chat_history_prior
-            )
+            result = await self._detect_language_ensemble_async(context.message, prior=prior)
 
             context.detected_language = result.language
 
@@ -689,42 +728,90 @@ class LanguageDetectionStep(PipelineStep):
 
         return context
 
-    async def _get_session_language(self, context: ProcessingContext) -> Optional[str]:
-        """Get previously detected language from session storage."""
-        # Skip cache lookup if stickiness is disabled
-        if not self.enable_stickiness:
+    def _is_trusted_evidence(self, evidence: Optional[dict[str, Any]]) -> bool:
+        """Whether a stored detection may inform later turns."""
+        if not isinstance(evidence, dict) or evidence.get('abstained'):
+            return False
+        if evidence.get('method') in UNTRUSTED_EVIDENCE_METHODS:
+            return False
+        if normalize_language_code(evidence.get('language')) == UNKNOWN_LANGUAGE:
+            return False
+        confidence = evidence.get('confidence')
+        return isinstance(confidence, (int, float)) and confidence >= self.prior_min_confidence
+
+    async def _get_conversation_prior(self, context: ProcessingContext) -> Optional[ConversationPrior]:
+        """One prior per request: persisted chat history first, else the session cache.
+
+        The two sources describe the same earlier turns, so they are never
+        combined. Either source failing or being unavailable yields no prior.
+        """
+        if not context.session_id:
+            return None
+        if self.use_chat_history_prior:
+            prior = await self._get_chat_history_prior(context)
+            if prior:
+                return prior
+        if self.enable_stickiness:
+            return await self._get_session_cache_prior(context)
+        return None
+
+    async def _get_chat_history_prior(self, context: ProcessingContext) -> Optional[ConversationPrior]:
+        """Confidence- and recency-weighted languages of recent user messages."""
+        try:
+            chat_service = self.container.get('chat_history_service') if self.container.has('chat_history_service') else None
+            if not chat_service:
+                return None
+
+            messages = await chat_service.get_conversation_history(
+                session_id=context.session_id,
+                limit=self.chat_history_messages_count,
+                include_metadata=True
+            )
+            # The user's detected language is stored on user messages only;
+            # assistant and system messages are not evidence of it.
+            user_messages = [m for m in messages or [] if m.get('role') == 'user']
+
+            weights: dict[str, float] = {}
+            for age, msg in enumerate(reversed(user_messages)):
+                evidence = (msg.get('metadata') or {}).get('language_detection')
+                if self._is_trusted_evidence(evidence):
+                    lang = normalize_language_code(evidence['language'])
+                    weights[lang] = weights.get(lang, 0.0) + evidence['confidence'] * PRIOR_RECENCY_DECAY ** age
+
+            total = sum(weights.values())
+            if total <= 0:
+                return None
+            return ConversationPrior({lang: w / total for lang, w in weights.items()}, source='chat_history')
+
+        except Exception as e:  # noqa: BLE001 - best-effort read over arbitrary chat-history backends
+            logger.debug(f"Could not get chat history language prior: {e}")
             return None
 
-        if not context.session_id:
-            return getattr(context, 'detected_language', None) or None
-
+    async def _get_session_cache_prior(self, context: ProcessingContext) -> Optional[ConversationPrior]:
+        """The session's last trusted detection, from the shared cache."""
         try:
-            # Try to get from the cache service if available
-            if self.container.has('cache_service'):
-                cache_service = self.container.get('cache_service')
-                if cache_service and cache_service.enabled:
-                    key = self._session_language_key(context.session_id)
-                    data = await cache_service.get_json(key)
-                    if data and data.get('language'):
-                        return data.get('language')
-        except Exception as e:  # noqa: BLE001 - best-effort cache read; falls through to context metadata
+            cache_service = self.container.get('cache_service') if self.container.has('cache_service') else None
+            if not cache_service or not cache_service.enabled:
+                return None
+            data = await cache_service.get_json(self._session_language_key(context.session_id))
+            if not self._is_trusted_evidence(data):
+                return None
+            return ConversationPrior({normalize_language_code(data['language']): 1.0}, source='session_cache')
+        except Exception as e:  # noqa: BLE001 - best-effort cache read; no prior when the cache is unavailable
             logger.debug(f"Could not retrieve session language from cache: {e}")
-
-        # Fallback to context metadata
-        return context.metadata.get('last_detected_language') or getattr(context, 'detected_language', None) or None
+            return None
 
     async def _save_session_language(self, context: ProcessingContext, result: DetectionResult) -> None:
-        """Save detected language to session storage for persistence."""
-        # Skip cache storage if stickiness is disabled
-        if not self.enable_stickiness:
+        """Save a trusted detection to the session cache for stickiness."""
+        if not self.enable_stickiness or not context.session_id:
             return
 
-        if not context.session_id:
-            return
-
-        # Only independently detected languages are evidence for later turns;
-        # abstentions and prior-derived results would feed the prior back into itself.
-        if result.abstained or result.method in PRIOR_METHODS:
+        data = {
+            'language': result.language,
+            'confidence': result.confidence,
+            'method': result.method
+        }
+        if not self._is_trusted_evidence(data):
             return
 
         try:
@@ -732,13 +819,9 @@ class LanguageDetectionStep(PipelineStep):
                 cache_service = self.container.get('cache_service')
                 if cache_service and cache_service.enabled:
                     key = self._session_language_key(context.session_id)
-                    data = {
-                        'language': result.language,
-                        'confidence': result.confidence,
-                        'method': result.method
-                    }
-                    # Set with TTL of 1 hour to match session duration
-                    await cache_service.store_json(key, data, ttl=3600)
+                    # Idle window: the entry expires this long after the last trusted
+                    # detection. Unrelated to auth.session_duration_hours.
+                    await cache_service.store_json(key, data, ttl=self.stickiness_ttl_seconds)
         except Exception as e:  # noqa: BLE001 - best-effort cache write must not fail the detection step
             logger.debug(f"Could not save session language to cache: {e}")
 
@@ -747,67 +830,23 @@ class LanguageDetectionStep(PipelineStep):
         safe_id = urllib.parse.quote(str(session_id), safe='')
         return f"lang_detect:{safe_id}"
 
-    async def _get_chat_history_language_prior(self, context: ProcessingContext) -> Optional[dict[str, float]]:
-        """
-        Get language distribution from recent chat history.
-
-        Returns a dictionary mapping language codes to their frequency weights.
-        """
-        if not context.session_id:
-            return None
-
-        try:
-            # Try to get chat history service
-            if not self.container.has('chat_history_service'):
-                return None
-
-            chat_service = self.container.get('chat_history_service')
-            if not chat_service:
-                return None
-
-            # Get recent messages using the correct method name
-            messages = await chat_service.get_conversation_history(
-                session_id=context.session_id,
-                limit=self.chat_history_messages_count,
-                include_metadata=True
-            )
-
-            if not messages:
-                return None
-
-            # Count language occurrences
-            lang_counts: dict[str, int] = {}
-            for msg in messages:
-                lang = msg.get('detected_language') or msg.get('metadata', {}).get('detected_language')
-                if lang:
-                    lang = normalize_language_code(lang)
-                    lang_counts[lang] = lang_counts.get(lang, 0) + 1
-
-            if not lang_counts:
-                return None
-
-            # Convert to weights (normalize by total)
-            total = sum(lang_counts.values())
-            return {lang: count / total for lang, count in lang_counts.items()}
-
-        except Exception as e:  # noqa: BLE001 - best-effort heuristic over arbitrary chat-history message shapes
-            logger.debug(f"Could not get chat history language prior: {e}")
-            return None
-
     async def _detect_language_ensemble_async(
         self,
         text: str,
-        previous_language: Optional[str] = None,
-        chat_history_prior: Optional[dict[str, float]] = None
+        prior: Optional[ConversationPrior] = None,
     ) -> DetectionResult:
         """
         Detect language using ensemble of multiple backends with async execution.
+
+        The current message decides first. The conversation prior is consulted
+        only when the message alone yields no accepted result (too short, or
+        below threshold), so a clear language switch is followed immediately.
         """
         # Pre-clean text to avoid URL/code bias
         clean_text = self._clean_text_for_detection(text or "")
         evidence = self._script_evidence(clean_text)
         if evidence.letters == 0:
-            return abstain('no_letters')
+            return self._prior_result(prior, reason='no_letters') or abstain('no_letters')
 
         # Unique-script fast path, or high-confidence Latin phrase patterns
         script_result = self._detect_by_script(clean_text, evidence)
@@ -817,7 +856,7 @@ class LanguageDetectionStep(PipelineStep):
         # Too little text for the statistical backends: use a trustworthy
         # conversation prior if there is one, otherwise abstain.
         if evidence.letters < self.min_letters:
-            return self._short_text_prior(previous_language, chat_history_prior) or abstain(
+            return self._prior_result(prior, reason='low_evidence') or abstain(
                 'low_evidence', letters=evidence.letters
             )
 
@@ -880,7 +919,7 @@ class LanguageDetectionStep(PipelineStep):
                             }
                         )
 
-        language_votes = self._aggregate_backend_votes(backend_results, chat_history_prior)
+        language_votes = self._aggregate_backend_votes(backend_results)
         self._apply_nudges(language_votes, signals)
 
         # A shared script restricts which languages may win; votes outside the
@@ -929,16 +968,13 @@ class LanguageDetectionStep(PipelineStep):
         # Enforce minimum margin and confidence
         # Margin is now the difference in confidence (proportion), not raw scores
         if raw_best_confidence < self.min_confidence or margin < self.min_margin:
-            # Prefer sticky previous language when enabled and plausible
-            if self.enable_stickiness and previous_language and previous_language in eligible_votes:
-                # Decay stickiness based on how different the current detection is
-                sticky_confidence = min(0.9, max(best_confidence, 0.7))
-                return DetectionResult(
-                    language=previous_language,
-                    confidence=sticky_confidence,
-                    method='sticky_previous',
-                    raw_results={'reason': 'below_threshold_or_margin', 'votes': language_votes, 'raw': raw_results}
-                )
+            # The conversation prior, if the current message's votes support it
+            prior_result = self._prior_result(
+                prior, reason='below_threshold_or_margin', supported_by=eligible_votes,
+                votes=language_votes, raw=raw_results,
+            )
+            if prior_result:
+                return prior_result
 
             # Prefer English for high ASCII ratio, but not if non-English Latin patterns matched
             if (
@@ -1020,23 +1056,18 @@ class LanguageDetectionStep(PipelineStep):
     def _aggregate_backend_votes(
         self,
         backend_results: list[tuple[DetectionResult, float, str]],
-        chat_history_prior: Optional[dict[str, float]],
     ) -> dict[str, float]:
-        """Aggregate normalized backend scores and optional chat-history prior."""
+        """Aggregate normalized backend scores.
+
+        The conversation prior is deliberately not added as votes: it would
+        count the same earlier turns again and could flip an accepted result.
+        """
         language_votes: dict[str, float] = {}
 
         for result, weight, _backend_name in backend_results:
             lang = normalize_language_code(result.language)
             conf = max(0.0, min(1.0, result.confidence))
             language_votes[lang] = language_votes.get(lang, 0) + conf * weight
-
-        if chat_history_prior and self.chat_history_prior_weight > 0:
-            prior_boost = self.chat_history_prior_weight
-            for lang, freq in chat_history_prior.items():
-                if lang in language_votes:
-                    language_votes[lang] += prior_boost * freq
-                else:
-                    language_votes[lang] = prior_boost * freq * 0.5
 
         return language_votes
 
@@ -1110,33 +1141,33 @@ class LanguageDetectionStep(PipelineStep):
                     candidates &= languages
         return candidates
 
-    def _short_text_prior(
+    def _prior_result(
         self,
-        previous_language: Optional[str],
-        chat_history_prior: Optional[dict[str, float]],
+        prior: Optional[ConversationPrior],
+        reason: str,
+        supported_by: Optional[dict[str, float]] = None,
+        **raw: Any,
     ) -> Optional[DetectionResult]:
-        """Conversation-derived language for text too short to detect.
+        """The conversation prior's language, for a message that cannot decide alone.
 
+        The prior's top language must hold at least PRIOR_MIN_SHARE of its
+        weight and, when ``supported_by`` votes are given, be among them.
         Confidence stays below retrieval_min_confidence: a prior may pick the
         reply language but should not re-rank retrieved documents.
         """
-        if self.enable_stickiness and previous_language and previous_language != UNKNOWN_LANGUAGE:
-            return DetectionResult(
-                language=previous_language,
-                confidence=0.6,
-                method='sticky_previous',
-                raw_results={'reason': 'low_evidence'},
-            )
-        if chat_history_prior:
-            language, share = max(chat_history_prior.items(), key=lambda kv: kv[1])
-            if share >= 0.5 and language != UNKNOWN_LANGUAGE:
-                return DetectionResult(
-                    language=language,
-                    confidence=round(0.6 * share, 4),
-                    method='chat_history_prior',
-                    raw_results={'reason': 'low_evidence', 'prior': chat_history_prior},
-                )
-        return None
+        if not prior:
+            return None
+        language, share = prior.top()
+        if share < PRIOR_MIN_SHARE or language == UNKNOWN_LANGUAGE:
+            return None
+        if supported_by is not None and language not in supported_by:
+            return None
+        return DetectionResult(
+            language=language,
+            confidence=round(PRIOR_MAX_CONFIDENCE * share, 4),
+            method=prior.method,
+            raw_results={'reason': reason, 'prior': prior.distribution, 'prior_source': prior.source, **raw},
+        )
 
     def _detect_by_script(self, text: str, evidence: Optional[ScriptEvidence] = None) -> DetectionResult:
         """Unique-script fast path, then Latin phrase/word patterns.

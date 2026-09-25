@@ -861,7 +861,8 @@ class ChatHistoryService:
         regenerate_of_message_id: Optional[str] = None,
         adapter_name: Optional[str] = None,
         runtime_param_overrides: Optional[dict[str, Any]] = None,
-        runtime_provider: Optional[str] = None
+        runtime_provider: Optional[str] = None,
+        user_metadata: Optional[dict[str, Any]] = None
     ) -> tuple[Optional[Any], Optional[Any]]:
         """
         Add a complete conversation turn (user message + assistant response).
@@ -888,6 +889,8 @@ class ChatHistoryService:
                 selected allowed_models entry, layered on top of the adapter's own
             runtime_provider: Optional provider from the same runtime-selected
                 allowed_models entry (see _get_token_budget_for_adapter)
+            user_metadata: Optional metadata stored on the user message only, such
+                as its detected language, which does not describe the assistant reply
 
         Returns:
             Tuple of (user_message_id, assistant_message_id)
@@ -916,7 +919,7 @@ class ChatHistoryService:
             content=user_message,
             user_id=user_id,
             api_key=api_key,
-            metadata=metadata
+            metadata={**(metadata or {}), **user_metadata} if user_metadata else metadata
         )
 
         # Only add assistant response if user message was added successfully

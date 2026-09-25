@@ -66,7 +66,6 @@ The language detection system is a pipeline step that runs before LLM inference 
 │                      ┌──────────────────────────────────────────────┐  │
 │                      │            Weighted Voting                    │  │
 │                      │  • Aggregate normalized confidences           │  │
-│                      │  • Apply chat history prior                   │  │
 │                      │  • Apply heuristic nudges                     │  │
 │                      └──────────────────────────────────────────────┘  │
 │                                        │                                │
@@ -74,15 +73,16 @@ The language detection system is a pipeline step that runs before LLM inference 
 │                      ┌──────────────────────────────────────────────┐  │
 │                      │         Threshold & Stickiness Logic          │  │
 │                      │  • Check min_confidence & min_margin          │  │
-│                      │  • Apply session stickiness if ambiguous      │  │
+│                      │  • Apply conversation prior if ambiguous      │  │
 │                      │  • Apply ASCII bias if applicable             │  │
 │                      └──────────────────────────────────────────────┘  │
 │                                        │                                │
 │                                        ▼                                │
 │                      ┌──────────────────────────────────────────────┐  │
 │                      │              Session Persistence              │  │
-│                      │  • Store in Redis (lang_detect:{safe_id})    │  │
 │                      │  • Update context.detected_language           │  │
+│                      │  • Stickiness: Redis (lang_detect:{safe_id}) │  │
+│                      │  • Chat history: stored on the user message   │  │
 │                      └──────────────────────────────────────────────┘  │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -113,7 +113,7 @@ does not depend on pattern order.
 
 | Outcome | Rule |
 |---|---|
-| No letters (emoji, numbers, URLs, code only) | Abstain: `unknown`, reason `no_letters`; backends are not called. |
+| No letters (emoji, numbers, URLs, code only) | Uses a conversation prior if one is available, at a confidence below `retrieval_min_confidence`. Otherwise abstains with reason `no_letters`. Backends are not called. |
 | Single-language script | Selects its language (`script_detection`, 0.95) when it has at least `script_fast_path.min_letters` letters and covers at least `script_fast_path.min_coverage` of them. Applies to Hangul, Thai, Greek, Georgian, Armenian, Tamil, Telugu and similar scripts, and to Japanese when kana is present. |
 | Shared script | Narrows the candidates the backends may choose from, but only when it covers at least `min_coverage` of the letters. Cyrillic, Arabic, Devanagari, Bengali, Hebrew, Ethiopic, and Han without kana (`zh`/`ja`) are shared. |
 | Fewer than `min_letters` letters | Uses a conversation prior (stickiness or chat history) if one is available, at a confidence below `retrieval_min_confidence`. Otherwise abstains with reason `low_evidence`. |
@@ -191,15 +191,16 @@ second_confidence = second_score / total_votes
 margin = best_confidence - second_confidence
 ```
 
-`total_votes` is the sum of all weighted language scores after backend weighting,
-chat-history priors, and heuristic vote nudges. This is not the same as the sum
+`total_votes` is the sum of all weighted language scores after backend weighting
+and heuristic vote nudges. The conversation prior does not add votes. This is not the same as the sum
 of configured backend weights. The result is a vote share, not a calibrated
 probability (see `docs/roadmap/language-detection-accuracy.md`, Phase 3). The
 former `script_boost` nudge has been removed: it only ever applied to Russian,
 as an artifact of script-pattern order.
 
 When confidence or margin is below threshold, the detector tries these in order:
-1. the sticky previous language, when stickiness is enabled;
+1. the conversation prior's language, if the current votes include it (see
+   [Conversation Prior](#language-stickiness));
 2. the English ASCII heuristic, when English markers are present;
 3. the best-voted language, when a non-English Latin word pattern matched.
 
@@ -263,45 +264,63 @@ heuristic_nudges:
   es_penalty: 0.1     # Subtracted from Spanish in pure ASCII
 ```
 
-### Chat History Prior
-
-Recent messages' language distribution is used as a soft prior:
-
-```python
-if chat_history_prior:
-    for lang, freq in chat_history_prior.items():
-        language_votes[lang] += prior_weight * freq
-```
-
 ## Language Stickiness
 
 ### Problem
-Users typing in one language may occasionally produce ambiguous short messages (e.g., "OK", "Yes", numbers). Without stickiness or a chat-history prior, these abstain (`unknown`) rather than resetting to English.
+Users typing in one language may occasionally produce ambiguous short messages
+(e.g., "OK", "Yes"). Without a conversation prior, these abstain (`unknown`)
+rather than resetting to English.
 
-### Solution
-1. Store detected language in session (Redis or context metadata)
-2. When detection is ambiguous (below threshold or margin), prefer previous language
-3. Stickiness decays if new detection strongly contradicts it
+### Conversation Prior
 
-```python
-if best_confidence < min_confidence or margin < min_margin:
-    if previous_language in language_votes:
-        return previous_language with sticky confidence
-```
+One policy, one prior per request:
 
-### Session Persistence
+1. **The current message decides first.** A fast-path, ensemble or heuristic
+   result that passes the thresholds is used as is; the prior never changes
+   it, so a clear language switch is followed immediately.
+2. **The prior is consulted only when the message cannot decide:** no letters
+   at all (emoji, numbers, links), fewer than `min_letters` letters, or below `min_confidence`/`min_margin`. Below
+   threshold, the prior's language must also be among the current votes.
+3. **The prior decides only with a majority:** its top language must hold at
+   least half the prior's weight. The result's confidence is at most 0.6
+   (`chat_history_prior` or `sticky_previous`), below
+   `retrieval_min_confidence`, so a prior picks the reply language but never
+   re-ranks documents.
 
-```python
-# Redis storage
-safe_id = urllib.parse.quote(str(session_id), safe='')
-key = f"lang_detect:{safe_id}"
-data = {
-    'language': result.language,
-    'confidence': result.confidence,
-    'method': result.method
-}
-await redis_service.store_json(key, data, ttl=3600)  # 1 hour TTL
-```
+### Sources
+
+The prior comes from one source, never both, because both describe the same
+earlier turns:
+
+- **Chat history** (`use_chat_history_prior`, default on). After each turn,
+  the detection is stored on the **user** message's metadata:
+
+  ```python
+  {"language_detection": {"language": "fr", "confidence": 0.93,
+                          "method": "ensemble_voting", "abstained": False}}
+  ```
+
+  Assistant messages carry no language evidence and are skipped. The
+  `chat_history_messages_count` most recent messages are read; each user
+  message contributes its confidence, halved for every newer user message.
+  This works across workers because it lives in the chat-history database.
+  Requires `chat_history.store_metadata: true`.
+- **Session cache** (`enable_stickiness`, default off). The last trusted
+  detection, in Redis under `lang_detect:{safe_id}`. It is read only when chat
+  history yields nothing, for example for adapters that do not store history.
+  The entry expires `stickiness_ttl_seconds` after the last trusted detection.
+  That is an idle window, unrelated to `auth.session_duration_hours`.
+
+### What counts as evidence
+
+A stored detection informs later turns only if it is not an abstention, not
+itself prior-derived (`chat_history_prior`, `sticky_previous`), not a
+`threshold_fallback`, and has confidence ≥ `prior_min_confidence` (0.7). On
+the tune split, raising this to 0.8 dropped 9 correct detections to remove one
+error; the remaining errors all had confidence 0.9–1.0.
+
+If the chat-history service or the cache is unavailable or fails, that source
+yields no prior and detection proceeds on the current message alone.
 
 ## RAG Integration
 
@@ -358,7 +377,7 @@ language_detection:
   # English bias for ASCII text
   prefer_english_for_ascii: true
 
-  # Session stickiness
+  # Session cache as a fallback conversation-prior source
   enable_stickiness: false
 
   # Reply language when detection abstains; never recorded as a detected
@@ -382,10 +401,11 @@ language_detection:
   # Mixed-language detection threshold
   mixed_language_threshold: 0.3
 
-  # Chat history prior
+  # Conversation prior (see Language Stickiness)
   use_chat_history_prior: true
-  chat_history_prior_weight: 0.3
   chat_history_messages_count: 5
+  prior_min_confidence: 0.7
+  stickiness_ttl_seconds: 3600
 
   # RAG retrieval boosting
   retrieval_match_boost: 0.1
@@ -493,11 +513,17 @@ LANGUAGE_CODE_MAP.update({
 
 ### Stickiness Not Working
 
-1. **Verify Redis connection:**
-   Check `redis_client` is registered in service container.
+1. **Verify session_id is present:**
+   The conversation prior requires `context.session_id` to be set.
 
-2. **Verify session_id is present:**
-   Stickiness requires `context.session_id` to be set.
+2. **Verify chat history stores metadata:**
+   The chat-history source needs `chat_history.store_metadata: true` and an
+   adapter that stores history. Otherwise enable `enable_stickiness` and check
+   that the cache service is available.
+
+3. **Check the stored evidence:**
+   Only detections with confidence ≥ `prior_min_confidence` count; abstentions
+   and prior-derived results never do.
 
 ## Performance Metrics
 

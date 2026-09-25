@@ -248,6 +248,7 @@ class ResponseProcessor:
         usage: Optional[dict[str, Any]] = None,
         audit_adapter_name: Optional[str] = None,
         sources: Optional[list] = None,
+        language_detection: Optional[dict[str, Any]] = None,
     ) -> tuple[str, Optional[str]]:
         """
         Complete post-processing of a chat response.
@@ -293,6 +294,9 @@ class ResponseProcessor:
                 mcp_tool_call entries are used, recorded in metadata so a
                 later turn's MCPToolSelector can reconstruct which tools this
                 thread already relied on (see mcp_tool_selector.py).
+            language_detection: Optional detection result for the user message,
+                stored on that message only so later turns can use it as a
+                conversation language prior.
 
         Returns:
             Tuple of (processed_response_text, assistant_message_id)
@@ -345,7 +349,8 @@ class ResponseProcessor:
                 metadata=metadata,
                 regenerate_of_message_id=regenerate_of_message_id,
                 runtime_param_overrides=runtime_param_overrides,
-                runtime_provider=runtime_provider
+                runtime_provider=runtime_provider,
+                user_metadata={"language_detection": language_detection} if language_detection else None
             )
 
         # Check for conversation limit warning and inject AFTER storage (display only)

@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 from inference.pipeline.base import ProcessingContext
 from inference.pipeline.steps.language_detection import (
+    ConversationPrior,
     DetectionResult,
     ENGLISH_MARKERS_PATTERN,
     LANGDETECT_AVAILABLE,
@@ -54,7 +55,7 @@ class MockContainer:
                 'min_confidence': 0.7,
                 'min_margin': 0.2,
                 'prefer_english_for_ascii': True,
-                'enable_stickiness': True,
+                'enable_stickiness': False,  # Production default; stickiness tests enable it
                 'ambiguous_response_language': 'en',
                 'backend_timeout': 10.0,
                 'heuristic_nudges': {
@@ -62,7 +63,7 @@ class MockContainer:
                     'es_penalty': 0.1
                 },
                 'mixed_language_threshold': 0.3,
-                'use_chat_history_prior': False,  # Disable for unit tests
+                'use_chat_history_prior': True,  # No chat_history_service is registered
             },
             'general': {'verbose': False}
         }
@@ -474,15 +475,14 @@ class TestLanguageStickiness:
         """Ambiguous text should prefer previous language."""
         # First detect Spanish with very strong markers (no English words)
         result1 = await detector._detect_language_ensemble_async(
-            "¡Buenos días! ¿Cómo te llamas? Me llamo María. Mucho gusto.",
-            previous_language=None
+            "¡Buenos días! ¿Cómo te llamas? Me llamo María. Mucho gusto."
         )
         assert result1.language == 'es'
 
         # Ambiguous short text should stick to Spanish
         result2 = await detector._detect_language_ensemble_async(
             "OK",  # Ambiguous
-            previous_language='es'
+            prior=ConversationPrior({'es': 1.0}, source='session_cache')
         )
         assert result2.language == 'es', "Stickiness should prevent flip to English for ambiguous 'OK'"
 
@@ -492,7 +492,7 @@ class TestLanguageStickiness:
         # Previous was English, but strong French signal
         result = await detector._detect_language_ensemble_async(
             "Bonjour, comment allez-vous aujourd'hui?",
-            previous_language='en'
+            prior=ConversationPrior({'en': 1.0}, source='session_cache')
         )
         assert result.language == 'fr'
 
@@ -857,6 +857,7 @@ class TestRedisServiceIntegration:
     def detector_with_redis(self, mock_redis_service):
         """Create a detector with Redis service registered."""
         container = MockContainer()
+        container._config['language_detection']['enable_stickiness'] = True
         container.register('cache_service', mock_redis_service)
         return LanguageDetectionStep(container), mock_redis_service
 
@@ -900,22 +901,17 @@ class TestRedisServiceIntegration:
         })
 
         context = create_context("OK", session_id="test-session-123")
-        result = await detector._get_session_language(context)
+        prior = await detector._get_conversation_prior(context)
 
-        assert result == 'es'
+        assert prior == ConversationPrior({'es': 1.0}, source='session_cache')
         redis_mock.get_json.assert_called_once_with("lang_detect:test-session-123")
 
     @pytest.mark.asyncio
-    async def test_fallback_when_redis_disabled(self):
-        """Should fallback to context metadata when Redis is not available."""
-        container = MockContainer()
-        detector = LanguageDetectionStep(container)
-
+    async def test_no_prior_when_redis_unavailable(self):
+        """Without a cache service there is no session prior (and no error)."""
+        detector = LanguageDetectionStep(MockContainer())
         context = create_context("OK", session_id="test-session-123")
-        context.metadata['last_detected_language'] = 'fr'
-
-        result = await detector._get_session_language(context)
-        assert result == 'fr'
+        assert await detector._get_conversation_prior(context) is None
 
     @pytest.mark.asyncio
     async def test_no_session_id_skips_redis(self, detector_with_redis):
@@ -923,7 +919,7 @@ class TestRedisServiceIntegration:
         detector, redis_mock = detector_with_redis
         context = create_context("Hello", session_id=None)
 
-        await detector._get_session_language(context)
+        await detector._get_conversation_prior(context)
         redis_mock.get_json.assert_not_called()
 
 
@@ -1058,7 +1054,7 @@ class TestConfidenceCalculation:
         # Now detect something ambiguous with previous language set
         result2 = await detector._detect_language_ensemble_async(
             "OK",
-            previous_language='en'
+            prior=ConversationPrior({'en': 1.0}, source='session_cache')
         )
 
         # If margin calculation works correctly, short ambiguous text
@@ -1238,7 +1234,9 @@ class TestShortAndAmbiguousText:
     @pytest.mark.asyncio
     async def test_short_text_uses_sticky_previous_language(self, detector):
         # MockContainer enables stickiness
-        result = await detector._detect_language_ensemble_async("sí", previous_language='es')
+        result = await detector._detect_language_ensemble_async(
+            "sí", prior=ConversationPrior({'es': 1.0}, source='session_cache')
+        )
         assert result.language == 'es'
         assert result.method == 'sticky_previous'
 
@@ -1247,7 +1245,9 @@ class TestShortAndAmbiguousText:
         container = MockContainer()
         container._config['language_detection']['enable_stickiness'] = False
         detector = LanguageDetectionStep(container)
-        result = await detector._detect_language_ensemble_async("OK", chat_history_prior={'fr': 1.0})
+        result = await detector._detect_language_ensemble_async(
+            "OK", prior=ConversationPrior({'fr': 1.0}, source='chat_history')
+        )
         assert result.language == 'fr'
         assert result.method == 'chat_history_prior'
         # Below retrieval_min_confidence: a prior must not re-rank documents
@@ -1258,7 +1258,9 @@ class TestShortAndAmbiguousText:
         container = MockContainer()
         container._config['language_detection']['enable_stickiness'] = False
         detector = LanguageDetectionStep(container)
-        result = await detector._detect_language_ensemble_async("OK", chat_history_prior={'fr': 0.4, 'en': 0.4})
+        result = await detector._detect_language_ensemble_async(
+            "OK", prior=ConversationPrior({'fr': 0.45, 'en': 0.45, 'de': 0.1}, source='chat_history')
+        )
         assert result.abstained
 
     @pytest.mark.asyncio
@@ -1286,6 +1288,7 @@ class TestUnknownIsSeparateFromFallback:
     @pytest.fixture
     def detector(self, cache_service):
         container = MockContainer()
+        container._config['language_detection']['enable_stickiness'] = True
         container.register('cache_service', cache_service)
         return LanguageDetectionStep(container)
 
@@ -1302,7 +1305,9 @@ class TestUnknownIsSeparateFromFallback:
     @pytest.mark.asyncio
     async def test_prior_derived_result_is_not_stored_as_evidence(self, detector, cache_service):
         context = create_context("sí", session_id="s1")
-        cache_service.get_json = AsyncMock(return_value={'language': 'es'})
+        cache_service.get_json = AsyncMock(
+            return_value={'language': 'es', 'confidence': 0.95, 'method': 'ensemble_voting'}
+        )
         await detector.process(context)
         assert context.detected_language == 'es'
         assert context.language_detection_meta['method'] == 'sticky_previous'

@@ -87,7 +87,7 @@ or internally owned. Do not paste real user messages.
 | Mode | What runs |
 |---|---|
 | `pipeline` | `LanguageDetectionStep.process()` with the `language_detection` section of `config/config.yaml` and no conversation history, matching production today. |
-| `pipeline+context` | Same, but `chat_history_service` returns one prior user turn tagged with `context_lang`. Production does not persist that tag yet (roadmap Phase 2), so this mode shows what the prior *would* do. |
+| `pipeline+context` | Same, but `chat_history_service` returns one earlier turn whose user message was detected as `context_lang` (confidence 0.95), in the shape production persists. |
 | `langdetect`, `langid`, `pycld2` | That backend alone, on the same cleaned text the pipeline gives it, through the step's own `_detect_*` adapter. |
 
 Backends run first, so each backend's `first_call_ms` is its own cold start.

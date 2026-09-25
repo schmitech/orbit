@@ -177,12 +177,10 @@ class _EvalContainer:
 
 
 class _PriorChatHistory:
-    """Chat history that returns one prior user turn tagged with ``context_lang``.
+    """Chat history with one earlier turn whose user message was detected as ``context_lang``.
 
-    This is the shape ``_get_chat_history_language_prior()`` reads. Production
-    chat history does not currently persist it (see roadmap Phase 2), so the
-    ``pipeline+context`` mode measures what the prior *would* do, not what it
-    does in production today.
+    Messages use the shape ``ResponseProcessor`` persists: the detection is
+    stored on the user message only, and the assistant reply carries none.
     """
 
     def __init__(self, languages: dict[str, str]):
@@ -192,7 +190,11 @@ class _PriorChatHistory:
         lang = self._languages.get(session_id)
         if not lang:
             return []
-        return [{"role": "user", "content": "", "metadata": {"detected_language": lang}}]
+        evidence = {"language": lang, "confidence": 0.95, "method": "ensemble_voting", "abstained": False}
+        return [
+            {"role": "user", "content": "", "metadata": {"language_detection": evidence}},
+            {"role": "assistant", "content": "", "metadata": {}},
+        ]
 
 
 def load_canonical_config(path: str = CANONICAL_CONFIG_PATH) -> dict[str, Any]:
