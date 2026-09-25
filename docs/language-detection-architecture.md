@@ -9,7 +9,7 @@ This document describes the technical architecture of Orbit's language detection
 3. [Detection Pipeline](#detection-pipeline)
 4. [Backend Ensemble](#backend-ensemble)
 5. [Script Detection](#script-detection)
-6. [Heuristic Biasing](#heuristic-biasing)
+6. [Removed Heuristics](#removed-heuristics)
 7. [Language Stickiness](#language-stickiness)
 8. [RAG Integration](#rag-integration)
 9. [Configuration Reference](#configuration-reference)
@@ -53,28 +53,26 @@ The language detection system is a pipeline step that runs before LLM inference 
 │                      │                                              │  │
 │                      │  ┌────────────┐ ┌────────────┐ ┌──────────┐ │  │
 │                      │  │ langdetect │ │  langid    │ │ pycld2   │ │  │
-│                      │  │ weight:1.0 │ │ weight:1.2 │ │weight:1.5│ │  │
 │                      │  └────────────┘ └────────────┘ └──────────┘ │  │
 │                      │         │              │             │       │  │
 │                      │         └──────────────┴─────────────┘       │  │
 │                      │                        │                      │  │
 │                      │                        ▼                      │  │
-│                      │           Per-Backend Normalization           │  │
+│                      │     Full candidate lists (BackendResult)      │  │
 │                      └──────────────────────────────────────────────┘  │
 │                                        │                                │
 │                                        ▼                                │
 │                      ┌──────────────────────────────────────────────┐  │
-│                      │            Weighted Voting                    │  │
-│                      │  • Aggregate normalized confidences           │  │
-│                      │  • Apply heuristic nudges                     │  │
+│                      │     Calibrated Log-Linear Pool                │  │
+│                      │  • Fit for the backends that answered         │  │
+│                      │  • Script candidates restrict the winner      │  │
 │                      └──────────────────────────────────────────────┘  │
 │                                        │                                │
 │                                        ▼                                │
 │                      ┌──────────────────────────────────────────────┐  │
-│                      │         Threshold & Stickiness Logic          │  │
-│                      │  • Check min_confidence & min_margin          │  │
-│                      │  • Apply conversation prior if ambiguous      │  │
-│                      │  • Apply ASCII bias if applicable             │  │
+│                      │         Threshold & Conversation Prior        │  │
+│                      │  • Accept if pooled prob. >= fitted threshold │  │
+│                      │  • Else conversation prior, else abstain      │  │
 │                      └──────────────────────────────────────────────┘  │
 │                                        │                                │
 │                                        ▼                                │
@@ -124,12 +122,10 @@ Arabic-script letters narrow the candidates further:
 - Urdu-only letters narrow the candidates to `ur`.
 - Pashto-only letters narrow the candidates to `ps`.
 
-If no backend votes for a candidate, the result is `unknown`. The exception is
-when distinctive letters narrowed the set to a single language: that language
-is returned as `script_letters` at 0.75.
-
-Backend votes outside the candidate set still count toward the vote total, so
-dropping them cannot inflate confidence.
+Only a candidate can win. Pooled probability outside the candidate set stays
+in the total, so dropping it cannot inflate confidence. If distinctive letters
+leave a single candidate that the backends disagree with, its probability
+stays low and detection abstains.
 
 ### 3. Word Pattern Detection
 
@@ -145,23 +141,17 @@ patterns = [r'[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếề
 
 ## Backend Ensemble
 
-Three statistical backends are used with weighted voting:
+Three statistical backends run in parallel. Each adapter returns a
+`BackendResult` with its full candidate list, normalized language codes, the
+scale its scores are on, its package version and raw evidence:
 
-### langdetect (weight: 1.0)
-- Based on Google's language-detection library
-- Good for longer text
-- Returns probability directly (0-1)
+| Backend | Candidates | Scale | Raw evidence |
+|---|---|---|---|
+| langdetect | every language its sampling assigned a probability | `probability` | — |
+| langid | top 10 of `rank()` | `softmax_top_k`: softmaxed over those 10 only, not a global probability | log-probabilities |
+| pycld2 | each detail except `un` | `text_percent`: share of the text, not a confidence | details, text bytes, reliability flag |
 
-### langid (weight: 1.2)
-- Pre-trained Naive Bayes classifier
-- Fast and accurate
-- Returns log-probabilities → normalized via softmax
-
-### pycld2 (weight: 1.5)
-- Google's Compact Language Detector 2
-- Highest weight (most accurate)
-- Returns percentage (0-100) → normalized to 0-1
-- Reliability flag applied as confidence multiplier
+A backend that answers only `unknown` (e.g. pycld2 `un`) contributes nothing.
 
 ### Parallel Execution
 
@@ -177,35 +167,50 @@ async def _run_backend_with_timeout(self, backend_name, detector_func, text, tim
     return result
 ```
 
-### Weighted Voting
+### Calibrated Pooling
+
+`pool_backend_distributions()` combines the candidate lists with a weighted
+log-linear pool:
 
 ```python
-# For each backend result:
-weighted_score = normalized_confidence * backend_weight
-language_votes[lang] += weighted_score
-
-# Final confidence:
-total_votes = sum(language_votes.values())
-best_confidence = best_score / total_votes
-second_confidence = second_score / total_votes
-margin = best_confidence - second_confidence
+# Each backend b: renormalize its scores, then mix in a floor so a language
+# it did not list is unlikely rather than impossible.
+q_b(l) = (1 - floor) * score_b(l) / sum(score_b) + floor / N
+# Pool over a nominal universe of N languages.
+log P(l) = sum_b w_b * log q_b(l)   # then normalized over all N languages
 ```
 
-`total_votes` is the sum of all weighted language scores after backend weighting
-and heuristic vote nudges. The conversation prior does not add votes. This is not the same as the sum
-of configured backend weights. The result is a vote share, not a calibrated
-probability (see `docs/roadmap/language-detection-accuracy.md`, Phase 3). The
-former `script_boost` nudge has been removed: it only ever applied to Russian,
-as an artifact of script-pattern order.
+Languages that no backend listed share the remaining probability equally, so
+backends agreeing on a weak answer cannot renormalize to 1.0.
 
-When confidence or margin is below threshold, the detector tries these in order:
-1. the conversation prior's language, if the current votes include it (see
-   [Conversation Prior](#language-stickiness));
-2. the English ASCII heuristic, when English markers are present;
-3. the best-voted language, when a non-English Latin word pattern matched.
+There is one calibration (weights `w_b`, floor, acceptance threshold) for
+each non-empty set of backends. The pool uses the one for exactly the backends
+that answered, so a deployment with fewer backends, or a request where one
+times out, is not weighted and thresholded as if all three were present.
+Backends without a calibration are ignored, and `raw_results.pool_backends`
+shows which set was used. The calibrations are fitted on the benchmark tune
+split by `server/tests/language_eval/calibrate.py`. They are frozen in
+`server/inference/pipeline/steps/language_detection_calibration.json`, which
+also records the corpus hash and backend versions. The calibration version is
+exposed as `language_detection_meta.detector_version`.
 
-Otherwise it abstains with reason `below_threshold`. It never substitutes a
-default language.
+The result:
+- **Accepted** (`method: calibrated_ensemble`, `calibrated: true`) when the
+  best candidate's pooled probability is at least that set's
+  `accept_confidence` (0.70 with all three backends).
+  `confidence` is that probability.
+- **Otherwise**, the conversation prior's language, if the current message's
+  candidates include it (see [Conversation Prior](#language-stickiness)).
+- **Otherwise**, abstains with reason `below_threshold`. It never substitutes
+  a default language.
+
+Detection metadata also carries:
+- `accepted`: the current message decided the language;
+- `agreement`: the share of backends whose top candidate won;
+- `margin`: the gap to the next pooled candidate.
+
+Rule paths (unique script, French phrases, Vietnamese diacritics) keep a fixed
+0.95 and are marked `calibrated: false`.
 
 ## Abstention and the Response Language
 
@@ -231,38 +236,20 @@ Language codes are normalized to a base ISO 639 code:
 - 3-letter codes are validated with `pycountry`;
 - malformed or unsupported codes become `unknown` instead of being truncated.
 
-## Heuristic Biasing
+## Removed Heuristics
 
-### ASCII Bias (English preference)
+Phase 3 removed these heuristics, because none of them improved the calibrated
+pool on the benchmark (`docs/roadmap/language-detection-accuracy.md`):
+- the ASCII-English early return and below-threshold English fallback
+  (`prefer_english_for_ascii`);
+- the `en_boost`/`es_penalty` vote nudges (`heuristic_nudges`);
+- `threshold_fallback`, which accepted a below-threshold result when a Latin
+  word pattern matched.
 
-For short, high-ASCII text starting with English interrogatives:
-
-```python
-if ascii_ratio > 0.98 and len(text) <= 120:
-    if starts_with_english_question and no_spanish_markers:
-        return English with 0.9 confidence
-```
-
-This prevents "How do I export code?" from being classified as Portuguese.
-
-The same ASCII bias also applies to short English search-style noun phrases when they
-contain common English content markers and no stronger non-English signal:
-
-```python
-if ascii_ratio > 0.98 and len(text) <= 120:
-    if looks_like_english_query and no_non_english_latin_patterns:
-        return English with 0.9 confidence
-```
-
-This prevents queries like "Car crime statistics Vancouver" from being classified as French.
-
-### Configurable Nudges
-
-```yaml
-heuristic_nudges:
-  en_boost: 0.2       # Added to English votes in ASCII text
-  es_penalty: 0.1     # Subtracted from Spanish in pure ASCII
-```
+The ASCII-English rule added more high-confidence errors (Dutch and Italian
+text called English) than it fixed. A known cost: English search queries that
+all backends read as another language, such as "Car crime statistics
+Vancouver" → `fr`, are no longer overridden.
 
 ## Language Stickiness
 
@@ -275,12 +262,13 @@ rather than resetting to English.
 
 One policy, one prior per request:
 
-1. **The current message decides first.** A fast-path, ensemble or heuristic
-   result that passes the thresholds is used as is; the prior never changes
+1. **The current message decides first.** A fast-path or accepted ensemble
+   result is used as is; the prior never changes
    it, so a clear language switch is followed immediately.
 2. **The prior is consulted only when the message cannot decide:** no letters
-   at all (emoji, numbers, links), fewer than `min_letters` letters, or below `min_confidence`/`min_margin`. Below
-   threshold, the prior's language must also be among the current votes.
+   at all (emoji, numbers, links), fewer than `min_letters` letters, or a
+   pooled probability below `accept_confidence`. Below threshold, the prior's
+   language must also be among the current message's candidates.
 3. **The prior decides only with a majority:** its top language must hold at
    least half the prior's weight. The result's confidence is at most 0.6
    (`chat_history_prior` or `sticky_previous`), below
@@ -297,7 +285,7 @@ earlier turns:
 
   ```python
   {"language_detection": {"language": "fr", "confidence": 0.93,
-                          "method": "ensemble_voting", "abstained": False}}
+                          "method": "calibrated_ensemble", "abstained": False}}
   ```
 
   Assistant messages carry no language evidence and are skipped. The
@@ -315,7 +303,8 @@ earlier turns:
 
 A stored detection informs later turns only if it is not an abstention, not
 itself prior-derived (`chat_history_prior`, `sticky_previous`), not a
-`threshold_fallback`, and has confidence ≥ `prior_min_confidence` (0.7). On
+`threshold_fallback` (a pre-Phase-3 method still found in stored history), and
+has confidence ≥ `prior_min_confidence` (0.7). On
 the tune split, raising this to 0.8 dropped 9 correct detections to remove one
 error; the remaining errors all had confidence 0.9–1.0.
 
@@ -326,7 +315,10 @@ yields no prior and detection proceeds on the current message alone.
 
 ### Language-Aware Document Boosting
 
-After retrieval, documents are re-scored based on language match:
+After retrieval, documents are re-scored based on language match. This
+applies only to an accepted detection (`language_detection_meta.accepted`)
+with confidence ≥ `retrieval_min_confidence`, so abstentions and
+conversation-prior results never re-rank documents:
 
 ```python
 if doc_language == detected_language:
@@ -343,8 +335,19 @@ docs.sort(key=lambda d: d['confidence'], reverse=True)
 ```yaml
 retrieval_match_boost: 0.1       # Boost for matching language
 retrieval_mismatch_penalty: 0.05 # Penalty for non-matching
-retrieval_min_confidence: 0.7    # Min detection confidence to apply
+retrieval_min_confidence: 0.7    # Min calibrated confidence of an accepted detection
 ```
+
+On the tune split, accepted detections at ≥ 0.7 are 96% correct.
+
+### Prompt Instruction
+
+`PromptBuilder` names the language ("The user is writing in French…") only
+for an accepted detection at confidence ≥ 0.9. On the tune split those are
+97% correct, against 84% below 0.9. Other detections, including
+conversation-prior results, get the softer "match the language of the user's
+message" instruction. Abstentions get the `ambiguous_response_language`
+instruction.
 
 ## Configuration Reference
 
@@ -364,18 +367,9 @@ language_detection:
     - "langid"
     - "pycld2"
 
-  # Backend weights for voting (higher = more influence)
-  backend_weights:
-    langdetect: 1.0
-    langid: 1.2
-    pycld2: 1.5
-
-  # Detection thresholds
-  min_confidence: 0.7    # Minimum to accept detection
-  min_margin: 0.2        # Minimum gap between top-2 candidates
-
-  # English bias for ASCII text
-  prefer_english_for_ascii: true
+  # Pooling weights and the acceptance threshold are not configured here:
+  # they are fitted on the benchmark and frozen in
+  # server/inference/pipeline/steps/language_detection_calibration.json.
 
   # Session cache as a fallback conversation-prior source
   enable_stickiness: false
@@ -392,11 +386,6 @@ language_detection:
 
   # Backend timeout
   backend_timeout: 10.0
-
-  # Heuristic vote adjustments
-  heuristic_nudges:
-    en_boost: 0.2
-    es_penalty: 0.1
 
   # Mixed-language detection threshold
   mixed_language_threshold: 0.3
@@ -449,24 +438,29 @@ except ImportError:
     NEW_BACKEND_AVAILABLE = False
 ```
 
-2. Add detection method:
+2. Add a detection method that returns every candidate:
 ```python
-def _detect_new_backend(self, text: str) -> Optional[DetectionResult]:
+def _detect_new_backend(self, text: str) -> Optional[BackendResult]:
     if not NEW_BACKEND_AVAILABLE:
         return None
     # ... detection logic ...
-    return DetectionResult(
-        language=lang,
-        confidence=normalized_confidence,  # Must be 0-1
-        method='new_backend'
+    return BackendResult(
+        backend='new_backend',
+        candidates=candidate_scores(pairs),  # [(code, score), ...]; codes normalized here
+        scale='probability',                  # say what the scores mean
+        version=_package_version('new-backend'),
     )
 ```
 
 3. Register in `_setup_backends()`:
 ```python
 if 'new_backend' in enabled_backends and NEW_BACKEND_AVAILABLE:
-    self.backends.append(('new_backend', weight, self._detect_new_backend))
+    self.backends.append(('new_backend', self._detect_new_backend))
 ```
+
+4. Add it to `BACKENDS` in `server/tests/language_eval/calibrate.py` and
+   rerun the calibration, which fits every backend set that includes it. A
+   backend without a calibration is ignored by the pool.
 
 ### Language Code Normalization
 
@@ -492,15 +486,20 @@ LANGUAGE_CODE_MAP.update({
 2. **Check detection metadata:**
    ```python
    context.language_detection_meta = {
-       'confidence': 0.85,
-       'method': 'ensemble_voting',
-       'raw_results': {...}
+       'confidence': 0.97,
+       'method': 'calibrated_ensemble',
+       'accepted': True,
+       'calibrated': True,
+       'agreement': 1.0,
+       'margin': 0.95,
+       'detector_version': 'v2',
+       'raw_results': {'pooled': {...}, 'residual': ..., 'langid': {...}, ...}
    }
    ```
 
 3. **Verify backends are loaded:**
    ```
-   INFO: Initialized 3 language detection backends: ['langdetect', 'langid', 'pycld2']
+   INFO: Initialized 3 language detection backends: ['langdetect', 'langid', 'pycld2'] (calibration v2)
    ```
 
 ### Performance Issues

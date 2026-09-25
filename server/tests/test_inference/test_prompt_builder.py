@@ -269,5 +269,7 @@ def test_unknown_language_honors_legacy_fallback_language_key():
 
 def test_confident_detection_still_names_the_language():
     builder = _language_builder()
-    context = _language_context("¿Dónde está mi pedido?", "es", method="ensemble_voting", confidence=0.95)
+    context = _language_context(
+        "¿Dónde está mi pedido?", "es", method="calibrated_ensemble", confidence=0.95, accepted=True
+    )
     assert "The user is writing in Spanish" in builder.build_language_instruction(context)

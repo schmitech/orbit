@@ -3,19 +3,21 @@ Language Detection Step
 
 This step detects the language of the user's message for better language matching.
 Enhanced with:
-- Per-backend confidence normalization
+- Calibrated log-linear pooling of backend candidate distributions
 - Expanded script coverage (20+ scripts)
 - Expanded Latin language patterns
 - Pre-compiled regex patterns
 - Async parallel backend execution
 - Mixed-language detection
-- Configurable heuristic nudges
 - Session persistence for stickiness
 - Chat history language prior
 """
 
 import asyncio
+import importlib.metadata
+import json
 import logging
+import os
 import re
 import math
 import unicodedata
@@ -330,37 +332,6 @@ LATIN_WORD_PATTERNS: list[tuple[str, list[Pattern], float]] = [
     ], 0.90),
 ]
 
-# Combined English markers pattern (single regex for efficiency)
-ENGLISH_MARKERS_PATTERN = re.compile(
-    r'\b(the|and|this|that|is|are|what|how|why|where|when|who|can|could|should|would|please|thanks?|hello|hi)\b',
-    re.IGNORECASE
-)
-
-# Combined Spanish markers pattern
-SPANISH_MARKERS_PATTERN = re.compile(
-    r'(¿|¡|[áéíóúñ]|\bqué\b|\bcomo\b|\bcómo\b|\bestás?\b|\bgracias\b)',
-    re.IGNORECASE
-)
-
-# English question starters
-ENGLISH_QUESTION_START_PATTERN = re.compile(
-    r'^(how|what|why|where|when|who|can|could|should|would|is|are|does|do)\b',
-    re.IGNORECASE
-)
-
-# English search-query/content markers for short ASCII noun phrases
-ENGLISH_QUERY_MARKERS_PATTERN = re.compile(
-    r"\b("
-    r"crime|statistics?|stats?|weather|forecast|population|salary|salaries|"
-    r"tax|taxes|price|prices|cost|costs|rate|rates|report|reports|news|"
-    r"map|maps|housing|rent|rents|income|jobs|traffic|data"
-    r")\b",
-    re.IGNORECASE
-)
-
-# Non-English diacritics for ASCII bias detection
-NON_ENGLISH_DIACRITICS_PATTERN = re.compile(r'[áéíóúñçãõàâêôèëïüäößæøåšžčřůě]')
-
 # Text cleaning patterns
 URL_PATTERN = re.compile(r'https?://\S{1,200}|www\.\S{1,200}')
 EMAIL_PATTERN = re.compile(r'\b\S{1,100}@\S{1,100}\.[A-Za-z]{2,10}\b')
@@ -457,11 +428,24 @@ def normalize_language_code(code: Optional[str]) -> str:
 
 @dataclass
 class DetectionResult:
-    """Result of language detection with confidence and metadata."""
+    """The pipeline-facing language decision.
+
+    ``accepted`` means the current message decided the language (abstentions
+    and conversation-prior results are not accepted). ``calibrated`` means
+    ``confidence`` is a probability fitted on the benchmark tune split; rule
+    paths (unique script, phrase patterns) and the prior report a fixed rule
+    score instead. ``agreement`` is the share of answering backends whose
+    top candidate is ``language``; ``margin`` is the gap to the next pooled
+    candidate.
+    """
     language: str
     confidence: float
     method: str
     raw_results: Optional[dict[str, Any]] = None
+    accepted: bool = False
+    calibrated: bool = False
+    agreement: Optional[float] = None
+    margin: Optional[float] = None
 
     def __post_init__(self):
         # Normalize language code on creation
@@ -480,6 +464,150 @@ def abstain(reason: str, **raw: Any) -> DetectionResult:
         method='abstained',
         raw_results={'reason': reason, **raw},
     )
+
+
+@lru_cache(maxsize=32)
+def _package_version(package: str) -> Optional[str]:
+    try:
+        return importlib.metadata.version(package)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def candidate_scores(pairs: Any) -> dict[str, float]:
+    """Normalize backend codes and merge scores of codes that map to one language."""
+    scores: dict[str, float] = {}
+    for code, score in pairs:
+        language = normalize_language_code(code)
+        if language != UNKNOWN_LANGUAGE and score > 0:
+            scores[language] = scores.get(language, 0.0) + float(score)
+    return scores
+
+
+@dataclass(frozen=True)
+class BackendResult:
+    """One backend's full candidate list, before any pooling.
+
+    ``candidates`` maps normalized languages to scores on the backend's own
+    ``scale``, which is not always a probability:
+
+    - ``probability``: langdetect's sampled probabilities;
+    - ``softmax_top_k``: langid log-probabilities softmaxed over its top k only;
+    - ``text_percent``: the share of the text pycld2 assigns to each language.
+    """
+    backend: str
+    candidates: dict[str, float]
+    scale: str
+    version: Optional[str] = None
+    reliable: Optional[bool] = None
+    raw: dict[str, Any] = field(default_factory=dict)
+    spans: Optional[list[dict[str, Any]]] = None
+
+    @property
+    def language(self) -> str:
+        if not self.candidates:
+            return UNKNOWN_LANGUAGE
+        return min(self.candidates.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+
+    @property
+    def score(self) -> float:
+        return self.candidates.get(self.language, 0.0)
+
+    @property
+    def abstained(self) -> bool:
+        return not self.candidates
+
+
+CALIBRATION_PATH = os.path.join(os.path.dirname(__file__), 'language_detection_calibration.json')
+
+
+@dataclass(frozen=True)
+class PoolCalibration:
+    """Pooling parameters fitted for one set of answering backends."""
+    weights: dict[str, float]
+    floor: float
+    accept_confidence: float
+
+
+@dataclass(frozen=True)
+class Calibration:
+    """Frozen pooling parameters, fitted on the benchmark tune split.
+
+    There is one ``PoolCalibration`` per non-empty set of backends, because
+    weights and the acceptance threshold fitted for all three backends do not
+    transfer to a deployment (or a request) where only some of them answer.
+    Regenerate with ``server/tests/language_eval/calibrate.py``; the file
+    records the benchmark and backend versions that produced it.
+    """
+    version: str
+    universe_size: int
+    langid_top_k: int
+    pools: dict[frozenset[str], PoolCalibration]
+
+    @property
+    def backends(self) -> frozenset[str]:
+        return frozenset().union(*self.pools)
+
+    def for_backends(self, backends: Any) -> Optional[PoolCalibration]:
+        return self.pools.get(frozenset(backends))
+
+
+@lru_cache(maxsize=4)
+def load_calibration(path: str = CALIBRATION_PATH) -> Calibration:
+    with open(path, encoding='utf-8') as f:
+        data = json.load(f)
+    return Calibration(
+        version=data['version'],
+        universe_size=int(data['universe_size']),
+        langid_top_k=int(data['langid_top_k']),
+        pools={
+            frozenset(pool['backends']): PoolCalibration(
+                weights=dict(pool['weights']),
+                floor=float(pool['floor']),
+                accept_confidence=float(pool['accept_confidence']),
+            )
+            for pool in data['pools']
+        },
+    )
+
+
+def pool_backend_distributions(
+    results: list[BackendResult],
+    pool: PoolCalibration,
+    universe_size: int,
+) -> tuple[dict[str, float], float]:
+    """Weighted log-linear pool of backend candidate distributions.
+
+    Each backend's scores are renormalized over its own candidates and mixed
+    with a floor (``pool.floor`` spread over ``universe_size`` languages), so
+    a language the backend did not list is unlikely rather than impossible.
+    Then ``log P(l) = sum_b w_b log q_b(l)``, normalized over the whole
+    universe. Languages no backend listed share the residual mass equally,
+    so agreement on a weak answer cannot renormalize to 1.0.
+
+    Returns the probabilities of the listed languages and the residual mass.
+    """
+    support = sorted({language for result in results for language in result.candidates})
+    if not support:
+        return {}, 1.0
+    n, floor = universe_size, pool.floor
+    log_scores = dict.fromkeys(support, 0.0)
+    log_unlisted = 0.0
+    for result in results:
+        weight = pool.weights.get(result.backend, 0.0)
+        total = sum(result.candidates.values())
+        if weight <= 0 or total <= 0:
+            continue
+        for language in support:
+            share = result.candidates.get(language, 0.0) / total
+            log_scores[language] += weight * math.log((1 - floor) * share + floor / n)
+        log_unlisted += weight * math.log(floor / n)
+
+    peak = max(max(log_scores.values()), log_unlisted)
+    scores = {language: math.exp(v - peak) for language, v in log_scores.items()}
+    residual = max(n - len(support), 0) * math.exp(log_unlisted - peak)
+    total = sum(scores.values()) + residual
+    return {language: v / total for language, v in scores.items()}, residual / total
 
 
 @dataclass(frozen=True)
@@ -532,17 +660,6 @@ class ScriptEvidence:
         return SCRIPT_CANDIDATES.get(self.dominant or '', ())
 
 
-@dataclass(frozen=True)
-class HeuristicSignals:
-    """Precomputed lexical signals used by ensemble voting heuristics."""
-    ascii_ratio: float
-    english_marker_count: int
-    spanish_marker_count: int
-    lower_text: str
-    non_en_latin_matched: bool
-    english_query_like: bool
-
-
 # ============================================================================
 # Main Language Detection Step
 # ============================================================================
@@ -551,16 +668,16 @@ class LanguageDetectionStep(PipelineStep):
     """
     Detect the language of the user's message using multiple backends.
 
-    This step uses an ensemble of detection libraries with weighted voting
-    for improved accuracy and robustness.
+    This step pools the full candidate distributions of several detection
+    libraries with calibrated weights, and abstains when the pooled
+    probability is too low.
 
     Enhancements:
     - Pre-compiled regex patterns for performance
     - Async parallel backend execution
-    - Per-backend confidence normalization
+    - Calibrated pooling of full backend candidate distributions
     - Expanded script and language coverage
     - Mixed-language detection
-    - Configurable heuristic nudges
     - Session persistence for language stickiness
     - Chat history language prior
     """
@@ -568,14 +685,11 @@ class LanguageDetectionStep(PipelineStep):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.backends = []
-        self.min_confidence = 0.7
-        self.min_margin = 0.2
+        self.calibration = load_calibration()
         self.min_letters = 5
         self.script_fast_path_min_letters = 1
         self.script_fast_path_min_coverage = 0.8
-        self.prefer_english_for_ascii = True
         self.enable_stickiness = False
-        self.heuristic_nudges = {}
         self.backend_timeout = 10.0
         self.use_chat_history_prior = True
         self.chat_history_messages_count = 5
@@ -590,32 +704,22 @@ class LanguageDetectionStep(PipelineStep):
             self._setup_backends()
 
     def _setup_backends(self):
-        """Initialize available backends with their weights."""
+        """Initialize the available backends; pooling weights come from the calibration file."""
         config = self.container.get_or_none('config') or {}
         lang_config = config.get('language_detection', {})
 
         enabled_backends = lang_config.get('backends', ['langdetect', 'langid', 'pycld2'])
 
         self.backends = []
-        backend_weights = lang_config.get('backend_weights', {
-            'langdetect': 1.0,
-            'langid': 1.2,
-            'pycld2': 1.5
-        })
-
         if 'langdetect' in enabled_backends and LANGDETECT_AVAILABLE:
-            self.backends.append(('langdetect', backend_weights.get('langdetect', 1.0), self._detect_langdetect))
+            self.backends.append(('langdetect', self._detect_langdetect))
 
         if 'langid' in enabled_backends and LANGID_AVAILABLE:
-            self.backends.append(('langid', backend_weights.get('langid', 1.2), self._detect_langid))
+            self.backends.append(('langid', self._detect_langid))
 
         if 'pycld2' in enabled_backends and PYCLD2_AVAILABLE:
-            self.backends.append(('pycld2', backend_weights.get('pycld2', 1.5), self._detect_pycld2))
+            self.backends.append(('pycld2', self._detect_pycld2))
 
-        # Store configuration
-        self.min_confidence = lang_config.get('min_confidence', 0.7)
-        self.min_margin = lang_config.get('min_margin', 0.2)
-        self.prefer_english_for_ascii = lang_config.get('prefer_english_for_ascii', True)
         self.enable_stickiness = lang_config.get('enable_stickiness', False)
 
         # Evidence thresholds: below min_letters the text is too short for the
@@ -624,12 +728,6 @@ class LanguageDetectionStep(PipelineStep):
         script_fast_path = lang_config.get('script_fast_path', {}) or {}
         self.script_fast_path_min_letters = script_fast_path.get('min_letters', 1)
         self.script_fast_path_min_coverage = script_fast_path.get('min_coverage', 0.8)
-
-        # Configurable heuristic nudges (new)
-        self.heuristic_nudges = lang_config.get('heuristic_nudges', {
-            'en_boost': 0.2,      # Boost for English in ASCII-heavy text
-            'es_penalty': 0.1,    # Penalty for Spanish in pure ASCII
-        })
 
         # Mixed language detection threshold
         self.mixed_language_threshold = lang_config.get('mixed_language_threshold', 0.3)
@@ -643,7 +741,10 @@ class LanguageDetectionStep(PipelineStep):
         # Backend timeout (default 2.0s to handle cold starts when models need to load)
         self.backend_timeout = lang_config.get('backend_timeout', 10.0)
 
-        logger.info(f"Initialized {len(self.backends)} language detection backends: {[b[0] for b in self.backends]}")
+        logger.info(
+            f"Initialized {len(self.backends)} language detection backends: {[b[0] for b in self.backends]} "
+            f"(calibration {self.calibration.version})"
+        )
 
     def should_execute(self, context: ProcessingContext) -> bool:
         """Determine if this step should execute."""
@@ -676,6 +777,11 @@ class LanguageDetectionStep(PipelineStep):
                 'confidence': result.confidence,
                 'method': result.method,
                 'abstained': result.abstained,
+                'accepted': result.accepted,
+                'calibrated': result.calibrated,
+                'agreement': result.agreement,
+                'margin': result.margin,
+                'detector_version': self.calibration.version,
                 'raw_results': result.raw_results
             }
 
@@ -722,6 +828,8 @@ class LanguageDetectionStep(PipelineStep):
                 'confidence': 0.0,
                 'method': 'abstained',
                 'abstained': True,
+                'accepted': False,
+                'calibrated': False,
                 'raw_results': {'reason': 'error'},
                 'error': str(e)
             })
@@ -836,7 +944,7 @@ class LanguageDetectionStep(PipelineStep):
         prior: Optional[ConversationPrior] = None,
     ) -> DetectionResult:
         """
-        Detect language using ensemble of multiple backends with async execution.
+        Detect language by pooling the backends' candidate distributions.
 
         The current message decides first. The conversation prior is consulted
         only when the message alone yields no accepted result (too short, or
@@ -851,6 +959,7 @@ class LanguageDetectionStep(PipelineStep):
         # Unique-script fast path, or high-confidence Latin phrase patterns
         script_result = self._detect_by_script(clean_text, evidence)
         if script_result.confidence > 0.9:
+            script_result.accepted = True
             return script_result
 
         # Too little text for the statistical backends: use a trustworthy
@@ -863,228 +972,87 @@ class LanguageDetectionStep(PipelineStep):
         candidates = self._narrow_candidates(clean_text, evidence)
 
         # Run all available backends in parallel
-        backend_results = []
-        raw_results = {}
-
+        backend_results: list[BackendResult] = []
+        raw_results: dict[str, Any] = {}
         if self.backends:
-            # Create tasks for parallel execution
-            tasks = []
-            backend_info = []
-
-            for backend_name, weight, detector_func in self.backends:
-                tasks.append(self._run_backend_with_timeout(backend_name, detector_func, clean_text, self.backend_timeout))
-                backend_info.append((backend_name, weight))
-
-            # Execute all backends concurrently with timeout
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            for i, result in enumerate(results):
-                backend_name, weight = backend_info[i]
+            names = [name for name, _ in self.backends]
+            results = await asyncio.gather(
+                *(self._run_backend_with_timeout(name, func, clean_text, self.backend_timeout)
+                  for name, func in self.backends),
+                return_exceptions=True,
+            )
+            for name, result in zip(names, results):
                 if isinstance(result, Exception):
-                    logger.warning(f"Backend {backend_name} failed: {result!s}")
-                    raw_results[backend_name] = {'error': str(result)}
+                    logger.warning(f"Backend {name} failed: {result!s}")
+                    raw_results[name] = {'error': str(result)}
                 elif result:
-                    backend_results.append((result, weight, backend_name))
-                    raw_results[backend_name] = {
-                        'language': result.language,
-                        'confidence': result.confidence
+                    raw_results[name] = {
+                        'candidates': {lang: round(score, 4) for lang, score in result.candidates.items()},
+                        'scale': result.scale,
+                        'reliable': result.reliable,
+                        'version': result.version,
                     }
+                    # A backend answering only "unknown" (e.g. CLD2 'un') has nothing to pool.
+                    if not result.abstained:
+                        backend_results.append(result)
 
-        # A backend answering "unknown" (e.g. CLD2 'un') has no vote to cast.
-        backend_results = [entry for entry in backend_results if not entry[0].abstained]
+        # Pool with the parameters fitted for exactly the backends that
+        # answered, so a missing or timed-out backend does not leave the
+        # others weighted and thresholded as if it were present.
+        backend_results = [r for r in backend_results if r.backend in self.calibration.backends]
         if not backend_results:
             return abstain('all_backends_failed', raw=raw_results)
+        pool = self.calibration.for_backends(r.backend for r in backend_results)
+        raw_results['pool_backends'] = sorted(r.backend for r in backend_results)
 
-        signals = self._compute_heuristic_signals(clean_text)
+        probabilities, residual = pool_backend_distributions(
+            backend_results, pool, self.calibration.universe_size
+        )
+        raw_results['pooled'] = {lang: round(p, 4) for lang, p in probabilities.items()}
+        raw_results['residual'] = round(residual, 4)
 
-        # Strong ASCII English heuristic
-        if self.prefer_english_for_ascii:
-            if signals.ascii_ratio > 0.98 and len(clean_text) <= 120:
-                if (
-                    ENGLISH_QUESTION_START_PATTERN.search(signals.lower_text)
-                    or signals.english_marker_count > 0
-                    or signals.english_query_like
-                ):
-                    if (
-                        signals.spanish_marker_count == 0
-                        and not NON_ENGLISH_DIACRITICS_PATTERN.search(signals.lower_text)
-                        and not signals.non_en_latin_matched
-                    ):
-                        return DetectionResult(
-                            language='en',
-                            confidence=0.9,
-                            method='heuristic_ascii_bias',
-                            raw_results={
-                                'reason': 'english_query_heuristic' if signals.english_query_like else 'english_question_heuristic'
-                            }
-                        )
-
-        language_votes = self._aggregate_backend_votes(backend_results)
-        self._apply_nudges(language_votes, signals)
-
-        # A shared script restricts which languages may win; votes outside the
-        # candidates still count toward the total so dropping them cannot
-        # inflate confidence.
-        eligible_votes = language_votes
+        # A shared script restricts which languages may win. Mass outside the
+        # candidates stays in the normalization, so dropping it cannot inflate
+        # confidence.
+        eligible = probabilities
         if candidates:
             raw_results['script_candidates'] = sorted(candidates)
-            eligible_votes = {lang: v for lang, v in language_votes.items() if lang in candidates and v > 0}
-            if not eligible_votes:
-                if len(candidates) == 1:
-                    return DetectionResult(
-                        language=next(iter(candidates)),
-                        confidence=0.75,
-                        method='script_letters',
-                        raw_results={'reason': 'distinctive_letters', 'votes': language_votes, 'raw': raw_results},
-                    )
-                return abstain('no_candidate_votes', votes=language_votes, raw=raw_results)
+            eligible = {lang: p for lang, p in probabilities.items() if lang in candidates}
+            if not eligible:
+                return abstain('no_candidate_votes', raw=raw_results)
 
-        # Sort to get top candidates
-        sorted_votes = sorted(eligible_votes.items(), key=lambda kv: kv[1], reverse=True)
-        best_language, best_score = sorted_votes[0]
-        second_score = sorted_votes[1][1] if len(sorted_votes) > 1 else 0.0
+        ranked = sorted(eligible.items(), key=lambda kv: (-kv[1], kv[0]))
+        best_language, best_confidence = ranked[0]
+        second_confidence = max((p for lang, p in probabilities.items() if lang != best_language), default=0.0)
+        margin = round(best_confidence - second_confidence, 4)
+        agreement = round(
+            sum(result.language == best_language for result in backend_results) / len(backend_results), 4
+        )
 
-        # Confidence is the winner's share of all weighted top-1 votes. It is a
-        # vote share, not a posterior probability (see roadmap Phase 3).
-        total_votes = sum(language_votes.values())
-        if total_votes > 0:
-            raw_best_confidence = best_score / total_votes
-        else:
-            raw_best_confidence = 0.0
-        raw_best_confidence = max(0.0, min(1.0, raw_best_confidence))
-        second_confidence = (second_score / total_votes) if total_votes > 0 else 0.0
-        margin = raw_best_confidence - second_confidence
-        best_confidence = raw_best_confidence
-
-        # Check for mixed language
-        if len(sorted_votes) > 1:
-            second_language = sorted_votes[1][0]
-            if second_confidence >= self.mixed_language_threshold and best_confidence < 0.8:
-                # This is potentially mixed-language text
+        # Check for mixed language (backend disagreement; spans arrive in Phase 4)
+        if len(ranked) > 1:
+            second_language, second_eligible = ranked[1]
+            if second_eligible >= self.mixed_language_threshold and best_confidence < 0.8:
                 raw_results['mixed_language_detected'] = True
                 raw_results['secondary_language'] = second_language
-                raw_results['secondary_confidence'] = second_confidence
+                raw_results['secondary_confidence'] = second_eligible
 
-        # Enforce minimum margin and confidence
-        # Margin is now the difference in confidence (proportion), not raw scores
-        if raw_best_confidence < self.min_confidence or margin < self.min_margin:
-            # The conversation prior, if the current message's votes support it
-            prior_result = self._prior_result(
-                prior, reason='below_threshold_or_margin', supported_by=eligible_votes,
-                votes=language_votes, raw=raw_results,
-            )
-            if prior_result:
-                return prior_result
-
-            # Prefer English for high ASCII ratio, but not if non-English Latin patterns matched
-            if (
-                self.prefer_english_for_ascii
-                and signals.ascii_ratio > 0.95
-                and signals.spanish_marker_count == 0
-                and not signals.non_en_latin_matched
-            ):
-                if (
-                    signals.english_marker_count > 0
-                    or ENGLISH_QUESTION_START_PATTERN.search(signals.lower_text)
-                    or signals.english_query_like
-                ):
-                    return DetectionResult(
-                        language='en',
-                        confidence=0.75,
-                        method='heuristic_ascii_bias',
-                        raw_results={
-                            'reason': 'below_threshold_or_margin',
-                            'votes': language_votes,
-                            'raw': raw_results,
-                            'english_query_like': signals.english_query_like,
-                        }
-                    )
-
-            # If non-English Latin patterns matched, trust the best voted language;
-            # otherwise the evidence is insufficient and detection abstains.
-            if not signals.non_en_latin_matched:
-                return abstain('below_threshold', votes=language_votes, raw=raw_results)
-            return DetectionResult(
-                language=best_language,
-                confidence=best_confidence,
-                method='threshold_fallback',
-                raw_results={'votes': language_votes, 'raw': raw_results}
-            )
+        if best_confidence < pool.accept_confidence:
+            # The conversation prior, if the current message's candidates include it
+            return self._prior_result(
+                prior, reason='below_threshold', supported_by=eligible, raw=raw_results,
+            ) or abstain('below_threshold', raw=raw_results)
 
         return DetectionResult(
             language=best_language,
             confidence=best_confidence,
-            method='ensemble_voting',
-            raw_results=raw_results
+            method='calibrated_ensemble',
+            raw_results=raw_results,
+            accepted=True,
+            calibrated=True,
+            agreement=agreement,
+            margin=margin,
         )
-
-    def _compute_heuristic_signals(self, clean_text: str) -> HeuristicSignals:
-        """Compute reusable text signals for language heuristics."""
-        ascii_ratio = self._ascii_ratio(clean_text)
-        english_marker_count = len(ENGLISH_MARKERS_PATTERN.findall(clean_text))
-        spanish_marker_count = len(SPANISH_MARKERS_PATTERN.findall(clean_text))
-        ascii_word_tokens = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", clean_text)
-        lower_text = clean_text.lower()
-
-        non_en_latin_matched = False
-        for lang_code, patterns, _base_confidence in LATIN_WORD_PATTERNS:
-            min_matches = 2 if lang_code in AMBIGUOUS_LATIN_LANGS else 1
-            matches = sum(1 for pattern in patterns if pattern.search(lower_text))
-            if matches >= min_matches:
-                non_en_latin_matched = True
-                break
-
-        english_query_like = (
-            ascii_ratio > 0.98
-            and len(clean_text) <= 120
-            and len(ascii_word_tokens) >= 3
-            and ENGLISH_QUERY_MARKERS_PATTERN.search(lower_text) is not None
-            and spanish_marker_count == 0
-            and not NON_ENGLISH_DIACRITICS_PATTERN.search(lower_text)
-            and not non_en_latin_matched
-        )
-
-        return HeuristicSignals(
-            ascii_ratio=ascii_ratio,
-            english_marker_count=english_marker_count,
-            spanish_marker_count=spanish_marker_count,
-            lower_text=lower_text,
-            non_en_latin_matched=non_en_latin_matched,
-            english_query_like=english_query_like,
-        )
-
-    def _aggregate_backend_votes(
-        self,
-        backend_results: list[tuple[DetectionResult, float, str]],
-    ) -> dict[str, float]:
-        """Aggregate normalized backend scores.
-
-        The conversation prior is deliberately not added as votes: it would
-        count the same earlier turns again and could flip an accepted result.
-        """
-        language_votes: dict[str, float] = {}
-
-        for result, weight, _backend_name in backend_results:
-            lang = normalize_language_code(result.language)
-            conf = max(0.0, min(1.0, result.confidence))
-            language_votes[lang] = language_votes.get(lang, 0) + conf * weight
-
-        return language_votes
-
-    def _apply_nudges(self, language_votes: dict[str, float], signals: HeuristicSignals) -> None:
-        """Apply configured heuristic nudges to aggregated votes in place."""
-        en_boost = self.heuristic_nudges.get('en_boost', 0.2)
-        es_penalty = self.heuristic_nudges.get('es_penalty', 0.1)
-
-        if (
-            self.prefer_english_for_ascii
-            and signals.ascii_ratio > 0.95
-            and (signals.english_marker_count > 0 or signals.english_query_like)
-            and signals.spanish_marker_count == 0
-        ):
-            language_votes['en'] = language_votes.get('en', 0) + en_boost
-            if 'es' in language_votes:
-                language_votes['es'] = max(0, language_votes['es'] - es_penalty)
 
     async def _run_backend_with_timeout(
         self,
@@ -1092,7 +1060,7 @@ class LanguageDetectionStep(PipelineStep):
         detector_func,
         text: str,
         timeout: float = 0.5
-    ) -> Optional[DetectionResult]:
+    ) -> Optional[BackendResult]:
         """Run a backend detector with timeout."""
         try:
             # Run in executor since detection libraries are synchronous
@@ -1151,7 +1119,7 @@ class LanguageDetectionStep(PipelineStep):
         """The conversation prior's language, for a message that cannot decide alone.
 
         The prior's top language must hold at least PRIOR_MIN_SHARE of its
-        weight and, when ``supported_by`` votes are given, be among them.
+        weight and, when ``supported_by`` candidates are given, be among them.
         Confidence stays below retrieval_min_confidence: a prior may pick the
         reply language but should not re-rank retrieved documents.
         """
@@ -1254,99 +1222,68 @@ class LanguageDetectionStep(PipelineStep):
         text = WHITESPACE_PATTERN.sub(' ', text).strip()
         return text
 
-    def _ascii_ratio(self, text: str) -> float:
-        """Compute ratio of ASCII characters to total characters."""
-        if not text:
-            return 1.0
-        total = len(text)
-        ascii_count = sum(1 for c in text if ord(c) < 128)
-        return ascii_count / total if total else 1.0
-
     # ========================================================================
-    # Backend Detection Methods with Per-Backend Normalization
+    # Backend adapters: each returns its full candidate list (BackendResult)
     # ========================================================================
 
-    def _detect_langdetect(self, text: str) -> Optional[DetectionResult]:
-        """Detect language using langdetect library."""
+    def _detect_langdetect(self, text: str) -> Optional[BackendResult]:
+        """Every language langdetect's sampling assigned a probability to."""
         if not LANGDETECT_AVAILABLE:
             return None
         try:
             lang_probs = detect_langs(text)
-            if lang_probs:
-                best = lang_probs[0]
-                # langdetect already returns 0-1 probabilities
-                return DetectionResult(
-                    language=best.lang,
-                    confidence=best.prob,
-                    method='langdetect'
-                )
         except LangDetectException:
-            pass
-        return None
+            return None
+        return BackendResult(
+            backend='langdetect',
+            candidates=candidate_scores((c.lang, c.prob) for c in lang_probs),
+            scale='probability',
+            version=_package_version('langdetect'),
+        )
 
-    def _detect_langid(self, text: str) -> Optional[DetectionResult]:
-        """Detect language using langid library with proper normalization."""
+    def _detect_langid(self, text: str) -> Optional[BackendResult]:
+        """langid's top-k languages, softmaxed over those k only.
+
+        The softmax is not a probability over all languages; the raw
+        log-probabilities are kept for calibration.
+        """
         if not LANGID_AVAILABLE:
             return None
         try:
-            # Use rank() to get comparable scores and apply softmax
-            if hasattr(langid, 'rank'):
-                ranked = langid.rank(text)
-                if ranked:
-                    # ranked is list of (lang, score), scores are log-probs
-                    top_k = ranked[:5]
-                    max_score = max(s for _, s in top_k)
-                    # Apply softmax over top-K for proper probability
-                    exps = [math.exp(s - max_score) for _, s in top_k]
-                    total = sum(exps) or 1.0
-                    probs = [e / total for e in exps]
-                    lang = top_k[0][0]
-                    confidence = probs[0]
-                    return DetectionResult(
-                        language=lang,
-                        confidence=confidence,
-                        method='langid'
-                    )
-
-            # Fallback to classify()
-            lang, score = langid.classify(text)
-            # Apply softmax to single score (compare against 0)
-            try:
-                confidence = 1.0 / (1.0 + math.exp(-float(score)))
-            except Exception:
-                logger.debug("langid confidence normalization failed", exc_info=True)
-                confidence = 0.7
-            confidence = max(0.0, min(1.0, confidence))
-            return DetectionResult(
-                language=lang,
-                confidence=confidence,
-                method='langid'
-            )
+            top_k = langid.rank(text)[:self.calibration.langid_top_k]
         except Exception:
             logger.debug("langid detection failed", exc_info=True)
-        return None
+            return None
+        if not top_k:
+            return None
+        best = max(score for _, score in top_k)
+        exps = [(lang, math.exp(score - best)) for lang, score in top_k]
+        total = sum(e for _, e in exps)
+        return BackendResult(
+            backend='langid',
+            candidates=candidate_scores((lang, e / total) for lang, e in exps),
+            scale='softmax_top_k',
+            version=_package_version('langid'),
+            raw={'log_probs': [(lang, round(float(score), 3)) for lang, score in top_k]},
+        )
 
-    def _detect_pycld2(self, text: str) -> Optional[DetectionResult]:
-        """Detect language using pycld2 library with proper normalization."""
+    def _detect_pycld2(self, text: str) -> Optional[BackendResult]:
+        """pycld2's languages with their share of the text and its reliability flag."""
         if not PYCLD2_AVAILABLE:
             return None
         try:
             is_reliable, text_bytes_found, details = cld2.detect(text)
-            if details:
-                lang_code = details[0][1]
-                # pycld2 returns percentage (0-100), normalize to 0-1
-                raw_confidence = details[0][2]
-                confidence = raw_confidence / 100.0
-
-                # Apply reliability factor
-                if not is_reliable:
-                    confidence *= 0.7  # Reduce confidence for unreliable detections
-
-                return DetectionResult(
-                    language=lang_code,
-                    confidence=confidence,
-                    method='pycld2'
-                )
         except Exception:
             logger.debug("pycld2 detection failed", exc_info=True)
-        return None
+            return None
+        return BackendResult(
+            backend='pycld2',
+            candidates=candidate_scores((code, percent / 100.0) for _, code, percent, _ in details),
+            scale='text_percent',
+            version=_package_version('pycld2'),
+            reliable=bool(is_reliable),
+            raw={
+                'text_bytes': text_bytes_found,
+                'details': [(code, percent, score) for _, code, percent, score in details if code != 'un'],
+            },
+        )

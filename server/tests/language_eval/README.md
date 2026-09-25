@@ -33,8 +33,10 @@ skip is not an accuracy signal.
 | `data/benchmark_v1.jsonl` | Frozen corpus, one JSON record per line. |
 | `runner.py` | Runs a detector mode over the corpus and writes a JSON report plus a Markdown summary. |
 | `reports/phase0_baseline_v1.json` | Baseline for the pre-Phase-1 detector: metrics, environment, config and per-record pipeline predictions. Kept for comparison. |
-| `reports/phase1_baseline_v1.json` | Baseline after Phase 1. This is the one the regression gate reads (`BASELINE_REPORT_PATH`). |
-| `test_benchmark.py` | Schema and split checks, a determinism check, and the held-out regression gate. |
+| `reports/phase1_baseline_v1.json` | Baseline after Phases 1–2 (Phase 2 did not re-record it). Kept for comparison. |
+| `reports/phase3_baseline_v1.json` | Baseline after Phase 3 (calibrated pooling). This is the one the regression gate reads (`BASELINE_REPORT_PATH`). |
+| `calibrate.py` | Fits pooling weights, floor and acceptance threshold for each set of backends on the tune split and writes `server/inference/pipeline/steps/language_detection_calibration.json`. |
+| `test_benchmark.py` | Schema and split checks, a calibration-provenance check, a determinism check, and the held-out regression gate. |
 
 ## Record schema
 
@@ -112,7 +114,8 @@ Reported per split, per mode:
   accepted predictions.
 - `margin`: top-two margin distributions for correct and incorrect
   predictions. For backends this uses their own score scale. For the pipeline
-  it is available only on paths that expose the vote table.
+  it is the pooled-probability margin, available on `calibrated_ensemble`
+  results.
 - `mixed_language`:
   - precision and recall of the mixed flag;
   - monolingual false-positive rate;
@@ -123,6 +126,22 @@ Reported per split, per mode:
   `related_confusion` matrices for commonly confused language groups.
 - `performance`: first-call latency, p50/p95/mean/max latency and process
   peak RSS. These vary by machine and are never gated.
+
+## Calibration
+
+The detector's pooling weights, floor and acceptance threshold are fitted on
+the **tune** split only, once for each non-empty set of backends, and frozen in
+`server/inference/pipeline/steps/language_detection_calibration.json`:
+
+```bash
+venv/bin/python server/tests/language_eval/calibrate.py --dry-run  # print the fit
+venv/bin/python server/tests/language_eval/calibrate.py            # write it
+```
+
+The fit is deterministic. The file records the corpus SHA-256, the split and
+the backend versions, and `test_calibration_was_fitted_on_frozen_tune_split`
+fails if the corpus changes. After refitting, re-record the baseline, because
+predictions change.
 
 ## Regression gate and re-baselining
 

@@ -31,12 +31,17 @@ def _make_step(config=None):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("language,boosted", [("unknown", False), ("fr", True)])
-async def test_boost_only_for_accepted_language(language, boosted):
+@pytest.mark.parametrize("language,accepted,boosted", [
+    ("unknown", False, False),
+    ("fr", True, True),
+    ("fr", False, False),  # conversation-prior result: not decided by this message
+])
+async def test_boost_only_for_accepted_language(language, accepted, boosted):
     step = _make_step()
     step._apply_language_boost = MagicMock(side_effect=lambda docs, *_: docs)
     context = ProcessingContext(message="bonjour tout le monde", adapter_name="qa")
     context.detected_language = language
+    context.language_detection_meta = {"accepted": accepted}
     context.metadata["last_detected_language_confidence"] = 0.95
 
     await step.process(context)

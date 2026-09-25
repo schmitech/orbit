@@ -17,14 +17,13 @@ from typing import Any, Optional
 
 from inference.pipeline.base import ProcessingContext
 from inference.pipeline.steps.language_detection import (
+    BackendResult,
     ConversationPrior,
     DetectionResult,
-    ENGLISH_MARKERS_PATTERN,
     LANGDETECT_AVAILABLE,
     LANGID_AVAILABLE,
     LanguageDetectionStep,
     PYCLD2_AVAILABLE,
-    SPANISH_MARKERS_PATTERN,
     normalize_language_code,
 )
 
@@ -47,21 +46,9 @@ class MockContainer:
             'language_detection': {
                 'enabled': True,
                 'backends': ['langdetect', 'langid', 'pycld2'],
-                'backend_weights': {
-                    'langdetect': 1.0,
-                    'langid': 1.2,
-                    'pycld2': 1.5
-                },
-                'min_confidence': 0.7,
-                'min_margin': 0.2,
-                'prefer_english_for_ascii': True,
                 'enable_stickiness': False,  # Production default; stickiness tests enable it
                 'ambiguous_response_language': 'en',
                 'backend_timeout': 10.0,
-                'heuristic_nudges': {
-                    'en_boost': 0.2,
-                    'es_penalty': 0.1
-                },
                 'mixed_language_threshold': 0.3,
                 'use_chat_history_prior': True,  # No chat_history_service is registered
             },
@@ -225,7 +212,7 @@ class TestScriptDetection:
     async def test_shared_script_resolved_by_backends(self, detector, text, expected):
         result = await detector._detect_language_ensemble_async(text)
         assert result.language == expected
-        assert result.method == 'ensemble_voting'
+        assert result.method == 'calibrated_ensemble'
 
     def test_persian_letters_rule_out_arabic(self, detector):
         """Persian letters (shared with Urdu/Pashto) exclude Arabic without selecting Persian."""
@@ -392,6 +379,12 @@ class TestEnglishDetection:
         assert result.language == 'en'
         assert result.language != 'es'
 
+    @pytest.mark.xfail(
+        reason="All three backends read this query as French; the ASCII-English heuristic that "
+               "masked it was removed in Phase 3 because it added high-confidence errors on the "
+               "benchmark. Re-measure once benchmark v2 has English search queries.",
+        strict=True,
+    )
     @pytest.mark.asyncio
     async def test_english_search_query_not_misclassified_as_french(self, detector):
         """Short English search-style queries should remain English."""
@@ -653,22 +646,6 @@ class TestTextCleaning:
         text = "Use the `print()` function"
         cleaned = detector._clean_text_for_detection(text)
         assert "`" not in cleaned
-
-
-class TestMarkerPatterns:
-    """Tests for marker pattern matching."""
-
-    def test_english_markers_pattern(self):
-        """English marker pattern should match common words."""
-        test_text = "The quick brown fox can jump. What is this? Please help!"
-        matches = ENGLISH_MARKERS_PATTERN.findall(test_text.lower())
-        assert len(matches) >= 4  # the, can, what, is, this, please
-
-    def test_spanish_markers_pattern(self):
-        """Spanish marker pattern should match distinctive characters."""
-        test_text = "¿Cómo estás? ¡Hola amigo!"
-        matches = SPANISH_MARKERS_PATTERN.findall(test_text)
-        assert len(matches) >= 2  # ¿, ó, á, ¡
 
 
 class TestPipelineIntegration:
@@ -1326,9 +1303,9 @@ class TestUnknownIsSeparateFromFallback:
     async def test_below_threshold_ascii_text_abstains_instead_of_english(self):
         detector = LanguageDetectionStep(MockContainer())
         detector._run_backend_with_timeout = AsyncMock(side_effect=[
-            DetectionResult('de', 0.5, 'langdetect'),
-            DetectionResult('nl', 0.5, 'langid'),
-            DetectionResult('fr', 0.5, 'pycld2'),
+            BackendResult('langdetect', {'de': 0.5}, 'probability'),
+            BackendResult('langid', {'nl': 0.5}, 'softmax_top_k'),
+            BackendResult('pycld2', {'fr': 0.5}, 'text_percent'),
         ])
         result = await detector._detect_language_ensemble_async("zorgvuldig afgestemd plan")
         assert result.abstained
@@ -1337,7 +1314,7 @@ class TestUnknownIsSeparateFromFallback:
     @pytest.mark.asyncio
     async def test_backend_unknown_answer_is_not_a_vote(self):
         detector = LanguageDetectionStep(MockContainer())
-        detector._run_backend_with_timeout = AsyncMock(return_value=DetectionResult('un', 0.9, 'pycld2'))
+        detector._run_backend_with_timeout = AsyncMock(return_value=BackendResult('pycld2', {}, 'text_percent'))
         result = await detector._detect_language_ensemble_async("zorgvuldig afgestemd plan")
         assert result.abstained
         assert result.raw_results['reason'] == 'all_backends_failed'

@@ -43,7 +43,7 @@ from inference.pipeline.steps import language_detection as ld
 BENCHMARK_VERSION = "v1"
 DATASET_PATH = os.path.join(HERE, "data", f"benchmark_{BENCHMARK_VERSION}.jsonl")
 CANONICAL_CONFIG_PATH = os.path.join(REPO_ROOT, "config", "config.yaml")
-BASELINE_REPORT_PATH = os.path.join(HERE, "reports", f"phase1_baseline_{BENCHMARK_VERSION}.json")
+BASELINE_REPORT_PATH = os.path.join(HERE, "reports", f"phase3_baseline_{BENCHMARK_VERSION}.json")
 
 BACKEND_MODES = ("langdetect", "langid", "pycld2")
 PIPELINE_MODES = ("pipeline", "pipeline+context")
@@ -190,7 +190,7 @@ class _PriorChatHistory:
         lang = self._languages.get(session_id)
         if not lang:
             return []
-        evidence = {"language": lang, "confidence": 0.95, "method": "ensemble_voting", "abstained": False}
+        evidence = {"language": lang, "confidence": 0.95, "method": "calibrated_ensemble", "abstained": False}
         return [
             {"role": "user", "content": "", "metadata": {"language_detection": evidence}},
             {"role": "assistant", "content": "", "metadata": {}},
@@ -213,33 +213,6 @@ def _top2_margin(scores: list[float]) -> float | None:
     return ordered[0] - (ordered[1] if len(ordered) > 1 else 0.0)
 
 
-def _backend_margin(backend: str, text: str) -> float | None:
-    """Top-two margin on each backend's own score scale (as the step normalizes it)."""
-    try:
-        if backend == "langdetect":
-            return _top2_margin([c.prob for c in ld.detect_langs(text)])
-        if backend == "langid":
-            top_k = ld.langid.rank(text)[:5]
-            best = max(s for _, s in top_k)
-            exps = [math.exp(s - best) for _, s in top_k]
-            return _top2_margin([e / sum(exps) for e in exps])
-        if backend == "pycld2":
-            _, _, details = ld.cld2.detect(text)
-            return _top2_margin([d[2] / 100.0 for d in details if d[1] != "un"])
-    except Exception:
-        return None
-    return None
-
-
-def _pipeline_margin(raw: dict[str, Any] | None) -> float | None:
-    """Vote-share margin, available only on paths that expose the vote table."""
-    votes = (raw or {}).get("votes")
-    if not votes:
-        return None
-    total = sum(votes.values())
-    return _top2_margin([v / total for v in votes.values()]) if total > 0 else None
-
-
 async def _predict_pipeline(step, record: dict[str, Any], with_context: bool) -> dict[str, Any]:
     session_id = f"eval-{record['id']}" if with_context and record.get("context_lang") else None
     context = ProcessingContext(message=record["text"], adapter_name="language-eval", session_id=session_id)
@@ -249,7 +222,7 @@ async def _predict_pipeline(step, record: dict[str, Any], with_context: bool) ->
         "pred": context.detected_language,
         "confidence": meta.get("confidence"),
         "method": meta.get("method"),
-        "margin": _pipeline_margin(meta.get("raw_results")),
+        "margin": meta.get("margin"),
         "secondary": meta.get("secondary_language") if meta.get("mixed_language_detected") else None,
         "spans": None,
     }
@@ -260,9 +233,9 @@ def _predict_backend(step, backend: str, record: dict[str, Any]) -> dict[str, An
     result = getattr(step, f"_detect_{backend}")(clean) if clean else None
     return {
         "pred": result.language if result else None,
-        "confidence": result.confidence if result else None,
+        "confidence": result.score if result else None,
         "method": backend,
-        "margin": _backend_margin(backend, clean) if result else None,
+        "margin": _top2_margin(list(result.candidates.values())) if result else None,
         "secondary": None,
         "spans": None,
     }

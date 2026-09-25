@@ -392,7 +392,6 @@ class ConfigurationSummaryLogger:
             self.logger.info("  Automatic language matching for multilingual responses")
             backends = lang_detect_config.get('backends', ['langdetect'])
             self.logger.info(f"  Backends: {', '.join(backends)}")
-            self.logger.info(f"  Min confidence: {lang_detect_config.get('min_confidence', 0.7)}")
             response_language = (
                 lang_detect_config.get('ambiguous_response_language')
                 or lang_detect_config.get('fallback_language', 'en')

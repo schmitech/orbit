@@ -331,11 +331,14 @@ class ContextRetrievalStep(PipelineStep):
                 context.set_error("Request cancelled after context retrieval", block=True)
                 return context
 
-            # Apply language-aware boosting/filtering if language detection is available
+            # Apply language-aware boosting/filtering only for a language the
+            # current message decided; _apply_language_boost enforces
+            # retrieval_min_confidence.
             detected_language = getattr(context, 'detected_language', None)
             language_confidence = context.metadata.get('last_detected_language_confidence', 0.0)
+            detection_meta = getattr(context, 'language_detection_meta', None) or {}
 
-            if detected_language and detected_language != UNKNOWN_LANGUAGE and language_confidence > 0.5:
+            if detected_language and detected_language != UNKNOWN_LANGUAGE and detection_meta.get('accepted'):
                 docs = self._apply_language_boost(docs, detected_language, language_confidence)
 
             context.retrieved_docs = docs

@@ -18,6 +18,11 @@ from adapters.capabilities import get_capability_registry
 
 logger = logging.getLogger(__name__)
 
+# Calibrated detection confidence at which the reply language is stated
+# outright. On the benchmark tune split, accepted detections at >= 0.9 are
+# 97% correct and those below it 84%.
+STRONG_LANGUAGE_INSTRUCTION_CONFIDENCE = 0.9
+
 # Turns that plausibly want a chart get the full formatting spec; everything
 # else on a chart-capable adapter gets the compact CHART_HINT instead.
 _CHART_INTENT_RE = re.compile(
@@ -181,8 +186,6 @@ class PromptInstructionBuilder:
 
         detected_language = getattr(context, "detected_language", None)
         detection_meta = getattr(context, "language_detection_meta", {}) or {}
-        min_conf = lang_detect_config.get("min_confidence", 0.7)
-        prefer_ascii_en = lang_detect_config.get("prefer_english_for_ascii", True)
 
         language_names = {
             "en": "English",
@@ -221,34 +224,18 @@ class PromptInstructionBuilder:
 
         language_name = language_names.get(detected_language, detected_language.upper())
 
-        method = detection_meta.get("method", "")
+        # Only a language the current message decided (not a conversation
+        # prior) is named outright, and only at a confidence whose tune-split
+        # accuracy supports it.
         confidence = float(detection_meta.get("confidence", 0.0))
-        msg = context.message or ""
-        ascii_ratio = (sum(1 for c in msg if ord(c) < 128) / len(msg)) if msg else 1.0
+        accepted = bool(detection_meta.get("accepted"))
 
-        trusted_method = method in (
-            "ensemble_voting",
-            "word_pattern_detection",
-            "phrase_pattern_detection",
-        ) and confidence >= 0.5
-        trusted_non_en_fallback = method == "threshold_fallback" and detected_language != "en"
-        low_conf_or_heuristic = (
-            confidence < min_conf and not trusted_method and not trusted_non_en_fallback
-        ) or method == "heuristic_ascii_bias"
-        if prefer_ascii_en and ascii_ratio > 0.95 and low_conf_or_heuristic:
-            return (
-                "\nIMPORTANT: The user's message appears to be in English or ambiguous. "
-                "Default to English and respond entirely in English. Do not include translations or any non-English text."
-            )
+        confident = accepted and confidence >= STRONG_LANGUAGE_INSTRUCTION_CONFIDENCE
 
-        if detected_language == "en":
+        if confident and detected_language == "en":
             return "\nIMPORTANT: Respond entirely in English. Do not include any non-English words or translations."
 
-        if confidence >= 0.85 and method not in (
-            "threshold_fallback",
-            "heuristic_ascii_bias",
-            "sticky_previous",
-        ):
+        if confident:
             instruction = (
                 f"\nIMPORTANT: The user is writing in {language_name}. You must respond entirely in {language_name}. "
                 f"Do not include translations, explanations in other languages, or bilingual responses. "

@@ -12,6 +12,7 @@ import re
 from collections import Counter
 
 import pytest
+from inference.pipeline.steps.language_detection import CALIBRATION_PATH
 
 from language_eval.runner import (
     BASELINE_REPORT_PATH,
@@ -67,6 +68,25 @@ def test_baseline_matches_frozen_dataset():
         "benchmark data changed since the baseline was recorded; re-record it (README.md) "
         "and report the before/after numbers"
     )
+
+
+def test_calibration_was_fitted_on_frozen_tune_split():
+    with open(CALIBRATION_PATH, encoding="utf-8") as f:
+        fitted_on = json.load(f)["fitted_on"]
+    assert fitted_on["split"] == "tune", "calibration must never be fitted on heldout"
+    assert fitted_on["sha256"] == dataset_sha256(DATASET_PATH), (
+        "benchmark data changed since the calibration was fitted; rerun calibrate.py (README.md)"
+    )
+
+
+def test_tuning_loss_gives_unlisted_gold_its_residual_share():
+    from language_eval.calibrate import UNIVERSE_SIZE, gold_probability
+
+    record = {"lang": "hi", "alternatives": ["ur"]}
+    probabilities, residual = {"en": 0.6, "es": 0.3}, 0.1
+    share = residual / (UNIVERSE_SIZE - 2)
+    assert gold_probability(record, probabilities, residual) == pytest.approx(2 * share)
+    assert gold_probability({"lang": "en", "alternatives": []}, probabilities, residual) == 0.6
 
 
 pipeline_available = pytest.mark.skipif(

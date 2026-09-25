@@ -551,54 +551,54 @@ changes the backend result contract.
 
 ### Data model
 
-- [ ] Introduce a backend result shape containing:
+- [x] Introduce a backend result shape containing:
   - normalized language candidates and raw scores;
   - backend reliability/status;
   - backend name and version;
   - any backend-specific raw evidence needed for calibration;
   - optional detected spans.
-- [ ] Keep `DetectionResult` as the pipeline-facing decision, but add explicit
+- [x] Keep `DetectionResult` as the pipeline-facing decision, but add explicit
       fields for agreement, margin, accepted/abstained state, and calibrated
       confidence where appropriate.
-- [ ] Avoid presenting a heuristic score as a probability.
+- [x] Avoid presenting a heuristic score as a probability.
 
 ### Backend adapters
 
-- [ ] Preserve the available `detect_langs()` distribution from `langdetect`
+- [x] Preserve the available `detect_langs()` distribution from `langdetect`
       rather than only the first result.
-- [ ] Preserve a configurable top-k distribution from `langid`; do not label a
+- [x] Preserve a configurable top-k distribution from `langid`; do not label a
       top-five-only softmax as globally normalized probability.
-- [ ] Preserve all meaningful `pycld2` details and its reliability flag.
-- [ ] Normalize language codes before distribution aggregation.
-- [ ] Add contract tests using fixed backend outputs so aggregation tests do not
+- [x] Preserve all meaningful `pycld2` details and its reliability flag.
+- [x] Normalize language codes before distribution aggregation.
+- [x] Add contract tests using fixed backend outputs so aggregation tests do not
       depend on installed native libraries.
 
 ### Calibration and aggregation
 
-- [ ] Fit per-backend calibration on the tuning split. Compare temperature
+- [x] Fit per-backend calibration on the tuning split. Compare temperature
       scaling, isotonic calibration, or a simpler empirically validated mapping.
-- [ ] Combine complete calibrated distributions with a documented method such
+- [x] Combine complete calibrated distributions with a documented method such
       as a weighted log-linear pool or a small stacking classifier.
-- [ ] Include text length, script evidence, and backend reliability as features
+- [x] Include text length, script evidence, and backend reliability as features
       only when benchmark evidence supports them.
-- [ ] Derive backend weights, acceptance confidence, and minimum margin from the
+- [x] Derive backend weights, acceptance confidence, and minimum margin from the
       tuning split.
-- [ ] Freeze calibration parameters as versioned data or deterministic config;
+- [x] Freeze calibration parameters as versioned data or deterministic config;
       record the benchmark/model version that produced them.
-- [ ] Apply conversation priors before the final decision in a way that cannot
+- [x] Apply conversation priors before the final decision in a way that cannot
       turn a weak prior into high confidence by renormalization alone.
-- [ ] Remove hard-coded English/Spanish vote nudges when calibrated evidence
+- [x] Remove hard-coded English/Spanish vote nudges when calibrated evidence
       supersedes them. Retain a heuristic only if an ablation demonstrates a
       held-out improvement.
 
 ### Downstream semantics
 
-- [ ] Review `PromptBuilder` confidence thresholds against calibrated values.
-- [ ] Make context retrieval use the configured
+- [x] Review `PromptBuilder` confidence thresholds against calibrated values.
+- [x] Make context retrieval use the configured
       `retrieval_min_confidence` consistently; avoid a separate hard-coded
       pre-check with different semantics.
-- [ ] Apply language-based retrieval changes only to accepted predictions.
-- [ ] Include detector method/version in debug metadata so benchmark and
+- [x] Apply language-based retrieval changes only to accepted predictions.
+- [x] Include detector method/version in debug metadata so benchmark and
       production results can be compared.
 
 ### Gate
@@ -610,6 +610,202 @@ changes the backend result contract.
 - Prompt and retrieval thresholds are backed by calibration results rather
   than the previous score scale.
 
+**Status: met.**
+- **Calibration error:** held-out ECE 0.180 (Phase 0) → 0.040, Brier 0.205 →
+  0.040.
+- **High-confidence errors:** 5 → 0 on held-out.
+- **No weak agreement becomes 1.0:** each backend keeps a floor for languages
+  it did not list, and those languages keep their share of the probability.
+  `test_language_calibration.py` checks three cases:
+  - unanimous-but-weak backends stay below 0.9;
+  - unanimous single candidates stay below 1.0;
+  - a single script candidate that the backends disagree with abstains.
+- **Thresholds:**
+  - acceptance is fitted on tune, per set of backends (0.70 with all three);
+  - `PromptBuilder` names the language only for accepted results at ≥ 0.9,
+    where tune accuracy is 97% (84% below 0.9);
+  - retrieval boosts only accepted results at ≥ `retrieval_min_confidence`
+    (0.7); on tune, accepted results at ≥ 0.7 are 96% correct.
+- **Regression gate:** held-out selective accuracy rose from 0.922 to 0.942,
+  and the gate was re-baselined on the Phase 3 report.
+
+### Phase 3 decisions
+
+- **Backend contract.** Adapters return `BackendResult`:
+  - backend name and package version;
+  - every candidate, with codes normalized before merging;
+  - the scale the scores are on;
+  - raw evidence (langid log-probabilities; pycld2 details, text bytes and
+    reliability flag);
+  - an optional `spans` field for Phase 4.
+
+  The scales are:
+  - langdetect: `probability`;
+  - langid: `softmax_top_k`, softmaxed over its top 10 only, so not a global
+    probability;
+  - pycld2: `text_percent`, its share of the text rather than a confidence.
+- **Pooling.** A weighted log-linear pool:
+  - Each backend's scores are renormalized and mixed with a floor, spread
+    over a nominal 100 languages. A language it did not list is then
+    unlikely, not impossible.
+  - Languages that no backend listed share the remaining mass equally.
+  - A shared script restricts which languages may win, but mass outside the
+    candidates stays in the total.
+- **One calibration per backend set.**
+  - Weights and a threshold fitted for all three backends do not transfer to
+    fewer: with the all-backend weights, a single 100% candidate from pycld2
+    alone pooled to 0.41, so a pycld2-only deployment always abstained.
+  - Each of the 7 non-empty backend sets therefore has its own weights, floor
+    and threshold.
+  - The step uses the set that actually answered. A backend that times out or
+    answers only `unknown` falls back to the smaller set's calibration.
+  - A backend with no calibration is ignored.
+- **What was fitted, on tune only, for each backend set.**
+  - **Training records:** those where every backend in the set answered,
+    using only that set's results.
+  - **Weights:** fitted by minimizing the negative log-likelihood (NLL) of the
+    gold language. A gold language that no backend listed gets its share of
+    the residual mass, as in the pool itself.
+    - This applies to 7 of the 129 tune records.
+    - v1 of the calibration scored those records at 1e-12 instead, which
+      dominated the fit. Fixing it lowered all-backend tune NLL from 1.88 to
+      0.36.
+  - **Temperature:** the per-backend weight works as the backend's
+    temperature. A separate temperature could not be identified from the
+    weight, so it was dropped.
+  - **Floor:** the one with the lowest NLL in {0.1, 0.03, 0.01, 0.003, 0.001}.
+  - **All three backends:** weights langdetect 0.217, langid 0.261, pycld2
+    0.355, floor 0.001.
+  - `calibrate.py` reproduces the fit deterministically.
+- **Acceptance threshold** (grid 0.40–0.90).
+  - Rule: minimize 2 × wrong + unwarranted abstentions over the whole tune
+    split. The real pipeline is run with only that backend set enabled, and
+    the smallest sets are fitted first so fallbacks are final.
+  - A wrong language costs twice as much, because an abstention still tells
+    the model to reply in the user's language.
+  - Result: 0.70 for all three backends. Single backends: langdetect 0.70,
+    langid 0.45, pycld2 0.40.
+  - The minimum margin was dropped: sweeping it (0–0.4) on the first fit
+    never lowered the cost.
+- **Frozen calibration.**
+  `server/inference/pipeline/steps/language_detection_calibration.json`,
+  version `v2`. It records:
+  - the corpus SHA-256 and the split;
+  - backend package versions;
+  - for each set, the NLL for each floor and the cost for each threshold.
+
+  `test_calibration_was_fitted_on_frozen_tune_split` fails if the corpus
+  changes. The version is exposed as `detector_version` in detection
+  metadata.
+- **Heuristics removed after ablation.** Each was tested on tune by adding it
+  back on top of the first (v1) pool:
+
+  | Heuristic | Tune result when added back |
+  |---|---|
+  | ASCII-English early return (0.9) | one more error, one more high-confidence error |
+  | Below-threshold English fallback | one record better |
+  | `threshold_fallback` when a Latin word pattern matched | one record better, two more wrong answers |
+  | `en_boost`/`es_penalty` nudges | no place in the pool |
+
+  - A one-record change on 168 is not a demonstrated improvement.
+  - Only the early return was re-checked against v2, where it again adds a
+    high-confidence error on tune.
+  - A report-only check on held-out agrees: it fixes `hello` but adds two
+    high-confidence errors (Dutch and Italian text called English).
+  - `test_english_search_query_not_misclassified_as_french` is now a strict
+    xfail, because all three backends call "Car crime statistics Vancouver"
+    French. It should be re-measured once a v2 corpus has English search
+    queries.
+- **Features not added.**
+  - pycld2's reliability flag: on the first fit, a separate floor for
+    unreliable results changed tune NLL by less than 0.001.
+  - Text length: not tested as a feature.
+- **Removed config keys:** `backend_weights`, `min_confidence`, `min_margin`,
+  `prefer_english_for_ascii` and `heuristic_nudges`. The pool reads its
+  parameters from the calibration file.
+- **`DetectionResult` fields:**
+  - `accepted`: the current message decided the language (not true for
+    abstentions or prior results);
+  - `calibrated`: true only for `calibrated_ensemble`. The script and phrase
+    rule paths keep a fixed 0.95, and prior results keep ≤ 0.6;
+  - `agreement`, `margin`.
+
+  `raw_results.pool_backends` names the backend set whose calibration was
+  used.
+- **Method rename:** `ensemble_voting` → `calibrated_ensemble`. Stored
+  Phase 2 evidence still counts, because the trust filter does not depend on
+  the method name.
+- **Downstream.**
+  - `PromptBuilder` no longer reads `min_confidence` or the ASCII ratio, so a
+    prior result on ASCII text (e.g. `OK` after French) no longer gets the
+    "default to English" instruction.
+  - Context retrieval dropped its hard-coded `> 0.5` pre-check. It now
+    requires `accepted`, and `_apply_language_boost` applies
+    `retrieval_min_confidence`.
+- **Conversation prior:** unchanged from Phase 2. It is consulted only below
+  threshold, and its confidence is capped at 0.6 × share rather than
+  renormalized.
+
+### Phase 3 results (held-out split, benchmark v1)
+
+| Pipeline | Top-1 acc | Macro F1 | Acceptable | Coverage | Selective acc | High-conf errors | Brier | ECE |
+|---|---|---|---|---|---|---|---|---|
+| Phase 0 | 0.716 | 0.715 | 112/166 | 1.000 | 0.675 | 22 | 0.205 | 0.180 |
+| Phase 1/2 | 0.684 | 0.789 | 139/166 | 0.693 | 0.922 (106/115) | 5 | 0.070 | 0.070 |
+| **Phase 3** | 0.729 | 0.818 | **144/166** | 0.723 | **0.942 (113/120)** | **0** | **0.040** | **0.040** |
+| Phase 3 + context | 0.768 | 0.828 | 144/166 | 0.759 | 0.944 (119/126) | 0 | 0.046 | 0.053 |
+
+Other results:
+- **Phase 2 + context** was 111/120 (0.925) at coverage 0.723.
+- **Tune:** selective accuracy rose from 0.934 to 0.953 and ECE fell from
+  0.053 to 0.020.
+- **Latency:** unchanged (p50 2.8 ms, p95 10 ms).
+- **Full report:** `server/tests/language_eval/reports/phase3_baseline_v1.json`.
+  The regression gate now reads it.
+
+Held-out, one backend set at a time (report only):
+
+| Backends | Acceptable | Selective acc | High-conf errors |
+|---|---|---|---|
+| langdetect | 123/166 | 0.833 | 0 |
+| langid | 130/166 | 0.818 | 0 |
+| pycld2 | 140/166 | 0.973 | 3 |
+| langdetect + langid | 134/166 | 0.866 | 8 |
+| langdetect + pycld2 | 140/166 | 0.911 | 0 |
+| langid + pycld2 | 144/166 | 0.934 | 0 |
+| all three | 144/166 | 0.942 | 0 |
+
+With the v1 calibration, a pycld2-only deployment could not accept anything.
+langdetect + langid is the weakest set, with 8 high-confidence errors.
+
+What changed on held-out, against Phase 1/2:
+- **Fixed** (10 records):
+  - Cyrillic: `дякую` → `uk`, `благодаря за помощта` → `bg`;
+  - Persian: `سلام، حالت چطوره؟` → `fa`;
+  - the Han/Latin `pull request` prompt → `zh`;
+  - French: `bonjour`, `ou est ma commande`;
+  - Dutch and Italian text that the ASCII-English heuristic used to call
+    `en`;
+  - `ORBIT` and `merci` now abstain instead of guessing.
+- **Worse** (5 records):
+  - `hello`, `grazie` and `Háblame de New York y de Silicon Valley` now
+    abstain;
+  - `хвала` → `ru` at 0.57 and romanized Vietnamese → `cy` at 0.55; both
+    previously abstained.
+- **Still wrong, now below 0.9:**
+  - `благодаря` and `рахмет` → `ru` at 0.83;
+  - pinyin → `sw` at 0.84.
+
+The mixed-language flag, which still uses backend disagreement, no longer
+fires on held-out monolingual text. It also still misses all 8 mixed records.
+
+Known limitations:
+- Most remaining errors are short Cyrillic words and romanized text, where
+  the backends agree on the wrong language. Calibration can lower their
+  confidence but cannot fix them.
+- The v1 fit briefly traded selective accuracy for coverage, with 0.909 on
+  held-out. The loss bug behind it was found in review. The v2 numbers above
+  replace it; held-out was not used to choose between the two.
 ## Phase 4 — Real mixed-language detection
 
 Implement this after the primary detector and confidence semantics are stable.
