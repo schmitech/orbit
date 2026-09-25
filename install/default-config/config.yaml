@@ -47,9 +47,10 @@ general:
 tool_skills:
   directory: "config/skills"
 
-# Detects the language of each user message with an ensemble of local libraries
-# (weighted voting plus script/heuristic checks). Used to keep replies in the
-# user's language and to bias RAG retrieval toward same-language documents.
+# Detects the language of each user message with local libraries, combining
+# their candidates into a calibrated confidence and abstaining when unsure.
+# Used to keep replies in the user's language, to bias RAG retrieval toward
+# same-language documents, and to report mixed-language spans.
 # Runs fully in-process — no network calls.
 language_detection:
   enabled: true
@@ -58,15 +59,9 @@ language_detection:
     - "langdetect"
     - "langid"
     - "pycld2"
-  # Relative trust of each backend when combining votes (higher = more influence).
-  backend_weights:
-    langdetect: 1.0
-    langid: 1.2
-    pycld2: 1.5
-  min_confidence: 0.7               # Min confidence for the winning language; below -> unknown (abstain)
-  min_margin: 0.2                   # Min lead over the runner-up; below -> unknown (abstain)
-  prefer_english_for_ascii: true    # Bias pure-ASCII text toward English (avoids es/de/nl false positives)
-  enable_stickiness: false          # Reuse the session's previous language for short/ambiguous messages
+  # Pooling weights and the acceptance threshold are fitted on the benchmark
+  # and frozen in server/inference/pipeline/steps/language_detection_calibration.json.
+  enable_stickiness: false          # Also cache the last trusted language per session (fallback prior source)
   ambiguous_response_language: "en"  # Reply language when detection abstains; never recorded as detected
   min_letters: 5                    # Fewer letters is too little evidence: use a conversation prior or abstain
   script_fast_path:                 # A single-language script (e.g. Hangul, Thai) selects its language directly
@@ -74,23 +69,24 @@ language_detection:
     min_coverage: 0.8               # Also the coverage a shared script needs to restrict candidates
   backend_timeout: 10.0  # Timeout per backend in seconds (increase for cold starts)
 
-  # Configurable heuristic nudges for voting adjustments
-  heuristic_nudges:
-    en_boost: 0.2       # Boost for English in ASCII-heavy text
-    es_penalty: 0.1     # Penalty for Spanish in pure ASCII (avoids es/en confusion)
+  # Mixed-language spans (metadata only: replies follow the primary language).
+  # Each clause or script run is detected on its own; smaller spans are ignored.
+  mixed_language:
+    min_span_letters: 5      # Min letters for a span to count
+    min_span_coverage: 0.1   # Min share of the message's letters
 
-  # Mixed language detection
-  mixed_language_threshold: 0.3  # Min confidence for secondary language to flag as mixed
-
-  # Chat history language prior (uses recent messages to stabilize detection)
+  # Conversation prior: decides the language only when the current message
+  # cannot (too short, or below threshold), never against an accepted detection.
+  # Source: persisted user-message detections, else the session cache (stickiness).
   use_chat_history_prior: true
-  chat_history_prior_weight: 0.3  # Weight given to chat history distribution
-  chat_history_messages_count: 5  # Number of recent messages to consider
+  chat_history_messages_count: 5   # Recent messages to read (assistant messages are skipped)
+  prior_min_confidence: 0.7        # Min confidence for a detection to become evidence for later turns
+  stickiness_ttl_seconds: 3600     # Session cache entry lifetime after the last trusted detection
 
   # RAG retrieval language boosting (boosts documents matching user's language)
   retrieval_match_boost: 0.1       # Boost for documents matching detected language
   retrieval_mismatch_penalty: 0.05 # Penalty for non-matching language documents
-  retrieval_min_confidence: 0.7    # Min detection confidence to apply boost
+  retrieval_min_confidence: 0.7    # Min calibrated confidence of an accepted detection to apply boost
 
 # Server concurrency and response-optimization tuning: worker processes, thread
 # pools, and optional GZip/ETag layers.

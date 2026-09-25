@@ -4260,22 +4260,11 @@ code.plain-code {
   margin-bottom: var(--sp-3);
 }
 
-.settings-search-icon {
-  position: absolute;
-  left: var(--sp-2);
-  display: flex;
-  color: var(--ink-muted);
-  pointer-events: none;
-}
-
-.settings-search-icon svg {
-  width: 15px;
-  height: 15px;
-}
-
 .settings-search-input {
   width: 100%;
-  padding: var(--sp-2) var(--sp-6) var(--sp-2) calc(var(--sp-2) + 19px);
+  padding: var(--sp-2) var(--sp-6) var(--sp-2) var(--sp-3);
+  -webkit-appearance: none;
+  appearance: none;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   font: inherit;
@@ -4285,6 +4274,14 @@ code.plain-code {
 }
 
 .settings-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+/* Keep this field free of browser-supplied search controls; it has its own
+   clear button when text is present. */
+.settings-search-input::-webkit-search-decoration,
+.settings-search-input::-webkit-search-results-button,
+.settings-search-input::-webkit-search-results-decoration {
   display: none;
 }
 

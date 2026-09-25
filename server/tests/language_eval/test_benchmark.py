@@ -127,3 +127,24 @@ def test_heldout_does_not_regress(mode):
         f"{mode}: high-confidence errors {now['high_conf_errors']} exceed baseline "
         f"{base['high_conf_errors']} ({env})"
     )
+
+
+# Agreed bound for Phase 4: at most 2% of monolingual held-out records flagged mixed.
+MAX_MONOLINGUAL_FALSE_POSITIVE_RATE = 0.02
+
+
+@pytest.mark.slow
+@pipeline_available
+@pytest.mark.parametrize("mode", PIPELINE_MODES)
+def test_heldout_mixed_language_does_not_regress(mode):
+    """Mixed-language recall must not drop, and false positives stay within the bound."""
+    baseline = _load_baseline()
+    current = asyncio.run(run_benchmark(modes=(mode,), splits=("heldout",)))
+    base = baseline["modes"][mode]["splits"]["heldout"]["mixed_language"]
+    now = current["modes"][mode]["splits"]["heldout"]["mixed_language"]
+    for key in ("flag_recall", "span_char_recall"):
+        assert (now[key] or 0) >= (base[key] or 0), f"{mode}: {key} {now[key]} fell below baseline {base[key]}"
+    assert now["monolingual_false_positive_rate"] <= MAX_MONOLINGUAL_FALSE_POSITIVE_RATE, (
+        f"{mode}: monolingual false-positive rate {now['monolingual_false_positive_rate']} "
+        f"exceeds {MAX_MONOLINGUAL_FALSE_POSITIVE_RATE}"
+    )

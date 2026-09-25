@@ -3,7 +3,7 @@
 import { aceThemeName } from "../core/dom.js";
 
 export function createSettingsTab({
-  api, endpoints, el, clear, skeleton, svgIcon, iconSave, iconRefresh, iconChevronDown, iconSearch, iconX,
+  api, endpoints, el, clear, skeleton, svgIcon, iconSave, iconRefresh, iconChevronDown, iconX,
   confirmAction, showError, showStatus, getActiveTab
 }) {
   var settingsEditors = {}; // key -> { editor, original } for the selected section
@@ -110,7 +110,6 @@ export function createSettingsTab({
       value: settingsSearchQuery,
     });
     var searchStatus = el("p", { className: "settings-search-status", "aria-live": "polite" });
-    searchWrap.appendChild(el("span", { className: "settings-search-icon", "aria-hidden": "true" }, svgIcon(iconSearch)));
     searchWrap.appendChild(searchInput);
     var searchClearBtn = el("button", {
       type: "button",

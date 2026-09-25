@@ -812,38 +812,141 @@ Implement this after the primary detector and confidence semantics are stable.
 
 ### Tasks
 
-- [ ] Define the product semantics: primary language, secondary languages,
+- [x] Define the product semantics: primary language, secondary languages,
       contiguous spans, minimum span length, and treatment of borrowed words,
       names, and source code.
-- [ ] Use `pycld2.detect(..., returnVectors=True)` as the first span detector
+- [x] Use `pycld2.detect(..., returnVectors=True)` as the first span detector
       candidate, since the installed dependency already exposes this data.
-- [ ] Normalize byte/character offsets carefully and test non-ASCII text.
-- [ ] Merge adjacent same-language spans and discard spans below configurable
+- [x] Normalize byte/character offsets carefully and test non-ASCII text.
+- [x] Merge adjacent same-language spans and discard spans below configurable
       letter-count and coverage thresholds.
-- [ ] Exclude code, URLs, email addresses, and isolated named entities from
+- [x] Exclude code, URLs, email addresses, and isolated named entities from
       mixed-language decisions unless product requirements say otherwise.
-- [ ] Derive primary and secondary languages from accepted span coverage, not
+- [x] Derive primary and secondary languages from accepted span coverage, not
       from backend disagreement.
-- [ ] Remove the existing `second_confidence >= mixed_language_threshold`
+- [x] Remove the existing `second_confidence >= mixed_language_threshold`
       implementation once the span path is validated.
-- [ ] Decide downstream behavior explicitly: response language should normally
+- [x] Decide downstream behavior explicitly: response language should normally
       follow the primary language, while metadata may expose secondary
       languages. Do not silently produce bilingual responses merely because
       mixed text was detected.
 
 ### Tests
 
-- [ ] Genuine two- and three-language prompts with labelled spans.
-- [ ] Monolingual ambiguous prompts that must not be marked mixed.
-- [ ] English prose containing foreign names or one borrowed word.
-- [ ] Natural-language prompts containing source code.
-- [ ] Mixed scripts, including offsets around emoji and supplementary-plane
+- [x] Genuine two- and three-language prompts with labelled spans.
+- [x] Monolingual ambiguous prompts that must not be marked mixed.
+- [x] English prose containing foreign names or one borrowed word.
+- [x] Natural-language prompts containing source code.
+- [x] Mixed scripts, including offsets around emoji and supplementary-plane
       characters.
 
 ### Gate
 
 - Mixed-language span metrics improve over the Phase 0 behavior, and
   monolingual false-positive rate stays within an agreed bound.
+
+**Status: met.**
+- **Span metrics:** held-out mixed-flag recall 0/8 (Phase 0) → 6/8, and
+  character-level secondary-span recall from none to 0.69 at precision 0.77.
+- **Agreed bound:** monolingual false-positive rate ≤ 2%. Held-out is 0.013
+  (2 of 158), against 0 before; the flag never fired before.
+- **Tests:** `test_heldout_mixed_language_does_not_regress` enforces the bound
+  and fails if flag or span recall drops below the baseline. Primary-language
+  predictions are identical to Phase 3.
+
+### Phase 4 decisions
+
+- **Semantics.**
+  - Primary language: the calibrated whole-message decision
+    (`detected_language`), unchanged from Phase 3. The reply follows it.
+  - Secondary languages: languages of accepted spans other than the primary,
+    most letters first. They are metadata only: no bilingual replies, no
+    retrieval effect.
+  - Spans: contiguous, code-point offsets into the original message,
+    reported only when the primary detection is accepted.
+- **Primary stays whole-message.** The plan said to derive primary and
+  secondary languages from span coverage. Only the secondary is derived that
+  way: letting span coverage override the gated primary decision would change
+  Phase 3's benchmarked predictions, for example making
+  "The client wrote back: «Nous avons…»" French by coverage.
+- **pycld2 `returnVectors` rejected.** On the tune mixed and borrowed-word
+  records, its vectors were one span for the whole sentence, or `un` for the
+  embedded words. It found no secondary language in any of them.
+- **Segmenter instead.** Cut at clause punctuation and script changes, then
+  run the calibrated detector on each segment. Borrowed words and names
+  inside a clause stay in that clause, so they are never spans.
+- **Excluded from spans:**
+  - code, URLs and email addresses, masked out and treated as boundaries;
+  - Latin-script runs whose words are all capitalized, treated as names.
+- **Thresholds, from the tune split.**
+  - Sweep: `min_span_letters` ∈ {3, 5, 8, 12} × `min_span_coverage` ∈
+    {0, 0.1, 0.2}.
+  - Rule: best mixed-flag F1 with tune false-positive rate ≤ 2%, then span F1;
+    ties go to the stricter setting.
+  - Result: 5 letters and 0.1 coverage, tied with 3/0, 3/0.1 and 5/0. Every
+    setting kept tune precision at 1.0 and the false-positive rate at 0.
+- **Merge rule, fixed after seeing held-out.** The first version merged
+  same-language spans across a skipped segment. The span around
+  `pull request` in a Chinese prompt then covered English text. Spans now
+  merge only when consecutive. This is a correctness fix; tune and held-out
+  metrics are unchanged by it.
+- **Merge rule, fixed in review.** Two same-language segments on either side
+  of a URL, email address or code block were merged into one span that
+  contained the masked content. Masked content now blocks merging.
+  Benchmark output is unchanged.
+- **Defaults.** A config without a `mixed_language` block gets the
+  benchmarked values (5 letters, 0.1 coverage), not a coverage of 0.
+- **Removed:** the `second_confidence >= mixed_language_threshold`
+  disagreement rule and its config key.
+- **Added:** `mixed_language.{min_span_letters, min_span_coverage}` in both
+  configs.
+- **Metadata:** `spans` and `secondary_languages` are new.
+  `mixed_language_detected`, `secondary_language` and `secondary_confidence`
+  now come from spans; the confidence is the lowest span confidence for that
+  language.
+- **Runner.** A record counts as mixed only if a span is in a language other
+  than the prediction, so spans in the primary language alone are
+  monolingual. Span character metrics are now computed.
+
+### Phase 4 results (benchmark v1)
+
+| Held-out | Flag precision | Flag recall | Monolingual FP rate | Secondary-language recall | Span char precision | Span char recall |
+|---|---|---|---|---|---|---|
+| Phase 0–3 | — | 0/8 | 0.000 | 0.000 | — | — |
+| **Phase 4** | 0.75 (6/8) | **0.75 (6/8)** | 0.013 (2/158) | 0.75 | 0.77 | 0.69 |
+
+On tune: precision 1.0, recall 0.75, false-positive rate 0, span character
+precision 0.57 and recall 0.28. Full report:
+`server/tests/language_eval/reports/phase4_baseline_v1.json`, which the
+regression gate now reads. Primary-language metrics are unchanged from
+Phase 3.
+
+Held-out details:
+- **Found:** English clauses inside French, German, Italian, Russian and
+  Korean prompts, and German `und bis morgen` inside English.
+- **Missed:**
+  - `it's urgent`, too short to be accepted on its own;
+  - `pull request` inside Chinese;
+  - `merci beaucoup`, where the English prompt's German span was found
+    instead.
+- **False positives:** both are short Cyrillic greetings whose primary
+  language was already wrong: `привет` read as `bg` under an `mk` primary,
+  and `како си` as `mk` under `sr`.
+- **Spurious third language:** `Отправь мне` was detected as `be` inside a
+  Russian prompt.
+
+Latency: span detection reruns the backends on each qualifying segment.
+Pipeline p95 rose from about 11 ms to 15 ms, and p50 from 3.0 to 3.5 ms.
+
+Known limitations:
+- Single embedded words are unreliable on their own. In the Hindi and
+  Japanese tune prompts, `meeting` is accepted as `nl` at 0.61, so the message
+  is flagged mixed with the wrong secondary language. That is why tune
+  secondary-language recall (0.375) is half its flag recall.
+- Word-level switching inside a clause, such as Taglish `i-check yung email`,
+  is not detected.
+- v1 has only 8 mixed records per split, so these rates are coarse. A v2
+  corpus should add more mixed, code and name-heavy prompts.
 
 ## Phase 5 — Backend modernization experiment
 

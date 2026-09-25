@@ -11,9 +11,10 @@ This document describes the technical architecture of Orbit's language detection
 5. [Script Detection](#script-detection)
 6. [Removed Heuristics](#removed-heuristics)
 7. [Language Stickiness](#language-stickiness)
-8. [RAG Integration](#rag-integration)
-9. [Configuration Reference](#configuration-reference)
-10. [Extending the System](#extending-the-system)
+8. [Mixed-Language Spans](#mixed-language-spans)
+9. [RAG Integration](#rag-integration)
+10. [Configuration Reference](#configuration-reference)
+11. [Extending the System](#extending-the-system)
 
 ## Overview
 
@@ -22,7 +23,7 @@ The language detection system is a pipeline step that runs before LLM inference 
 1. **Appropriate LLM responses** - LLM responds in the same language as the user
 2. **Language-aware RAG** - Retrieved documents can be boosted/filtered by language
 3. **Stable detection** - Prevents language flapping across conversation turns
-4. **Mixed-language awareness** - Detects code-switching in multilingual conversations
+4. **Mixed-language awareness** - Reports the spans of a message written in a secondary language
 
 ## Architecture
 
@@ -311,6 +312,64 @@ error; the remaining errors all had confidence 0.9–1.0.
 If the chat-history service or the cache is unavailable or fails, that source
 yields no prior and detection proceeds on the current message alone.
 
+## Mixed-Language Spans
+
+A message is mixed when parts of it are detected, on their own, in a language
+other than the primary one. Backend disagreement on the whole message is
+uncertainty, not mixing, and no longer counts.
+
+### Segmentation
+
+`span_segments()` splits the original message into candidate spans:
+- **Masked out:** code blocks, inline code, URLs and email addresses. They
+  also act as boundaries.
+- **Cuts:** clause punctuation (`, ; : « » " ( ) ? !`, their CJK forms, and
+  a sentence-ending `.`), and every change of letter script. Kana and Han
+  count as one script.
+- **Trimmed:** each piece runs from its first letter to its last.
+- **Offsets:** code-point indices into the original message, so emoji and
+  supplementary-plane characters do not shift them.
+
+### Detection
+
+Only when the primary detection is accepted, each segment is detected with
+the same calibrated detector. A segment becomes a span if:
+- it has at least `min_span_letters` letters and `min_span_coverage` of the
+  message's letters;
+- it is not a capitalized name in Latin script (every word capitalized, e.g.
+  `Blue Bottle Coffee`);
+- the detector accepts it on its own text.
+
+Consecutive spans of the same language are merged, but never across masked
+code, URLs or email addresses, so a span never contains them. A message that
+forms a
+single segment has no spans, so a borrowed word or name inside a clause
+(`The café downstairs`, `Das Meeting`, `Montréal`) never makes it mixed.
+
+### Metadata and behavior
+
+For "Preciso do relatório final até sexta-feira, please don't forget":
+
+```python
+context.language_detection_meta = {
+    'spans': [{'start': 0, 'end': 42, 'language': 'pt', 'confidence': 0.9932, 'letters': 36},
+              {'start': 44, 'end': 63, 'language': 'en', 'confidence': 0.9928, 'letters': 16}],
+    'secondary_languages': ['en'],      # most letters first
+    'mixed_language_detected': True,
+    'secondary_language': 'en',         # the first secondary language
+    'secondary_confidence': 0.9928,     # its lowest span confidence
+    ...
+}
+```
+
+`detected_language` stays the calibrated decision for the whole message, and
+the reply follows it. Secondary languages are metadata only: the prompt never
+asks for a bilingual reply, and retrieval does not use them.
+
+Span detection runs the backends once more per qualifying segment, so a mixed
+or multi-clause message costs a few extra milliseconds. On the benchmark, p95
+latency rose from about 11 ms to 15 ms.
+
 ## RAG Integration
 
 ### Language-Aware Document Boosting
@@ -387,8 +446,10 @@ language_detection:
   # Backend timeout
   backend_timeout: 10.0
 
-  # Mixed-language detection threshold
-  mixed_language_threshold: 0.3
+  # Mixed-language spans (see Mixed-Language Spans)
+  mixed_language:
+    min_span_letters: 5
+    min_span_coverage: 0.1
 
   # Conversation prior (see Language Stickiness)
   use_chat_history_prior: true

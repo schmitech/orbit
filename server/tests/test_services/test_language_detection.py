@@ -49,7 +49,7 @@ class MockContainer:
                 'enable_stickiness': False,  # Production default; stickiness tests enable it
                 'ambiguous_response_language': 'en',
                 'backend_timeout': 10.0,
-                'mixed_language_threshold': 0.3,
+                'mixed_language': {'min_span_letters': 5, 'min_span_coverage': 0.1},
                 'use_chat_history_prior': True,  # No chat_history_service is registered
             },
             'general': {'verbose': False}
@@ -909,26 +909,26 @@ class TestMixedLanguageMetadataExposure:
         return LanguageDetectionStep(container)
 
     @pytest.mark.asyncio
-    async def test_mixed_language_metadata_at_top_level(self, detector):
-        """Mixed-language fields should be exposed at top level of metadata."""
+    async def test_backend_disagreement_is_not_mixed_language(self, detector):
+        """Only detected spans mark a message mixed; stale disagreement fields are ignored."""
         detector._detect_language_ensemble_async = AsyncMock(return_value=DetectionResult(
             language='en',
             confidence=0.6,
-            method='ensemble_voting',
+            method='calibrated_ensemble',
             raw_results={
                 'mixed_language_detected': True,
                 'secondary_language': 'es',
                 'secondary_confidence': 0.35
-            }
+            },
+            accepted=True,
         ))
 
-        context = create_context("Hello amigo, como estas?")
+        context = create_context("Hello amigo como estas")
         await detector.process(context)
 
-        # Verify top-level access
-        assert context.language_detection_meta['mixed_language_detected'] is True
-        assert context.language_detection_meta['secondary_language'] == 'es'
-        assert context.language_detection_meta['secondary_confidence'] == 0.35
+        assert context.language_detection_meta['mixed_language_detected'] is False
+        assert context.language_detection_meta['secondary_language'] is None
+        assert context.language_detection_meta['spans'] == []
 
     @pytest.mark.asyncio
     async def test_non_mixed_language_sets_flag_false(self, detector):

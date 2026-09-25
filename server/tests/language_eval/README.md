@@ -34,7 +34,8 @@ skip is not an accuracy signal.
 | `runner.py` | Runs a detector mode over the corpus and writes a JSON report plus a Markdown summary. |
 | `reports/phase0_baseline_v1.json` | Baseline for the pre-Phase-1 detector: metrics, environment, config and per-record pipeline predictions. Kept for comparison. |
 | `reports/phase1_baseline_v1.json` | Baseline after Phases 1–2 (Phase 2 did not re-record it). Kept for comparison. |
-| `reports/phase3_baseline_v1.json` | Baseline after Phase 3 (calibrated pooling). This is the one the regression gate reads (`BASELINE_REPORT_PATH`). |
+| `reports/phase3_baseline_v1.json` | Baseline after Phase 3 (calibrated pooling). Kept for comparison. |
+| `reports/phase4_baseline_v1.json` | Baseline after Phase 4 (mixed-language spans). This is the one the regression gates read (`BASELINE_REPORT_PATH`). |
 | `calibrate.py` | Fits pooling weights, floor and acceptance threshold for each set of backends on the tune split and writes `server/inference/pipeline/steps/language_detection_calibration.json`. |
 | `test_benchmark.py` | Schema and split checks, a calibration-provenance check, a determinism check, and the held-out regression gate. |
 
@@ -120,7 +121,11 @@ Reported per split, per mode:
   - precision and recall of the mixed flag;
   - monolingual false-positive rate;
   - secondary-language recall;
-  - character-level span precision and recall, once a detector emits spans.
+  - character-level span precision and recall, over the spans the pipeline
+    emits (code-point offsets).
+
+  A prediction counts as mixed only if it has a span in a language other than
+  its primary one.
 - Slices `by_language`, `by_script`, `by_length`, `by_latin_form`,
   `by_category` and `by_shared_script`, plus `top_errors` and
   `related_confusion` matrices for commonly confused language groups.
@@ -150,6 +155,12 @@ For `pipeline` and `pipeline+context` on the held-out split,
 
 - selective accuracy drops below the baseline;
 - high-confidence errors rise above the baseline.
+
+`test_heldout_mixed_language_does_not_regress` fails when:
+
+- mixed-flag recall or span character recall drops below the baseline;
+- the monolingual false-positive rate exceeds 2%
+  (`MAX_MONOLINGUAL_FALSE_POSITIVE_RATE`).
 
 Coverage is deliberately not gated, because learning to abstain lowers it.
 Any change in coverage must be reported.

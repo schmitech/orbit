@@ -43,7 +43,7 @@ from inference.pipeline.steps import language_detection as ld
 BENCHMARK_VERSION = "v1"
 DATASET_PATH = os.path.join(HERE, "data", f"benchmark_{BENCHMARK_VERSION}.jsonl")
 CANONICAL_CONFIG_PATH = os.path.join(REPO_ROOT, "config", "config.yaml")
-BASELINE_REPORT_PATH = os.path.join(HERE, "reports", f"phase3_baseline_{BENCHMARK_VERSION}.json")
+BASELINE_REPORT_PATH = os.path.join(HERE, "reports", f"phase4_baseline_{BENCHMARK_VERSION}.json")
 
 BACKEND_MODES = ("langdetect", "langid", "pycld2")
 PIPELINE_MODES = ("pipeline", "pipeline+context")
@@ -224,7 +224,7 @@ async def _predict_pipeline(step, record: dict[str, Any], with_context: bool) ->
         "method": meta.get("method"),
         "margin": meta.get("margin"),
         "secondary": meta.get("secondary_language") if meta.get("mixed_language_detected") else None,
-        "spans": None,
+        "spans": [{"start": s["start"], "end": s["end"], "lang": s["language"]} for s in meta.get("spans") or []],
     }
 
 
@@ -374,7 +374,10 @@ def _calibration(rows: list[tuple[dict, dict, dict]]) -> dict[str, Any]:
 
 def _mixed_metrics(rows: list[tuple[dict, dict, dict]]) -> dict[str, Any]:
     gold_mixed = [bool(r.get("secondary_spans")) for r, _, _ in rows]
-    pred_mixed = [bool(p.get("secondary")) or bool(p.get("spans")) for _, p, _ in rows]
+    # Mixed means a span in a language other than the prediction; spans in
+    # the predicted language alone are monolingual.
+    pred_mixed = [bool(p.get("secondary")) or any(s["lang"] != p["pred"] for s in p.get("spans") or [])
+                  for _, p, _ in rows]
     tp = sum(g and p for g, p in zip(gold_mixed, pred_mixed))
     fp = sum(p and not g for g, p in zip(gold_mixed, pred_mixed))
     fn = sum(g and not p for g, p in zip(gold_mixed, pred_mixed))
@@ -383,10 +386,10 @@ def _mixed_metrics(rows: list[tuple[dict, dict, dict]]) -> dict[str, Any]:
         if g and p.get("secondary") in {s["lang"] for s in r["secondary_spans"]}
     )
 
-    # Character-level secondary-span precision/recall; needs a detector that
-    # emits spans as [{"start", "end", "lang"}] — none does yet (roadmap Phase 4).
+    # Character-level secondary-span precision/recall, over detectors that
+    # emit spans as [{"start", "end", "lang"}] in code-point offsets.
     span_tp = span_fp = span_fn = 0
-    spans_emitted = any(p.get("spans") is not None for _, p, _ in rows)
+    spans_emitted = any(p.get("spans") for _, p, _ in rows)
     if spans_emitted:
         for r, p, _ in rows:
             gold = secondary_char_labels(r)

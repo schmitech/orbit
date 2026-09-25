@@ -340,6 +340,13 @@ INLINE_CODE_PATTERN = re.compile(r'`[^`]{0,500}`')
 EXCESSIVE_PUNCT_PATTERN = re.compile(r'[0-9_\-]{3,}')
 WHITESPACE_PATTERN = re.compile(r'\s+')
 
+# Mixed-language spans: clause punctuation that usually separates a switched
+# or quoted clause, and content that is never language evidence. Masking
+# keeps the text length, so span offsets index the original message.
+SPAN_MASK = '\ufffc'  # replaces masked content character for character; also a boundary
+SPAN_BOUNDARY_PATTERN = re.compile(r'[,;:«»"“”„()\[\]?!¿¡。、，；：？！\n\ufffc]|\.(?=\s)')
+SPAN_MASK_PATTERNS = (URL_PATTERN, EMAIL_PATTERN, CODE_FENCE_PATTERN, INLINE_CODE_PATTERN)
+
 
 # ============================================================================
 # Language Code Normalization
@@ -660,6 +667,54 @@ class ScriptEvidence:
         return SCRIPT_CANDIDATES.get(self.dominant or '', ())
 
 
+def mask_non_language(text: str) -> str:
+    """``text`` with code, URLs and email addresses replaced by ``SPAN_MASK``, same length."""
+    for pattern in SPAN_MASK_PATTERNS:
+        text = pattern.sub(lambda m: SPAN_MASK * len(m.group()), text)
+    return text
+
+
+def span_segments(text: str) -> list[tuple[int, int, str]]:
+    """Candidate language spans as ``(start, end, script)``.
+
+    Offsets are code-point indices into ``text``. Code, URLs and email
+    addresses are masked out first and act as boundaries. The text is then cut at clause
+    punctuation and wherever the letter script changes (kana and Han count as
+    one script), and each piece runs from its first to its last letter.
+    """
+    masked = mask_non_language(text)
+    cuts = {m.start() for m in SPAN_BOUNDARY_PATTERN.finditer(masked)}
+
+    segments: list[tuple[int, int, str]] = []
+    start = end = 0
+    script: Optional[str] = None
+    for i, ch in enumerate(masked):
+        letter = None if i in cuts else SCRIPT_LETTER_PATTERN.fullmatch(ch)
+        if letter is None:
+            if i in cuts and script is not None:
+                segments.append((start, end, script))
+                script = None
+            elif script is not None and unicodedata.category(ch).startswith('M'):
+                end = i + 1  # a combining mark belongs to the letter before it
+            continue
+        letter_script = 'Han' if letter.lastgroup in ('Han', 'Kana') else letter.lastgroup
+        if script is not None and letter_script != script:
+            segments.append((start, end, script))
+            script = None
+        if script is None:
+            start, script = i, letter_script
+        end = i + 1
+    if script is not None:
+        segments.append((start, end, script))
+    return segments
+
+
+def _looks_like_name(text: str) -> bool:
+    """Every word capitalized: a name or title, not a switched clause."""
+    words = regex.findall(r'\p{L}+', text)
+    return bool(words) and all(word[0].isupper() for word in words)
+
+
 # ============================================================================
 # Main Language Detection Step
 # ============================================================================
@@ -695,7 +750,8 @@ class LanguageDetectionStep(PipelineStep):
         self.chat_history_messages_count = 5
         self.prior_min_confidence = 0.7
         self.stickiness_ttl_seconds = 3600
-        self.mixed_language_threshold = 0.3
+        self.span_min_letters = 5
+        self.span_min_coverage = 0.1
 
         config = self.container.get_or_none('config') or {}
         lang_config = config.get('language_detection', {})
@@ -729,8 +785,10 @@ class LanguageDetectionStep(PipelineStep):
         self.script_fast_path_min_letters = script_fast_path.get('min_letters', 1)
         self.script_fast_path_min_coverage = script_fast_path.get('min_coverage', 0.8)
 
-        # Mixed language detection threshold
-        self.mixed_language_threshold = lang_config.get('mixed_language_threshold', 0.3)
+        # Mixed-language spans: shorter or smaller spans are not reported
+        mixed_language = lang_config.get('mixed_language', {}) or {}
+        self.span_min_letters = mixed_language.get('min_span_letters', 5)
+        self.span_min_coverage = mixed_language.get('min_span_coverage', 0.1)
 
         # Conversation prior settings
         self.use_chat_history_prior = lang_config.get('use_chat_history_prior', True)
@@ -785,17 +843,17 @@ class LanguageDetectionStep(PipelineStep):
                 'raw_results': result.raw_results
             }
 
-            # Expose mixed-language detection at top level (not buried in raw_results)
-            # Always set all three fields to avoid stale data from previous turns
-            raw = result.raw_results or {}
-            if raw.get('mixed_language_detected'):
-                meta_update['mixed_language_detected'] = True
-                meta_update['secondary_language'] = raw.get('secondary_language')
-                meta_update['secondary_confidence'] = raw.get('secondary_confidence')
-            else:
-                meta_update['mixed_language_detected'] = False
-                meta_update['secondary_language'] = None
-                meta_update['secondary_confidence'] = None
+            # Mixed language comes from detected spans, and only when this
+            # message decided its primary language. The reply still follows
+            # the primary language; secondary languages are metadata only.
+            # Always set every field so nothing is stale from a previous turn.
+            spans = await self._detect_spans(context.message, result) if result.accepted else []
+            secondary = self._secondary_languages(spans, result.language)
+            meta_update['spans'] = spans
+            meta_update['secondary_languages'] = [language for language, _ in secondary]
+            meta_update['mixed_language_detected'] = bool(secondary)
+            meta_update['secondary_language'] = secondary[0][0] if secondary else None
+            meta_update['secondary_confidence'] = secondary[0][1] if secondary else None
 
             context.language_detection_meta.update(meta_update)
 
@@ -1029,14 +1087,6 @@ class LanguageDetectionStep(PipelineStep):
             sum(result.language == best_language for result in backend_results) / len(backend_results), 4
         )
 
-        # Check for mixed language (backend disagreement; spans arrive in Phase 4)
-        if len(ranked) > 1:
-            second_language, second_eligible = ranked[1]
-            if second_eligible >= self.mixed_language_threshold and best_confidence < 0.8:
-                raw_results['mixed_language_detected'] = True
-                raw_results['secondary_language'] = second_language
-                raw_results['secondary_confidence'] = second_eligible
-
         if best_confidence < pool.accept_confidence:
             # The conversation prior, if the current message's candidates include it
             return self._prior_result(
@@ -1053,6 +1103,68 @@ class LanguageDetectionStep(PipelineStep):
             agreement=agreement,
             margin=margin,
         )
+
+    async def _detect_spans(self, text: str, primary: DetectionResult) -> list[dict[str, Any]]:
+        """Language spans of ``text``, each detected on its own.
+
+        A span is kept only if the detector accepts it on its own text, it has
+        at least ``span_min_letters`` letters and ``span_min_coverage`` of the
+        message's letters, and, in Latin script, it is not just a capitalized
+        name. Consecutive spans of the same language are merged. Text that
+        forms a single segment yields no spans.
+        """
+        text = text or ''
+        segments = span_segments(text)
+        if len(segments) < 2:
+            return []
+        masked = mask_non_language(text)
+        letter_counts = [self._script_evidence(text[a:b]).letters for a, b, _ in segments]
+        total_letters = sum(letter_counts) or 1
+
+        spans: list[dict[str, Any]] = []
+        previous_kept = False
+        for (start, end, script), letters in zip(segments, letter_counts):
+            piece = text[start:end]
+            kept = False
+            if (
+                letters >= self.span_min_letters
+                and letters / total_letters >= self.span_min_coverage
+                and not (script == 'Latin' and _looks_like_name(piece))
+            ):
+                result = await self._detect_language_ensemble_async(piece)
+                kept = result.accepted
+            if not kept:
+                previous_kept = False
+                continue
+            # Merge only with the segment right before, and never across masked
+            # content, so a span never covers text that was skipped, detected as
+            # something else, or excluded as code, a URL or an email address.
+            if (
+                previous_kept
+                and spans[-1]['language'] == result.language
+                and SPAN_MASK not in masked[spans[-1]['end']:start]
+            ):
+                spans[-1]['end'] = end
+                spans[-1]['confidence'] = min(spans[-1]['confidence'], round(result.confidence, 4))
+                spans[-1]['letters'] += letters
+            else:
+                spans.append({'start': start, 'end': end, 'language': result.language,
+                              'confidence': round(result.confidence, 4), 'letters': letters})
+            previous_kept = True
+        return spans
+
+    @staticmethod
+    def _secondary_languages(spans: list[dict[str, Any]], primary: str) -> list[tuple[str, float]]:
+        """Languages other than the primary, most letters first, with their lowest span confidence."""
+        letters: dict[str, int] = {}
+        confidence: dict[str, float] = {}
+        for span in spans:
+            if span['language'] == primary:
+                continue
+            letters[span['language']] = letters.get(span['language'], 0) + span['letters']
+            confidence[span['language']] = min(confidence.get(span['language'], 1.0), span['confidence'])
+        ranked = sorted(letters, key=lambda lang: (-letters[lang], lang))
+        return [(lang, confidence[lang]) for lang in ranked]
 
     async def _run_backend_with_timeout(
         self,
