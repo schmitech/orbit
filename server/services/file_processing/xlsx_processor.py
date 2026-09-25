@@ -6,13 +6,15 @@ Handles Excel XLSX files using openpyxl.
 
 import logging
 from typing import Any
+
 from .base_processor import FileProcessor
 
 logger = logging.getLogger(__name__)
 
 try:
-    from openpyxl import load_workbook
     from io import BytesIO
+
+    from openpyxl import load_workbook
     XLSX_AVAILABLE = True
 except ImportError:
     XLSX_AVAILABLE = False
@@ -35,7 +37,7 @@ class XLSXProcessor(FileProcessor):
         ]
         return XLSX_AVAILABLE and mime_type.lower() in xlsx_types
 
-    async def extract_text(self, file_data: bytes, filename: str = None) -> str:
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
         """Extract text from XLSX."""
         if not XLSX_AVAILABLE:
             raise ImportError("openpyxl not available")
@@ -91,7 +93,7 @@ class XLSXProcessor(FileProcessor):
             logger.error(f"Error processing XLSX: {e}")
             raise
 
-    async def extract_metadata(self, file_data: bytes, filename: str = None) -> dict[str, Any]:
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from XLSX."""
         metadata = await super().extract_metadata(file_data, filename)
 
@@ -108,24 +110,17 @@ class XLSXProcessor(FileProcessor):
             # Get total row/column counts across all sheets
             total_rows = 0
             total_cols = 0
-            sheet_info = []
 
             for sheet_name in sheet_names:
                 sheet = wb[sheet_name]
-                rows = sheet.max_row or 0
-                cols = sheet.max_column or 0
-                total_rows += rows
-                total_cols = max(total_cols, cols)
-                sheet_info.append({
-                    'name': sheet_name,
-                    'rows': rows,
-                    'columns': cols
-                })
+                total_rows += sheet.max_row or 0
+                total_cols = max(total_cols, sheet.max_column or 0)
 
+            # Metadata is copied onto every chunk, and vector stores such as ChromaDB
+            # only accept scalars or flat lists of scalars, so no nested per-sheet dicts.
             metadata.update({
                 'sheet_count': sheet_count,
                 'sheet_names': sheet_names,
-                'sheets': sheet_info,
                 'total_rows': total_rows,
                 'max_columns': total_cols,
                 'mime_type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
