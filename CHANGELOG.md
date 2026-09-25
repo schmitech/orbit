@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.14] - 2026-09-25
 
 ### Core Features
 - **Cohere Parse OCR Provider**: Added native `cohere_parse` OCR through Cohere's Parse API. Configure it in `ocr.yaml`; PDFs are rasterized and processed page by page.
