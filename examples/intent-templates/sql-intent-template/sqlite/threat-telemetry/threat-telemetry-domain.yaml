@@ -1,0 +1,378 @@
+domain_name: Sensor & Threat Telemetry
+description: Simulated perimeter/ISR sensor network reporting detections and alerts, for real-time threat-analysis demos
+domain_type: threat_telemetry
+semantic_types:
+  sensor_id:
+    description: Sensor identifier
+    patterns:
+    - sensor
+    - station
+    regex_patterns:
+    - \bsen_\d{3}\b
+  severity:
+    description: Detection or alert severity
+    patterns:
+    - severity
+    - critical
+    - high
+    - medium
+    - low
+    - priority
+    regex_patterns: []
+  status:
+    description: Sensor or alert status
+    patterns:
+    - status
+    - state
+    - online
+    - offline
+    - open
+    - resolved
+    - acknowledged
+    regex_patterns: []
+  date_value:
+    description: Date/time values
+    patterns:
+    - date
+    - time
+    - when
+    - today
+    - hour
+    - ago
+    regex_patterns:
+    - \b\d{4}-\d{2}-\d{2}\b
+vocabulary:
+  entity_synonyms:
+    sensor:
+    - station
+    - node
+    - device
+    detection:
+    - contact
+    - sighting
+    - track
+    alert:
+    - warning
+    - notification
+    - flag
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    count:
+    - count
+    - number of
+    - how many
+    - total
+  field_synonyms:
+    object_type:
+    - object type
+    - contact type
+    - target type
+    detected_at:
+    - detected at
+    - detection time
+    - when detected
+    assigned_to:
+    - assigned to
+    - operator
+    - handled by
+entities:
+  sensors:
+    name: sensors
+    entity_type: primary
+    table_name: sensors
+    description: Sensor network stations (radar, perimeter, drone, acoustic)
+    primary_key: sensor_id
+    display_name_field: name
+    searchable_fields:
+    - name
+    - location_name
+    common_filters:
+    - type
+    - status
+    default_sort_field: name
+    default_sort_order: ASC
+  detections:
+    name: detections
+    entity_type: primary
+    table_name: detections
+    description: Individual sensor detections/contacts
+    primary_key: detection_id
+    display_name_field: detection_id
+    searchable_fields: []
+    common_filters:
+    - sensor_id
+    - object_type
+    - severity
+    default_sort_field: detected_at
+    default_sort_order: DESC
+  alerts:
+    name: alerts
+    entity_type: primary
+    table_name: alerts
+    description: Alerts raised from detections requiring operator attention
+    primary_key: alert_id
+    display_name_field: alert_id
+    searchable_fields: []
+    common_filters:
+    - status
+    - assigned_to
+    default_sort_field: raised_at
+    default_sort_order: DESC
+fields:
+  sensors:
+    sensor_id:
+      name: sensor_id
+      data_type: string
+      db_column: sensor_id
+      description: Sensor ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: sensor_id
+      summary_priority: 10
+    name:
+      name: name
+      data_type: string
+      db_column: name
+      description: Sensor name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    type:
+      name: type
+      data_type: string
+      db_column: type
+      description: Sensor type (radar, perimeter, drone, acoustic)
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 8
+    location_name:
+      name: location_name
+      data_type: string
+      db_column: location_name
+      description: Human-readable location name
+      required: true
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 7
+    lat:
+      name: lat
+      data_type: decimal
+      db_column: lat
+      description: Latitude
+      required: true
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 2
+    lon:
+      name: lon
+      data_type: decimal
+      db_column: lon
+      description: Longitude
+      required: true
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 2
+    status:
+      name: status
+      data_type: string
+      db_column: status
+      description: Sensor status (online, offline, degraded)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: status
+      summary_priority: 8
+  detections:
+    detection_id:
+      name: detection_id
+      data_type: string
+      db_column: detection_id
+      description: Detection ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    sensor_id:
+      name: sensor_id
+      data_type: string
+      db_column: sensor_id
+      description: Reporting sensor ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: sensor_id
+      summary_priority: 8
+    detected_at:
+      name: detected_at
+      data_type: datetime
+      db_column: detected_at
+      description: Timestamp of detection
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 9
+    object_type:
+      name: object_type
+      data_type: string
+      db_column: object_type
+      description: Detected object type (aircraft, vehicle, person, unknown)
+      required: true
+      searchable: true
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 9
+    confidence:
+      name: confidence
+      data_type: decimal
+      db_column: confidence
+      description: Detection confidence score (0.0-1.0)
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 6
+    severity:
+      name: severity
+      data_type: string
+      db_column: severity
+      description: Detection severity (low, medium, high, critical)
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: severity
+      summary_priority: 9
+    lat:
+      name: lat
+      data_type: decimal
+      db_column: lat
+      description: Latitude of detection
+      required: true
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 2
+    lon:
+      name: lon
+      data_type: decimal
+      db_column: lon
+      description: Longitude of detection
+      required: true
+      searchable: false
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 2
+    notes:
+      name: notes
+      data_type: string
+      db_column: notes
+      description: Free-text notes about the detection
+      required: false
+      searchable: true
+      filterable: false
+      sortable: false
+      semantic_type: null
+      summary_priority: 3
+  alerts:
+    alert_id:
+      name: alert_id
+      data_type: string
+      db_column: alert_id
+      description: Alert ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: null
+      summary_priority: 10
+    detection_id:
+      name: detection_id
+      data_type: string
+      db_column: detection_id
+      description: Source detection ID
+      required: true
+      searchable: false
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 7
+    raised_at:
+      name: raised_at
+      data_type: datetime
+      db_column: raised_at
+      description: Timestamp the alert was raised
+      required: true
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: date_value
+      summary_priority: 8
+    status:
+      name: status
+      data_type: string
+      db_column: status
+      description: Alert status (open, acknowledged, resolved)
+      required: false
+      searchable: false
+      filterable: true
+      sortable: true
+      semantic_type: status
+      summary_priority: 9
+    assigned_to:
+      name: assigned_to
+      data_type: string
+      db_column: assigned_to
+      description: Operator assigned to the alert
+      required: false
+      searchable: true
+      filterable: true
+      sortable: false
+      semantic_type: null
+      summary_priority: 6
+relationships:
+  - from_entity: sensors
+    to_entity: detections
+    relationship_type: one_to_many
+    from_key: sensor_id
+    to_key: sensor_id
+    description: Sensors report multiple detections
+  - from_entity: detections
+    to_entity: alerts
+    relationship_type: one_to_many
+    from_key: detection_id
+    to_key: detection_id
+    description: Detections can raise alerts
+query_patterns: []
+metadata:
+  generated_at: '2026-09-26T00:00:00.000000'
+  generator_version: 1.0.0
+  auto_generated: false

@@ -1,0 +1,303 @@
+status: completed
+generated_at: '2026-09-26T00:00:00.000000'
+last_updated: '2026-09-26T00:00:00.000000'
+generator_version: 1.0.0
+total_templates: 9
+templates:
+  # ============================================================================
+  # DETECTION TEMPLATES
+  # ============================================================================
+
+  - id: list_critical_detections_recent
+    description: List critical/high severity detections within a recent time window
+    sql_template: |
+      SELECT detection_id, sensor_id, detected_at, object_type, confidence, severity, notes
+      FROM detections
+      WHERE severity IN ('critical', 'high')
+        AND detected_at >= datetime('now', '-' || ? || ' hours')
+      ORDER BY detected_at DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: hours_back
+        type: integer
+        description: Look-back window in hours
+        required: false
+        default: 1
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show critical detections in the last hour"
+      - "What high severity detections happened in the last 24 hours?"
+      - "List critical contacts from the last 6 hours"
+    tags: [detection, critical, recent]
+    result_format: table
+
+  - id: detections_by_object_type
+    description: Count detections grouped by object type within a time window
+    sql_template: |
+      SELECT object_type, COUNT(*) AS detection_count
+      FROM detections
+      WHERE detected_at >= datetime('now', '-' || ? || ' hours')
+      GROUP BY object_type
+      ORDER BY detection_count DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: hours_back
+        type: integer
+        description: Look-back window in hours
+        required: false
+        default: 24
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Break down detections by object type in the last 24 hours"
+      - "How many aircraft vs vehicle detections today?"
+      - "Show detection counts by type"
+    tags: [detection, aggregate, object_type]
+    result_format: table
+
+  - id: detections_near_location
+    description: Find detections near a named location
+    sql_template: |
+      SELECT d.detection_id, d.sensor_id, s.location_name, d.detected_at, d.object_type, d.severity
+      FROM detections d
+      JOIN sensors s ON s.sensor_id = d.sensor_id
+      WHERE s.location_name LIKE '%' || ? || '%'
+      ORDER BY d.detected_at DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: location_name
+        type: string
+        description: Location name or partial match, for example "North Perimeter"
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "What detections happened near North Perimeter?"
+      - "Show detections at the East Gate sensor location"
+      - "List contacts near Harbor Watch"
+    tags: [detection, location, lookup]
+    result_format: table
+
+  - id: get_detection_by_id
+    description: Get full detail for a specific detection
+    sql_template: |
+      SELECT d.detection_id, d.sensor_id, s.name AS sensor_name, s.location_name,
+             d.detected_at, d.object_type, d.confidence, d.severity, d.lat, d.lon, d.notes
+      FROM detections d
+      JOIN sensors s ON s.sensor_id = d.sensor_id
+      WHERE d.detection_id = ?
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: detection_id
+        type: string
+        description: Detection ID, for example det_00042
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show me detection det_00042"
+      - "Get details for detection det_00017"
+      - "What are the details of detection det_00099?"
+    tags: [detection, lookup]
+    result_format: table
+
+  # ============================================================================
+  # SENSOR TEMPLATES
+  # ============================================================================
+
+  - id: list_sensor_status
+    description: List all sensors with their current status
+    sql_template: |
+      SELECT sensor_id, name, type, location_name, status
+      FROM sensors
+      ORDER BY name ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show sensor status"
+      - "List all sensors"
+      - "What is the status of our sensor network?"
+    tags: [sensor, status]
+    result_format: table
+
+  - id: list_offline_sensors
+    description: List sensors that are offline or degraded
+    sql_template: |
+      SELECT sensor_id, name, type, location_name, status
+      FROM sensors
+      WHERE status IN ('offline', 'degraded')
+      ORDER BY name ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Which sensors are offline?"
+      - "Show degraded or offline sensors"
+      - "List sensors that need attention"
+    tags: [sensor, offline, status]
+    result_format: table
+
+  - id: sensors_reporting_today
+    description: List sensors that reported at least one detection today
+    sql_template: |
+      SELECT DISTINCT s.sensor_id, s.name, s.type, s.location_name
+      FROM sensors s
+      JOIN detections d ON d.sensor_id = s.sensor_id
+      WHERE date(d.detected_at) = date('now')
+      ORDER BY s.name ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Which sensors reported detections today?"
+      - "Show sensors active today"
+      - "List sensors with contacts today"
+    tags: [sensor, detection, today]
+    result_format: table
+
+  # ============================================================================
+  # ALERT TEMPLATES
+  # ============================================================================
+
+  - id: count_open_alerts
+    description: Count alerts that are currently open
+    sql_template: |
+      SELECT COUNT(*) AS open_alert_count
+      FROM alerts
+      WHERE status = 'open'
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "How many open alerts are there right now?"
+      - "Count open alerts"
+      - "How many unresolved alerts do we have?"
+    tags: [alert, count, open]
+    result_format: summary
+
+  - id: list_unresolved_alerts_by_severity
+    description: List unresolved alerts joined with detection severity
+    sql_template: |
+      SELECT a.alert_id, a.status, a.raised_at, a.assigned_to, d.severity, d.object_type
+      FROM alerts a
+      JOIN detections d ON d.detection_id = a.detection_id
+      WHERE a.status != 'resolved'
+      ORDER BY d.severity DESC, a.raised_at ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "List unresolved alerts by severity"
+      - "Show open and acknowledged alerts ordered by severity"
+      - "What alerts still need attention, sorted by severity?"
+    tags: [alert, unresolved, severity]
+    result_format: table
+
+  - id: alerts_assigned_to_operator
+    description: List alerts assigned to a specific operator
+    sql_template: |
+      SELECT alert_id, detection_id, raised_at, status, assigned_to
+      FROM alerts
+      WHERE assigned_to = ?
+      ORDER BY raised_at DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: assigned_to
+        type: string
+        description: Operator name, for example "J. Alvarez"
+        required: true
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show alerts assigned to J. Alvarez"
+      - "What alerts does operator M. Chen have?"
+      - "List alerts handled by R. Singh"
+    tags: [alert, operator, assigned]
+    result_format: table

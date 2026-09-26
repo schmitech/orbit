@@ -349,7 +349,7 @@ class ContextRetrievalStep(PipelineStep):
             if truncation_info:
                 shown = truncation_info['shown']
                 total = truncation_info['total']
-                logger.info(
+                logger.debug(
                     f"Retrieved {shown} documents "
                     f"(truncated from {total} total)"
                 )
@@ -722,7 +722,7 @@ class ContextRetrievalStep(PipelineStep):
                 formatted = self._format_standard(trimmed_docs, truncation_info)
 
         if len(trimmed_docs) < len(documents):
-            logger.info(
+            logger.debug(
                 "Trimmed context from %d to %d documents to fit token budget of %d",
                 len(documents), len(trimmed_docs), max_tokens
             )

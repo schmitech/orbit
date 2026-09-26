@@ -1,0 +1,77 @@
+# Sensor & Threat Telemetry (SQLite) adapter
+# Real-time threat-analysis demo: simulated sensor network reporting
+# detections and alerts. See examples/intent-templates/sql-intent-template/
+# sqlite/threat-telemetry/THREAT_TELEMETRY_README.md for the full walkthrough.
+
+adapters:
+  - name: "intent-sql-sqlite-threat-telemetry"
+    enabled: true
+    type: "retriever"
+    datasource: "sqlite"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
+    database: "examples/intent-templates/sql-intent-template/sqlite/threat-telemetry/threat_telemetry.db"
+    inference_provider: "ollama_cloud"
+    model: "nemotron-3-ultra"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    capabilities:
+      expose_as_skill: true
+      skill_name: "Threat Telemetry"
+      skill_description: "Sensor network detections, alerts, and sensor status"
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      requires_api_key_validation: true
+      # Auto-route these from plain natural language (e.g. "make a pdf of
+      # this") without requiring the client to send skill=<name> — matches
+      # the same list as available_skills below, so both the "/" picker and
+      # an autocomplete-suggested phrase reach the skill.
+      auto_routable_skills:
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "PowerPoint"
+      available_skills:
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "PowerPoint"
+      auto_skill_routing: true
+      supports_autocomplete: true
+      context_format: "toon"
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    config:
+      check_same_thread: false
+      domain_config_path: "examples/intent-templates/sql-intent-template/sqlite/threat-telemetry/threat-telemetry-domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/sql-intent-template/sqlite/threat-telemetry/threat-telemetry-templates.yaml"
+      template_collection_name: "threat_telemetry_intent_templates"
+      store_name: "chroma"
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 10
+      clarification_enabled: true
+      clarification_high_threshold: 0.65
+      clarification_ambiguity_gap: 0.05
+      clarification_max_rounds: 2
+      clarification_ttl_seconds: 300
+      reload_templates_on_start: false
+      force_reload_templates: false
+      use_connection_pool: false
+      pool_size: 1
+      connection_timeout: 30
+      enable_query_monitoring: true
+      query_timeout: 5000
+
+    fault_tolerance:
+      operation_timeout: 30.0
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      max_retries: 3
+      retry_delay: 1.0
