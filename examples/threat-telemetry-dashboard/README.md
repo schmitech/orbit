@@ -15,7 +15,8 @@ npm run dev
 Open the URL printed by Vite (normally <http://localhost:5173>). The dashboard
 starts in **Demo** mode, so it is presentation-safe even when the backend is not
 available. Click **Live** or the settings icon to add the ORBIT URL and API key.
-The key is stored only in browser local storage.
+The URL is stored locally, while the API key is kept in session storage and is
+discarded when the browser tab closes.
 
 For a production-style preview:
 
@@ -51,9 +52,11 @@ start RabbitMQ and the standalone worker, then run:
 python examples/threat-telemetry-mq/sensor_burst_producer.py --burst-size 20
 ```
 
-The dashboard's queue throughput visualization is an animated presentation
-layer; browsers do not connect directly to AMQP. The producer owns an exclusive
-reply queue, while the dashboard reaches the same ORBIT pipeline through HTTP.
+The dashboard's map, alert feed, sensor state, latency, and queue metrics are
+clearly labeled simulated presentation data—even in Live mode. Browsers do not
+connect directly to AMQP. The producer owns an exclusive reply queue, while the
+dashboard's Live mode reaches the same ORBIT pipeline through HTTP(S) for
+intelligence queries and connection status only.
 For a deployment that needs literal broker counters, bridge RabbitMQ's management
 API to a server-side endpoint rather than exposing broker credentials in the
 browser.

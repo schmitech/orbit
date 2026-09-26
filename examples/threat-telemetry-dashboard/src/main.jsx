@@ -9,20 +9,20 @@ import {
 import "./styles.css";
 
 const sensors = [
-  { id: "SEN-001", name: "North Perimeter", type: "RADAR", x: 45, y: 18, status: "online", signal: 98 },
-  { id: "SEN-002", name: "East Gate", type: "OPTICAL", x: 78, y: 43, status: "online", signal: 94 },
-  { id: "SEN-003", name: "Harbor Watch", type: "ACOUSTIC", x: 67, y: 75, status: "degraded", signal: 62 },
-  { id: "SEN-004", name: "West Ridge", type: "UAV", x: 21, y: 39, status: "online", signal: 91 },
-  { id: "SEN-005", name: "South Fence", type: "PERIMETER", x: 38, y: 81, status: "online", signal: 97 },
-  { id: "SEN-006", name: "Overwatch B", type: "RADAR", x: 64, y: 29, status: "offline", signal: 0 },
+  { kind: "sensor", id: "SEN-001", name: "North Perimeter", type: "RADAR", x: 45, y: 18, status: "online", signal: 98 },
+  { kind: "sensor", id: "SEN-002", name: "East Gate", type: "OPTICAL", x: 78, y: 43, status: "online", signal: 94 },
+  { kind: "sensor", id: "SEN-003", name: "Harbor Watch", type: "ACOUSTIC", x: 67, y: 75, status: "degraded", signal: 62 },
+  { kind: "sensor", id: "SEN-004", name: "West Ridge", type: "UAV", x: 21, y: 39, status: "online", signal: 91 },
+  { kind: "sensor", id: "SEN-005", name: "South Fence", type: "PERIMETER", x: 38, y: 81, status: "online", signal: 97 },
+  { kind: "sensor", id: "SEN-006", name: "Overwatch B", type: "RADAR", x: 64, y: 29, status: "offline", signal: 0 },
 ];
 
 const initialAlerts = [
-  { id: "ALR-0942", object: "Unknown aircraft", site: "North Perimeter", severity: "critical", confidence: 98, age: "12 sec", status: "OPEN", operator: "Unassigned", x: 47, y: 22 },
-  { id: "ALR-0941", object: "Fast-moving vehicle", site: "East Gate", severity: "high", confidence: 94, age: "48 sec", status: "OPEN", operator: "M. Chen", x: 75, y: 47 },
-  { id: "ALR-0938", object: "Unidentified person", site: "South Fence", severity: "high", confidence: 87, age: "2 min", status: "ACK", operator: "J. Alvarez", x: 40, y: 77 },
-  { id: "ALR-0934", object: "Acoustic anomaly", site: "Harbor Watch", severity: "medium", confidence: 76, age: "5 min", status: "OPEN", operator: "R. Singh", x: 66, y: 71 },
-  { id: "ALR-0929", object: "Low-altitude aircraft", site: "West Ridge", severity: "medium", confidence: 82, age: "11 min", status: "ACK", operator: "K. Novak", x: 25, y: 35 },
+  { kind: "alert", id: "ALR-0942", object: "Unknown aircraft", site: "North Perimeter", severity: "critical", confidence: 98, age: "12 sec", status: "OPEN", operator: "Unassigned", x: 47, y: 22 },
+  { kind: "alert", id: "ALR-0941", object: "Fast-moving vehicle", site: "East Gate", severity: "high", confidence: 94, age: "48 sec", status: "OPEN", operator: "M. Chen", x: 75, y: 47 },
+  { kind: "alert", id: "ALR-0938", object: "Unidentified person", site: "South Fence", severity: "high", confidence: 87, age: "2 min", status: "ACK", operator: "J. Alvarez", x: 40, y: 77 },
+  { kind: "alert", id: "ALR-0934", object: "Acoustic anomaly", site: "Harbor Watch", severity: "medium", confidence: 76, age: "5 min", status: "OPEN", operator: "R. Singh", x: 66, y: 71 },
+  { kind: "alert", id: "ALR-0929", object: "Low-altitude aircraft", site: "West Ridge", severity: "medium", confidence: 82, age: "11 min", status: "ACK", operator: "K. Novak", x: 25, y: 35 },
 ];
 
 const prompts = [
@@ -51,13 +51,24 @@ async function askOrbit(apiUrl, apiKey, message) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
-      "X-API-Key": apiKey,
       "X-Session-ID": sessionId(),
     },
     body: JSON.stringify({ model: "intent-sql-sqlite-threat-telemetry", messages: [{ role: "user", content: message }] }),
   });
   const body = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(body?.error?.message || body?.detail || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const detail = body?.error?.message ?? body?.detail;
+    let message = `Request failed (${response.status})`;
+    if (typeof detail === "string") message = detail;
+    else if (Array.isArray(detail)) {
+      message = detail.map(item => {
+        if (typeof item === "string") return item;
+        const location = Array.isArray(item?.loc) ? `${item.loc.join(".")}: ` : "";
+        return `${location}${item?.msg || JSON.stringify(item)}`;
+      }).join("; ");
+    } else if (detail && typeof detail === "object") message = JSON.stringify(detail);
+    throw new Error(message);
+  }
   return body?.choices?.[0]?.message?.content || "No response content returned.";
 }
 
@@ -67,6 +78,10 @@ function Brand() {
 
 function LivePill({ children, live = true }) {
   return <span className={cls("status-pill", live && "is-live")}><i />{children}</span>;
+}
+
+function SimulatedBadge() {
+  return <span className="simulated-badge" title="Presentation data — not sourced from ORBIT or RabbitMQ">SIMULATED</span>;
 }
 
 function Header({ mode, setMode, paused, setPaused, openSettings }) {
@@ -96,7 +111,7 @@ function Metric({ icon: Icon, label, value, unit, delta, tone = "cyan", values }
   const data = values || [14, 17, 15, 22, 19, 27, 25, 31, 28, 34];
   const path = data.map((point, i) => `${i ? "L" : "M"}${i * 12},${38 - point}`).join(" ");
   return <article className={cls("metric", `tone-${tone}`)}>
-    <div className="metric-head"><span>{label}</span><Icon size={16} /></div>
+    <div className="metric-head"><span>{label} <SimulatedBadge /></span><Icon size={16} /></div>
     <div className="metric-main"><strong>{value}<small>{unit}</small></strong><svg viewBox="0 0 108 40" preserveAspectRatio="none"><path className="fill" d={`${path} L108,40 L0,40 Z`} /><path d={path} /></svg></div>
     <div className="metric-foot"><ArrowUpRight size={12} /><span>{delta}</span><small>VS PREVIOUS HOUR</small></div>
   </article>;
@@ -108,7 +123,7 @@ function PanelHead({ kicker, title, children }) {
 
 function TacticalMap({ selected, select, paused }) {
   return <section className="panel map-panel">
-    <PanelHead kicker="LIVE OPERATIONS" title="Sector overview"><div className="map-tools"><button className="active"><Crosshair size={12} />TRACKS</button><button><Radio size={12} />SENSORS</button></div></PanelHead>
+    <PanelHead kicker="PRESENTATION TOPOLOGY" title={<>Sector overview <SimulatedBadge /></>}><div className="map-tools"><button className="active"><Crosshair size={12} />TRACKS</button><button><Radio size={12} />SENSORS</button></div></PanelHead>
     <div className="map-canvas">
       <svg viewBox="0 0 900 535" aria-label="Tactical sensor network map">
         <defs>
@@ -139,22 +154,23 @@ function TacticalMap({ selected, select, paused }) {
 function Distribution() {
   const parts = [{ name: "Critical", value: 12, color: "#ff5c5f" }, { name: "High", value: 27, color: "#ff9d45" }, { name: "Medium", value: 38, color: "#f4d35e" }, { name: "Low", value: 23, color: "#4de4bd" }];
   let offset = 0;
-  return <section className="panel distribution"><PanelHead kicker="LAST 24 HOURS" title="Threat distribution"><ChevronRight size={16}/></PanelHead><div className="donut-layout"><div className="donut"><svg viewBox="0 0 120 120"><circle className="track" cx="60" cy="60" r="47"/>{parts.map(part => { const start = offset; offset += part.value; return <circle key={part.name} cx="60" cy="60" r="47" fill="none" stroke={part.color} strokeWidth="9" strokeDasharray={`${part.value*2.953} ${295.3-part.value*2.953}`} strokeDashoffset={-start*2.953}/>; })}</svg><div><strong>143</strong><span>CONTACTS</span></div></div><div className="legend-list">{parts.map(part => <div key={part.name}><i style={{background: part.color}}/><span>{part.name}</span><strong>{part.value}%</strong></div>)}</div></div></section>;
+  return <section className="panel distribution"><PanelHead kicker="LAST 24 HOURS · SIMULATED" title="Threat distribution"><ChevronRight size={16}/></PanelHead><div className="donut-layout"><div className="donut"><svg viewBox="0 0 120 120"><circle className="track" cx="60" cy="60" r="47"/>{parts.map(part => { const start = offset; offset += part.value; return <circle key={part.name} cx="60" cy="60" r="47" fill="none" stroke={part.color} strokeWidth="9" strokeDasharray={`${part.value*2.953} ${295.3-part.value*2.953}`} strokeDashoffset={-start*2.953}/>; })}</svg><div><strong>143</strong><span>CONTACTS</span></div></div><div className="legend-list">{parts.map(part => <div key={part.name}><i style={{background: part.color}}/><span>{part.name}</span><strong>{part.value}%</strong></div>)}</div></div></section>;
 }
 
 function Throughput({ rate }) {
   const max = Math.max(...chart);
   const points = chart.map((value, i) => `${i/(chart.length-1)*600},${118-value/max*98}`).join(" ");
-  return <section className="panel throughput"><PanelHead kicker="MESSAGE QUEUE" title="Processing throughput"><div className="rate"><strong>{rate}</strong><span>msg/min</span></div></PanelHead><svg className="line-chart" viewBox="0 0 600 135" preserveAspectRatio="none"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#40e3bd" stopOpacity=".25"/><stop offset="1" stopColor="#40e3bd" stopOpacity="0"/></linearGradient></defs>{[28,58,88,118].map(y => <line key={y} x1="0" y1={y} x2="600" y2={y}/>)}<polygon points={`0,135 ${points} 600,135`} fill="url(#chartFill)"/><polyline points={points}/><circle cx="600" cy={118-chart.at(-1)/max*98} r="4"/></svg><div className="chart-labels"><span>-60 MIN</span><span>-45</span><span>-30</span><span>-15</span><span>NOW</span></div></section>;
+  return <section className="panel throughput"><PanelHead kicker="MESSAGE QUEUE · SIMULATED" title="Processing throughput"><div className="rate"><strong>{rate}</strong><span>msg/min</span></div></PanelHead><svg className="line-chart" viewBox="0 0 600 135" preserveAspectRatio="none"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#40e3bd" stopOpacity=".25"/><stop offset="1" stopColor="#40e3bd" stopOpacity="0"/></linearGradient></defs>{[28,58,88,118].map(y => <line key={y} x1="0" y1={y} x2="600" y2={y}/>)}<polygon points={`0,135 ${points} 600,135`} fill="url(#chartFill)"/><polyline points={points}/><circle cx="600" cy={118-chart.at(-1)/max*98} r="4"/></svg><div className="chart-labels"><span>-60 MIN</span><span>-45</span><span>-30</span><span>-15</span><span>NOW</span></div></section>;
 }
 
 function Alerts({ alerts, selected, select, acknowledge }) {
-  return <section className="panel alerts-panel"><PanelHead kicker="PRIORITY ORDER" title={<>Active alerts <b>{alerts.length}</b></>}><button className="text-button"><Settings2 size={13}/>FILTER</button></PanelHead><div className="alert-list">{alerts.map(alert => <button key={alert.id} className={cls("alert-row", selected?.id === alert.id && "selected")} onClick={() => select(alert)}><i className={cls("stripe", alert.severity)}/><span className={cls("alert-icon", alert.severity)}><AlertTriangle size={15}/></span><span className="alert-name"><strong>{alert.object}</strong><small>{alert.id} · {alert.site}</small></span><span className="confidence"><strong>{alert.confidence}%</strong><small>CONF</small></span><span className="age">{alert.age}</span><ChevronRight size={14}/></button>)}</div><div className="feed-footer"><button onClick={acknowledge}><Check size={13}/>ACKNOWLEDGE SELECTED</button><span>Sorted by threat score</span></div></section>;
+  const canAcknowledge = selected?.kind === "alert";
+  return <section className="panel alerts-panel"><PanelHead kicker="PRIORITY ORDER · SIMULATED" title={<>Active alerts <b>{alerts.length}</b></>}><button className="text-button"><Settings2 size={13}/>FILTER</button></PanelHead><div className="alert-list">{alerts.map(alert => <button key={alert.id} className={cls("alert-row", selected?.id === alert.id && "selected")} onClick={() => select(alert)}><i className={cls("stripe", alert.severity)}/><span className={cls("alert-icon", alert.severity)}><AlertTriangle size={15}/></span><span className="alert-name"><strong>{alert.object}</strong><small>{alert.id} · {alert.site}</small></span><span className="confidence"><strong>{alert.confidence}%</strong><small>CONF</small></span><span className="age">{alert.age}</span><ChevronRight size={14}/></button>)}</div><div className="feed-footer"><button onClick={acknowledge} disabled={!canAcknowledge} title={canAcknowledge ? "Acknowledge selected alert" : "Select an alert before acknowledging"}><Check size={13}/>{canAcknowledge ? "ACKNOWLEDGE SELECTED" : "SELECT AN ALERT TO ACKNOWLEDGE"}</button><span>Sorted by threat score</span></div></section>;
 }
 
 function Detail({ item }) {
   if (!item) return null;
-  const sensor = item.id?.startsWith("SEN");
+  const sensor = item.kind === "sensor";
   return <aside className="detail"><small>{sensor ? "SENSOR DETAIL" : "SELECTED TRACK"}</small><div className="detail-title"><span className={cls("target", item.severity)}><Target size={20}/></span><div><strong>{item.id}</strong><em>{item.object || item.type}</em></div></div><div className="detail-grid"><div><span>LOCATION</span><strong>{item.site || item.name}</strong></div><div><span>STATUS</span><strong>{item.status || item.severity?.toUpperCase()}</strong></div><div><span>{sensor ? "SIGNAL" : "CONFIDENCE"}</span><strong>{item.signal ?? item.confidence}%</strong></div><div><span>{sensor ? "LAST PING" : "DETECTED"}</span><strong>{sensor ? "4 sec ago" : item.age}</strong></div></div>{!sensor && <div className="assignment"><span>ASSIGNED OPERATOR</span><strong><i/>{item.operator}</strong></div>}<button>OPEN FULL RECORD <ArrowUpRight size={13}/></button></aside>;
 }
 
@@ -182,7 +198,16 @@ function Intelligence({ mode, config, openSettings, setConnected }) {
 
 function Settings({ config, close, save }) {
   const [draft, setDraft] = useState(config);
-  return <div className="backdrop" onMouseDown={event => event.target === event.currentTarget && close()}><section className="modal"><div className="modal-head"><div><small>LIVE CONNECTION</small><h2>Connect to ORBIT</h2></div><button className="icon-button" onClick={close}><X size={17}/></button></div><p>Credentials stay in this browser. Use a key scoped to <code>intent-sql-sqlite-threat-telemetry</code>.</p><label><span>ORBIT API URL</span><input value={draft.apiUrl} onChange={e => setDraft({...draft, apiUrl: e.target.value})}/></label><label><span>API KEY</span><input type="password" value={draft.apiKey} onChange={e => setDraft({...draft, apiKey: e.target.value})} placeholder="orbit_…"/></label><div className="note"><Shield size={15}/><span>The dashboard uses ORBIT over HTTPS. RabbitMQ stays isolated behind the worker.</span></div><div className="modal-actions"><button onClick={close}>CANCEL</button><button className="primary" onClick={() => save(draft)}><Wifi size={14}/>SAVE & CONNECT</button></div></section></div>;
+  const [validation, setValidation] = useState("");
+  const submit = () => {
+    if (!/^https?:\/\//i.test(draft.apiUrl.trim())) {
+      setValidation("Enter an HTTP or HTTPS ORBIT URL, including the scheme.");
+      return;
+    }
+    setValidation("");
+    save(draft);
+  };
+  return <div className="backdrop" onMouseDown={event => event.target === event.currentTarget && close()}><section className="modal"><div className="modal-head"><div><small>LIVE CONNECTION</small><h2>Connect to ORBIT</h2></div><button className="icon-button" onClick={close}><X size={17}/></button></div><p>The API key is kept only for this browser tab. Use a key scoped to <code>intent-sql-sqlite-threat-telemetry</code>.</p><label><span>ORBIT API URL</span><input value={draft.apiUrl} onChange={e => setDraft({...draft, apiUrl: e.target.value})}/></label><label><span>API KEY</span><input type="password" value={draft.apiKey} onChange={e => setDraft({...draft, apiKey: e.target.value})} placeholder="orbit_…"/></label>{validation && <div className="validation-error">{validation}</div>}<div className="note"><Shield size={15}/><span>The dashboard calls ORBIT over HTTP(S). RabbitMQ stays isolated behind the worker.</span></div><div className="modal-actions"><button onClick={close}>CANCEL</button><button className="primary" onClick={submit}><Wifi size={14}/>SAVE & CONNECT</button></div></section></div>;
 }
 
 function App() {
@@ -195,7 +220,14 @@ function App() {
   const [throughput, setThroughput] = useState(128);
   const [queue, setQueue] = useState(8);
   const [lastEvent, setLastEvent] = useState(clockTime());
-  const [config, setConfig] = useState(() => ({ apiUrl: localStorage.getItem("orbit-threat-url") || "http://localhost:3000", apiKey: localStorage.getItem("orbit-threat-key") || "" }));
+  const [config, setConfig] = useState(() => {
+    // Remove credentials persisted by dashboard versions prior to session-only storage.
+    localStorage.removeItem("orbit-threat-key");
+    return {
+      apiUrl: localStorage.getItem("orbit-threat-url") || "http://localhost:3000",
+      apiKey: sessionStorage.getItem("orbit-threat-key") || "",
+    };
+  });
 
   const setMode = value => { setModeValue(value); if (value === "live" && !config.apiKey) setSettings(true); };
   useEffect(() => {
@@ -209,17 +241,18 @@ function App() {
     const sync = async () => { try { await askOrbit(config.apiUrl, config.apiKey, "How many open alerts are there right now?"); if (active) { setConnected(true); setLastEvent(clockTime()); } } catch { if (active) setConnected(false); } };
     sync(); const id = setInterval(sync, 30000); return () => { active = false; clearInterval(id); };
   }, [mode, paused, config]);
-  const save = draft => { const next = { apiUrl: draft.apiUrl.trim().replace(/\/$/, ""), apiKey: draft.apiKey.trim() }; setConfig(next); localStorage.setItem("orbit-threat-url", next.apiUrl); localStorage.setItem("orbit-threat-key", next.apiKey); setModeValue("live"); setSettings(false); };
-  const acknowledge = () => { if (!selected?.id?.startsWith("ALR")) return; const update = item => item.id === selected.id ? {...item, status: "ACK", operator: item.operator === "Unassigned" ? "Demo Operator" : item.operator} : item; setAlerts(value => value.map(update)); setSelected(update(selected)); };
+  const save = draft => { const next = { apiUrl: draft.apiUrl.trim().replace(/\/$/, ""), apiKey: draft.apiKey.trim() }; setConfig(next); localStorage.setItem("orbit-threat-url", next.apiUrl); sessionStorage.setItem("orbit-threat-key", next.apiKey); setModeValue("live"); setSettings(false); };
+  const acknowledge = () => { if (selected?.kind !== "alert") return; const update = item => item.id === selected.id ? {...item, status: "ACK", operator: item.operator === "Unassigned" ? "Demo Operator" : item.operator} : item; setAlerts(value => value.map(update)); setSelected(update(selected)); };
   const exportData = () => { const url = URL.createObjectURL(new Blob([JSON.stringify({ generatedAt: new Date().toISOString(), mode, alerts, sensors }, null, 2)], {type: "application/json"})); const link = document.createElement("a"); link.href = url; link.download = `orbit-threat-snapshot-${Date.now()}.json`; link.click(); URL.revokeObjectURL(url); };
   const healthy = mode === "demo" || connected;
 
   return <div className="app-shell"><Header mode={mode} setMode={setMode} paused={paused} setPaused={setPaused} openSettings={() => setSettings(true)}/><main>
+    <div className={cls("provenance-banner", mode === "live" && "live-context")}><Shield size={13}/><strong>{mode === "live" ? "LIVE ORBIT INTELLIGENCE" : "DEMONSTRATION MODE"}</strong><span>{mode === "live" ? "Chat and connection status are live. Map, alerts, sensors, latency, and MQ metrics remain simulated presentation data." : "All operational data on this screen is simulated."}</span></div>
     <section className="mission"><div><small>MISSION STATUS</small><h1>Eastern Grid <span>/</span> Perimeter Watch</h1></div><div className="mission-meta"><span><Activity size={13}/>LAST EVENT <strong>{lastEvent}</strong></span><span><CloudCog size={13}/>MQ DEPTH <strong>{queue}</strong></span><span><Signal size={13}/>UPLINK <strong>24ms</strong></span><button onClick={exportData}><Download size={13}/>EXPORT</button></div></section>
     <section className="metrics"><Metric icon={ShieldAlert} label="ACTIVE THREATS" value="12" delta="8.4%" tone="red" values={[9,11,8,14,12,17,15,21,18,24]}/><Metric icon={Radio} label="SENSORS ONLINE" value="5" unit="/ 6" delta="Stable"/><Metric icon={Crosshair} label="DETECTIONS / HR" value="143" delta="18.2%" tone="amber"/><Metric icon={Zap} label="MQ THROUGHPUT" value={throughput} unit="/m" delta="12.7%" tone="violet"/></section>
     <section className="dashboard-grid"><TacticalMap selected={selected} select={setSelected} paused={paused}/><div className="right-stack"><Distribution/><Throughput rate={throughput}/></div><Alerts alerts={alerts} selected={selected} select={setSelected} acknowledge={acknowledge}/><Detail item={selected}/></section>
     <Intelligence mode={mode} config={config} openSettings={() => setSettings(true)} setConnected={setConnected}/>
-  </main><footer><span><Brand/>ORBIT THREAT TELEMETRY</span><span>MQ WORKER <i className={healthy ? "good" : ""}/>{healthy ? "ONLINE" : "DISCONNECTED"}</span><span>CLASSIFICATION // DEMONSTRATION</span></footer>{settings && <Settings config={config} close={() => setSettings(false)} save={save}/>}</div>;
+  </main><footer><span><Brand/>ORBIT THREAT TELEMETRY</span><span>{mode === "demo" ? "DEMO FEED" : "ORBIT API"} <i className={healthy ? "good" : ""}/>{mode === "demo" ? "ACTIVE" : healthy ? "CONNECTED" : "DISCONNECTED"}</span><span>CLASSIFICATION // DEMONSTRATION</span></footer>{settings && <Settings config={config} close={() => setSettings(false)} save={save}/>}</div>;
 }
 
 createRoot(document.getElementById("root")).render(<App/>);
