@@ -445,7 +445,7 @@ export function createApiKeysTab({
         if (allowedEmails === null) { showError("Enter valid comma-separated email addresses."); return; }
         if (allowedEmails.length) body.allowed_emails = allowedEmails;
         Object.assign(body, expirationResult.body);
-        await api("POST", endpoints.apiKeys, body);
+        var created = await api("POST", endpoints.apiKeys, body);
         clientInput.value = "";
         promptSelect.value = "";
         notesInput.value = "";
@@ -454,7 +454,15 @@ export function createApiKeysTab({
         createAllowedEmailsInput.value = "";
         createExpiration.reset();
         closeCreatePanel();
-        loadKeys();
+        await loadKeys();
+        // The list/detail endpoints only ever return the masked key, so the
+        // create response is the one and only place the plaintext key is
+        // available; show it once here before it's gone for good.
+        selectedKey = created;
+        renderKeyDetail(detailPanel, created, function () {
+          selectedKey = null;
+          loadKeys();
+        }, true);
       }, "API key created");
     });
 
@@ -902,22 +910,34 @@ export function createApiKeysTab({
     return section;
   }
 
-  function renderKeyDetail(panel, key, onRefresh) {
+  function renderKeyDetail(panel, key, onRefresh, justCreated) {
     clear(panel);
     panel.style.display = "";
     var keyId = key._id || "";
     var keyVal = key.api_key || key.key || "";
+    var keyIsMasked = keyVal.indexOf("***") === 0;
     panel.appendChild(el("h2", { className: "detail-title" }, key.client_name || "API Key Details"));
-    var revealSecret = false;
-    var keyCode = el("code", null, maskSecret(keyVal));
+    if (justCreated && !keyIsMasked) {
+      panel.appendChild(el("div", { className: "key-created-banner" },
+        "Copy this key now. For security, it is shown in full only once and cannot be retrieved again after you leave this page."
+      ));
+    }
+    var revealSecret = !!justCreated && !keyIsMasked;
+    var keyCode = el("code", null, keyIsMasked ? keyVal : (revealSecret ? keyVal : maskSecret(keyVal)));
     var revealBtn = el("button", {
       type: "button",
       className: "password-toggle",
-      "aria-label": "Show API key",
-      title: "Show API key",
+      "aria-label": revealSecret ? "Hide API key" : "Show API key",
+      title: revealSecret ? "Hide API key" : "Show API key",
     });
-    revealBtn.appendChild(svgIcon(iconEye));
+    revealBtn.appendChild(svgIcon(revealSecret ? iconEyeOff : iconEye));
+    revealBtn.disabled = keyIsMasked;
+    if (keyIsMasked) {
+      revealBtn.setAttribute("aria-label", "Stored API keys cannot be revealed");
+      revealBtn.setAttribute("title", "Stored API keys cannot be revealed");
+    }
     revealBtn.addEventListener("click", function () {
+      if (keyIsMasked) return;
       revealSecret = !revealSecret;
       keyCode.textContent = revealSecret ? keyVal : maskSecret(keyVal);
       revealBtn.setAttribute("aria-label", revealSecret ? "Hide API key" : "Show API key");
@@ -932,7 +952,13 @@ export function createApiKeysTab({
       title: "Copy API key",
     });
     copyBtn.appendChild(svgIcon(iconCopy));
+    copyBtn.disabled = keyIsMasked;
+    if (keyIsMasked) {
+      copyBtn.setAttribute("aria-label", "Stored API keys cannot be copied");
+      copyBtn.setAttribute("title", "Stored API keys cannot be copied");
+    }
     copyBtn.addEventListener("click", function () {
+      if (keyIsMasked) return;
       copyTextToClipboard(keyVal).then(function () {
         copyBtn.innerHTML = "";
         copyBtn.appendChild(svgIcon(iconCheck));

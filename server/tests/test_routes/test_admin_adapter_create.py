@@ -972,6 +972,4 @@ def test_create_routes_require_adapters_manage(tmp_path, roles, allowed):
         if allowed:
             assert resp.status_code not in (401, 403)
         else:
-            # permission_or_api_key answers 401 when the caller holds no admin
-            # permission at all, 403 when it holds some but not adapters.manage.
-            assert resp.status_code in (401, 403)
+            assert resp.status_code == 403

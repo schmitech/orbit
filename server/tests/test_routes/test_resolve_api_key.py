@@ -3,9 +3,8 @@
 Authorization: Bearer resolver behind `RouteConfigurator._resolve_api_key`
 and `get_api_key`. `allow_bearer_fallback=False` call sites must never treat
 a bearer token as an API key — that gate is what keeps this helper from
-expanding behavior on the header-only call sites (file_routes,
-discovery_routes, auth_dependencies.permission_or_api_key) it was not
-migrated into.
+expanding behavior on the header-only call sites (file_routes and
+discovery_routes) it was not migrated into.
 """
 
 from unittest.mock import Mock

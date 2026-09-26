@@ -99,9 +99,9 @@ def _build_app(roles, audit_service=None, pricing_service=None, api_key_service=
     [
         (["admin"], 200),
         (["auditor"], 200),
-        (["operator"], 401),
-        (["analyst"], 401),
-        (["user"], 401),
+        (["operator"], 403),
+        (["analyst"], 403),
+        (["user"], 403),
     ],
 )
 def test_observability_usage_requires_audit_read(roles, expected_status):

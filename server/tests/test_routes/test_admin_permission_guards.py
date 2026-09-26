@@ -1,6 +1,6 @@
 """Guard tests: each seed role is allowed/denied on representative admin routes.
 
-Verifies the split introduced in routes/admin/_shared.py (apikeys_auth, adapters_auth,
+Verifies the guards in routes/admin/_shared.py (apikeys_auth, adapters_auth,
 prompts_auth, config_auth, system_auth, logs_auth, audit_auth, conversations_auth)
 actually enforces per-permission access instead of the old binary admin check -
 in particular that "operator" (ops/config permissions, no conversation access)
@@ -21,6 +21,28 @@ from auth.rbac import permissions_for_roles
 class FakeChatHistoryService:
     async def get_conversation_history(self, session_id, limit=50, include_metadata=True):
         return []
+
+
+class FakeApiKeyDatabase:
+    async def find_one(self, collection_name, query):
+        return {
+            "_id": query["_id"],
+            "api_key": "orbit_super-secret-value-1234",
+            "client_name": "regression-test",
+            "active": True,
+        }
+
+
+class FakeApiKeyDetailService:
+    _initialized = True
+    collection_name = "api_keys"
+
+    def __init__(self):
+        self.database = FakeApiKeyDatabase()
+        self.config = {"api_keys": {}}
+
+    def _serialize_expiration(self, key_doc):
+        return {"expires_at": None}
 
 
 def _user_info(roles):
@@ -96,14 +118,14 @@ def test_config_sections_requires_config_manage(roles, passes_auth):
     if passes_auth:
         assert resp.status_code not in (401, 403)
     else:
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
 
 def test_analyst_cannot_reach_apikeys_routes():
     app = _build_app(["analyst"])
     with TestClient(app) as client:
         resp = client.get("/admin/api-keys")
-    assert resp.status_code == 401
+    assert resp.status_code == 403
 
 
 def test_operator_can_reach_apikeys_routes():
@@ -128,7 +150,7 @@ def test_logs_tail_requires_logs_read(roles, passes_auth):
     if passes_auth:
         assert resp.status_code not in (401, 403)
     else:
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
 
 @pytest.mark.parametrize(
@@ -146,28 +168,77 @@ def test_audit_events_requires_audit_read(roles, passes_auth):
     if passes_auth:
         assert resp.status_code not in (401, 403)
     else:
-        assert resp.status_code == 401
+        assert resp.status_code == 403
 
 
-def test_api_key_bypasses_permission_or_api_key_routes_but_not_conversations():
-    """A valid X-API-Key should reach permission_or_api_key-guarded routes but
-    never reach the bearer-only conversations.read route."""
-    app = _build_app(["user"])  # bearer user has no admin permissions at all
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/admin/api-keys",
+        "/admin/adapters/config",
+        "/admin/prompts",
+        "/admin/config",
+        "/admin/info",
+        "/admin/logs/files",
+        "/admin/audit/events",
+        "/admin/chat-history/session-1",
+    ],
+)
+def test_valid_inference_api_key_cannot_reach_management_routes(path):
+    """Inference API keys never grant access to the administrative control plane."""
+    app = _build_app(["user"])
 
     async def no_user():
         return None
 
     class FakeApiKeyService:
+        calls = 0
+
         async def validate_api_key(self, key, adapter_manager, current_user_id=None, current_user_email=None):
+            self.calls += 1
             return (key == "valid-key", "some-adapter", None)
 
-    app.dependency_overrides[auth_dependencies.get_optional_user] = no_user
     app.dependency_overrides[auth_dependencies.get_current_user] = no_user
-    app.state.api_key_service = FakeApiKeyService()
+    api_key_service = FakeApiKeyService()
+    app.state.api_key_service = api_key_service
 
     with TestClient(app) as client:
-        resp_config = client.get("/admin/config/sections", headers={"X-API-Key": "valid-key"})
-        resp_conversations = client.get("/admin/chat-history/session-1", headers={"X-API-Key": "valid-key"})
+        response = client.get(path, headers={"X-API-Key": "valid-key"})
 
-    assert resp_config.status_code != 401 and resp_config.status_code != 403
-    assert resp_conversations.status_code == 401
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Authentication required"
+    assert api_key_service.calls == 0
+
+
+def test_api_key_detail_never_returns_stored_key_plaintext():
+    """Even authorized managers only receive a masked stored credential."""
+    app = _build_app(["admin"])
+    app.state.api_key_service = FakeApiKeyDetailService()
+
+    with TestClient(app) as client:
+        response = client.get("/admin/api-keys/key-record-id/detail")
+
+    assert response.status_code == 200
+    assert response.json()["api_key"] == "***1234"
+    assert "super-secret" not in response.text
+
+
+def test_valid_api_key_cannot_elevate_authenticated_user_without_permission():
+    app = _build_app(["user"])
+
+    class FakeApiKeyService:
+        calls = 0
+
+        async def validate_api_key(self, key, adapter_manager, current_user_id=None, current_user_email=None):
+            self.calls += 1
+            return (True, "some-adapter", None)
+
+    api_key_service = FakeApiKeyService()
+    app.state.api_key_service = api_key_service
+
+    with TestClient(app) as client:
+        response = client.get("/admin/config", headers={"X-API-Key": "valid-key"})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Missing required permission(s): config.manage"
+    assert api_key_service.calls == 0

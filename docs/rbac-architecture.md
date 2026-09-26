@@ -52,8 +52,8 @@ sequenceDiagram
     participant RBAC Registry (auth/rbac.py)
     participant Database
 
-    Client->>FastAPI Router: Request (Bearer Token, Cookie, or X-API-Key)
-    FastAPI Router->>Dependency: Depends(require_permission("conversations.read")) / permission_or_api_key(...)
+    Client->>FastAPI Router: Administrative request (Bearer Token or Cookie)
+    FastAPI Router->>Dependency: Depends(require_permission("<resource permission>"))
     Dependency->>AuthService: validate_token(token)
     AuthService->>Database: Query active session & user document (roles: [...])
     Database-->>AuthService: User document
@@ -114,11 +114,10 @@ A one-time, idempotent backfill (`AuthService._backfill_roles()`, run on every s
 Defined in [auth_dependencies.py](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py):
 
 *   **[`get_current_user`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py)**: Extracts and validates the bearer token, returning the `user_info` dict (including `roles`/`permissions`).
-*   **[`require_permission(*permissions)`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py)**: Dependency factory — bearer-token only, no API-key bypass. Used for routes where a leaked API key must never grant access, such as reading conversation transcripts.
-*   **[`permission_or_api_key(*permissions)`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py)**: Dependency factory — authorizes via a bearer token holding all listed permissions, **or** a valid `X-API-Key` header for programmatic/automation access.
+*   **[`require_permission(*permissions)`](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_dependencies.py)**: Dependency factory for the administrative control plane. It requires a bearer-token user holding every named permission; inference API keys never grant administrative access.
 *   **`require_admin`**: Retained as a thin alias requiring the wildcard permission (`*`), for any code path that genuinely needs "must be a full admin."
 
-`server/routes/admin_routes.py` builds one dependency instance per resource group (`apikeys_auth`, `adapters_auth`, `prompts_auth`, `config_auth`, `system_auth`, `logs_auth`, `audit_auth`) via `permission_or_api_key(...)`, and a bearer-only `conversations_auth = require_permission("conversations.read")` for the chat-history route — the one place a compromised API key must not be able to reach.
+`server/routes/admin/_shared.py` builds one `require_permission(...)` dependency per resource group (`apikeys_auth`, `adapters_auth`, `prompts_auth`, `config_auth`, `system_auth`, `logs_auth`, `audit_auth`, and `conversations_auth`). API keys remain inference credentials and are not accepted by these management routes.
 
 ### C. Admin & Route Helpers (cookie/WebSocket)
 Cookie-based authentication for the server-rendered admin panel lives in [auth_helpers.py](file:///Users/remsyschmilinsky/Downloads/orbit/server/routes/auth_helpers.py):
@@ -167,7 +166,7 @@ ORBIT supports external token validation and Admin Panel SSO via **Microsoft Ent
 *   **Fine-grained administrative safeguards**: Each admin capability area (config, adapters, API keys, prompts, system control, logs, audit, conversations, feedback) is gated by its own permission, so a role can be granted exactly the operations it needs and nothing more.
 *   **Conversation content isolation**: `conversations.read` is a distinct permission from every other admin capability, including `feedback.read` — an `operator` running the system day-to-day never needs, and never gets, the ability to read what users said to the assistant.
 *   **Audit-trail isolation**: `audit.read` is excluded from `operator` — running the system does not require seeing a history of every admin action taken across the panel. That visibility is scoped to `auditor` alone. `logs.read`, by contrast, is granted to `operator`: raw server logs are operational output of the system it runs, not an auditing concern.
-*   **Mitigation of compromised credentials**: Front-end client applications (e.g. `orbitchat`) consume the API using standard `user` bearer tokens with no admin permissions. The chat-history route additionally accepts bearer tokens only (no `X-API-Key` bypass), so a leaked programmatic API key cannot be used to read conversation transcripts even if it can reach other admin-automation routes.
+*   **Mitigation of compromised credentials**: Front-end client applications (e.g. `orbitchat`) consume inference APIs with standard `user` bearer tokens and/or API keys. The entire administrative control plane accepts permission-bearing user tokens only, so a leaked inference API key cannot read transcripts or reach management routes.
 
 ### B. Just-in-Time (JIT) Provisioning and SSO Allowlisting
 *   **Organization-wide access**: When external identity providers are enabled, any authenticated organization member is JIT-provisioned with the configured default role (typically `user`, granting no admin permissions).
@@ -188,7 +187,7 @@ ORBIT supports external token validation and Admin Panel SSO via **Microsoft Ent
 
 ### B. Namespace/Collection Scoping for API Keys & Users
 *   **Goal**: Enforce fine-grained permissions for specific database adapters or prompt collections based on resource scoping, beyond the current per-adapter binding on API keys.
-*   **Implementation**: Extend `permission_or_api_key` to match resource targets against the key's allowed scopes list.
+*   **Implementation**: Add resource scopes to the inference authorization path without allowing those scopes to authorize administrative control-plane routes.
 
 ### C. Role-Based Rate Limiting & Quota Bypassing
 *   **Goal**: Ensure high-volume client chat interactions do not starve system resources or lock out administrative tasks.

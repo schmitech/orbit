@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import Depends, Request
 
-from routes.auth_dependencies import permission_or_api_key, require_permission
+from routes.auth_dependencies import require_permission
 
 
 def get_api_key_service(request: Request):
@@ -40,14 +40,14 @@ def _serialize_created_at(value) -> Optional[float]:
     return value
 
 
-# Per-resource-group authorization: bearer token holding the permission, or a
-# valid X-API-Key for programmatic/automation access. Conversation content is
-# bearer-only (require_permission) so a leaked API key cannot read transcripts.
-apikeys_auth = Depends(permission_or_api_key("apikeys.manage"))
-adapters_auth = Depends(permission_or_api_key("adapters.manage"))
-prompts_auth = Depends(permission_or_api_key("prompts.manage"))
-config_auth = Depends(permission_or_api_key("config.manage"))
-system_auth = Depends(permission_or_api_key("system.manage"))
-logs_auth = Depends(permission_or_api_key("logs.read"))
-audit_auth = Depends(permission_or_api_key("audit.read"))
+# Management routes require an authenticated bearer-token user with the
+# resource-specific permission. Inference API keys intentionally carry no
+# administrative privileges and must never authorize this control plane.
+apikeys_auth = Depends(require_permission("apikeys.manage"))
+adapters_auth = Depends(require_permission("adapters.manage"))
+prompts_auth = Depends(require_permission("prompts.manage"))
+config_auth = Depends(require_permission("config.manage"))
+system_auth = Depends(require_permission("system.manage"))
+logs_auth = Depends(require_permission("logs.read"))
+audit_auth = Depends(require_permission("audit.read"))
 conversations_auth = Depends(require_permission("conversations.read"))

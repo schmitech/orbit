@@ -802,12 +802,6 @@ All should pass. Plus the broader auth-adjacent sweep:
 venv/bin/python -m pytest server/tests/test_auth/ server/tests/test_middleware/ -q
 ```
 
-> Note: `server/tests/test_routes/test_admin_permission_guards.py` has one
-> pre-existing failure on `main`
-> (`test_api_key_bypasses_permission_or_api_key_routes_but_not_conversations`)
-> unrelated to this feature. Confirm it fails identically on a clean checkout
-> before chasing it.
-
 ---
 
 ## Troubleshooting

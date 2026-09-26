@@ -98,11 +98,11 @@ def test_get_misses_respects_limit_query_param():
     assert len(resp.json()["misses"]) == 2
 
 
-def test_get_misses_requires_admin_permission_or_api_key():
+def test_get_misses_requires_admin_permission():
     with TestClient(_build_app(roles=("user",))) as client:
         resp = client.get("/admin/adapters/intent-sql-postgres/misses")
 
-    assert resp.status_code == 401
+    assert resp.status_code == 403
 
 
 def test_post_feedback_records_and_returns_status():

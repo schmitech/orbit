@@ -2623,6 +2623,16 @@ label.expiration-choice-row-item {
   color: var(--danger-text);
 }
 
+.key-created-banner {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--danger-border);
+  border-radius: 6px;
+  background: var(--danger-50);
+  color: var(--danger-text);
+  font-size: 0.9em;
+}
+
 .test-result-icon {
   flex: 0 0 auto;
   width: 1.75rem;

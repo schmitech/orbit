@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.17.15] - 2026-09-26
+
+### Security
+- **Admin API-Key Privilege Escalation**: Administrative management routes now require bearer-token users with the appropriate RBAC permission; inference API keys can no longer authorize API-key, adapter, prompt, configuration, system, logs, audit, or conversation management requests. Stored API keys are masked in detail responses and can only be retrieved in plaintext once, when created.
+
 ## [2.17.14] - 2026-09-25
 
 ### Core Features

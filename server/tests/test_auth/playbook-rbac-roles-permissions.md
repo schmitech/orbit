@@ -50,16 +50,9 @@ Permission → route(s):
 | `conversations.read` | `/admin/chat-history/{id}`, feedback-analytics conversation excerpts |
 | `feedback.read` | `/admin/api/feedback-analytics` aggregates |
 
-**One asymmetry to know before you start**, so you don't mistake it for a bug:
-- Routes gated by `require_permission(...)` (bearer-only: `conversations.read`,
-  and all of `/auth/*`) return **403** for an authenticated user who lacks the
-  permission, **401** if unauthenticated.
-- Routes gated by `permission_or_api_key(...)` (everything else under
-  `/admin/*`) return **401**, not 403, for an authenticated-but-lacking-permission
-  user — the dependency has no separate "authenticated but forbidden" branch,
-  it just falls through to the API-key check and then fails closed. Both are
-  "you may not do this," just a different status code depending on which
-  dependency guards the route.
+All management routes gated by `require_permission(...)` return **403** for an
+authenticated user who lacks the permission and **401** if unauthenticated.
+An `X-API-Key` is an inference credential and never satisfies these guards.
 
 ---
 
@@ -185,9 +178,7 @@ for T in ADMIN USER_MANAGER OPERATOR; do
 done
 ```
 
-Expect: `admin`/`user-manager` → 200. `operator` → **403** (this route uses
-`require_permission`, not `permission_or_api_key` — confirms the asymmetry
-from §0 in the other direction).
+Expect: `admin`/`user-manager` → 200. `operator` → **403**.
 
 ### `POST /admin/adapters/{name}/test-query` — bearer-only `adapters.manage`
 
@@ -415,10 +406,9 @@ this playbook is the live-server complement, not a replacement.
 
 ## Troubleshooting
 
-- **Got 401 where you expected 403 (or vice versa):** check which dependency
-  guards the route — `permission_or_api_key` (most of `/admin/*`) returns 401
-  for "authenticated but lacking permission"; `require_permission` (`/auth/*`
-  and `conversations.read`) returns 403 for the same case. See §0.
+- **Got 401 where you expected 403 (or vice versa):** `require_permission`
+  returns 401 when no bearer user authenticated and 403 when an authenticated
+  user lacks the required permission. API keys do not authenticate admin routes.
 - **A role you just assigned doesn't seem to apply:** the user must
   re-authenticate (new login/token) to pick up a role change — `permissions`
   is computed once per token validation from the current DB row, but an

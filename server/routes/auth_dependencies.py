@@ -8,7 +8,7 @@ These dependencies are used to protect routes and extract user information.
 
 import logging
 from typing import Optional, Any
-from fastapi import Request, HTTPException, Header, Depends
+from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from auth.rbac import has_permission
@@ -180,42 +180,6 @@ def require_permission(*permissions: str):
     return _dependency
 
 
-def permission_or_api_key(*permissions: str):
-    """
-    Build a dependency that authorizes a request via either a bearer token
-    whose user holds all of the given permissions, or a valid X-API-Key
-    header (for programmatic/automation access).
-    """
-    async def _dependency(
-        request: Request,
-        current_user: Optional[dict[str, Any]] = Depends(get_optional_user),
-        x_api_key: Optional[str] = Header(None, alias="X-API-Key")
-    ) -> bool:
-        if current_user and all(has_permission(current_user, perm) for perm in permissions):
-            request.state.current_user = current_user
-            return True
-
-        if hasattr(request.app.state, 'api_key_service') and x_api_key:
-            api_key_service = request.app.state.api_key_service
-            adapter_manager = getattr(request.app.state, 'adapter_manager', None)
-            current_user_id = current_user.get("id") if current_user else None
-            current_user_email = current_user.get("email") if current_user else None
-            is_valid, _, _ = await api_key_service.validate_api_key(
-                x_api_key, adapter_manager, current_user_id=current_user_id,
-                current_user_email=current_user_email
-            )
-            if is_valid:
-                request.state.api_key = x_api_key
-                return True
-
-        raise HTTPException(
-            status_code=401,
-            detail="Admin authentication or valid API key required"
-        )
-
-    return _dependency
-
-
 async def get_optional_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
@@ -247,4 +211,3 @@ async def get_optional_user(
         request.state.current_user = user_info
         return user_info
     return None
-

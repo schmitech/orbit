@@ -19,8 +19,8 @@ Design:
   can neither write a field its route excludes nor displace a resource id the
   route derives from the request.
 - Path templates are matched via precompiled regexes; the actor is pulled
-  from `request.state.current_user` (set by auth dependencies) or from the
-  `X-API-Key` header if API-key auth succeeded.
+  from `request.state.current_user` (set by auth dependencies), with a masked
+  `X-API-Key` header used only to attribute denied requests that supplied one.
 - All audit errors are swallowed — a failing audit write must never break
   the underlying admin action.
 """

@@ -41,9 +41,9 @@ async def create_api_key(
     """
     Create a new API key for accessing the server.
     
-    This endpoint now requires either:
-    - Admin authentication (Bearer token)
-    - Valid API key with appropriate permissions
+    This endpoint requires bearer-token authentication with the
+    ``apikeys.manage`` permission. Inference API keys cannot authorize API-key
+    management operations.
     
     This endpoint allows administrators to create API keys with:
     - Collection-based access control
@@ -199,7 +199,7 @@ async def get_api_key_detail(
     api_key_id: str,
     request: Request,
 ):
-    """Get admin-only detail for a specific API key record, including the raw key value."""
+    """Get admin-only detail for a specific API key record with its key masked."""
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
     prompt_service = getattr(request.app.state, 'prompt_service', None)
@@ -220,7 +220,7 @@ async def get_api_key_detail(
         key_dict = {
             "_id": record_id,   # legacy — admin_panel.js depends on this
             "id": record_id,    # canonical
-            "api_key": key.get("api_key"),
+            "api_key": mask_api_key(key.get("api_key"), show_last=True, prefix="***"),
             "adapter_name": key.get("adapter_name"),
             "client_name": key.get("client_name"),
             "notes": key.get("notes"),
