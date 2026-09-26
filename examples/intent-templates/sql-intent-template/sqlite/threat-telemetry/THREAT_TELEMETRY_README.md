@@ -73,5 +73,8 @@ create` and pass `--prompt-id` to subsequent `key create` calls instead of
   live sensor feed that actually persists new detections/alerts into this
   database via a standalone ingest consumer (see
   `docs/message-queue-architecture.md` and that folder's README).
-- `examples/threat-telemetry-dashboard/` — a dashboard driving this adapter
+- `examples/threat-telemetry-dashboard/` — a fully live command-center
+  dashboard: sensor status, alerts, and metrics are read (and, for
+  acknowledge, written) directly against this database and RabbitMQ via
+  `examples/threat-telemetry-mq/live_stats_server.py`, with chat still going
   through `/v1/chat/completions`.

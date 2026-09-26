@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Activity, AlertTriangle, ArrowUpRight, Bot, Check, ChevronRight,
+  Activity, AlertTriangle, Bot, Check, ChevronRight,
   CircleDot, Clock3, CloudCog, Command, Crosshair, Database, Download,
   Gauge, Hexagon, ListChecks, Pause, Play, Radio, Send, Server, Settings2,
   Shield, ShieldAlert, Signal, Sparkles, Target, Wifi, X, Zap,
@@ -14,23 +14,6 @@ function Markdown({ text }) {
   return <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>;
 }
 
-const sensors = [
-  { kind: "sensor", id: "SEN-001", name: "North Perimeter", type: "RADAR", x: 45, y: 18, status: "online", signal: 98 },
-  { kind: "sensor", id: "SEN-002", name: "East Gate", type: "OPTICAL", x: 78, y: 43, status: "online", signal: 94 },
-  { kind: "sensor", id: "SEN-003", name: "Harbor Watch", type: "ACOUSTIC", x: 67, y: 75, status: "degraded", signal: 62 },
-  { kind: "sensor", id: "SEN-004", name: "West Ridge", type: "UAV", x: 21, y: 39, status: "online", signal: 91 },
-  { kind: "sensor", id: "SEN-005", name: "South Fence", type: "PERIMETER", x: 38, y: 81, status: "online", signal: 97 },
-  { kind: "sensor", id: "SEN-006", name: "Overwatch B", type: "RADAR", x: 64, y: 29, status: "offline", signal: 0 },
-];
-
-const initialAlerts = [
-  { kind: "alert", id: "ALR-0942", object: "Unknown aircraft", site: "North Perimeter", severity: "critical", confidence: 98, age: "12 sec", status: "OPEN", operator: "Unassigned", x: 47, y: 22 },
-  { kind: "alert", id: "ALR-0941", object: "Fast-moving vehicle", site: "East Gate", severity: "high", confidence: 94, age: "48 sec", status: "OPEN", operator: "M. Chen", x: 75, y: 47 },
-  { kind: "alert", id: "ALR-0938", object: "Unidentified person", site: "South Fence", severity: "high", confidence: 87, age: "2 min", status: "ACK", operator: "J. Alvarez", x: 40, y: 77 },
-  { kind: "alert", id: "ALR-0934", object: "Acoustic anomaly", site: "Harbor Watch", severity: "medium", confidence: 76, age: "5 min", status: "OPEN", operator: "R. Singh", x: 66, y: 71 },
-  { kind: "alert", id: "ALR-0929", object: "Low-altitude aircraft", site: "West Ridge", severity: "medium", confidence: 82, age: "11 min", status: "ACK", operator: "K. Novak", x: 25, y: 35 },
-];
-
 const prompts = [
   "Show critical detections in the last hour",
   "Which sensors need attention?",
@@ -38,9 +21,100 @@ const prompts = [
   "List unresolved alerts by severity",
 ];
 
-const chart = [31, 38, 34, 48, 43, 59, 55, 67, 61, 78, 73, 92, 81, 87, 76, 94, 89, 103, 97, 116, 108, 123, 118, 131];
+const SEVERITY_COLOR = { critical: "#ff5c5f", high: "#ff9d45", medium: "#f4d35e", low: "#4de4bd" };
+
 const cls = (...values) => values.filter(Boolean).join(" ");
 const clockTime = () => new Intl.DateTimeFormat("en-CA", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date());
+
+// Backend timestamps are naive UTC strings ("YYYY-MM-DD HH:MM:SS.ffffff");
+// treat them as UTC explicitly rather than letting the browser assume local time.
+function parseUtc(value) {
+  if (!value) return null;
+  const iso = value.replace(" ", "T") + (value.endsWith("Z") ? "" : "Z");
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function relativeTimeFromDate(date) {
+  if (!date) return "—";
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h ago`;
+  return `${Math.round(seconds / 86400)}d ago`;
+}
+
+function toAlertRecord(a) {
+  const raised = parseUtc(a.raised_at);
+  return {
+    kind: "alert",
+    id: a.alert_id,
+    object: `${a.object_type[0].toUpperCase()}${a.object_type.slice(1)} contact`,
+    site: a.location_name,
+    severity: a.severity,
+    confidence: Math.round((a.confidence ?? 0) * 100),
+    age: relativeTimeFromDate(raised),
+    status: a.status === "open" ? "OPEN" : "ACK",
+    operator: a.assigned_to || "Unassigned",
+    x: a.x,
+    y: a.y,
+  };
+}
+
+function toSensorRecord(s) {
+  return {
+    kind: "sensor",
+    id: s.label,
+    sensor_id: s.sensor_id,
+    name: s.name,
+    type: s.type.toUpperCase(),
+    location_name: s.location_name,
+    x: s.x,
+    y: s.y,
+    status: s.status,
+  };
+}
+
+function useLiveStats(statsUrl, { intervalMs = 3000 } = {}) {
+  const [stats, setStats] = useState(null);
+  const [reachable, setReachable] = useState(false);
+  const [latencyMs, setLatencyMs] = useState(null);
+  const [rateHistory, setRateHistory] = useState([]);
+
+  useEffect(() => {
+    if (intervalMs <= 0) return; // paused — freeze whatever was last fetched
+    let active = true;
+    const poll = async () => {
+      const started = performance.now();
+      try {
+        const res = await fetch(statsUrl, { cache: "no-store" });
+        if (!res.ok) throw new Error(String(res.status));
+        const body = await res.json();
+        if (!active) return;
+        setStats(body);
+        setReachable(true);
+        setLatencyMs(Math.round(performance.now() - started));
+        const perMin = Math.round((body.queue?.deliver_rate_per_sec ?? 0) * 60);
+        setRateHistory(prev => [...prev.slice(-59), perMin]);
+      } catch {
+        if (active) { setReachable(false); setLatencyMs(null); }
+      }
+    };
+    poll();
+    const id = setInterval(poll, intervalMs);
+    return () => { active = false; clearInterval(id); };
+  }, [statsUrl, intervalMs]);
+
+  return { stats, reachable, latencyMs, rateHistory };
+}
+
+async function acknowledgeAlert(statsUrl, alertId) {
+  const base = statsUrl.replace(/\/stats\/?$/, "");
+  const res = await fetch(`${base}/alerts/${encodeURIComponent(alertId)}/acknowledge`, { method: "POST" });
+  if (!res.ok) throw new Error(`Acknowledge failed (${res.status})`);
+  return res.json();
+}
 
 function sessionId() {
   let value = sessionStorage.getItem("orbit-threat-session");
@@ -86,11 +160,7 @@ function LivePill({ children, live = true }) {
   return <span className={cls("status-pill", live && "is-live")}><i />{children}</span>;
 }
 
-function SimulatedBadge() {
-  return <span className="simulated-badge" title="Presentation data — not sourced from ORBIT or RabbitMQ">SIMULATED</span>;
-}
-
-function Header({ mode, setMode, paused, setPaused, openSettings, activeView, setActiveView }) {
+function Header({ paused, setPaused, openSettings, activeView, setActiveView }) {
   const [time, setTime] = useState(clockTime());
   useEffect(() => {
     const id = setInterval(() => setTime(clockTime()), 1000);
@@ -101,8 +171,7 @@ function Header({ mode, setMode, paused, setPaused, openSettings, activeView, se
       <div className="brand-block"><Brand /><div><small>ORBIT SYSTEMS</small><strong>THREAT COMMAND</strong></div></div>
       <div className="topbar-center"><LivePill live={!paused}>{paused ? "FEED PAUSED" : "SYSTEM OPERATIONAL"}</LivePill><span className="divider" /><span><Server size={13} /> NODE 04 / EASTERN GRID</span></div>
       <div className="top-actions">
-        <div className="mode-switch"><button className={mode === "demo" ? "active" : ""} onClick={() => setMode("demo")}>DEMO</button><button className={mode === "live" ? "active" : ""} onClick={() => setMode("live")}>LIVE</button></div>
-        <button className="icon-button" onClick={() => setPaused(!paused)} title={paused ? "Resume" : "Pause"}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>
+        <button className="icon-button" onClick={() => setPaused(!paused)} title={paused ? "Resume live updates" : "Pause live updates"}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>
         <button className="icon-button" onClick={openSettings} title="Connection settings"><Settings2 size={15} /></button>
         <span className="clock"><Clock3 size={13} />{time}<small>UTC-4</small></span>
       </div>
@@ -118,13 +187,11 @@ function Header({ mode, setMode, paused, setPaused, openSettings, activeView, se
   </>;
 }
 
-function Metric({ icon: Icon, label, value, unit, delta, tone = "cyan", values }) {
-  const data = values || [14, 17, 15, 22, 19, 27, 25, 31, 28, 34];
-  const path = data.map((point, i) => `${i ? "L" : "M"}${i * 12},${38 - point}`).join(" ");
+function Metric({ icon: Icon, label, value, unit, tone = "cyan", live = true }) {
   return <article className={cls("metric", `tone-${tone}`)}>
-    <div className="metric-head"><span>{label} <SimulatedBadge /></span><Icon size={16} /></div>
-    <div className="metric-main"><strong>{value}<small>{unit}</small></strong><svg viewBox="0 0 108 40" preserveAspectRatio="none"><path className="fill" d={`${path} L108,40 L0,40 Z`} /><path d={path} /></svg></div>
-    <div className="metric-foot"><ArrowUpRight size={12} /><span>{delta}</span><small>VS PREVIOUS HOUR</small></div>
+    <div className="metric-head"><span>{label}</span><Icon size={16} /></div>
+    <div className="metric-main"><strong>{live ? value : "—"}<small>{unit}</small></strong></div>
+    <div className="metric-foot"><span>{live ? "LIVE" : "NO DATA"}</span></div>
   </article>;
 }
 
@@ -132,9 +199,9 @@ function PanelHead({ kicker, title, children }) {
   return <div className="panel-head"><div><small>{kicker}</small><h2>{title}</h2></div>{children}</div>;
 }
 
-function TacticalMap({ selected, select, paused }) {
+function TacticalMap({ sensors, alerts, selected, select, paused }) {
   return <section className="panel map-panel">
-    <PanelHead kicker="PRESENTATION TOPOLOGY" title={<>Sector overview <SimulatedBadge /></>}><div className="map-tools"><button className="active"><Crosshair size={12} />TRACKS</button><button><Radio size={12} />SENSORS</button></div></PanelHead>
+    <PanelHead kicker="SENSOR NETWORK" title="Sector overview"><div className="map-tools"><button className="active"><Crosshair size={12} />TRACKS</button><button><Radio size={12} />SENSORS</button></div></PanelHead>
     <div className="map-canvas">
       <svg viewBox="0 0 900 535" aria-label="Tactical sensor network map">
         <defs>
@@ -150,11 +217,11 @@ function TacticalMap({ selected, select, paused }) {
         <g className="connections">{sensors.slice(1).map(s => <line key={s.id} x1="450" y1="268" x2={s.x * 9} y2={s.y * 5.35}/>)}</g>
         {sensors.map(sensor => {
           const x = sensor.x * 9, y = sensor.y * 5.35;
-          return <g key={sensor.id} className={cls("sensor", sensor.status, selected?.site === sensor.name && "selected")} onClick={() => select({ ...sensor, site: sensor.name, severity: sensor.status === "offline" ? "critical" : "low" })} role="button" tabIndex="0">
+          return <g key={sensor.id} className={cls("sensor", sensor.status, selected?.id === sensor.id && "selected")} onClick={() => select(sensor)} role="button" tabIndex="0">
             <circle className="range" cx={x} cy={y} r="30"/><circle className="pulse" cx={x} cy={y} r="16"/><circle className="core" cx={x} cy={y} r="5"/><path d={`M${x-9} ${y-9}h5M${x+4} ${y-9}h5M${x-9} ${y+9}h5M${x+4} ${y+9}h5`}/><text className="sensor-label" x={x+17} y={y-10}>{sensor.id}</text><text className="sensor-sub" x={x+17} y={y+5}>{sensor.type} · {sensor.status.toUpperCase()}</text>
           </g>;
         })}
-        {initialAlerts.slice(0, 3).map(alert => <g key={alert.id} className={cls("threat", alert.severity)} onClick={() => select(alert)}><circle cx={alert.x*9} cy={alert.y*5.35} r="20"/><path d={`M${alert.x*9} ${alert.y*5.35-8}l8 15h-16Z`}/><text x={alert.x*9+24} y={alert.y*5.35+4}>{alert.id}</text></g>)}
+        {alerts.slice(0, 6).map(alert => <g key={alert.id} className={cls("threat", alert.severity)} onClick={() => select(alert)}><circle cx={alert.x*9} cy={alert.y*5.35} r="20"/><path d={`M${alert.x*9} ${alert.y*5.35-8}l8 15h-16Z`}/><text x={alert.x*9+24} y={alert.y*5.35+4}>{alert.id}</text></g>)}
       </svg>
       <div className="coordinates">38° 53' 42.1" N&nbsp; / &nbsp;77° 02' 34.6" W</div>
       <div className="map-legend"><span><i/>ONLINE</span><span><i className="warn"/>DEGRADED</span><span><i className="danger"/>OFFLINE</span></div>
@@ -162,50 +229,58 @@ function TacticalMap({ selected, select, paused }) {
   </section>;
 }
 
-function Distribution() {
-  const parts = [{ name: "Critical", value: 12, color: "#ff5c5f" }, { name: "High", value: 27, color: "#ff9d45" }, { name: "Medium", value: 38, color: "#f4d35e" }, { name: "Low", value: 23, color: "#4de4bd" }];
+function Distribution({ distribution, total }) {
+  const parts = ["critical", "high", "medium", "low"].map(sev => ({
+    name: sev[0].toUpperCase() + sev.slice(1),
+    value: distribution?.[sev]?.percent ?? 0,
+    color: SEVERITY_COLOR[sev],
+  }));
   let offset = 0;
-  return <section className="panel distribution"><PanelHead kicker="LAST 24 HOURS · SIMULATED" title="Threat distribution"><ChevronRight size={16}/></PanelHead><div className="donut-layout"><div className="donut"><svg viewBox="0 0 120 120"><circle className="track" cx="60" cy="60" r="47"/>{parts.map(part => { const start = offset; offset += part.value; return <circle key={part.name} cx="60" cy="60" r="47" fill="none" stroke={part.color} strokeWidth="9" strokeDasharray={`${part.value*2.953} ${295.3-part.value*2.953}`} strokeDashoffset={-start*2.953}/>; })}</svg><div><strong>143</strong><span>CONTACTS</span></div></div><div className="legend-list">{parts.map(part => <div key={part.name}><i style={{background: part.color}}/><span>{part.name}</span><strong>{part.value}%</strong></div>)}</div></div></section>;
+  return <section className="panel distribution"><PanelHead kicker="LAST 24 HOURS" title="Threat distribution"/><div className="donut-layout"><div className="donut"><svg viewBox="0 0 120 120"><circle className="track" cx="60" cy="60" r="47"/>{parts.map(part => { const start = offset; offset += part.value; return <circle key={part.name} cx="60" cy="60" r="47" fill="none" stroke={part.color} strokeWidth="9" strokeDasharray={`${part.value*2.953} ${295.3-part.value*2.953}`} strokeDashoffset={-start*2.953}/>; })}</svg><div><strong>{total ?? 0}</strong><span>CONTACTS</span></div></div><div className="legend-list">{parts.map(part => <div key={part.name}><i style={{background: part.color}}/><span>{part.name}</span><strong>{part.value}%</strong></div>)}</div></div></section>;
 }
 
-function Throughput({ rate }) {
-  const max = Math.max(...chart);
-  const points = chart.map((value, i) => `${i/(chart.length-1)*600},${118-value/max*98}`).join(" ");
-  return <section className="panel throughput"><PanelHead kicker="MESSAGE QUEUE · SIMULATED" title="Processing throughput"><div className="rate"><strong>{rate}</strong><span>msg/min</span></div></PanelHead><svg className="line-chart" viewBox="0 0 600 135" preserveAspectRatio="none"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#40e3bd" stopOpacity=".25"/><stop offset="1" stopColor="#40e3bd" stopOpacity="0"/></linearGradient></defs>{[28,58,88,118].map(y => <line key={y} x1="0" y1={y} x2="600" y2={y}/>)}<polygon points={`0,135 ${points} 600,135`} fill="url(#chartFill)"/><polyline points={points}/><circle cx="600" cy={118-chart.at(-1)/max*98} r="4"/></svg><div className="chart-labels"><span>-60 MIN</span><span>-45</span><span>-30</span><span>-15</span><span>NOW</span></div></section>;
+function Throughput({ rate, history }) {
+  const samples = history && history.length > 1 ? history : [0, 0];
+  const max = Math.max(1, ...samples);
+  const points = samples.map((value, i) => `${i/(samples.length-1)*600},${118-value/max*98}`).join(" ");
+  return <section className="panel throughput"><PanelHead kicker="MESSAGE QUEUE · LIVE" title="Processing throughput"><div className="rate"><strong>{rate}</strong><span>msg/min</span></div></PanelHead><svg className="line-chart" viewBox="0 0 600 135" preserveAspectRatio="none"><defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#40e3bd" stopOpacity=".25"/><stop offset="1" stopColor="#40e3bd" stopOpacity="0"/></linearGradient></defs>{[28,58,88,118].map(y => <line key={y} x1="0" y1={y} x2="600" y2={y}/>)}<polygon points={`0,135 ${points} 600,135`} fill="url(#chartFill)"/><polyline points={points}/><circle cx="600" cy={118-samples.at(-1)/max*98} r="4"/></svg><div className="chart-labels"><span>OLDEST SAMPLE</span><span>NOW</span></div></section>;
 }
 
 function Alerts({ alerts, selected, select, acknowledge }) {
-  const canAcknowledge = selected?.kind === "alert";
-  return <section className="panel alerts-panel"><PanelHead kicker="PRIORITY ORDER · SIMULATED" title={<>Active alerts <b>{alerts.length}</b></>}><button className="text-button"><Settings2 size={13}/>FILTER</button></PanelHead><div className="alert-list">{alerts.map(alert => <button key={alert.id} className={cls("alert-row", selected?.id === alert.id && "selected")} onClick={() => select(alert)}><i className={cls("stripe", alert.severity)}/><span className={cls("alert-icon", alert.severity)}><AlertTriangle size={15}/></span><span className="alert-name"><strong>{alert.object}</strong><small>{alert.id} · {alert.site}</small></span><span className="confidence"><strong>{alert.confidence}%</strong><small>CONF</small></span><span className="age">{alert.age}</span><ChevronRight size={14}/></button>)}</div><div className="feed-footer"><button onClick={acknowledge} disabled={!canAcknowledge} title={canAcknowledge ? "Acknowledge selected alert" : "Select an alert before acknowledging"}><Check size={13}/>{canAcknowledge ? "ACKNOWLEDGE SELECTED" : "SELECT AN ALERT TO ACKNOWLEDGE"}</button><span>Sorted by threat score</span></div></section>;
+  const canAcknowledge = selected?.kind === "alert" && selected.status === "OPEN";
+  return <section className="panel alerts-panel"><PanelHead kicker="PRIORITY ORDER · LIVE" title={<>Active alerts <b>{alerts.length}</b></>}/><div className="alert-list">{alerts.length === 0 && <div className="burst-empty"><p>No open or acknowledged alerts.</p></div>}{alerts.map(alert => <button key={alert.id} className={cls("alert-row", selected?.id === alert.id && "selected")} onClick={() => select(alert)}><i className={cls("stripe", alert.severity)}/><span className={cls("alert-icon", alert.severity)}><AlertTriangle size={15}/></span><span className="alert-name"><strong>{alert.object}</strong><small>{alert.id} · {alert.site}</small></span><span className="confidence"><strong>{alert.confidence}%</strong><small>CONF</small></span><span className="age">{alert.age}</span><ChevronRight size={14}/></button>)}</div><div className="feed-footer"><button onClick={acknowledge} disabled={!canAcknowledge} title={canAcknowledge ? "Acknowledge selected alert" : "Select an open alert before acknowledging"}><Check size={13}/>{canAcknowledge ? "ACKNOWLEDGE SELECTED" : "SELECT AN OPEN ALERT"}</button><span>Sorted by severity</span></div></section>;
 }
 
 function Detail({ item }) {
   if (!item) return null;
   const sensor = item.kind === "sensor";
-  return <aside className="detail"><small>{sensor ? "SENSOR DETAIL" : "SELECTED TRACK"}</small><div className="detail-title"><span className={cls("target", item.severity)}><Target size={20}/></span><div><strong>{item.id}</strong><em>{item.object || item.type}</em></div></div><div className="detail-grid"><div><span>LOCATION</span><strong>{item.site || item.name}</strong></div><div><span>STATUS</span><strong>{item.status || item.severity?.toUpperCase()}</strong></div><div><span>{sensor ? "SIGNAL" : "CONFIDENCE"}</span><strong>{item.signal ?? item.confidence}%</strong></div><div><span>{sensor ? "LAST PING" : "DETECTED"}</span><strong>{sensor ? "4 sec ago" : item.age}</strong></div></div>{!sensor && <div className="assignment"><span>ASSIGNED OPERATOR</span><strong><i/>{item.operator}</strong></div>}<button>OPEN FULL RECORD <ArrowUpRight size={13}/></button></aside>;
+  return <aside className="detail"><small>{sensor ? "SENSOR DETAIL" : "SELECTED TRACK"}</small><div className="detail-title"><span className={cls("target", sensor ? item.status : item.severity)}><Target size={20}/></span><div><strong>{item.id}</strong><em>{item.object || item.type}</em></div></div><div className="detail-grid">
+    <div><span>LOCATION</span><strong>{sensor ? item.location_name : item.site}</strong></div>
+    <div><span>STATUS</span><strong>{sensor ? item.status?.toUpperCase() : item.status}</strong></div>
+    {sensor
+      ? <div><span>TYPE</span><strong>{item.type}</strong></div>
+      : <div><span>CONFIDENCE</span><strong>{item.confidence}%</strong></div>}
+    {!sensor && <div><span>DETECTED</span><strong>{item.age}</strong></div>}
+  </div>{!sensor && <div className="assignment"><span>ASSIGNED OPERATOR</span><strong><i/>{item.operator}</strong></div>}</aside>;
 }
 
-function Intelligence({ mode, config, openSettings, setConnected, forceOpen = false }) {
+function Intelligence({ config, openSettings, setConnected, forceOpen = false }) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState(prompts[0]);
-  const [answer, setAnswer] = useState("Critical activity is concentrated at North Perimeter. Five high-confidence tracks were detected inside the last hour; one remains unassigned.");
+  const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   async function ask(value) {
     const prompt = value || question.trim();
     if (!prompt) return;
     setQuestion(prompt); setOpen(true); setError(""); setLoading(true);
-    if (mode === "demo") {
-      setTimeout(() => { setAnswer("ORBIT correlated 143 contacts across six sensor sites. Immediate attention is recommended for ALR-0942 at North Perimeter; confidence is 98% and no operator is assigned. Harbor Watch is degraded and Overwatch B is offline."); setLoading(false); }, 650);
-      return;
-    }
-    if (!config.apiKey) { setError("Add an ORBIT API key to run live intelligence queries."); setLoading(false); openSettings(); return; }
+    if (!config.apiKey) { setError("Add an ORBIT API key to run intelligence queries."); setLoading(false); openSettings(); return; }
     try { setAnswer(await askOrbit(config.apiUrl, config.apiKey, prompt)); setConnected(true); }
     catch (err) { setError(err.message); setConnected(false); }
     finally { setLoading(false); }
   }
   const expanded = forceOpen || open;
-  return <section className={cls("intel", expanded && "open", forceOpen && "standalone-intel")}><div className="intel-head" onClick={() => !forceOpen && setOpen(!open)}><span className="ai-icon"><Sparkles size={16}/></span><div><small>ORBIT INTELLIGENCE</small><strong>Ask the operational picture</strong></div><LivePill>{mode === "live" ? "LIVE ADAPTER" : "DEMO READY"}</LivePill>{!forceOpen && <ChevronRight className="chevron" size={18}/>}</div><div className="intel-body"><div className="prompt-list">{prompts.map(prompt => <button key={prompt} onClick={() => ask(prompt)}>{prompt}</button>)}</div><div className="answer"><span><Bot size={13}/>ORBIT ANALYSIS</span>{loading ? <div className="thinking"><i/><i/><i/> Correlating telemetry</div> : error ? <p className="error">{error}</p> : <Markdown text={answer}/>}</div><form onSubmit={event => { event.preventDefault(); ask(); }}><Command size={15}/><input value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ask about detections, sensors, operators…"/><button disabled={loading}><Send size={14}/>ANALYZE</button></form></div></section>;
+  return <section className={cls("intel", expanded && "open", forceOpen && "standalone-intel")}><div className="intel-head" onClick={() => !forceOpen && setOpen(!open)}><span className="ai-icon"><Sparkles size={16}/></span><div><small>ORBIT INTELLIGENCE</small><strong>Ask the operational picture</strong></div><LivePill live={!!config.apiKey}>{config.apiKey ? "API CONFIGURED" : "NO API KEY"}</LivePill>{!forceOpen && <ChevronRight className="chevron" size={18}/>}</div><div className="intel-body"><div className="prompt-list">{prompts.map(prompt => <button key={prompt} onClick={() => ask(prompt)}>{prompt}</button>)}</div><div className="answer"><span><Bot size={13}/>ORBIT ANALYSIS</span>{loading ? <div className="thinking"><i/><i/><i/> Correlating telemetry</div> : error ? <p className="error">{error}</p> : answer ? <Markdown text={answer}/> : <p className="hint">Ask a question or click a suggestion above.</p>}</div><form onSubmit={event => { event.preventDefault(); ask(); }}><Command size={15}/><input value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ask about detections, sensors, operators…"/><button disabled={loading}><Send size={14}/>ANALYZE</button></form></div></section>;
 }
 
 function relativeTime(ts) {
@@ -293,43 +368,46 @@ function ViewHeading({ kicker, title, description, children }) {
 }
 
 function IncidentView({ alerts, selected, select, acknowledge }) {
-  const active = selected?.kind === "alert" ? selected : alerts[0];
+  const active = (selected?.kind === "alert" ? selected : alerts[0]) ?? null;
   return <section className="workspace-view">
-    <ViewHeading kicker="INCIDENT OPERATIONS · SIMULATED" title="Incident queue" description="Review, prioritize, and acknowledge active threat records."><LivePill>{alerts.filter(item => item.status === "OPEN").length} OPEN</LivePill></ViewHeading>
+    <ViewHeading kicker="INCIDENT OPERATIONS · LIVE" title="Incident queue" description="Review, prioritize, and acknowledge active threat records."><LivePill>{alerts.filter(item => item.status === "OPEN").length} OPEN</LivePill></ViewHeading>
     <div className="incident-workspace">
       <section className="panel incident-ledger">
         <div className="table-head"><span>INCIDENT</span><span>SEVERITY</span><span>LOCATION</span><span>CONFIDENCE</span><span>STATUS</span><span>ASSIGNEE</span></div>
-        {alerts.map(alert => <button key={alert.id} className={cls("incident-row", active.id === alert.id && "selected")} onClick={() => select(alert)}>
-          <span className="incident-id"><i className={alert.severity}/><span><strong>{alert.object}</strong><small>{alert.id} · {alert.age} ago</small></span></span>
+        {alerts.length === 0 && <div className="burst-empty"><p>No open or acknowledged alerts.</p></div>}
+        {alerts.map(alert => <button key={alert.id} className={cls("incident-row", active?.id === alert.id && "selected")} onClick={() => select(alert)}>
+          <span className="incident-id"><i className={alert.severity}/><span><strong>{alert.object}</strong><small>{alert.id} · {alert.age}</small></span></span>
           <span className={cls("severity-label", alert.severity)}>{alert.severity}</span><span>{alert.site}</span><span>{alert.confidence}%</span><span>{alert.status}</span><span>{alert.operator}</span>
         </button>)}
       </section>
-      <aside className="panel record-panel">
+      {active && <aside className="panel record-panel">
         <div className="record-icon"><AlertTriangle size={22}/></div><small>SELECTED INCIDENT</small><h3>{active.id}</h3><p>{active.object}</p>
-        <dl><div><dt>THREAT LEVEL</dt><dd className={active.severity}>{active.severity.toUpperCase()}</dd></div><div><dt>CONFIDENCE</dt><dd>{active.confidence}%</dd></div><div><dt>LOCATION</dt><dd>{active.site}</dd></div><div><dt>OPERATOR</dt><dd>{active.operator}</dd></div><div><dt>DETECTED</dt><dd>{active.age} ago</dd></div><div><dt>STATUS</dt><dd>{active.status}</dd></div></dl>
+        <dl><div><dt>THREAT LEVEL</dt><dd className={active.severity}>{active.severity.toUpperCase()}</dd></div><div><dt>CONFIDENCE</dt><dd>{active.confidence}%</dd></div><div><dt>LOCATION</dt><dd>{active.site}</dd></div><div><dt>OPERATOR</dt><dd>{active.operator}</dd></div><div><dt>DETECTED</dt><dd>{active.age}</dd></div><div><dt>STATUS</dt><dd>{active.status}</dd></div></dl>
         <button className="record-action" onClick={() => acknowledge(active)} disabled={active.status === "ACK"}><Check size={14}/>{active.status === "ACK" ? "ALREADY ACKNOWLEDGED" : "ACKNOWLEDGE INCIDENT"}</button>
-      </aside>
+      </aside>}
     </div>
   </section>;
 }
 
-function SensorView({ selected, select, paused }) {
-  const active = selected?.kind === "sensor" ? selected : sensors[0];
+function SensorView({ sensors, selected, select, paused, alerts }) {
+  const active = (selected?.kind === "sensor" ? selected : sensors[0]) ?? null;
+  const online = sensors.filter(s => s.status === "online").length;
+  const attention = sensors.length - online;
   return <section className="workspace-view">
-    <ViewHeading kicker="NETWORK OPERATIONS · SIMULATED" title="Sensor network" description="Inspect the presentation topology and current simulated node health."><span className="network-summary"><i/>5 ONLINE <i className="warn"/>1 ATTENTION</span></ViewHeading>
+    <ViewHeading kicker="NETWORK OPERATIONS · LIVE" title="Sensor network" description="Real sensor status and detection topology from the threat telemetry adapter's database."><span className="network-summary"><i/>{online} ONLINE {attention > 0 && <><i className="warn"/>{attention} ATTENTION</>}</span></ViewHeading>
     <div className="sensor-workspace">
-      <TacticalMap selected={active} select={select} paused={paused}/>
-      <section className="panel sensor-inventory"><PanelHead kicker="NODE INVENTORY · SIMULATED" title="Deployed sensors"/><div className="sensor-list">{sensors.map(sensor => <button key={sensor.id} className={cls("sensor-card", active.id === sensor.id && "selected")} onClick={() => select({...sensor, site: sensor.name, severity: sensor.status === "offline" ? "critical" : "low"})}><span className={cls("node-status", sensor.status)}/><span><strong>{sensor.name}</strong><small>{sensor.id} · {sensor.type}</small></span><span className="signal-value"><strong>{sensor.signal}%</strong><small>SIGNAL</small></span><ChevronRight size={14}/></button>)}</div><div className="sensor-detail-strip"><span>SELECTED NODE</span><strong>{active.id}</strong><em>{active.status.toUpperCase()}</em></div></section>
+      <TacticalMap sensors={sensors} alerts={alerts} selected={active} select={select} paused={paused}/>
+      <section className="panel sensor-inventory"><PanelHead kicker="NODE INVENTORY · LIVE" title="Deployed sensors"/><div className="sensor-list">{sensors.map(sensor => <button key={sensor.id} className={cls("sensor-card", active?.id === sensor.id && "selected")} onClick={() => select(sensor)}><span className={cls("node-status", sensor.status)}/><span><strong>{sensor.name}</strong><small>{sensor.id} · {sensor.type}</small></span><span className="signal-value"><strong>{sensor.location_name}</strong><small>LOCATION</small></span><ChevronRight size={14}/></button>)}</div>{active && <div className="sensor-detail-strip"><span>SELECTED NODE</span><strong>{active.id}</strong><em>{active.status.toUpperCase()}</em></div>}</section>
     </div>
   </section>;
 }
 
-function IntelligenceView({ mode, config, openSettings, setConnected, connected, burstStatusUrl, setBurstStatusUrl }) {
+function IntelligenceView({ config, openSettings, setConnected, connected, burstStatusUrl, setBurstStatusUrl }) {
   return <section className="workspace-view intelligence-view">
-    <ViewHeading kicker="NATURAL-LANGUAGE ANALYSIS" title="ORBIT intelligence" description="Query the threat telemetry adapter through the real ORBIT inference pipeline."><LivePill live={mode === "demo" || connected}>{mode === "demo" ? "DEMO RESPONSES" : connected ? "API CONNECTED" : "API DISCONNECTED"}</LivePill></ViewHeading>
+    <ViewHeading kicker="NATURAL-LANGUAGE ANALYSIS" title="ORBIT intelligence" description="Query the threat telemetry adapter through the real ORBIT inference pipeline."><LivePill live={connected}>{connected ? "API CONNECTED" : "API DISCONNECTED"}</LivePill></ViewHeading>
     <div className="intelligence-workspace">
-      <Intelligence mode={mode} config={config} openSettings={openSettings} setConnected={setConnected} forceOpen/>
-      <aside className="panel intel-context"><PanelHead kicker="CONTEXT" title="Data boundary"/><div className="context-body"><Shield size={22}/><h3>{mode === "live" ? "Live inference enabled" : "Demonstration responses"}</h3><p>{mode === "live" ? "Questions in this workspace are sent to the configured ORBIT API. The operational map and counters remain simulated." : "Switch to Live mode to send questions through the intent-to-SQL telemetry adapter."}</p><div><span>ADAPTER</span><strong>intent-sql-sqlite-threat-telemetry</strong></div><div><span>TRANSPORT</span><strong>{mode === "live" ? "HTTP(S) / Bearer" : "Local simulation"}</strong></div><button onClick={openSettings}><Settings2 size={14}/>CONNECTION SETTINGS</button></div></aside>
+      <Intelligence config={config} openSettings={openSettings} setConnected={setConnected} forceOpen/>
+      <aside className="panel intel-context"><PanelHead kicker="CONTEXT" title="Data boundary"/><div className="context-body"><Shield size={22}/><h3>{config.apiKey ? "Live inference enabled" : "No API key configured"}</h3><p>{config.apiKey ? "Questions in this workspace are sent to the configured ORBIT API and answered from the real intent-to-SQL pipeline." : "Add an ORBIT API key to send questions through the intent-to-SQL telemetry adapter."}</p><div><span>ADAPTER</span><strong>intent-sql-sqlite-threat-telemetry</strong></div><div><span>TRANSPORT</span><strong>HTTP(S) / Bearer</strong></div><button onClick={openSettings}><Settings2 size={14}/>CONNECTION SETTINGS</button></div></aside>
     </div>
     <QueryBurst statusUrl={burstStatusUrl} setStatusUrl={setBurstStatusUrl}/>
   </section>;
@@ -351,15 +429,11 @@ function Settings({ config, close, save }) {
 
 function App() {
   const [activeView, setActiveView] = useState("overview");
-  const [mode, setModeValue] = useState("demo");
   const [paused, setPaused] = useState(false);
   const [settings, setSettings] = useState(false);
   const [connected, setConnected] = useState(false);
-  const [alerts, setAlerts] = useState(initialAlerts);
-  const [selected, setSelected] = useState(initialAlerts[0]);
-  const [throughput, setThroughput] = useState(128);
-  const [queue, setQueue] = useState(8);
-  const [lastEvent, setLastEvent] = useState(clockTime());
+  const [selectedId, setSelectedId] = useState(null);
+  const [statsUrl, setStatsUrlValue] = useState(() => localStorage.getItem("orbit-threat-stats-url") || "http://localhost:8790/stats");
   const [burstStatusUrl, setBurstStatusUrl] = useState(() => localStorage.getItem("orbit-threat-burst-url") || "http://localhost:8787/status");
   const [config, setConfig] = useState(() => {
     // Remove credentials persisted by dashboard versions prior to session-only storage.
@@ -370,37 +444,56 @@ function App() {
     };
   });
 
-  const setMode = value => { setModeValue(value); if (value === "live" && !config.apiKey) setSettings(true); };
+  const { stats, reachable: statsReachable, latencyMs, rateHistory } = useLiveStats(statsUrl, { intervalMs: paused ? 0 : 3000 });
+
+  const sensors = (stats?.sensors ?? []).map(toSensorRecord);
+  const alerts = (stats?.unresolved_alerts ?? []).map(toAlertRecord);
+  const selectedItem = alerts.find(a => a.id === selectedId) ?? sensors.find(s => s.id === selectedId) ?? null;
+  const select = item => setSelectedId(item?.id ?? null);
+
   useEffect(() => {
-    if (paused) return;
-    const id = setInterval(() => { setThroughput(value => Math.max(112, Math.min(148, value + Math.floor(Math.random()*9)-4))); setQueue(Math.floor(Math.random()*12)+2); setLastEvent(clockTime()); }, 2200);
-    return () => clearInterval(id);
-  }, [paused]);
+    if (selectedId === null && alerts.length > 0) setSelectedId(alerts[0].id);
+  }, [selectedId, alerts.length]);
+
   useEffect(() => {
-    if (mode !== "live" || paused || !config.apiKey) return;
+    if (paused || !config.apiKey) return;
     let active = true;
-    const sync = async () => { try { await askOrbit(config.apiUrl, config.apiKey, "How many open alerts are there right now?"); if (active) { setConnected(true); setLastEvent(clockTime()); } } catch { if (active) setConnected(false); } };
+    const sync = async () => { try { await askOrbit(config.apiUrl, config.apiKey, "How many open alerts are there right now?"); if (active) setConnected(true); } catch { if (active) setConnected(false); } };
     sync(); const id = setInterval(sync, 30000); return () => { active = false; clearInterval(id); };
-  }, [mode, paused, config]);
-  const save = draft => { const next = { apiUrl: draft.apiUrl.trim().replace(/\/$/, ""), apiKey: draft.apiKey.trim() }; setConfig(next); localStorage.setItem("orbit-threat-url", next.apiUrl); sessionStorage.setItem("orbit-threat-key", next.apiKey); setModeValue("live"); setSettings(false); };
-  const acknowledge = target => { const incident = target?.kind === "alert" ? target : selected; if (incident?.kind !== "alert") return; const update = item => item.id === incident.id ? {...item, status: "ACK", operator: item.operator === "Unassigned" ? "Demo Operator" : item.operator} : item; setAlerts(value => value.map(update)); setSelected(update(incident)); };
-  const exportData = () => { const url = URL.createObjectURL(new Blob([JSON.stringify({ generatedAt: new Date().toISOString(), mode, alerts, sensors }, null, 2)], {type: "application/json"})); const link = document.createElement("a"); link.href = url; link.download = `orbit-threat-snapshot-${Date.now()}.json`; link.click(); URL.revokeObjectURL(url); };
-  const healthy = mode === "demo" || connected;
+  }, [paused, config]);
+
+  const save = draft => { const next = { apiUrl: draft.apiUrl.trim().replace(/\/$/, ""), apiKey: draft.apiKey.trim() }; setConfig(next); localStorage.setItem("orbit-threat-url", next.apiUrl); sessionStorage.setItem("orbit-threat-key", next.apiKey); setSettings(false); };
+  const acknowledge = async target => {
+    const incident = target?.kind === "alert" ? target : selectedItem;
+    if (incident?.kind !== "alert" || incident.status !== "OPEN") return;
+    try { await acknowledgeAlert(statsUrl, incident.id); } catch { /* next poll will reflect the current server state either way */ }
+  };
+  const exportData = () => { const url = URL.createObjectURL(new Blob([JSON.stringify({ generatedAt: new Date().toISOString(), stats }, null, 2)], {type: "application/json"})); const link = document.createElement("a"); link.href = url; link.download = `orbit-threat-snapshot-${Date.now()}.json`; link.click(); URL.revokeObjectURL(url); };
+  const setStatsUrl = value => { setStatsUrlValue(value); localStorage.setItem("orbit-threat-stats-url", value); };
   const setBurstUrl = value => { setBurstStatusUrl(value); localStorage.setItem("orbit-threat-burst-url", value); };
 
-  return <div className="app-shell"><Header mode={mode} setMode={setMode} paused={paused} setPaused={setPaused} openSettings={() => setSettings(true)} activeView={activeView} setActiveView={setActiveView}/><main>
-    <div className={cls("provenance-banner", mode === "live" && "live-context")}><Shield size={13}/><strong>{mode === "live" ? "LIVE ORBIT INTELLIGENCE" : "DEMONSTRATION MODE"}</strong><span>{mode === "live" ? "Chat and connection status are live. Map, alerts, sensors, latency, and MQ metrics remain simulated presentation data." : "All operational data on this screen is simulated."}</span></div>
-    <section className="mission"><div><small>MISSION STATUS</small><h1>Eastern Grid <span>/</span> Perimeter Watch</h1></div><div className="mission-meta"><span><Activity size={13}/>LAST EVENT <strong>{lastEvent}</strong></span><span><CloudCog size={13}/>MQ DEPTH <strong>{queue}</strong></span><span><Signal size={13}/>UPLINK <strong>24ms</strong></span><button onClick={exportData}><Download size={13}/>EXPORT</button></div></section>
+  const lastDetection = parseUtc(stats?.last_detection_at);
+  const queueDepth = statsReachable && stats?.queue?.available ? stats.queue.messages_ready + stats.queue.messages_unacknowledged : null;
+  const throughputPerMin = statsReachable && stats?.queue?.available ? Math.round(stats.queue.deliver_rate_per_sec * 60) : null;
+
+  return <div className="app-shell"><Header paused={paused} setPaused={setPaused} openSettings={() => setSettings(true)} activeView={activeView} setActiveView={setActiveView}/><main>
+    <div className={cls("provenance-banner", statsReachable && "live-context")}><Shield size={13}/><strong>{statsReachable ? "LIVE OPERATIONAL DATA" : "STATS SERVER UNREACHABLE"}</strong><span>{statsReachable ? "Sensor status, detections, alerts, and queue depth are read live from threat_telemetry.db and RabbitMQ. Only the map's node layout is illustrative." : `Start live_stats_server.py and confirm the URL below (${statsUrl}).`}</span><input className="stats-source" value={statsUrl} onChange={e => setStatsUrl(e.target.value)} spellCheck={false}/></div>
+    <section className="mission"><div><small>MISSION STATUS</small><h1>Eastern Grid <span>/</span> Perimeter Watch</h1></div><div className="mission-meta"><span><Activity size={13}/>LAST DETECTION <strong>{lastDetection ? relativeTimeFromDate(lastDetection) : "—"}</strong></span><span><CloudCog size={13}/>MQ DEPTH <strong>{queueDepth ?? "—"}</strong></span><span><Signal size={13}/>STATS LATENCY <strong>{latencyMs != null ? `${latencyMs}ms` : "—"}</strong></span><button onClick={exportData}><Download size={13}/>EXPORT</button></div></section>
     {activeView === "overview" && <>
-      <section className="metrics"><Metric icon={ShieldAlert} label="ACTIVE THREATS" value="12" delta="8.4%" tone="red" values={[9,11,8,14,12,17,15,21,18,24]}/><Metric icon={Radio} label="SENSORS ONLINE" value="5" unit="/ 6" delta="Stable"/><Metric icon={Crosshair} label="DETECTIONS / HR" value="143" delta="18.2%" tone="amber"/><Metric icon={Zap} label="MQ THROUGHPUT" value={throughput} unit="/m" delta="12.7%" tone="violet"/></section>
-      <section className="dashboard-grid"><TacticalMap selected={selected} select={setSelected} paused={paused}/><div className="right-stack"><Distribution/><Throughput rate={throughput}/></div><Alerts alerts={alerts} selected={selected} select={setSelected} acknowledge={acknowledge}/><Detail item={selected}/></section>
-      <Intelligence mode={mode} config={config} openSettings={() => setSettings(true)} setConnected={setConnected}/>
+      <section className="metrics">
+        <Metric icon={ShieldAlert} label="ACTIVE THREATS" value={stats?.open_alerts} tone="red" live={statsReachable}/>
+        <Metric icon={Radio} label="SENSORS ONLINE" value={stats?.sensors_online} unit={stats ? `/ ${stats.sensors_total}` : ""} live={statsReachable}/>
+        <Metric icon={Crosshair} label="DETECTIONS / HR" value={stats?.detections_last_hour} tone="amber" live={statsReachable}/>
+        <Metric icon={Zap} label="MQ THROUGHPUT" value={throughputPerMin} unit="/m" tone="violet" live={statsReachable && !!stats?.queue?.available}/>
+      </section>
+      <section className="dashboard-grid"><TacticalMap sensors={sensors} alerts={alerts} selected={selectedItem} select={select} paused={paused}/><div className="right-stack"><Distribution distribution={stats?.distribution_24h} total={stats?.distribution_total_24h}/><Throughput rate={throughputPerMin ?? 0} history={rateHistory}/></div><Alerts alerts={alerts} selected={selectedItem} select={select} acknowledge={acknowledge}/><Detail item={selectedItem}/></section>
+      <Intelligence config={config} openSettings={() => setSettings(true)} setConnected={setConnected}/>
       <QueryBurst statusUrl={burstStatusUrl} setStatusUrl={setBurstUrl}/>
     </>}
-    {activeView === "incidents" && <IncidentView alerts={alerts} selected={selected} select={setSelected} acknowledge={acknowledge}/>}
-    {activeView === "sensors" && <SensorView selected={selected} select={setSelected} paused={paused}/>}
-    {activeView === "intelligence" && <IntelligenceView mode={mode} config={config} openSettings={() => setSettings(true)} setConnected={setConnected} connected={connected} burstStatusUrl={burstStatusUrl} setBurstStatusUrl={setBurstUrl}/>}
-  </main><footer><span><Brand/>ORBIT THREAT TELEMETRY</span><span>{mode === "demo" ? "DEMO FEED" : "ORBIT API"} <i className={healthy ? "good" : ""}/>{mode === "demo" ? "ACTIVE" : healthy ? "CONNECTED" : "DISCONNECTED"}</span><span>CLASSIFICATION // DEMONSTRATION</span></footer>{settings && <Settings config={config} close={() => setSettings(false)} save={save}/>}</div>;
+    {activeView === "incidents" && <IncidentView alerts={alerts} selected={selectedItem} select={select} acknowledge={acknowledge}/>}
+    {activeView === "sensors" && <SensorView sensors={sensors} alerts={alerts} selected={selectedItem} select={select} paused={paused}/>}
+    {activeView === "intelligence" && <IntelligenceView config={config} openSettings={() => setSettings(true)} setConnected={setConnected} connected={connected} burstStatusUrl={burstStatusUrl} setBurstStatusUrl={setBurstUrl}/>}
+  </main><footer><span><Brand/>ORBIT THREAT TELEMETRY</span><span>LIVE STATS <i className={statsReachable ? "good" : ""}/>{statsReachable ? "CONNECTED" : "DISCONNECTED"}</span><span>ORBIT API <i className={connected ? "good" : ""}/>{connected ? "CONNECTED" : "DISCONNECTED"}</span><span>CLASSIFICATION // DEMONSTRATION</span></footer>{settings && <Settings config={config} close={() => setSettings(false)} save={save}/>}</div>;
 }
 
 createRoot(document.getElementById("root")).render(<App/>);

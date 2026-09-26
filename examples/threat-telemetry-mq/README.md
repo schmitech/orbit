@@ -1,7 +1,7 @@
 # Threat Telemetry — Message Queue Demos
 
-Two independent demos over the same broker, modeling the two halves of a
-real sensor-network deployment:
+Three independent pieces over the same broker/database, modeling a real
+sensor-network deployment:
 
 - **[Part A — Query burst](#part-a--query-burst)**: a spike of NL questions
   (an operator or an automated triage system asking ORBIT things all at
@@ -17,8 +17,14 @@ real sensor-network deployment:
   so new detections actually show up when you ask ORBIT about them
   afterward. This is the piece that makes "real-time" mean something: data
   genuinely changes, not just query load.
+- **[Part C — Live dashboard](#part-c--live-dashboard-no-simulated-data)**:
+  a bridge server that lets `examples/threat-telemetry-dashboard/` show real
+  sensor status, alerts, and queue metrics instead of presentation
+  placeholders, with a working write-back "acknowledge" action.
 
-Both share the same setup (steps 1-5 below) before splitting.
+Parts A and B share the same setup (steps 1-5 below) before splitting; Part C
+only needs the database and, for queue metrics, RabbitMQ — no worker/API key
+required for that part on its own.
 
 This README is self-contained — you don't need to read the full
 [MQ playbook](../../server/tests/messaging/playbook-message-queue.md) to run
@@ -258,6 +264,22 @@ Or check directly:
 sqlite3 examples/intent-templates/sql-intent-template/sqlite/threat-telemetry/threat_telemetry.db \
   "SELECT detection_id, sensor_id, object_type, severity, detected_at FROM detections WHERE detection_id LIKE 'det_evt_%' ORDER BY detected_at DESC;"
 ```
+
+## Part C — Live dashboard (no simulated data)
+
+`live_stats_server.py` is a third bridge in this folder: a read/write API
+over `threat_telemetry.db` and RabbitMQ's management API, built specifically
+so `examples/threat-telemetry-dashboard/` can show real sensor status, real
+alerts, real severity distribution, and real queue depth/throughput instead
+of presentation placeholders — with a working "acknowledge" button that
+writes back to the database.
+
+```bash
+python examples/threat-telemetry-mq/live_stats_server.py
+```
+
+See `examples/threat-telemetry-dashboard/README.md` for the full walkthrough
+of wiring the dashboard to it.
 
 ## Troubleshooting
 
