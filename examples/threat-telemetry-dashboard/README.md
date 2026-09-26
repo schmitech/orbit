@@ -52,17 +52,29 @@ start RabbitMQ and the standalone worker, then run:
 python examples/threat-telemetry-mq/sensor_burst_producer.py --burst-size 20
 ```
 
-The dashboard's map, alert feed, sensor state, latency, and queue metrics are
-clearly labeled simulated presentation data—even in Live mode. Browsers do not
-connect directly to AMQP. The producer owns an exclusive reply queue, while the
-dashboard's Live mode reaches the same ORBIT pipeline through HTTP(S) for
-intelligence queries and connection status only.
-For a deployment that needs literal broker counters, bridge RabbitMQ's management
-API to a server-side endpoint rather than exposing broker credentials in the
-browser.
+The dashboard's map, alert feed, sensor state, latency, and queue throughput
+chart are clearly labeled simulated presentation data—even in Live mode.
+Browsers do not connect directly to AMQP, so those stay presentation-only.
+
+The **Query Burst Monitor** panel (Command Overview and Intelligence tabs) is
+the one exception: it's labeled "MESSAGE QUEUE · LIVE" because it genuinely
+is. The burst producer runs a small local HTTP status server (default
+`http://localhost:8787/status`) that the dashboard polls once a second; each
+question and its real ORBIT-generated answer appears there as the reply
+arrives, with a live published/completed/failed/outstanding tally. This is a
+demo-only bridge (not part of ORBIT itself) — see
+`../threat-telemetry-mq/README.md`'s "Watch it live in the dashboard" section
+for details, including how the panel keeps showing the final tally for a
+while after the burst finishes.
+
+For a deployment that needs literal broker counters instead of this bridge,
+put a server-side endpoint in front of RabbitMQ's management API rather than
+exposing broker credentials in the browser.
 
 ## demo controls
 
+- The top navigation opens dedicated Command Overview, Incidents, Sensor
+  Network, and Intelligence workspaces.
 - **Demo / Live** toggles presentation-safe data and the real ORBIT adapter.
 - The pause button freezes changing throughput and timestamps.
 - Select map sensors or alert rows to inspect them.

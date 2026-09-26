@@ -11,6 +11,12 @@ described in docs/message-queue-architecture.md: the queue absorbs the burst
 and `prefetch` meters it into the pipeline instead of overwhelming the LLM
 provider.
 
+Also runs a tiny local read-only HTTP status server (default
+http://localhost:8787/status) so the threat-telemetry dashboard can poll and
+display each reply live as it arrives, instead of only being visible in this
+terminal. This server is not part of ORBIT — it's a demo-only bridge, since
+a browser can't speak AMQP directly. Disable it with --no-status-server.
+
 Requires the messaging dependency profile (aio-pika):
     ./install/setup.sh --profile messaging
 
@@ -29,7 +35,10 @@ import asyncio
 import json
 import os
 import sys
+import threading
+import time
 import uuid
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 QUESTIONS = [
     "Show critical detections in the last hour",
@@ -45,6 +54,84 @@ QUESTIONS = [
 ]
 
 
+class BurstState:
+    """Thread-safe state for the burst, polled by the dashboard over HTTP."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._state = {
+            "burst_size": 0,
+            "adapter": None,
+            "started_at": None,
+            "completed": 0,
+            "failed": 0,
+            "outstanding": 0,
+            "results": [],
+        }
+
+    def start(self, burst_size: int, adapter: str):
+        with self._lock:
+            self._state.update(
+                burst_size=burst_size,
+                adapter=adapter,
+                started_at=time.time(),
+                completed=0,
+                failed=0,
+                outstanding=burst_size,
+                results=[],
+            )
+
+    def record_reply(self, question: str, status: str, response: str | None, error: str | None):
+        with self._lock:
+            self._state["results"].append(
+                {
+                    "question": question,
+                    "status": status,
+                    "response": response,
+                    "error": error,
+                    "received_at": time.time(),
+                }
+            )
+            if status == "completed":
+                self._state["completed"] += 1
+            else:
+                self._state["failed"] += 1
+            self._state["outstanding"] = max(0, self._state["outstanding"] - 1)
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return json.loads(json.dumps(self._state))
+
+
+def make_status_handler(state: BurstState):
+    class StatusHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path.rstrip("/") != "/status":
+                self.send_response(404)
+                self.end_headers()
+                return
+            body = json.dumps(state.snapshot()).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, log_format, *args):
+            pass
+
+    return StatusHandler
+
+
+def start_status_server(state: BurstState, port: int) -> ThreadingHTTPServer:
+    server = ThreadingHTTPServer(("0.0.0.0", port), make_status_handler(state))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server
+
+
 async def run(args) -> int:
     try:
         import aio_pika
@@ -56,6 +143,12 @@ async def run(args) -> int:
         )
         return 2
 
+    state = BurstState()
+    status_server = None
+    if not args.no_status_server:
+        status_server = start_status_server(state, args.status_port)
+        print(f"Live status for the dashboard: http://localhost:{args.status_port}/status\n")
+
     conn = await aio_pika.connect_robust(args.url)
     try:
         channel = await conn.channel()
@@ -66,6 +159,8 @@ async def run(args) -> int:
             corr_id = str(uuid.uuid4())
             message = QUESTIONS[i % len(QUESTIONS)]
             pending[corr_id] = message
+
+        state.start(args.burst_size, args.adapter)
 
         print(f"Publishing a burst of {args.burst_size} sensor queries to '{args.requests_queue}'...")
 
@@ -100,11 +195,14 @@ async def run(args) -> int:
                         envelope = json.loads(msg.body)
                     question = pending.pop(msg.correlation_id)
                     status = envelope.get("status")
+                    response = envelope.get("response")
+                    error = envelope.get("error")
                     if status == "completed":
                         completed += 1
                     else:
                         failed += 1
-                    print(f"[{status}] {question!r} -> {envelope.get('response') or envelope.get('error')}")
+                    state.record_reply(question, status, response, error)
+                    print(f"[{status}] {question!r} -> {response or error}")
                     if not pending:
                         return
 
@@ -118,9 +216,22 @@ async def run(args) -> int:
             )
 
         print(f"\n{completed} completed, {failed} failed, {len(pending)} outstanding.")
+
+        if status_server and args.linger_seconds > 0:
+            print(
+                f"\nDashboard status server still serving the final results for {args.linger_seconds}s "
+                f"(http://localhost:{args.status_port}/status). Press Ctrl+C to exit sooner."
+            )
+            try:
+                await asyncio.sleep(args.linger_seconds)
+            except asyncio.CancelledError:
+                pass
+
         return 0 if not pending and failed == 0 else 1
     finally:
         await conn.close()
+        if status_server:
+            status_server.shutdown()
 
 
 def parse_args():
@@ -139,6 +250,17 @@ def parse_args():
     )
     parser.add_argument("--requests-queue", default="orbit.requests", help="Queue ORBIT consumes requests from")
     parser.add_argument("--timeout", type=float, default=120.0, help="Seconds to wait for all replies")
+    parser.add_argument("--status-port", type=int, default=8787, help="Port for the local dashboard status server")
+    parser.add_argument(
+        "--no-status-server", action="store_true", help="Disable the local HTTP status server for the dashboard"
+    )
+    parser.add_argument(
+        "--linger-seconds",
+        type=float,
+        default=120.0,
+        help="Keep the status server up this long after the burst finishes, so the dashboard keeps showing "
+        "the final tally instead of reverting to 'no producer detected' (0 = shut down immediately)",
+    )
     return parser.parse_args()
 
 

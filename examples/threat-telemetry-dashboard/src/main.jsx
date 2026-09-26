@@ -3,10 +3,16 @@ import { createRoot } from "react-dom/client";
 import {
   Activity, AlertTriangle, ArrowUpRight, Bot, Check, ChevronRight,
   CircleDot, Clock3, CloudCog, Command, Crosshair, Database, Download,
-  Gauge, Hexagon, Pause, Play, Radio, Send, Server, Settings2, Shield,
-  ShieldAlert, Signal, Sparkles, Target, Wifi, X, Zap,
+  Gauge, Hexagon, ListChecks, Pause, Play, Radio, Send, Server, Settings2,
+  Shield, ShieldAlert, Signal, Sparkles, Target, Wifi, X, Zap,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import "./styles.css";
+
+function Markdown({ text }) {
+  return <div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>;
+}
 
 const sensors = [
   { kind: "sensor", id: "SEN-001", name: "North Perimeter", type: "RADAR", x: 45, y: 18, status: "online", signal: 98 },
@@ -84,7 +90,7 @@ function SimulatedBadge() {
   return <span className="simulated-badge" title="Presentation data — not sourced from ORBIT or RabbitMQ">SIMULATED</span>;
 }
 
-function Header({ mode, setMode, paused, setPaused, openSettings }) {
+function Header({ mode, setMode, paused, setPaused, openSettings, activeView, setActiveView }) {
   const [time, setTime] = useState(clockTime());
   useEffect(() => {
     const id = setInterval(() => setTime(clockTime()), 1000);
@@ -101,8 +107,13 @@ function Header({ mode, setMode, paused, setPaused, openSettings }) {
         <span className="clock"><Clock3 size={13} />{time}<small>UTC-4</small></span>
       </div>
     </header>
-    <nav className="subnav">
-      <div><span className="active"><Gauge size={14} /> COMMAND OVERVIEW</span><span><ShieldAlert size={14} /> INCIDENTS</span><span><Radio size={14} /> SENSOR NETWORK</span><span><Database size={14} /> INTELLIGENCE</span></div>
+    <nav className="subnav" aria-label="Primary dashboard views">
+      <div>
+        <button className={activeView === "overview" ? "active" : ""} onClick={() => setActiveView("overview")} aria-current={activeView === "overview" ? "page" : undefined}><Gauge size={14} /> COMMAND OVERVIEW</button>
+        <button className={activeView === "incidents" ? "active" : ""} onClick={() => setActiveView("incidents")} aria-current={activeView === "incidents" ? "page" : undefined}><ShieldAlert size={14} /> INCIDENTS</button>
+        <button className={activeView === "sensors" ? "active" : ""} onClick={() => setActiveView("sensors")} aria-current={activeView === "sensors" ? "page" : undefined}><Radio size={14} /> SENSOR NETWORK</button>
+        <button className={activeView === "intelligence" ? "active" : ""} onClick={() => setActiveView("intelligence")} aria-current={activeView === "intelligence" ? "page" : undefined}><Database size={14} /> INTELLIGENCE</button>
+      </div>
     </nav>
   </>;
 }
@@ -174,7 +185,7 @@ function Detail({ item }) {
   return <aside className="detail"><small>{sensor ? "SENSOR DETAIL" : "SELECTED TRACK"}</small><div className="detail-title"><span className={cls("target", item.severity)}><Target size={20}/></span><div><strong>{item.id}</strong><em>{item.object || item.type}</em></div></div><div className="detail-grid"><div><span>LOCATION</span><strong>{item.site || item.name}</strong></div><div><span>STATUS</span><strong>{item.status || item.severity?.toUpperCase()}</strong></div><div><span>{sensor ? "SIGNAL" : "CONFIDENCE"}</span><strong>{item.signal ?? item.confidence}%</strong></div><div><span>{sensor ? "LAST PING" : "DETECTED"}</span><strong>{sensor ? "4 sec ago" : item.age}</strong></div></div>{!sensor && <div className="assignment"><span>ASSIGNED OPERATOR</span><strong><i/>{item.operator}</strong></div>}<button>OPEN FULL RECORD <ArrowUpRight size={13}/></button></aside>;
 }
 
-function Intelligence({ mode, config, openSettings, setConnected }) {
+function Intelligence({ mode, config, openSettings, setConnected, forceOpen = false }) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState(prompts[0]);
   const [answer, setAnswer] = useState("Critical activity is concentrated at North Perimeter. Five high-confidence tracks were detected inside the last hour; one remains unassigned.");
@@ -193,7 +204,135 @@ function Intelligence({ mode, config, openSettings, setConnected }) {
     catch (err) { setError(err.message); setConnected(false); }
     finally { setLoading(false); }
   }
-  return <section className={cls("intel", open && "open")}><div className="intel-head" onClick={() => setOpen(!open)}><span className="ai-icon"><Sparkles size={16}/></span><div><small>ORBIT INTELLIGENCE</small><strong>Ask the operational picture</strong></div><LivePill>{mode === "live" ? "LIVE ADAPTER" : "DEMO READY"}</LivePill><ChevronRight className="chevron" size={18}/></div><div className="intel-body"><div className="prompt-list">{prompts.map(prompt => <button key={prompt} onClick={() => ask(prompt)}>{prompt}</button>)}</div><div className="answer"><span><Bot size={13}/>ORBIT ANALYSIS</span>{loading ? <div className="thinking"><i/><i/><i/> Correlating telemetry</div> : <p className={error ? "error" : ""}>{error || answer}</p>}</div><form onSubmit={event => { event.preventDefault(); ask(); }}><Command size={15}/><input value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ask about detections, sensors, operators…"/><button disabled={loading}><Send size={14}/>ANALYZE</button></form></div></section>;
+  const expanded = forceOpen || open;
+  return <section className={cls("intel", expanded && "open", forceOpen && "standalone-intel")}><div className="intel-head" onClick={() => !forceOpen && setOpen(!open)}><span className="ai-icon"><Sparkles size={16}/></span><div><small>ORBIT INTELLIGENCE</small><strong>Ask the operational picture</strong></div><LivePill>{mode === "live" ? "LIVE ADAPTER" : "DEMO READY"}</LivePill>{!forceOpen && <ChevronRight className="chevron" size={18}/>}</div><div className="intel-body"><div className="prompt-list">{prompts.map(prompt => <button key={prompt} onClick={() => ask(prompt)}>{prompt}</button>)}</div><div className="answer"><span><Bot size={13}/>ORBIT ANALYSIS</span>{loading ? <div className="thinking"><i/><i/><i/> Correlating telemetry</div> : error ? <p className="error">{error}</p> : <Markdown text={answer}/>}</div><form onSubmit={event => { event.preventDefault(); ask(); }}><Command size={15}/><input value={question} onChange={event => setQuestion(event.target.value)} placeholder="Ask about detections, sensors, operators…"/><button disabled={loading}><Send size={14}/>ANALYZE</button></form></div></section>;
+}
+
+function relativeTime(ts) {
+  const seconds = Math.max(0, Math.round(Date.now() / 1000 - ts));
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  return `${Math.round(seconds / 60)}m ago`;
+}
+
+function QueryBurst({ statusUrl, setStatusUrl }) {
+  const [monitoring, setMonitoringValue] = useState(() => localStorage.getItem("orbit-threat-burst-monitor") === "1");
+  const [state, setState] = useState(null);
+  const [reachable, setReachable] = useState(false);
+
+  const setMonitoring = value => {
+    setMonitoringValue(value);
+    localStorage.setItem("orbit-threat-burst-monitor", value ? "1" : "0");
+    if (!value) { setState(null); setReachable(false); }
+  };
+
+  useEffect(() => {
+    if (!monitoring) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const res = await fetch(statusUrl, { cache: "no-store" });
+        if (!res.ok) throw new Error(String(res.status));
+        const body = await res.json();
+        if (active) { setState(body); setReachable(true); }
+      } catch {
+        if (active) setReachable(false);
+      }
+    };
+    poll();
+    const id = setInterval(poll, 1000);
+    return () => { active = false; clearInterval(id); };
+  }, [statusUrl, monitoring]);
+
+  const results = state?.results ? state.results.slice().reverse() : [];
+  const running = reachable && state && state.outstanding > 0;
+
+  return <section className="panel query-burst">
+    <PanelHead kicker="MESSAGE QUEUE · LIVE" title={<>Query burst monitor</>}>
+      <div className="burst-controls">
+        <LivePill live={running}>{!monitoring ? "MONITORING OFF" : !reachable ? "NO PRODUCER DETECTED" : running ? "IN PROGRESS" : "IDLE"}</LivePill>
+        <button className="text-button" onClick={() => setMonitoring(!monitoring)}>{monitoring ? "STOP MONITORING" : "START MONITORING"}</button>
+      </div>
+    </PanelHead>
+    <div className="burst-source">
+      <span>STATUS SOURCE</span>
+      <input value={statusUrl} onChange={e => setStatusUrl(e.target.value)} spellCheck={false} />
+    </div>
+    {!monitoring && <div className="burst-empty">
+      <ListChecks size={20} />
+      <p>Monitoring is off, so this panel isn't polling anything. Click <strong>START MONITORING</strong> before running <code>sensor_burst_producer.py</code> to watch replies arrive live.</p>
+    </div>}
+    {monitoring && !reachable && <div className="burst-empty">
+      <ListChecks size={20} />
+      <p>Waiting for <code>sensor_burst_producer.py</code>. Run it from a terminal to see each reply appear here as it arrives.</p>
+    </div>}
+    {monitoring && reachable && state && <>
+      <div className="burst-tally">
+        <span>PUBLISHED<strong>{state.burst_size}</strong></span>
+        <span>COMPLETED<strong className="ok">{state.completed}</strong></span>
+        <span>FAILED<strong className={state.failed ? "bad" : ""}>{state.failed}</strong></span>
+        <span>OUTSTANDING<strong>{state.outstanding}</strong></span>
+      </div>
+      <div className="burst-list">
+        {results.length === 0 && <div className="burst-empty"><p>Burst published — waiting on the first reply…</p></div>}
+        {results.map((r, i) => <div key={`${r.question}-${r.received_at}-${i}`} className={cls("burst-row", r.status)}>
+          <span className={cls("burst-status", r.status)}>{r.status === "completed" ? "OK" : "ERR"}</span>
+          <div className="burst-body">
+            <strong>{r.question}</strong>
+            {r.response ? <Markdown text={r.response}/> : <p className="error">{r.error}</p>}
+          </div>
+          <small>{relativeTime(r.received_at)}</small>
+        </div>)}
+      </div>
+    </>}
+  </section>;
+}
+
+function ViewHeading({ kicker, title, description, children }) {
+  return <div className="view-heading"><div><small>{kicker}</small><h2>{title}</h2><p>{description}</p></div>{children}</div>;
+}
+
+function IncidentView({ alerts, selected, select, acknowledge }) {
+  const active = selected?.kind === "alert" ? selected : alerts[0];
+  return <section className="workspace-view">
+    <ViewHeading kicker="INCIDENT OPERATIONS · SIMULATED" title="Incident queue" description="Review, prioritize, and acknowledge active threat records."><LivePill>{alerts.filter(item => item.status === "OPEN").length} OPEN</LivePill></ViewHeading>
+    <div className="incident-workspace">
+      <section className="panel incident-ledger">
+        <div className="table-head"><span>INCIDENT</span><span>SEVERITY</span><span>LOCATION</span><span>CONFIDENCE</span><span>STATUS</span><span>ASSIGNEE</span></div>
+        {alerts.map(alert => <button key={alert.id} className={cls("incident-row", active.id === alert.id && "selected")} onClick={() => select(alert)}>
+          <span className="incident-id"><i className={alert.severity}/><span><strong>{alert.object}</strong><small>{alert.id} · {alert.age} ago</small></span></span>
+          <span className={cls("severity-label", alert.severity)}>{alert.severity}</span><span>{alert.site}</span><span>{alert.confidence}%</span><span>{alert.status}</span><span>{alert.operator}</span>
+        </button>)}
+      </section>
+      <aside className="panel record-panel">
+        <div className="record-icon"><AlertTriangle size={22}/></div><small>SELECTED INCIDENT</small><h3>{active.id}</h3><p>{active.object}</p>
+        <dl><div><dt>THREAT LEVEL</dt><dd className={active.severity}>{active.severity.toUpperCase()}</dd></div><div><dt>CONFIDENCE</dt><dd>{active.confidence}%</dd></div><div><dt>LOCATION</dt><dd>{active.site}</dd></div><div><dt>OPERATOR</dt><dd>{active.operator}</dd></div><div><dt>DETECTED</dt><dd>{active.age} ago</dd></div><div><dt>STATUS</dt><dd>{active.status}</dd></div></dl>
+        <button className="record-action" onClick={() => acknowledge(active)} disabled={active.status === "ACK"}><Check size={14}/>{active.status === "ACK" ? "ALREADY ACKNOWLEDGED" : "ACKNOWLEDGE INCIDENT"}</button>
+      </aside>
+    </div>
+  </section>;
+}
+
+function SensorView({ selected, select, paused }) {
+  const active = selected?.kind === "sensor" ? selected : sensors[0];
+  return <section className="workspace-view">
+    <ViewHeading kicker="NETWORK OPERATIONS · SIMULATED" title="Sensor network" description="Inspect the presentation topology and current simulated node health."><span className="network-summary"><i/>5 ONLINE <i className="warn"/>1 ATTENTION</span></ViewHeading>
+    <div className="sensor-workspace">
+      <TacticalMap selected={active} select={select} paused={paused}/>
+      <section className="panel sensor-inventory"><PanelHead kicker="NODE INVENTORY · SIMULATED" title="Deployed sensors"/><div className="sensor-list">{sensors.map(sensor => <button key={sensor.id} className={cls("sensor-card", active.id === sensor.id && "selected")} onClick={() => select({...sensor, site: sensor.name, severity: sensor.status === "offline" ? "critical" : "low"})}><span className={cls("node-status", sensor.status)}/><span><strong>{sensor.name}</strong><small>{sensor.id} · {sensor.type}</small></span><span className="signal-value"><strong>{sensor.signal}%</strong><small>SIGNAL</small></span><ChevronRight size={14}/></button>)}</div><div className="sensor-detail-strip"><span>SELECTED NODE</span><strong>{active.id}</strong><em>{active.status.toUpperCase()}</em></div></section>
+    </div>
+  </section>;
+}
+
+function IntelligenceView({ mode, config, openSettings, setConnected, connected, burstStatusUrl, setBurstStatusUrl }) {
+  return <section className="workspace-view intelligence-view">
+    <ViewHeading kicker="NATURAL-LANGUAGE ANALYSIS" title="ORBIT intelligence" description="Query the threat telemetry adapter through the real ORBIT inference pipeline."><LivePill live={mode === "demo" || connected}>{mode === "demo" ? "DEMO RESPONSES" : connected ? "API CONNECTED" : "API DISCONNECTED"}</LivePill></ViewHeading>
+    <div className="intelligence-workspace">
+      <Intelligence mode={mode} config={config} openSettings={openSettings} setConnected={setConnected} forceOpen/>
+      <aside className="panel intel-context"><PanelHead kicker="CONTEXT" title="Data boundary"/><div className="context-body"><Shield size={22}/><h3>{mode === "live" ? "Live inference enabled" : "Demonstration responses"}</h3><p>{mode === "live" ? "Questions in this workspace are sent to the configured ORBIT API. The operational map and counters remain simulated." : "Switch to Live mode to send questions through the intent-to-SQL telemetry adapter."}</p><div><span>ADAPTER</span><strong>intent-sql-sqlite-threat-telemetry</strong></div><div><span>TRANSPORT</span><strong>{mode === "live" ? "HTTP(S) / Bearer" : "Local simulation"}</strong></div><button onClick={openSettings}><Settings2 size={14}/>CONNECTION SETTINGS</button></div></aside>
+    </div>
+    <QueryBurst statusUrl={burstStatusUrl} setStatusUrl={setBurstStatusUrl}/>
+  </section>;
 }
 
 function Settings({ config, close, save }) {
@@ -211,6 +350,7 @@ function Settings({ config, close, save }) {
 }
 
 function App() {
+  const [activeView, setActiveView] = useState("overview");
   const [mode, setModeValue] = useState("demo");
   const [paused, setPaused] = useState(false);
   const [settings, setSettings] = useState(false);
@@ -220,6 +360,7 @@ function App() {
   const [throughput, setThroughput] = useState(128);
   const [queue, setQueue] = useState(8);
   const [lastEvent, setLastEvent] = useState(clockTime());
+  const [burstStatusUrl, setBurstStatusUrl] = useState(() => localStorage.getItem("orbit-threat-burst-url") || "http://localhost:8787/status");
   const [config, setConfig] = useState(() => {
     // Remove credentials persisted by dashboard versions prior to session-only storage.
     localStorage.removeItem("orbit-threat-key");
@@ -242,16 +383,23 @@ function App() {
     sync(); const id = setInterval(sync, 30000); return () => { active = false; clearInterval(id); };
   }, [mode, paused, config]);
   const save = draft => { const next = { apiUrl: draft.apiUrl.trim().replace(/\/$/, ""), apiKey: draft.apiKey.trim() }; setConfig(next); localStorage.setItem("orbit-threat-url", next.apiUrl); sessionStorage.setItem("orbit-threat-key", next.apiKey); setModeValue("live"); setSettings(false); };
-  const acknowledge = () => { if (selected?.kind !== "alert") return; const update = item => item.id === selected.id ? {...item, status: "ACK", operator: item.operator === "Unassigned" ? "Demo Operator" : item.operator} : item; setAlerts(value => value.map(update)); setSelected(update(selected)); };
+  const acknowledge = target => { const incident = target?.kind === "alert" ? target : selected; if (incident?.kind !== "alert") return; const update = item => item.id === incident.id ? {...item, status: "ACK", operator: item.operator === "Unassigned" ? "Demo Operator" : item.operator} : item; setAlerts(value => value.map(update)); setSelected(update(incident)); };
   const exportData = () => { const url = URL.createObjectURL(new Blob([JSON.stringify({ generatedAt: new Date().toISOString(), mode, alerts, sensors }, null, 2)], {type: "application/json"})); const link = document.createElement("a"); link.href = url; link.download = `orbit-threat-snapshot-${Date.now()}.json`; link.click(); URL.revokeObjectURL(url); };
   const healthy = mode === "demo" || connected;
+  const setBurstUrl = value => { setBurstStatusUrl(value); localStorage.setItem("orbit-threat-burst-url", value); };
 
-  return <div className="app-shell"><Header mode={mode} setMode={setMode} paused={paused} setPaused={setPaused} openSettings={() => setSettings(true)}/><main>
+  return <div className="app-shell"><Header mode={mode} setMode={setMode} paused={paused} setPaused={setPaused} openSettings={() => setSettings(true)} activeView={activeView} setActiveView={setActiveView}/><main>
     <div className={cls("provenance-banner", mode === "live" && "live-context")}><Shield size={13}/><strong>{mode === "live" ? "LIVE ORBIT INTELLIGENCE" : "DEMONSTRATION MODE"}</strong><span>{mode === "live" ? "Chat and connection status are live. Map, alerts, sensors, latency, and MQ metrics remain simulated presentation data." : "All operational data on this screen is simulated."}</span></div>
     <section className="mission"><div><small>MISSION STATUS</small><h1>Eastern Grid <span>/</span> Perimeter Watch</h1></div><div className="mission-meta"><span><Activity size={13}/>LAST EVENT <strong>{lastEvent}</strong></span><span><CloudCog size={13}/>MQ DEPTH <strong>{queue}</strong></span><span><Signal size={13}/>UPLINK <strong>24ms</strong></span><button onClick={exportData}><Download size={13}/>EXPORT</button></div></section>
-    <section className="metrics"><Metric icon={ShieldAlert} label="ACTIVE THREATS" value="12" delta="8.4%" tone="red" values={[9,11,8,14,12,17,15,21,18,24]}/><Metric icon={Radio} label="SENSORS ONLINE" value="5" unit="/ 6" delta="Stable"/><Metric icon={Crosshair} label="DETECTIONS / HR" value="143" delta="18.2%" tone="amber"/><Metric icon={Zap} label="MQ THROUGHPUT" value={throughput} unit="/m" delta="12.7%" tone="violet"/></section>
-    <section className="dashboard-grid"><TacticalMap selected={selected} select={setSelected} paused={paused}/><div className="right-stack"><Distribution/><Throughput rate={throughput}/></div><Alerts alerts={alerts} selected={selected} select={setSelected} acknowledge={acknowledge}/><Detail item={selected}/></section>
-    <Intelligence mode={mode} config={config} openSettings={() => setSettings(true)} setConnected={setConnected}/>
+    {activeView === "overview" && <>
+      <section className="metrics"><Metric icon={ShieldAlert} label="ACTIVE THREATS" value="12" delta="8.4%" tone="red" values={[9,11,8,14,12,17,15,21,18,24]}/><Metric icon={Radio} label="SENSORS ONLINE" value="5" unit="/ 6" delta="Stable"/><Metric icon={Crosshair} label="DETECTIONS / HR" value="143" delta="18.2%" tone="amber"/><Metric icon={Zap} label="MQ THROUGHPUT" value={throughput} unit="/m" delta="12.7%" tone="violet"/></section>
+      <section className="dashboard-grid"><TacticalMap selected={selected} select={setSelected} paused={paused}/><div className="right-stack"><Distribution/><Throughput rate={throughput}/></div><Alerts alerts={alerts} selected={selected} select={setSelected} acknowledge={acknowledge}/><Detail item={selected}/></section>
+      <Intelligence mode={mode} config={config} openSettings={() => setSettings(true)} setConnected={setConnected}/>
+      <QueryBurst statusUrl={burstStatusUrl} setStatusUrl={setBurstUrl}/>
+    </>}
+    {activeView === "incidents" && <IncidentView alerts={alerts} selected={selected} select={setSelected} acknowledge={acknowledge}/>}
+    {activeView === "sensors" && <SensorView selected={selected} select={setSelected} paused={paused}/>}
+    {activeView === "intelligence" && <IntelligenceView mode={mode} config={config} openSettings={() => setSettings(true)} setConnected={setConnected} connected={connected} burstStatusUrl={burstStatusUrl} setBurstStatusUrl={setBurstUrl}/>}
   </main><footer><span><Brand/>ORBIT THREAT TELEMETRY</span><span>{mode === "demo" ? "DEMO FEED" : "ORBIT API"} <i className={healthy ? "good" : ""}/>{mode === "demo" ? "ACTIVE" : healthy ? "CONNECTED" : "DISCONNECTED"}</span><span>CLASSIFICATION // DEMONSTRATION</span></footer>{settings && <Settings config={config} close={() => setSettings(false)} save={save}/>}</div>;
 }
 

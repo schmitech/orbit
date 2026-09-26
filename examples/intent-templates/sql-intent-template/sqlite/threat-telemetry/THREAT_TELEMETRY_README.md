@@ -68,7 +68,10 @@ create` and pass `--prompt-id` to subsequent `key create` calls instead of
 
 ## Related demo pieces
 
-- `examples/threat-telemetry-mq/` — simulates a burst of sensor traffic over
-  ORBIT's message-queue surface (see `docs/message-queue-architecture.md`).
-- `examples/threat-telemetry-dashboard/` — a static HTML dashboard driving
-  this adapter through `/v1/chat/completions`.
+- `examples/threat-telemetry-mq/` — two message-queue demos: a burst of NL
+  questions against ORBIT's broker-native async surface (read-only), and a
+  live sensor feed that actually persists new detections/alerts into this
+  database via a standalone ingest consumer (see
+  `docs/message-queue-architecture.md` and that folder's README).
+- `examples/threat-telemetry-dashboard/` — a dashboard driving this adapter
+  through `/v1/chat/completions`.
