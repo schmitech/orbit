@@ -55,6 +55,14 @@
 
 <br />
 
+<div id="multimodal-demo" align="center">
+  <video src="https://github.com/user-attachments/assets/084024e7-5123-4943-8aa4-38d750332cfa" controls muted playsinline width="65%"></video>
+  <br />
+  <em>Using ORBIT to create music. Hit play, and a sampled piano performs it, the score auto-scrolls, and each note lights up as it sounds.</em>
+</div>
+
+<br />
+
 <div id="es-chat" align="center">
   <video src="https://github.com/user-attachments/assets/e7fd2834-e438-4ac1-9173-0c0d56ca562b" controls muted playsinline width="65%"></video>
   <br />
