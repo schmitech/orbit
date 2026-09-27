@@ -111,7 +111,7 @@ const prepareSynthController = (
     void controller.pause();
   });
 
-  void synthController.setTune(tune, false, { soundFontUrl: SOUNDFONT_URL });
+  void synthController.setTune(tune, false, { soundFontUrl: SOUNDFONT_URL, chordsOff: true });
   return controller;
 };
 
@@ -477,7 +477,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
     setPlaybackError(null);
     try {
       const abcjsLib = await loadAbcjs();
-      const midiBuffer = abcjsLib.synth?.getMidiFile(renderedTune, { midiOutputType: 'binary' });
+      const midiBuffer = abcjsLib.synth?.getMidiFile(renderedTune, { midiOutputType: 'binary', chordsOff: true });
       if (!midiBuffer) throw new Error('MIDI export is unavailable');
 
       const title = renderedTune.metaText?.title?.trim() || 'music-score';
