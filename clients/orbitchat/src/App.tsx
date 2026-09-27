@@ -47,8 +47,8 @@ function App() {
         <LanguageProvider>
           <AuthGate>
             <AgentHomeNavProvider>
-            <div className="h-dvh flex flex-col bg-white dark:bg-black text-slate-900 dark:text-slate-100">
-              <div className="flex-1 flex flex-col md:flex-row md:pl-4 min-h-0">
+            <div className="flex h-dvh w-full min-w-0 flex-col overflow-hidden bg-white text-slate-900 dark:bg-black dark:text-slate-100">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row md:pl-4">
                 {showSidebar && (
                   isDesktopSidebarCollapsed ? (
                     // Collapsed: narrow placeholder keeps expand button in the sidebar zone
@@ -70,9 +70,9 @@ function App() {
                     </div>
                   )
                 )}
-                <div className="flex-1 flex flex-col w-full min-h-0">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                   <AppHeader />
-                  <div className="flex-1 flex justify-center w-full min-h-0">
+                  <div className="flex min-h-0 min-w-0 flex-1 justify-center">
                     <ChatInterface
                       onOpenSettings={() => setIsSettingsOpen(true)}
                       onOpenSidebar={() => setIsMobileSidebarOpen(true)}

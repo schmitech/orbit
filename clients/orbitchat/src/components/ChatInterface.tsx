@@ -318,9 +318,9 @@ export function ChatInterface({
   }, [currentConversation]);
 
   return (
-    <main className="flex-1 flex flex-col bg-transparent overflow-hidden" aria-label={t('chatInterface.workspace.ariaLabel')}>
-      <div className="flex h-full w-full flex-col overflow-hidden px-3 sm:px-5 lg:px-8">
-        <div className={`mx-auto flex h-full w-full ${chatMaxWidthClass} flex-col overflow-hidden md:pb-4 ${MOBILE_FRAME_CLASSES}`}>
+    <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-transparent" aria-label={t('chatInterface.workspace.ariaLabel')}>
+      <div className="flex h-full w-full min-w-0 flex-col overflow-hidden px-3 sm:px-5 lg:px-8">
+        <div className={`mx-auto flex h-full w-full min-w-0 ${chatMaxWidthClass} flex-col overflow-hidden md:pb-4 ${MOBILE_FRAME_CLASSES}`}>
 
           {error && (
             <div
@@ -340,7 +340,7 @@ export function ChatInterface({
             </div>
           )}
 
-          <div className={effectiveHeaderClasses}>
+          <div className={`${effectiveHeaderClasses} min-w-0`}>
             {onOpenSidebar && (
               <div className="mb-2 flex items-center justify-between gap-2 md:hidden">
                 <div className="flex items-center gap-2">
@@ -451,7 +451,7 @@ export function ChatInterface({
           </div>
 
           {isRealtimeVoiceConversation && currentConversation ? (
-            <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {currentConversation.messages.length > 0 ? (
                 <MessageList
                   messages={currentConversation.messages}
@@ -590,7 +590,7 @@ export function ChatInterface({
               )}
             </div>
           ) : (
-            <div className="flex flex-1 flex-col min-h-0">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <MessageList
                 messages={currentConversation.messages}
                 onRegenerate={(messageId) => regenerateResponse(messageId, selectedModel ?? currentConversation?.adapterInfo?.model ?? undefined)}
