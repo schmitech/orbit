@@ -63,16 +63,35 @@ const setSecondaryControlsDisabled = (target: HTMLElement, disabled: boolean) =>
   });
 };
 
+const HIGHLIGHT_CLASS = 'abcjs-note-highlight';
+
+type CursorEvent = { elements?: Element[][] };
+
+const clearHighlights = (scoreTarget: HTMLElement) => {
+  scoreTarget.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach(el => el.classList.remove(HIGHLIGHT_CLASS));
+};
+
+const createCursorControl = (scoreTarget: HTMLElement) => ({
+  onEvent: (event: CursorEvent) => {
+    clearHighlights(scoreTarget);
+    event.elements?.forEach(noteElements => {
+      noteElements.forEach(el => el.classList.add(HIGHLIGHT_CLASS));
+    });
+  },
+  onFinished: () => clearHighlights(scoreTarget),
+});
+
 const prepareSynthController = (
   synth: AbcSynthLike,
   tune: AbcTune,
   target: HTMLElement,
+  scoreTarget: HTMLElement,
   playerId: string,
   labels: { playPause: string; restart: string; seek: string; tempo: string },
 ) => {
   target.innerHTML = '';
   const synthController = new synth.SynthController();
-  synthController.load(target, null, {
+  synthController.load(target, createCursorControl(scoreTarget), {
     displayLoop: false,
     displayRestart: true,
     displayPlay: true,
@@ -104,6 +123,7 @@ const prepareSynthController = (
       } else {
         synthController.pause();
       }
+      clearHighlights(scoreTarget);
     },
   };
 
@@ -337,8 +357,8 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
         const canPlayAudio = Boolean(renderedTune && audioTarget && synth?.supportsAudio());
         setAudioSupported(canPlayAudio);
 
-        if (canPlayAudio && renderedTune && audioTarget && synth) {
-          const controller = prepareSynthController(synth, renderedTune, audioTarget, playerId, {
+        if (canPlayAudio && renderedTune && audioTarget && synth && containerRef.current) {
+          const controller = prepareSynthController(synth, renderedTune, audioTarget, containerRef.current, playerId, {
             playPause: t('markdown.music.playPauseTitle'),
             restart: t('markdown.music.restartTitle'),
             seek: t('markdown.music.seekTitle'),

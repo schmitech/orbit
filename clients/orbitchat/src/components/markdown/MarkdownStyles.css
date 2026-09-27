@@ -685,13 +685,19 @@
   border-radius: 8px;
   background: var(--md-bg-tertiary);
   color: var(--md-text-primary);
+  align-items: center;
 }
 
 .markdown-content .music-playback-controls .abcjs-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
   width: 34px;
   height: 34px;
   padding: 7px 6px;
   border-radius: 6px;
+  margin-right: 0;
 }
 
 .markdown-content .music-playback-controls .abcjs-btn:focus-visible,
@@ -706,12 +712,22 @@
   stroke: var(--md-text-primary);
 }
 
+/* Cursor highlight for the note(s) currently sounding during playback */
+.markdown-content .abcjs-note-highlight {
+  fill: #6366f1 !important;
+}
+
+.markdown-content .abcjs-note-highlight.abcjs-note {
+  stroke: #6366f1 !important;
+}
+
 .markdown-content .music-playback-controls .abcjs-btn:hover g {
   fill: var(--md-text-secondary);
   stroke: var(--md-text-secondary);
 }
 
 .markdown-content .music-playback-controls .abcjs-midi-progress-background {
+  align-self: center;
   min-width: 80px;
   background: var(--md-bg-secondary);
   border-color: var(--md-border-color-strong);
