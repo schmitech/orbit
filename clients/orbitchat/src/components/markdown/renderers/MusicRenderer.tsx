@@ -71,12 +71,28 @@ const clearHighlights = (scoreTarget: HTMLElement) => {
   scoreTarget.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach(el => el.classList.remove(HIGHLIGHT_CLASS));
 };
 
+// Only nudge the scroll position when the playing note is getting close to
+// the viewport edge, so we don't fight a smooth-scroll animation on every
+// cursor event (these fire multiple times per second).
+const SCROLL_MARGIN_PX = 96;
+
+const keepNoteInView = (el: Element) => {
+  const rect = el.getBoundingClientRect();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  if (rect.top < SCROLL_MARGIN_PX || rect.bottom > viewportHeight - SCROLL_MARGIN_PX) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+};
+
 const createCursorControl = (scoreTarget: HTMLElement) => ({
+  onStart: () => {
+    scoreTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
   onEvent: (event: CursorEvent) => {
     clearHighlights(scoreTarget);
-    event.elements?.forEach(noteElements => {
-      noteElements.forEach(el => el.classList.add(HIGHLIGHT_CLASS));
-    });
+    const elements = event.elements?.flat() ?? [];
+    elements.forEach(el => el.classList.add(HIGHLIGHT_CLASS));
+    if (elements[0]) keepNoteInView(elements[0]);
   },
   onFinished: () => clearHighlights(scoreTarget),
 });
