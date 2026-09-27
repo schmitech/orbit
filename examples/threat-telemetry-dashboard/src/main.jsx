@@ -4,7 +4,7 @@ import {
   Activity, AlertTriangle, Bot, Check, ChevronRight,
   CircleDot, Clock3, CloudCog, Command, Crosshair, Database, Download,
   Gauge, Hexagon, ListChecks, Pause, Play, Radio, Send, Server, Settings2,
-  Shield, ShieldAlert, Signal, Sparkles, Target, Wifi, X, Zap,
+  Shield, ShieldAlert, Signal, Sparkles, Sun, Target, Wifi, X, Zap,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -160,7 +160,7 @@ function LivePill({ children, live = true }) {
   return <span className={cls("status-pill", live && "is-live")}><i />{children}</span>;
 }
 
-function Header({ paused, setPaused, openSettings, activeView, setActiveView }) {
+function Header({ paused, setPaused, openSettings, activeView, setActiveView, outdoorContrast, setOutdoorContrast }) {
   const [time, setTime] = useState(clockTime());
   useEffect(() => {
     const id = setInterval(() => setTime(clockTime()), 1000);
@@ -171,6 +171,7 @@ function Header({ paused, setPaused, openSettings, activeView, setActiveView }) 
       <div className="brand-block"><Brand /><div><small>ORBIT SYSTEMS</small><strong>THREAT COMMAND</strong></div></div>
       <div className="topbar-center"><LivePill live={!paused}>{paused ? "FEED PAUSED" : "SYSTEM OPERATIONAL"}</LivePill><span className="divider" /><span><Server size={13} /> NODE 04 / EASTERN GRID</span></div>
       <div className="top-actions">
+        <button className={cls("icon-button", outdoorContrast && "active")} onClick={() => setOutdoorContrast(!outdoorContrast)} aria-pressed={outdoorContrast} title={outdoorContrast ? "Disable outdoor contrast" : "Enable outdoor contrast"}><Sun size={15} /></button>
         <button className="icon-button" onClick={() => setPaused(!paused)} title={paused ? "Resume live updates" : "Pause live updates"}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>
         <button className="icon-button" onClick={openSettings} title="Connection settings"><Settings2 size={15} /></button>
         <span className="clock"><Clock3 size={13} />{time}<small>UTC-4</small></span>
@@ -200,6 +201,12 @@ function PanelHead({ kicker, title, children }) {
 }
 
 function TacticalMap({ sensors, alerts, selected, select, paused }) {
+  const [hoveredItem, setHoveredItem] = useState(null);
+  const showDetails = item => setHoveredItem(item);
+  const clearDetails = () => setHoveredItem(null);
+  const selectFromKeyboard = (event, item) => {
+    if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(item); }
+  };
   return <section className="panel map-panel">
     <PanelHead kicker="SENSOR NETWORK" title="Sector overview"><div className="map-tools"><button className="active"><Crosshair size={12} />TRACKS</button><button><Radio size={12} />SENSORS</button></div></PanelHead>
     <div className="map-canvas">
@@ -217,12 +224,17 @@ function TacticalMap({ sensors, alerts, selected, select, paused }) {
         <g className="connections">{sensors.slice(1).map(s => <line key={s.id} x1="450" y1="268" x2={s.x * 9} y2={s.y * 5.35}/>)}</g>
         {sensors.map(sensor => {
           const x = sensor.x * 9, y = sensor.y * 5.35;
-          return <g key={sensor.id} className={cls("sensor", sensor.status, selected?.id === sensor.id && "selected")} onClick={() => select(sensor)} role="button" tabIndex="0">
+          return <g key={sensor.id} className={cls("sensor", sensor.status, selected?.id === sensor.id && "selected")} onClick={() => select(sensor)} onKeyDown={event => selectFromKeyboard(event, sensor)} onMouseEnter={() => showDetails(sensor)} onMouseLeave={clearDetails} onFocus={() => showDetails(sensor)} onBlur={clearDetails} role="button" tabIndex="0" aria-label={`Show ${sensor.id}, ${sensor.type} at ${sensor.location_name}`}>
             <circle className="range" cx={x} cy={y} r="30"/><circle className="pulse" cx={x} cy={y} r="16"/><circle className="core" cx={x} cy={y} r="5"/><path d={`M${x-9} ${y-9}h5M${x+4} ${y-9}h5M${x-9} ${y+9}h5M${x+4} ${y+9}h5`}/><text className="sensor-label" x={x+17} y={y-10}>{sensor.id}</text><text className="sensor-sub" x={x+17} y={y+5}>{sensor.type} · {sensor.status.toUpperCase()}</text>
           </g>;
         })}
-        {alerts.slice(0, 6).map(alert => <g key={alert.id} className={cls("threat", alert.severity)} onClick={() => select(alert)}><circle cx={alert.x*9} cy={alert.y*5.35} r="20"/><path d={`M${alert.x*9} ${alert.y*5.35-8}l8 15h-16Z`}/><text x={alert.x*9+24} y={alert.y*5.35+4}>{alert.id}</text></g>)}
+        {alerts.slice(0, 6).map(alert => <g key={alert.id} className={cls("threat", alert.severity)} onClick={() => select(alert)} onKeyDown={event => selectFromKeyboard(event, alert)} onMouseEnter={() => showDetails(alert)} onMouseLeave={clearDetails} onFocus={() => showDetails(alert)} onBlur={clearDetails} role="button" tabIndex="0" aria-label={`Show ${alert.severity} alert ${alert.id}, ${alert.object} at ${alert.site}`}><circle cx={alert.x*9} cy={alert.y*5.35} r="20"/><path d={`M${alert.x*9} ${alert.y*5.35-8}l8 15h-16Z`}/><text x={alert.x*9+24} y={alert.y*5.35+4}>{alert.id}</text></g>)}
       </svg>
+      {hoveredItem && <div className={cls("map-tooltip", hoveredItem.kind === "alert" && "threat-tooltip")} style={{left:`${hoveredItem.x / 100 * 100}%`, top:`${hoveredItem.y / 100 * 100}%`}} role="status">
+        <strong>{hoveredItem.kind === "sensor" ? hoveredItem.id : `${hoveredItem.severity.toUpperCase()} · ${hoveredItem.object}`}</strong>
+        <span>{hoveredItem.kind === "sensor" ? `${hoveredItem.type} · ${hoveredItem.location_name}` : `${hoveredItem.id} · ${hoveredItem.site}`}</span>
+        <small>{hoveredItem.kind === "sensor" ? `STATUS · ${hoveredItem.status.toUpperCase()}` : `${hoveredItem.confidence}% CONFIDENCE · ${hoveredItem.age}`}</small>
+      </div>}
       <div className="coordinates">38° 53' 42.1" N&nbsp; / &nbsp;77° 02' 34.6" W</div>
       <div className="map-legend"><span><i/>ONLINE</span><span><i className="warn"/>DEGRADED</span><span><i className="danger"/>OFFLINE</span></div>
     </div>
@@ -432,6 +444,7 @@ function App() {
   const [paused, setPaused] = useState(false);
   const [settings, setSettings] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [outdoorContrast, setOutdoorContrast] = useState(() => localStorage.getItem("orbit-threat-outdoor-contrast") !== "0");
   const [selectedId, setSelectedId] = useState(null);
   const [statsUrl, setStatsUrlValue] = useState(() => localStorage.getItem("orbit-threat-stats-url") || "http://localhost:8790/stats");
   const [burstStatusUrl, setBurstStatusUrl] = useState(() => localStorage.getItem("orbit-threat-burst-url") || "http://localhost:8787/status");
@@ -476,7 +489,12 @@ function App() {
   const queueDepth = statsReachable && stats?.queue?.available ? stats.queue.messages_ready + stats.queue.messages_unacknowledged : null;
   const throughputPerMin = statsReachable && stats?.queue?.available ? Math.round(stats.queue.deliver_rate_per_sec * 60) : null;
 
-  return <div className="app-shell"><Header paused={paused} setPaused={setPaused} openSettings={() => setSettings(true)} activeView={activeView} setActiveView={setActiveView}/><main>
+  const toggleOutdoorContrast = enabled => {
+    setOutdoorContrast(enabled);
+    localStorage.setItem("orbit-threat-outdoor-contrast", enabled ? "1" : "0");
+  };
+
+  return <div className={cls("app-shell", outdoorContrast && "outdoor-contrast")}><Header paused={paused} setPaused={setPaused} openSettings={() => setSettings(true)} activeView={activeView} setActiveView={setActiveView} outdoorContrast={outdoorContrast} setOutdoorContrast={toggleOutdoorContrast}/><main>
     <div className={cls("provenance-banner", statsReachable && "live-context")}><Shield size={13}/><strong>{statsReachable ? "LIVE OPERATIONAL DATA" : "STATS SERVER UNREACHABLE"}</strong><span>{statsReachable ? "Sensor status, detections, alerts, and queue depth are read live from threat_telemetry.db and RabbitMQ. Only the map's node layout is illustrative." : `Start live_stats_server.py and confirm the URL below (${statsUrl}).`}</span><input className="stats-source" value={statsUrl} onChange={e => setStatsUrl(e.target.value)} spellCheck={false}/></div>
     <section className="mission"><div><small>MISSION STATUS</small><h1>Eastern Grid <span>/</span> Perimeter Watch</h1></div><div className="mission-meta"><span><Activity size={13}/>LAST DETECTION <strong>{lastDetection ? relativeTimeFromDate(lastDetection) : "—"}</strong></span><span><CloudCog size={13}/>MQ DEPTH <strong>{queueDepth ?? "—"}</strong></span><span><Signal size={13}/>STATS LATENCY <strong>{latencyMs != null ? `${latencyMs}ms` : "—"}</strong></span><button onClick={exportData}><Download size={13}/>EXPORT</button></div></section>
     {activeView === "overview" && <>
