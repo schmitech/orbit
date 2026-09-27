@@ -154,12 +154,14 @@ adapters:
       # this") without requiring the client to send skill=<name> — matches
       # the same list as available_skills below, so both the "/" picker and
       # an autocomplete-suggested phrase reach the skill.
-      auto_routable_skills:
-        - "PDF"
-        - "Word"
-        - "Excel"
-        - "PowerPoint"
+      # auto_routable_skills:
+      #   - "PDF"
+      #   - "Image"
+      #   - "Word"
+      #   - "Excel"
+      #   - "PowerPoint"
       available_skills:
+        - "Image"
         - "PDF"
         - "Word"
         - "Excel"

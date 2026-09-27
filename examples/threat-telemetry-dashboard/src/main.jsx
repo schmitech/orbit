@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Activity, AlertTriangle, Bot, Check, ChevronRight,
@@ -74,6 +74,163 @@ function toSensorRecord(s) {
     y: s.y,
     status: s.status,
   };
+}
+
+const TRACK_BOUNDS = { minX: 4, maxX: 96, minY: 8, maxY: 94 };
+
+function stableHash(value) {
+  let hash = 2166136261;
+  for (const char of value) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+  return hash >>> 0;
+}
+
+function motionProfile(alert) {
+  const seed = stableHash(alert.id);
+  const type = alert.object.toLowerCase();
+  const variation = (seed % 1000) / 1000;
+  if (type.includes("person")) return { mapSpeed:.10 + variation*.035, speedKph:4 + variation*2.2, turnRate:.22, turnFrequency:.42 };
+  if (type.includes("vehicle")) return { mapSpeed:.38 + variation*.12, speedKph:28 + variation*34, turnRate:.035, turnFrequency:.16 };
+  if (type.includes("drone")) return { mapSpeed:.31 + variation*.1, speedKph:32 + variation*25, turnRate:.075, turnFrequency:.24 };
+  return { mapSpeed:.18 + variation*.08, speedKph:10 + variation*16, turnRate:.11, turnFrequency:.3 };
+}
+
+function headingLabel(radians) {
+  const index = Math.round((((radians * 180 / Math.PI) + 360) % 360) / 45) % 8;
+  return ["E", "SE", "S", "SW", "W", "NW", "N", "NE"][index];
+}
+
+function useContactSimulation(alerts, paused) {
+  const tracksRef = useRef(new Map());
+  const [trackedAlerts, setTrackedAlerts] = useState(alerts);
+
+  useEffect(() => {
+    const activeIds = new Set(alerts.map(alert => alert.id));
+    for (const id of tracksRef.current.keys()) if (!activeIds.has(id)) tracksRef.current.delete(id);
+    for (const alert of alerts) {
+      if (tracksRef.current.has(alert.id)) continue;
+      const seed = stableHash(alert.id);
+      const x = Number.isFinite(alert.x) ? alert.x : 20 + (seed % 6000) / 100;
+      const y = Number.isFinite(alert.y) ? alert.y : 20 + ((seed >>> 8) % 6000) / 100;
+      tracksRef.current.set(alert.id, {
+        x, y, heading:(seed % 6283) / 1000, phase:((seed >>> 7) % 6283) / 1000,
+        drift:(((seed >>> 15) % 200) - 100) / 26000, trail:[{x,y}], trailElapsed:0,
+        ...motionProfile(alert),
+      });
+    }
+    setTrackedAlerts(alerts.map(alert => {
+      const track = tracksRef.current.get(alert.id);
+      return track ? {...alert, x:track.x, y:track.y, trail:track.trail, motion:{speedKph:track.speedKph, heading:headingLabel(track.heading)}} : alert;
+    }));
+  }, [alerts]);
+
+  useEffect(() => {
+    if (paused || alerts.length === 0) return undefined;
+    let frameId;
+    let lastTime = performance.now();
+    let lastPaint = 0;
+    const step = now => {
+      const delta = Math.min((now - lastTime) / 1000, .1);
+      lastTime = now;
+      for (const track of tracksRef.current.values()) {
+        const turn = Math.sin(now / 1000 * track.turnFrequency + track.phase) * track.turnRate + track.drift;
+        track.heading += turn * delta;
+        let nextX = track.x + Math.cos(track.heading) * track.mapSpeed * delta;
+        let nextY = track.y + Math.sin(track.heading) * track.mapSpeed * delta;
+        if (nextX < TRACK_BOUNDS.minX || nextX > TRACK_BOUNDS.maxX) {
+          track.heading = Math.PI - track.heading;
+          nextX = Math.max(TRACK_BOUNDS.minX, Math.min(TRACK_BOUNDS.maxX, nextX));
+        }
+        if (nextY < TRACK_BOUNDS.minY || nextY > TRACK_BOUNDS.maxY) {
+          track.heading = -track.heading;
+          nextY = Math.max(TRACK_BOUNDS.minY, Math.min(TRACK_BOUNDS.maxY, nextY));
+        }
+        track.x = nextX;
+        track.y = nextY;
+        track.trailElapsed += delta;
+        if (track.trailElapsed >= .7) {
+          track.trail = [...track.trail.slice(-9), {x:track.x, y:track.y}];
+          track.trailElapsed = 0;
+        }
+      }
+      if (now - lastPaint >= 80) {
+        setTrackedAlerts(alerts.map(alert => {
+          const track = tracksRef.current.get(alert.id);
+          return track ? {...alert, x:track.x, y:track.y, trail:[...track.trail, {x:track.x,y:track.y}], motion:{speedKph:track.speedKph, heading:headingLabel(track.heading), radians:track.heading}} : alert;
+        }));
+        lastPaint = now;
+      }
+      frameId = requestAnimationFrame(step);
+    };
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, [alerts, paused]);
+
+  return trackedAlerts;
+}
+
+function useDronePatrolSimulation(sensors, paused) {
+  const patrolsRef = useRef(new Map());
+  const [trackedSensors, setTrackedSensors] = useState(sensors);
+
+  useEffect(() => {
+    const activeIds = new Set(sensors.map(sensor => sensor.id));
+    for (const id of patrolsRef.current.keys()) if (!activeIds.has(id)) patrolsRef.current.delete(id);
+    for (const sensor of sensors) {
+      if (sensor.type !== "DRONE" || patrolsRef.current.has(sensor.id)) continue;
+      const seed = stableHash(sensor.id);
+      const phase = (seed % 6283) / 1000;
+      const radiusX = 3.2 + ((seed >>> 8) % 24) / 10;
+      const radiusY = 2.2 + ((seed >>> 13) % 18) / 10;
+      patrolsRef.current.set(sensor.id, {
+        centerX:sensor.x - Math.cos(phase)*radiusX,
+        centerY:sensor.y - Math.sin(phase)*radiusY,
+        x:sensor.x, y:sensor.y, phase, angle:phase, radiusX, radiusY,
+        angularSpeed:.13 + ((seed >>> 19) % 5) / 100,
+        speedKph:38 + ((seed >>> 22) % 19), heading:"E",
+        trail:[{x:sensor.x,y:sensor.y}], trailElapsed:0,
+      });
+    }
+    setTrackedSensors(sensors.map(sensor => {
+      const patrol = patrolsRef.current.get(sensor.id);
+      return patrol ? {...sensor, x:patrol.x, y:patrol.y, trail:patrol.trail, motion:{speedKph:patrol.speedKph, heading:patrol.heading, patrol:true}} : sensor;
+    }));
+  }, [sensors]);
+
+  useEffect(() => {
+    if (paused || patrolsRef.current.size === 0) return undefined;
+    let frameId;
+    let lastTime = performance.now();
+    let lastPaint = 0;
+    const step = now => {
+      const delta = Math.min((now - lastTime) / 1000, .1);
+      lastTime = now;
+      for (const patrol of patrolsRef.current.values()) {
+        patrol.angle += patrol.angularSpeed * delta;
+        const nextX = patrol.centerX + Math.cos(patrol.angle) * patrol.radiusX;
+        const nextY = patrol.centerY + Math.sin(patrol.angle) * patrol.radiusY;
+        patrol.heading = headingLabel(Math.atan2(nextY - patrol.y, nextX - patrol.x));
+        patrol.x = Math.max(TRACK_BOUNDS.minX, Math.min(TRACK_BOUNDS.maxX, nextX));
+        patrol.y = Math.max(TRACK_BOUNDS.minY, Math.min(TRACK_BOUNDS.maxY, nextY));
+        patrol.trailElapsed += delta;
+        if (patrol.trailElapsed >= .55) {
+          patrol.trail = [...patrol.trail.slice(-13), {x:patrol.x,y:patrol.y}];
+          patrol.trailElapsed = 0;
+        }
+      }
+      if (now - lastPaint >= 80) {
+        setTrackedSensors(sensors.map(sensor => {
+          const patrol = patrolsRef.current.get(sensor.id);
+          return patrol ? {...sensor, x:patrol.x, y:patrol.y, trail:[...patrol.trail, {x:patrol.x,y:patrol.y}], motion:{speedKph:patrol.speedKph, heading:patrol.heading, patrol:true}} : sensor;
+        }));
+        lastPaint = now;
+      }
+      frameId = requestAnimationFrame(step);
+    };
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, [sensors, paused]);
+
+  return trackedSensors;
 }
 
 function useLiveStats(statsUrl, { intervalMs = 3000 } = {}) {
@@ -201,14 +358,17 @@ function PanelHead({ kicker, title, children }) {
 }
 
 function TacticalMap({ sensors, alerts, selected, select, paused }) {
-  const [hoveredItem, setHoveredItem] = useState(null);
-  const showDetails = item => setHoveredItem(item);
-  const clearDetails = () => setHoveredItem(null);
+  const movingAlerts = useContactSimulation(alerts, paused);
+  const movingSensors = useDronePatrolSimulation(sensors, paused);
+  const [hoveredId, setHoveredId] = useState(null);
+  const hoveredItem = movingSensors.find(item => item.id === hoveredId) ?? movingAlerts.find(item => item.id === hoveredId) ?? null;
+  const showDetails = item => setHoveredId(item.id);
+  const clearDetails = () => setHoveredId(null);
   const selectFromKeyboard = (event, item) => {
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(item); }
   };
   return <section className="panel map-panel">
-    <PanelHead kicker="SENSOR NETWORK" title="Sector overview"><div className="map-tools"><button className="active"><Crosshair size={12} />TRACKS</button><button><Radio size={12} />SENSORS</button></div></PanelHead>
+    <PanelHead kicker="SENSOR NETWORK" title="Sector overview"><div className="map-tools"><span className={cls("motion-status", paused && "paused")}><i/>{paused ? "SIM PAUSED" : "SIMULATION LIVE"}</span><button className="active"><Crosshair size={12} />TRACKS</button><button><Radio size={12} />SENSORS</button></div></PanelHead>
     <div className="map-canvas">
       <svg viewBox="0 0 900 535" aria-label="Tactical sensor network map">
         <defs>
@@ -221,19 +381,22 @@ function TacticalMap({ sensors, alerts, selected, select, paused }) {
         <g className="terrain"><path d="M-40 395C95 318 160 362 257 298S443 214 548 257 742 384 950 242"/><path d="M-20 429C126 350 201 409 301 335S491 248 584 295 768 410 932 305"/><path d="M77 0C86 94 154 113 146 196S87 333 121 535"/><path d="M810 0C756 102 799 159 757 235S673 362 698 535"/></g>
         <g className="sector"><circle cx="450" cy="268" r="92"/><circle cx="450" cy="268" r="182"/><circle cx="450" cy="268" r="255"/><path d="M450 12V524M194 268H706M269 87L631 449M269 449L631 87"/></g>
         {!paused && <path className="radar-sweep" d="M450 268V14A254 254 0 0 1 630 88Z"/>}
-        <g className="connections">{sensors.slice(1).map(s => <line key={s.id} x1="450" y1="268" x2={s.x * 9} y2={s.y * 5.35}/>)}</g>
-        {sensors.map(sensor => {
+        <g className="connections">{movingSensors.slice(1).map(s => <line key={s.id} x1="450" y1="268" x2={s.x * 9} y2={s.y * 5.35}/>)}</g>
+        <g className="sensor-trails">{movingSensors.filter(sensor => sensor.motion?.patrol).map(sensor => <polyline key={sensor.id} points={(sensor.trail ?? []).map(point => `${point.x*9},${point.y*5.35}`).join(" ")}/>)}</g>
+        <g className="track-trails">{movingAlerts.slice(0, 6).map(alert => <polyline key={alert.id} className={alert.severity} points={(alert.trail ?? []).map(point => `${point.x*9},${point.y*5.35}`).join(" ")}/>)}</g>
+        {movingSensors.map(sensor => {
           const x = sensor.x * 9, y = sensor.y * 5.35;
           return <g key={sensor.id} className={cls("sensor", sensor.status, selected?.id === sensor.id && "selected")} onClick={() => select(sensor)} onKeyDown={event => selectFromKeyboard(event, sensor)} onMouseEnter={() => showDetails(sensor)} onMouseLeave={clearDetails} onFocus={() => showDetails(sensor)} onBlur={clearDetails} role="button" tabIndex="0" aria-label={`Show ${sensor.id}, ${sensor.type} at ${sensor.location_name}`}>
             <circle className="range" cx={x} cy={y} r="30"/><circle className="pulse" cx={x} cy={y} r="16"/><circle className="core" cx={x} cy={y} r="5"/><path d={`M${x-9} ${y-9}h5M${x+4} ${y-9}h5M${x-9} ${y+9}h5M${x+4} ${y+9}h5`}/><text className="sensor-label" x={x+17} y={y-10}>{sensor.id}</text><text className="sensor-sub" x={x+17} y={y+5}>{sensor.type} · {sensor.status.toUpperCase()}</text>
           </g>;
         })}
-        {alerts.slice(0, 6).map(alert => <g key={alert.id} className={cls("threat", alert.severity)} onClick={() => select(alert)} onKeyDown={event => selectFromKeyboard(event, alert)} onMouseEnter={() => showDetails(alert)} onMouseLeave={clearDetails} onFocus={() => showDetails(alert)} onBlur={clearDetails} role="button" tabIndex="0" aria-label={`Show ${alert.severity} alert ${alert.id}, ${alert.object} at ${alert.site}`}><circle cx={alert.x*9} cy={alert.y*5.35} r="20"/><path d={`M${alert.x*9} ${alert.y*5.35-8}l8 15h-16Z`}/><text x={alert.x*9+24} y={alert.y*5.35+4}>{alert.id}</text></g>)}
+        {movingAlerts.slice(0, 6).map(alert => <g key={alert.id} className={cls("threat", alert.severity, paused && "paused")} onClick={() => select(alert)} onKeyDown={event => selectFromKeyboard(event, alert)} onMouseEnter={() => showDetails(alert)} onMouseLeave={clearDetails} onFocus={() => showDetails(alert)} onBlur={clearDetails} role="button" tabIndex="0" aria-label={`Show ${alert.severity} alert ${alert.id}, ${alert.object} at ${alert.site}`}><line className="heading-vector" x1={alert.x*9} y1={alert.y*5.35} x2={alert.x*9 + Math.cos(alert.motion?.radians ?? 0)*22} y2={alert.y*5.35 + Math.sin(alert.motion?.radians ?? 0)*22}/><circle cx={alert.x*9} cy={alert.y*5.35} r="20"/><path d={`M${alert.x*9} ${alert.y*5.35-8}l8 15h-16Z`}/><text x={alert.x*9+24} y={alert.y*5.35+4}>{alert.id}</text></g>)}
       </svg>
       {hoveredItem && <div className={cls("map-tooltip", hoveredItem.kind === "alert" && "threat-tooltip")} style={{left:`${hoveredItem.x / 100 * 100}%`, top:`${hoveredItem.y / 100 * 100}%`}} role="status">
         <strong>{hoveredItem.kind === "sensor" ? hoveredItem.id : `${hoveredItem.severity.toUpperCase()} · ${hoveredItem.object}`}</strong>
         <span>{hoveredItem.kind === "sensor" ? `${hoveredItem.type} · ${hoveredItem.location_name}` : `${hoveredItem.id} · ${hoveredItem.site}`}</span>
         <small>{hoveredItem.kind === "sensor" ? `STATUS · ${hoveredItem.status.toUpperCase()}` : `${hoveredItem.confidence}% CONFIDENCE · ${hoveredItem.age}`}</small>
+        {hoveredItem.motion && <small className="motion-readout">{hoveredItem.motion.patrol ? "AUTONOMOUS PATROL · " : ""}{Math.round(hoveredItem.motion.speedKph)} KM/H · HEADING {hoveredItem.motion.heading}</small>}
       </div>}
       <div className="coordinates">38° 53' 42.1" N&nbsp; / &nbsp;77° 02' 34.6" W</div>
       <div className="map-legend"><span><i/>ONLINE</span><span><i className="warn"/>DEGRADED</span><span><i className="danger"/>OFFLINE</span></div>
