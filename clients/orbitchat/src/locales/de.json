@@ -300,6 +300,16 @@
       "copyNotationAriaLabel": "ABC-Notation in die Zwischenablage kopieren",
       "exportPngTitle": "Als PNG exportieren",
       "exportPngAriaLabel": "Musiknotation als PNG-Bild exportieren",
+      "exportMidiTitle": "MIDI herunterladen",
+      "exportMidiAriaLabel": "Partitur als MIDI-Datei herunterladen",
+      "exporting": "Exportieren…",
+      "playPauseTitle": "Partitur abspielen oder pausieren",
+      "restartTitle": "Partitur neu starten",
+      "seekTitle": "Wiedergabeposition ändern",
+      "tempoTitle": "Wiedergabegeschwindigkeit ändern",
+      "audioUnsupported": "Dieser Browser unterstützt keine Audiowiedergabe. Der MIDI-Download ist weiterhin verfügbar.",
+      "playbackFailure": "Die Klavierklänge konnten nicht geladen werden. Prüfen Sie Ihre Verbindung und drücken Sie zum Wiederholen auf Wiedergabe.",
+      "midiExportFailure": "Die MIDI-Datei konnte nicht erstellt werden. Bitte versuchen Sie es erneut.",
       "rendering": "Notation wird gerendert..."
     },
     "svg": {

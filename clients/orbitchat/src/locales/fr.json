@@ -300,6 +300,16 @@
       "copyNotationAriaLabel": "Copier la notation ABC dans le presse-papiers",
       "exportPngTitle": "Exporter en PNG",
       "exportPngAriaLabel": "Exporter la notation musicale en image PNG",
+      "exportMidiTitle": "Télécharger le MIDI",
+      "exportMidiAriaLabel": "Télécharger la partition au format MIDI",
+      "exporting": "Exportation…",
+      "playPauseTitle": "Lire ou mettre la partition en pause",
+      "restartTitle": "Recommencer la partition",
+      "seekTitle": "Modifier la position de lecture",
+      "tempoTitle": "Modifier la vitesse de lecture",
+      "audioUnsupported": "La lecture audio n’est pas prise en charge par ce navigateur. Le téléchargement MIDI reste disponible.",
+      "playbackFailure": "Les sons de piano n’ont pas pu être chargés. Vérifiez votre connexion et appuyez sur Lecture pour réessayer.",
+      "midiExportFailure": "Le fichier MIDI n’a pas pu être créé. Veuillez réessayer.",
       "rendering": "Rendu de la notation..."
     },
     "svg": {

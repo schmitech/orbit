@@ -300,6 +300,16 @@
       "copyNotationAriaLabel": "ABC 記譜をクリップボードにコピー",
       "exportPngTitle": "PNG としてエクスポート",
       "exportPngAriaLabel": "楽譜を PNG 画像としてエクスポート",
+      "exportMidiTitle": "MIDI をダウンロード",
+      "exportMidiAriaLabel": "楽譜を MIDI ファイルとしてダウンロード",
+      "exporting": "エクスポート中…",
+      "playPauseTitle": "楽譜を再生または一時停止",
+      "restartTitle": "楽譜を最初から再生",
+      "seekTitle": "再生位置を変更",
+      "tempoTitle": "再生速度を変更",
+      "audioUnsupported": "このブラウザーは音声再生に対応していません。MIDI のダウンロードは利用できます。",
+      "playbackFailure": "ピアノ音源を読み込めませんでした。接続を確認し、再生ボタンを押して再試行してください。",
+      "midiExportFailure": "MIDI ファイルを作成できませんでした。もう一度お試しください。",
       "rendering": "記譜をレンダリング中..."
     },
     "svg": {

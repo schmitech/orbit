@@ -1,11 +1,41 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import 'abcjs/abcjs-audio.css';
 import type { MusicRendererProps } from '../types';
 import { normalizeAbcForRendering } from './abcNotation';
 import { copyCodeToClipboard, exportSvgAsPng } from './graphExportUtils';
 
+type AbcTune = {
+  metaText?: {
+    title?: string;
+  };
+};
+
+type SynthControllerLike = {
+  load: (
+    target: HTMLElement,
+    cursorControl?: Record<string, unknown> | null,
+    options?: Record<string, boolean>,
+  ) => void;
+  setTune: (tune: AbcTune, userAction: boolean, options?: Record<string, unknown>) => Promise<unknown>;
+  play: () => Promise<unknown>;
+  pause: () => void;
+};
+
+type MusicPlaybackController = {
+  play: () => Promise<unknown>;
+  pause: () => Promise<void>;
+};
+
+type AbcSynthLike = {
+  supportsAudio: () => boolean;
+  SynthController: new () => SynthControllerLike;
+  getMidiFile: (source: AbcTune, options?: Record<string, unknown>) => ArrayBuffer;
+};
+
 type AbcJsLike = {
-  renderAbc: (target: HTMLElement | string, code: string, options?: Record<string, unknown>) => unknown;
+  renderAbc: (target: HTMLElement | string, code: string, options?: Record<string, unknown>) => AbcTune[];
+  synth?: AbcSynthLike;
 };
 
 type WindowWithAbcjs = {
@@ -14,6 +44,77 @@ type WindowWithAbcjs = {
 
 // Dynamic import for abcjs to handle both ESM and CommonJS
 let abcjs: AbcJsLike | null = null;
+let nextMusicPlayerId = 0;
+let activeMusicPlayerId: string | null = null;
+const musicPlayerPausers = new Map<string, () => void>();
+const SOUNDFONT_URL = 'https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/';
+
+const pauseOtherMusicPlayers = (activeId: string) => {
+  musicPlayerPausers.forEach((pause, id) => {
+    if (id !== activeId) pause();
+  });
+};
+
+const setSecondaryControlsDisabled = (target: HTMLElement, disabled: boolean) => {
+  target.querySelectorAll<HTMLButtonElement | HTMLInputElement>(
+    '.abcjs-midi-reset, .abcjs-midi-progress-background, .abcjs-midi-tempo',
+  ).forEach(control => {
+    control.disabled = disabled;
+  });
+};
+
+const prepareSynthController = (
+  synth: AbcSynthLike,
+  tune: AbcTune,
+  target: HTMLElement,
+  playerId: string,
+  labels: { playPause: string; restart: string; seek: string; tempo: string },
+) => {
+  target.innerHTML = '';
+  const synthController = new synth.SynthController();
+  synthController.load(target, null, {
+    displayLoop: false,
+    displayRestart: true,
+    displayPlay: true,
+    displayProgress: true,
+    displayWarp: true,
+  });
+
+  const setControlLabel = (selector: string, label: string) => {
+    const element = target.querySelector(selector);
+    element?.setAttribute('title', label);
+    element?.setAttribute('aria-label', label);
+  };
+  setControlLabel('.abcjs-midi-start', labels.playPause);
+  setControlLabel('.abcjs-midi-reset', labels.restart);
+  setControlLabel('.abcjs-midi-progress-background', labels.seek);
+  setControlLabel('.abcjs-midi-tempo', labels.tempo);
+  setSecondaryControlsDisabled(target, true);
+
+  // abcjs names its transport toggle `play()`. Calling its raw `pause()` does
+  // not reset the internal isStarted flag, so the next Play would be ignored.
+  // Keep that quirk inside this adapter and expose unambiguous operations to
+  // the renderer and the one-player-at-a-time coordinator.
+  const controller: MusicPlaybackController = {
+    play: () => synthController.play(),
+    pause: async () => {
+      const playButton = target.querySelector('.abcjs-midi-start');
+      if (playButton?.classList.contains('abcjs-pushed')) {
+        await synthController.play();
+      } else {
+        synthController.pause();
+      }
+    },
+  };
+
+  musicPlayerPausers.set(playerId, () => {
+    void controller.pause();
+  });
+
+  void synthController.setTune(tune, false, { soundFontUrl: SOUNDFONT_URL });
+  return controller;
+};
+
 const loadAbcjs = async () => {
   if (typeof window === 'undefined') {
     throw new Error('abcjs requires a browser environment');
@@ -101,13 +202,21 @@ const isLikelyIncomplete = (code: string): boolean => {
 export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
+  const audioControlsRef = useRef<HTMLDivElement>(null);
+  const synthControllerRef = useRef<MusicPlaybackController | null>(null);
+  const renderedTuneRef = useRef<AbcTune | null>(null);
+  const [playerId] = useState(() => `music-player-${++nextMusicPlayerId}`);
   const [error, setError] = useState<string | null>(null);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [audioSupported, setAudioSupported] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isAbc, setIsAbc] = useState(false);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [exportingPng, setExportingPng] = useState(false);
+  const [exportingMidi, setExportingMidi] = useState(false);
+  const [hasRenderedTune, setHasRenderedTune] = useState(false);
   const lastCodeRef = useRef<string>('');
   const lastUpdateTimeRef = useRef<number>(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -180,9 +289,14 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
       }, 400);
     }
 
+    let cancelled = false;
+    const effectAudioTarget = audioControlsRef.current;
+
     const renderAbc = async () => {
       try {
         setIsLoading(true);
+        setPlaybackError(null);
+        setHasRenderedTune(false);
 
         // Wait for container to be available (with retries)
         let retries = 0;
@@ -202,7 +316,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
         containerRef.current.innerHTML = '';
 
         // Render ABC notation
-        abcjsLib.renderAbc(containerRef.current, normalizeAbcForRendering(code), {
+        const renderedTunes = abcjsLib.renderAbc(containerRef.current, normalizeAbcForRendering(code), {
           responsive: 'resize',
           staffwidth: 740,
           paddingleft: 0,
@@ -211,6 +325,33 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
           paddingbottom: 15,
           scale: 1.0,
         });
+
+        if (cancelled) return;
+
+        const renderedTune = renderedTunes[0];
+        renderedTuneRef.current = renderedTune ?? null;
+        setHasRenderedTune(Boolean(renderedTune));
+
+        const audioTarget = effectAudioTarget;
+        const synth = abcjsLib.synth;
+        const canPlayAudio = Boolean(renderedTune && audioTarget && synth?.supportsAudio());
+        setAudioSupported(canPlayAudio);
+
+        if (canPlayAudio && renderedTune && audioTarget && synth) {
+          const controller = prepareSynthController(synth, renderedTune, audioTarget, playerId, {
+            playPause: t('markdown.music.playPauseTitle'),
+            restart: t('markdown.music.restartTitle'),
+            seek: t('markdown.music.seekTitle'),
+            tempo: t('markdown.music.tempoTitle'),
+          });
+
+          if (cancelled) {
+            void controller.pause();
+            return;
+          }
+
+          synthControllerRef.current = controller;
+        }
 
         setError(null);
         setIsLoading(false);
@@ -224,11 +365,18 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
     renderAbc();
 
     return () => {
+      cancelled = true;
+      musicPlayerPausers.delete(playerId);
+      if (activeMusicPlayerId === playerId) activeMusicPlayerId = null;
+      void synthControllerRef.current?.pause();
+      synthControllerRef.current = null;
+      renderedTuneRef.current = null;
+      if (effectAudioTarget) effectAudioTarget.innerHTML = '';
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [code, isAbc, isStreaming]);
+  }, [code, isAbc, isStreaming, playerId, t]);
 
   if (!code.trim()) {
     return null;
@@ -321,6 +469,100 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
     setExportingPng(false);
   };
 
+  const handleExportMidi = async () => {
+    const renderedTune = renderedTuneRef.current;
+    if (!renderedTune) return;
+
+    setExportingMidi(true);
+    setPlaybackError(null);
+    try {
+      const abcjsLib = await loadAbcjs();
+      const midiBuffer = abcjsLib.synth?.getMidiFile(renderedTune, { midiOutputType: 'binary' });
+      if (!midiBuffer) throw new Error('MIDI export is unavailable');
+
+      const title = renderedTune.metaText?.title?.trim() || 'music-score';
+      const safeTitle = title
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'music-score';
+      const objectUrl = URL.createObjectURL(new Blob([midiBuffer], { type: 'audio/midi' }));
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `${safeTitle}.mid`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    } catch {
+      setPlaybackError(t('markdown.music.midiExportFailure'));
+    } finally {
+      setExportingMidi(false);
+    }
+  };
+
+  const handleAudioControlClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const target = event.target as Element;
+    const playButton = target.closest<HTMLButtonElement>('.abcjs-midi-start');
+    const controller = synthControllerRef.current;
+    const audioTarget = audioControlsRef.current;
+    if (!playButton || !controller || !audioTarget) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.nativeEvent.stopImmediatePropagation();
+
+    const isCurrentlyPlaying = playButton.classList.contains('abcjs-pushed');
+    if (!isCurrentlyPlaying) {
+      activeMusicPlayerId = playerId;
+      pauseOtherMusicPlayers(playerId);
+      setPlaybackError(null);
+      playButton.classList.add('abcjs-loading');
+    } else if (activeMusicPlayerId === playerId) {
+      activeMusicPlayerId = null;
+    }
+
+    const playbackAction = isCurrentlyPlaying ? controller.pause() : controller.play();
+
+    void playbackAction
+      .then(async () => {
+        if (synthControllerRef.current !== controller) {
+          await controller.pause();
+          return;
+        }
+        if (!isCurrentlyPlaying && activeMusicPlayerId !== playerId) {
+          await controller.pause();
+          return;
+        }
+        if (!isCurrentlyPlaying) {
+          setSecondaryControlsDisabled(audioTarget, false);
+        }
+      })
+      .catch(() => {
+        if (synthControllerRef.current !== controller) return;
+        void controller.pause();
+        if (activeMusicPlayerId === playerId) activeMusicPlayerId = null;
+        playButton.classList.remove('abcjs-pushed');
+        setPlaybackError(t('markdown.music.playbackFailure'));
+
+        const synth = abcjs?.synth;
+        const tune = renderedTuneRef.current;
+        if (synth && tune) {
+          synthControllerRef.current = prepareSynthController(
+            synth,
+            tune,
+            audioTarget,
+            playerId,
+            {
+              playPause: t('markdown.music.playPauseTitle'),
+              restart: t('markdown.music.restartTitle'),
+              seek: t('markdown.music.seekTitle'),
+              tempo: t('markdown.music.tempoTitle'),
+            },
+          );
+        }
+      })
+      .finally(() => playButton.classList.remove('abcjs-loading'));
+  };
+
   // Render ABC notation - always render container so ref is available
   if (isAbc) {
     return (
@@ -329,6 +571,8 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
         style={{
           padding: '16px',
           position: 'relative',
+          flexDirection: 'column',
+          alignItems: 'stretch',
         }}
       >
         {!isLoading && !isStreaming && (
@@ -357,6 +601,17 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               <span>{exportingPng ? 'Exporting…' : 'PNG'}</span>
+            </button>
+            <button
+              className="graph-action-button"
+              type="button"
+              onClick={handleExportMidi}
+              title={t('markdown.music.exportMidiTitle')}
+              aria-label={t('markdown.music.exportMidiAriaLabel')}
+              disabled={exportingMidi || !hasRenderedTune}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <span>{exportingMidi ? t('markdown.music.exporting') : 'MIDI'}</span>
             </button>
           </div>
         )}
@@ -436,6 +691,22 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
             overflow: 'auto',
           }}
         />
+        <div
+          ref={audioControlsRef}
+          className="music-playback-controls"
+          onClickCapture={handleAudioControlClickCapture}
+          hidden={isLoading || isStreaming || !audioSupported}
+        />
+        {!isLoading && !isStreaming && !audioSupported && (
+          <div className="music-playback-message" role="status">
+            {t('markdown.music.audioUnsupported')}
+          </div>
+        )}
+        {playbackError && (
+          <div className="music-playback-message music-playback-error" role="alert">
+            {playbackError}
+          </div>
+        )}
       </div>
     );
   }

@@ -300,6 +300,16 @@
       "copyNotationAriaLabel": "将 ABC 记谱复制到剪贴板",
       "exportPngTitle": "导出为 PNG",
       "exportPngAriaLabel": "将乐谱导出为 PNG 图片",
+      "exportMidiTitle": "下载 MIDI",
+      "exportMidiAriaLabel": "将乐谱下载为 MIDI 文件",
+      "exporting": "正在导出…",
+      "playPauseTitle": "播放或暂停乐谱",
+      "restartTitle": "重新播放乐谱",
+      "seekTitle": "更改播放位置",
+      "tempoTitle": "更改播放速度",
+      "audioUnsupported": "此浏览器不支持音频播放。仍可下载 MIDI 文件。",
+      "playbackFailure": "无法加载钢琴音色。请检查网络连接，然后按播放键重试。",
+      "midiExportFailure": "无法创建 MIDI 文件。请重试。",
       "rendering": "正在渲染记谱..."
     },
     "svg": {
