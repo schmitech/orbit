@@ -1,8 +1,8 @@
 status: completed
 generated_at: '2026-09-26T00:00:00.000000'
-last_updated: '2026-09-26T00:00:00.000000'
+last_updated: '2026-09-27T00:00:00.000000'
 generator_version: 1.0.0
-total_templates: 9
+total_templates: 18
 templates:
   # ============================================================================
   # DETECTION TEMPLATES
@@ -300,4 +300,309 @@ templates:
       - "What alerts does operator M. Chen have?"
       - "List alerts handled by R. Singh"
     tags: [alert, operator, assigned]
+    result_format: table
+
+  # ============================================================================
+  # ANALYTICS / INTELLIGENCE TEMPLATES
+  # ============================================================================
+
+  - id: detection_trend_hourly
+    description: Hourly detection volume trend over a recent window, for spotting spikes
+    sql_template: |
+      SELECT strftime('%Y-%m-%d %H:00', detected_at) AS hour_bucket, COUNT(*) AS detection_count,
+             SUM(CASE WHEN severity IN ('critical', 'high') THEN 1 ELSE 0 END) AS high_severity_count
+      FROM detections
+      WHERE detected_at >= datetime('now', '-' || ? || ' hours')
+      GROUP BY hour_bucket
+      ORDER BY hour_bucket ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: hours_back
+        type: integer
+        description: Look-back window in hours
+        required: false
+        default: 24
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show the hourly detection trend for the last 24 hours"
+      - "Is there a spike in detections today?"
+      - "Plot detection volume by hour for the last 12 hours"
+    tags: [detection, trend, hourly, analytics]
+    result_format: table
+
+  - id: detection_pattern_by_hour_of_day
+    description: Detection density by hour of day across all history, revealing pattern-of-life
+    sql_template: |
+      SELECT CAST(strftime('%H', detected_at) AS INTEGER) AS hour_of_day, COUNT(*) AS detection_count
+      FROM detections
+      GROUP BY hour_of_day
+      ORDER BY detection_count DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "What time of day do we see the most detections?"
+      - "Show detection pattern of life by hour"
+      - "Is there a recurring time window with elevated activity?"
+    tags: [detection, pattern, hour_of_day, analytics]
+    result_format: table
+
+  - id: top_sensors_by_detection_volume
+    description: Rank sensors by number of detections reported within a time window
+    sql_template: |
+      SELECT s.sensor_id, s.name, s.type, s.location_name, COUNT(d.detection_id) AS detection_count
+      FROM sensors s
+      JOIN detections d ON d.sensor_id = s.sensor_id
+      WHERE d.detected_at >= datetime('now', '-' || ? || ' hours')
+      GROUP BY s.sensor_id, s.name, s.type, s.location_name
+      ORDER BY detection_count DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: hours_back
+        type: integer
+        description: Look-back window in hours
+        required: false
+        default: 24
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 10
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Which sensors have reported the most detections in the last 24 hours?"
+      - "Rank sensors by detection volume today"
+      - "Show the busiest sensors in the last 6 hours"
+    tags: [sensor, detection, ranking, analytics]
+    result_format: table
+
+  - id: sensor_critical_rate
+    description: Percentage of each sensor's detections that are high/critical severity, a signal for hotspot sensors
+    sql_template: |
+      SELECT s.sensor_id, s.name, s.location_name,
+             COUNT(d.detection_id) AS total_detections,
+             SUM(CASE WHEN d.severity IN ('critical', 'high') THEN 1 ELSE 0 END) AS high_severity_detections,
+             ROUND(100.0 * SUM(CASE WHEN d.severity IN ('critical', 'high') THEN 1 ELSE 0 END) / COUNT(d.detection_id), 1) AS high_severity_pct
+      FROM sensors s
+      JOIN detections d ON d.sensor_id = s.sensor_id
+      GROUP BY s.sensor_id, s.name, s.location_name
+      HAVING COUNT(d.detection_id) >= ?
+      ORDER BY high_severity_pct DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: min_detections
+        type: integer
+        description: Minimum detection count for a sensor to be included, to avoid noise from low-volume sensors
+        required: false
+        default: 5
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 10
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Which sensors have the highest rate of critical detections?"
+      - "Rank sensors by percentage of high severity contacts"
+      - "Which locations are hotspots for critical activity?"
+    tags: [sensor, severity, hotspot, analytics]
+    result_format: table
+
+  - id: object_type_severity_breakdown
+    description: Severity distribution for each detected object type, showing which object types skew dangerous
+    sql_template: |
+      SELECT object_type, severity, COUNT(*) AS detection_count,
+             ROUND(AVG(confidence), 2) AS avg_confidence
+      FROM detections
+      WHERE detected_at >= datetime('now', '-' || ? || ' hours')
+      GROUP BY object_type, severity
+      ORDER BY object_type ASC, detection_count DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: hours_back
+        type: integer
+        description: Look-back window in hours
+        required: false
+        default: 72
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Break down severity by object type"
+      - "Which object types tend to be more critical?"
+      - "Show severity distribution for aircraft vs vehicle contacts"
+    tags: [detection, object_type, severity, analytics]
+    result_format: table
+
+  - id: low_confidence_high_severity_detections
+    description: Flag detections that are high/critical severity but low confidence, candidates for review as possible false positives
+    sql_template: |
+      SELECT d.detection_id, d.sensor_id, s.name AS sensor_name, d.detected_at, d.object_type, d.confidence, d.severity, d.notes
+      FROM detections d
+      JOIN sensors s ON s.sensor_id = d.sensor_id
+      WHERE d.severity IN ('critical', 'high')
+        AND d.confidence < ?
+      ORDER BY d.confidence ASC, d.detected_at DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: confidence_threshold
+        type: number
+        description: Confidence below this value is flagged for review
+        required: false
+        default: 0.6
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Show high severity detections with low confidence that might be false positives"
+      - "Which critical contacts have confidence below 0.6?"
+      - "Flag low-confidence critical detections for review"
+    tags: [detection, confidence, severity, false_positive, analytics]
+    result_format: table
+
+  - id: corroborated_detections
+    description: Find detections from different sensors within a short time window of each other, indicating multiple sensors corroborating the same contact
+    sql_template: |
+      SELECT d1.detection_id AS detection_a, d1.sensor_id AS sensor_a, d1.detected_at AS time_a,
+             d2.detection_id AS detection_b, d2.sensor_id AS sensor_b, d2.detected_at AS time_b,
+             d1.object_type
+      FROM detections d1
+      JOIN detections d2
+        ON d1.object_type = d2.object_type
+        AND d1.sensor_id < d2.sensor_id
+        AND ABS(strftime('%s', d1.detected_at) - strftime('%s', d2.detected_at)) <= (? * 60)
+      WHERE d1.detected_at >= datetime('now', '-' || ? || ' hours')
+      ORDER BY d1.detected_at DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: window_minutes
+        type: integer
+        description: Maximum minutes apart for two detections to be considered corroborating
+        required: false
+        default: 5
+      - name: hours_back
+        type: integer
+        description: Look-back window in hours
+        required: false
+        default: 24
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 50
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Which detections were corroborated by multiple sensors?"
+      - "Find contacts of the same type seen by two sensors within 5 minutes of each other"
+      - "Show multi-sensor corroborated detections in the last 24 hours"
+    tags: [detection, corroboration, multi_sensor, analytics]
+    result_format: table
+
+  - id: stale_open_alerts
+    description: Open or acknowledged alerts that have been outstanding longer than a threshold, for triage prioritization
+    sql_template: |
+      SELECT a.alert_id, a.status, a.raised_at, a.assigned_to, d.severity, d.object_type,
+             CAST((strftime('%s', 'now') - strftime('%s', a.raised_at)) / 3600.0 AS INTEGER) AS hours_open
+      FROM alerts a
+      JOIN detections d ON d.detection_id = a.detection_id
+      WHERE a.status != 'resolved'
+        AND a.raised_at <= datetime('now', '-' || ? || ' hours')
+      ORDER BY a.raised_at ASC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: min_hours_open
+        type: integer
+        description: Minimum hours an alert has been outstanding to be included
+        required: false
+        default: 4
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Which alerts have been open longer than 4 hours?"
+      - "Show stale unresolved alerts needing triage"
+      - "List alerts that are aging without resolution"
+    tags: [alert, aging, triage, analytics]
+    result_format: table
+
+  - id: operator_workload_summary
+    description: Summarize each operator's alert workload by status, for staffing/triage insight
+    sql_template: |
+      SELECT assigned_to,
+             COUNT(*) AS total_alerts,
+             SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) AS open_count,
+             SUM(CASE WHEN status = 'acknowledged' THEN 1 ELSE 0 END) AS acknowledged_count,
+             SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) AS resolved_count
+      FROM alerts
+      WHERE assigned_to IS NOT NULL
+      GROUP BY assigned_to
+      ORDER BY open_count DESC
+      LIMIT ? OFFSET ?
+    parameters:
+      - name: limit
+        type: integer
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      - name: offset
+        type: integer
+        description: Number of records to skip
+        required: false
+        default: 0
+    nl_examples:
+      - "Summarize alert workload by operator"
+      - "Which operator has the most open alerts?"
+      - "Show alert status breakdown for each operator"
+    tags: [alert, operator, workload, analytics]
     result_format: table
