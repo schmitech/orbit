@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MusicRendererProps } from '../types';
+import { normalizeAbcForRendering } from './abcNotation';
 import { copyCodeToClipboard, exportSvgAsPng } from './graphExportUtils';
 
 type AbcJsLike = {
@@ -201,7 +202,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
         containerRef.current.innerHTML = '';
 
         // Render ABC notation
-        abcjsLib.renderAbc(containerRef.current, code, {
+        abcjsLib.renderAbc(containerRef.current, normalizeAbcForRendering(code), {
           responsive: 'resize',
           staffwidth: 740,
           paddingleft: 0,
