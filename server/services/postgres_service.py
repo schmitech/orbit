@@ -232,6 +232,8 @@ class PostgresService(DatabaseService):
                 CREATE TABLE IF NOT EXISTS api_keys (
                     id TEXT PRIMARY KEY,
                     api_key TEXT UNIQUE NOT NULL,
+                    api_key_hash TEXT,
+                    key_suffix TEXT,
                     client_name TEXT NOT NULL,
                     notes TEXT,
                     active INTEGER NOT NULL DEFAULT 1,
@@ -442,6 +444,7 @@ class PostgresService(DatabaseService):
             ],
             'api_keys': [
                 'CREATE INDEX IF NOT EXISTS idx_api_keys_api_key ON api_keys(api_key)',
+                'CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_api_key_hash ON api_keys(api_key_hash)',
             ],
             'system_prompts': [
                 'CREATE INDEX IF NOT EXISTS idx_system_prompts_name ON system_prompts(name)',

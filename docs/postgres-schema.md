@@ -204,10 +204,14 @@ CREATE TABLE IF NOT EXISTS mfa_pending (
 
 ### api_keys
 
+**API keys are never stored in plaintext** — see [`docs/sqlite-schema.md#api_keys`](sqlite-schema.md#api_keys) for the full explanation; the hashing scheme and migration behavior are identical across backends.
+
 ```sql
 CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY,
     api_key TEXT UNIQUE NOT NULL,
+    api_key_hash TEXT,
+    key_suffix TEXT,
     client_name TEXT NOT NULL,
     notes TEXT,
     active INTEGER NOT NULL DEFAULT 1,
@@ -226,9 +230,9 @@ CREATE TABLE IF NOT EXISTS api_keys (
 )
 ```
 
-**Indexes:** `idx_api_keys_api_key` on `api_key`
+**Indexes:** `idx_api_keys_api_key` (UNIQUE) on `api_key`; `idx_api_keys_api_key_hash` (UNIQUE) on `api_key_hash`
 
-`allowed_user_ids`, `allowed_emails`: per-user API key restrictions. `expires_at`/`expiration_policy`/`expiration_justification`: key lifetime enforcement (`managed`/`non_expiring_exception`/`legacy_migration`) — see [`docs/sqlite-schema.md#api_keys`](sqlite-schema.md#api_keys) for full field details.
+`api_key_hash`: HMAC-SHA256 of the raw key (peppered with `ORBIT_API_KEY_PEPPER`/`api_keys.hash_pepper`), used for every lookup. `key_suffix`: last 6 characters of the raw key, for masked admin-panel display only. `allowed_user_ids`, `allowed_emails`: per-user API key restrictions. `expires_at`/`expiration_policy`/`expiration_justification`: key lifetime enforcement (`managed`/`non_expiring_exception`/`legacy_migration`) — see [`docs/sqlite-schema.md#api_keys`](sqlite-schema.md#api_keys) for full field details.
 
 ---
 
@@ -626,13 +630,16 @@ For development, testing, or small single-server deployments, SQLite avoids the 
 
 ## Security
 
-Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling are identical across backends — see [`docs/sqlite-schema.md#security`](sqlite-schema.md#security). Additionally for Postgres:
+Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling (hashed at rest, never plaintext) are identical across backends — see [`docs/sqlite-schema.md#security`](sqlite-schema.md#security). Additionally for Postgres:
 
 - Use `sslmode` (`require` or stricter) in production rather than `prefer`/`disable`.
 - Restrict database user permissions to only the schema Orbit needs; avoid using a Postgres superuser for the application connection.
 
 ## Version History
 
+- **v1.12** (2026-09-27): API keys are no longer stored in plaintext (matches SQLite v1.22)
+  - Added `api_keys.api_key_hash` (HMAC-SHA256 of the raw key) and `api_keys.key_suffix` (last 6 chars, for masked admin-panel display only), plus a unique index `idx_api_keys_api_key_hash`; see the SQLite v1.22 entry for the full explanation, lazy-migration behavior, and affected services (`QuotaService`, `ThrottleMiddleware`, `AuditService`)
+  - Created/applied on existing databases through the additive startup migration (`ADD COLUMN IF NOT EXISTS` / `create_index`); no manual migration step needed
 - **v1.11** (2026-09-14): Bounded chat-history session-list and cleanup queries (matches SQLite v1.21)
   - No new columns. Added two indexes on `chat_history`: `idx_chat_history_user_id_timestamp_id` and `idx_chat_history_session_id_timestamp_id`; see the SQLite v1.21 entry for details
   - Created on existing databases through the additive startup migration (`create_index` runs idempotently on every startup)

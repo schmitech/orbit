@@ -269,6 +269,10 @@ you prefer a graphical client.
 
 ## API Key Management
 
+API keys are never stored in plaintext — only an HMAC-SHA256 hash (peppered with
+`ORBIT_API_KEY_PEPPER`) is persisted. See [API Key Pepper Setup](security/api-key-pepper-setup.md)
+for how to configure it before going to production.
+
 The orbit CLI provides comprehensive API key management with adapter support:
 
 ### Creating API Keys

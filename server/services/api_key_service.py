@@ -9,7 +9,9 @@ and fetch the corresponding adapter configuration and system prompt for a given 
 Updated to support adapter-based API keys per the adapter migration strategy.
 """
 
+import hmac
 import logging
+import os
 import secrets
 import string
 from typing import Any, Optional
@@ -25,6 +27,40 @@ from services.database_service import DatabaseService
 from adapters.capabilities import AdapterCapabilities
 
 logger = logging.getLogger(__name__)
+
+_INSECURE_DEFAULT_PEPPER = "orbit-insecure-default-pepper-set-ORBIT_API_KEY_PEPPER"
+_pepper_warning_logged = False
+
+
+def _get_api_key_pepper(config: dict[str, Any]) -> str:
+    """Resolve the server-side pepper used to hash API keys before storage.
+
+    Read from the `ORBIT_API_KEY_PEPPER` environment variable, falling back to
+    `api_keys.hash_pepper` in config, then to a fixed insecure default (with a
+    one-time warning) so a fresh install still works before an operator sets one.
+    """
+    global _pepper_warning_logged
+    pepper = os.environ.get("ORBIT_API_KEY_PEPPER") or config.get('api_keys', {}).get('hash_pepper')
+    if not pepper:
+        if not _pepper_warning_logged:
+            logger.warning(
+                "ORBIT_API_KEY_PEPPER is not set; using an insecure built-in default to hash API keys. "
+                "Set ORBIT_API_KEY_PEPPER (or api_keys.hash_pepper in config) to a random secret in production."
+            )
+            _pepper_warning_logged = True
+        pepper = _INSECURE_DEFAULT_PEPPER
+    return pepper
+
+
+def hash_api_key(api_key: str, config: dict[str, Any]) -> str:
+    """Deterministically hash a raw API key with HMAC-SHA256 for storage/lookup.
+
+    Deterministic (not a slow password hash) by design: API keys are
+    high-entropy random tokens, not user-chosen passwords, and validation
+    happens on every inference request, so the lookup must stay index-backed.
+    """
+    pepper = _get_api_key_pepper(config)
+    return hmac.new(pepper.encode(), api_key.encode(), hashlib.sha256).hexdigest()
 
 
 def _normalize_allowed_emails(allowed_emails: list | None) -> list | None:
@@ -198,9 +234,12 @@ class ApiKeyService:
         # Set up the API keys collection
         self.api_keys_collection = self.database.get_collection(self.collection_name)
 
-        # Create index on api_key field for faster lookups
+        # Create index on api_key_hash for faster lookups of hashed keys; the
+        # legacy "api_key" index/field is kept only to resolve not-yet-migrated
+        # plaintext records (see _find_by_raw_key).
+        await self.database.create_index(self.collection_name, "api_key_hash", unique=True, sparse=True)
         await self.database.create_index(self.collection_name, "api_key", unique=True)
-        logger.info("Created unique index on api_key field")
+        logger.info("Created unique index on api_key_hash field")
 
         await self._migrate_legacy_expirations()
 
@@ -394,8 +433,8 @@ class ApiKeyService:
             Dictionary with API key status information
         """
         try:
-            key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
-            
+            key_doc = await self._find_by_raw_key(api_key)
+
             if not key_doc:
                 return {
                     "exists": False,
@@ -466,8 +505,8 @@ class ApiKeyService:
             
         try:
             # Find the API key in the database
-            key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
-            
+            key_doc = await self._find_by_raw_key(api_key)
+
             # Create a masked version of the API key for logging
             masked_key = mask_api_key(api_key)
             
@@ -602,7 +641,7 @@ class ApiKeyService:
             HTTPException: If the API key is invalid or adapter not found
         """
         # Get API key document from database
-        key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
+        key_doc = await self._find_by_raw_key(api_key)
 
         if not key_doc:
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
@@ -768,9 +807,21 @@ class ApiKeyService:
                 expires_at, non_expiring, expiration_justification, now
             )
 
-            # Create the document
+            # Create the document. Only the HMAC hash is persisted; the raw key
+            # is returned to the caller once, in the response below, and never
+            # stored in plaintext. The legacy "api_key" column/field is filled
+            # with the same hash (never the raw key) purely so SQLite's
+            # NOT NULL/UNIQUE constraint on it (unchanged, for backward compat)
+            # is satisfied; nothing reads this field as if it were plaintext
+            # once `key_suffix` is present.
+            key_hash = hash_api_key(api_key, self.config)
             key_doc = {
-                "api_key": api_key,
+                "api_key_hash": key_hash,
+                "api_key": key_hash,
+                # Last chars only — enough for admin-panel display/log correlation
+                # (matches the existing mask_api_key(..., num_chars<=6) formats
+                # used elsewhere), never enough to reconstruct the key.
+                "key_suffix": api_key[-6:],
                 "client_name": client_name,
                 "notes": notes,
                 "active": True,
@@ -834,11 +885,12 @@ class ApiKeyService:
         """
         try:
             # Accept either the raw API key or the persisted record ID.
-            key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key_or_id})
-            query = {"api_key": api_key_or_id}
+            key_doc = await self.database.find_one(self.collection_name, {"_id": api_key_or_id})
+            query = {"_id": api_key_or_id}
             if not key_doc:
-                key_doc = await self.database.find_one(self.collection_name, {"_id": api_key_or_id})
-                query = {"_id": api_key_or_id}
+                key_doc = await self._find_by_raw_key(api_key_or_id)
+                if key_doc:
+                    query = {"_id": str(key_doc.get("_id"))}
             if not key_doc:
                 logger.warning(f"Attempted to update non-existent API key: {mask_api_key(api_key_or_id)}")
                 return False
@@ -1016,6 +1068,39 @@ class ApiKeyService:
             logger.error(f"Error updating API key metadata: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error updating API key metadata: {e!s}")
     
+    async def _find_by_raw_key(self, api_key: str) -> dict | None:
+        """
+        Resolve an API key document from a raw (plaintext) key value.
+
+        Looks up by `api_key_hash` (the only form written for keys created or
+        renamed since this field existed). Falls back to the legacy plaintext
+        `api_key` field for older records and lazily backfills the hash (and
+        clears the plaintext value) on first successful use, so keys migrate
+        off plaintext storage without a maintenance window.
+        """
+        key_hash = hash_api_key(api_key, self.config)
+        doc = await self.database.find_one(self.collection_name, {"api_key_hash": key_hash})
+        if doc:
+            return doc
+
+        doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
+        if not doc:
+            return None
+
+        doc_id = str(doc.get("_id")) if doc.get("_id") else None
+        if doc_id:
+            key_suffix = api_key[-6:]
+            await self.database.update_one(
+                self.collection_name,
+                {"_id": doc_id},
+                {"$set": {"api_key_hash": key_hash, "key_suffix": key_suffix, "api_key": key_hash}},
+            )
+            doc["api_key_hash"] = key_hash
+            doc["key_suffix"] = key_suffix
+            doc["api_key"] = key_hash
+            doc.pop("api_key", None)
+        return doc
+
     async def _resolve_key_doc(self, api_key_or_id: str) -> dict:
         """
         Resolve an API key document by _id first, then by raw api_key value.
@@ -1023,7 +1108,7 @@ class ApiKeyService:
         """
         doc = await self.database.find_one(self.collection_name, {"_id": api_key_or_id})
         if not doc:
-            doc = await self.database.find_one(self.collection_name, {"api_key": api_key_or_id})
+            doc = await self._find_by_raw_key(api_key_or_id)
         if not doc:
             raise HTTPException(status_code=404, detail="API key not found")
         return doc
@@ -1033,7 +1118,7 @@ class ApiKeyService:
         try:
             key_doc = await self.database.find_one(self.collection_name, {"_id": api_key_id})
             if not key_doc:
-                key_doc = await self.database.find_one(self.collection_name, {"api_key": api_key_id})
+                key_doc = await self._find_by_raw_key(api_key_id)
             if not key_doc:
                 return {
                     "exists": False, "active": False,
@@ -1108,12 +1193,12 @@ class ApiKeyService:
         try:
             key_doc = await self._resolve_key_doc(api_key_id)
             doc_id = str(key_doc["_id"])
-            existing = await self.database.find_one(self.collection_name, {"api_key": new_api_key})
+            existing = await self._find_by_raw_key(new_api_key)
             if existing:
                 raise HTTPException(status_code=409, detail="New API key already exists")
             result = await self.database.update_one(
                 self.collection_name, {"_id": doc_id},
-                {"$set": {"api_key": new_api_key}}
+                {"$set": {"api_key_hash": hash_api_key(new_api_key, self.config), "key_suffix": new_api_key[-6:], "api_key": hash_api_key(new_api_key, self.config)}}
             )
             return result
         except HTTPException:
@@ -1180,14 +1265,14 @@ class ApiKeyService:
         """
         try:
             # First check if the old API key exists
-            old_key_doc = await self.database.find_one(self.collection_name, {"api_key": old_api_key})
+            old_key_doc = await self._find_by_raw_key(old_api_key)
             if not old_key_doc:
                 masked_old_key = mask_api_key(old_api_key)
                 logger.warning(f"Attempted to rename non-existent API key: {masked_old_key}")
                 raise HTTPException(status_code=404, detail="Old API key not found")
 
             # Check if the new API key already exists
-            new_key_doc = await self.database.find_one(self.collection_name, {"api_key": new_api_key})
+            new_key_doc = await self._find_by_raw_key(new_api_key)
             if new_key_doc:
                 masked_new_key = mask_api_key(new_api_key)
                 logger.warning(f"Attempted to rename to existing API key: {masked_new_key}")
@@ -1196,8 +1281,8 @@ class ApiKeyService:
             # Update the API key
             result = await self.database.update_one(
                 self.collection_name,
-                {"api_key": old_api_key},
-                {"$set": {"api_key": new_api_key}}
+                {"_id": str(old_key_doc.get("_id"))},
+                {"$set": {"api_key_hash": hash_api_key(new_api_key, self.config), "key_suffix": new_api_key[-6:], "api_key": hash_api_key(new_api_key, self.config)}}
             )
 
             if result:
@@ -1225,27 +1310,33 @@ class ApiKeyService:
             True if successful, False otherwise
         """
         try:
+            key_doc = await self._find_by_raw_key(api_key)
+            if not key_doc:
+                return False
             return await self.database.update_one(
                 self.collection_name,
-                {"api_key": api_key},
+                {"_id": str(key_doc.get("_id"))},
                 {"$set": {"active": False}}
             )
         except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error deactivating API key: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error deactivating API key: {e!s}")
-    
+
     async def delete_api_key(self, api_key: str) -> bool:
         """
         Delete an API key
-        
+
         Args:
             api_key: The API key to delete
-            
+
         Returns:
             True if successful, False otherwise
         """
         try:
-            return await self.database.delete_one(self.collection_name, {"api_key": api_key})
+            key_doc = await self._find_by_raw_key(api_key)
+            if not key_doc:
+                return False
+            return await self.database.delete_one(self.collection_name, {"_id": str(key_doc.get("_id"))})
         except Exception as e:  # noqa: BLE001 - database-backend call (mongodb/sqlite); exception surface not fully known or stable across backends
             logger.error(f"Error deleting API key: {e!s}")
             raise HTTPException(status_code=500, detail=f"Error deleting API key: {e!s}")

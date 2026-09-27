@@ -8,11 +8,14 @@ _yaml_config helpers, whose _find_adapter_block matches any "- name:" block)
 rather than round-tripping through yaml.dump, which would erase every comment.
 """
 
+import asyncio
+import ipaddress
 import logging
 import math
 import json
 import os
 import re
+import socket
 import yaml
 from pathlib import Path
 from typing import Any, Optional
@@ -186,6 +189,60 @@ def _validate_mcp_endpoint_url(url: str) -> None:
         raise HTTPException(status_code=422, detail="'url' must be a valid HTTP(S) URL")
     if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname or parsed.fragment:
         raise HTTPException(status_code=422, detail="'url' must be an absolute HTTP(S) URL without a fragment")
+
+
+_METADATA_NETWORK = ipaddress.ip_network("169.254.0.0/16")
+
+
+def _parse_ip_literal(hostname: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """Parse `hostname` as an IP literal, accepting the alternate numeric forms
+    a libc resolver accepts even though `ipaddress.ip_address()` rejects them
+    — e.g. "2852039166" (decimal) or "0xA9FEA9FE" (hex) both resolve to
+    169.254.169.254 via socket.getaddrinfo/inet_aton, so a bare hostname
+    equality check against the dotted-quad form is bypassable."""
+    try:
+        return ipaddress.ip_address(hostname)
+    except ValueError:
+        pass
+    try:
+        return ipaddress.IPv4Address(socket.inet_aton(hostname))
+    except (OSError, ValueError):
+        return None
+
+
+async def _reject_cloud_metadata_host(url: str) -> None:
+    """Block the cloud-metadata network for the one-off reachability probe.
+
+    This endpoint dials an admin-supplied URL immediately, unlike a saved MCP
+    server config (which many deployments legitimately point at an internal/
+    private-network host) — so it's the SSRF-relevant surface, and the
+    cloud-metadata range (169.254.0.0/16, which covers every major cloud
+    provider's 169.254.169.254 metadata service) is worth blocking outright
+    since no legitimate MCP server lives there. Handles both an IP literal
+    (in any form a resolver would accept) and a hostname that resolves to an
+    address in that range (DNS rebinding).
+    """
+    hostname = urlsplit(url).hostname or ""
+    if not hostname:
+        return
+
+    literal = _parse_ip_literal(hostname)
+    if literal is not None:
+        addresses = [literal]
+    else:
+        try:
+            loop = asyncio.get_running_loop()
+            infos = await loop.run_in_executor(None, socket.getaddrinfo, hostname, None)
+            addresses = [ipaddress.ip_address(info[4][0]) for info in infos]
+        except (OSError, ValueError):
+            # Unresolvable host — let the connection attempt itself fail/report below.
+            return
+
+    for addr in addresses:
+        if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+            addr = addr.ipv4_mapped
+        if addr in _METADATA_NETWORK:
+            raise HTTPException(status_code=422, detail="'url' may not target the cloud metadata address")
 
 
 def _validate_mcp_command(command: Any) -> None:
@@ -704,6 +761,7 @@ async def test_mcp_connection(payload: dict = Body(...)):
         raise HTTPException(status_code=422, detail="Only 'http' connections can be tested from the form.")
     url = payload.get("url", "")
     _validate_mcp_endpoint_url(url)
+    await _reject_cloud_metadata_host(url)
     headers = payload.get("headers") or {}
     if not isinstance(headers, dict) or any(
         not isinstance(k, str) or not _MCP_HEADER_KEY_RE.match(k) or not isinstance(v, str)

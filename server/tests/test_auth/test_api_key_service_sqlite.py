@@ -771,7 +771,7 @@ async def test_update_api_key_metadata_sets_allowlist(api_key_service):
         adapter_name="qa-sql"
     )
     api_key = result["api_key"]
-    key_doc = await api_key_service.database.find_one(api_key_service.collection_name, {"api_key": api_key})
+    key_doc = await api_key_service._find_by_raw_key(api_key)
     key_id = str(key_doc["_id"])
 
     success = await api_key_service.update_api_key_metadata(

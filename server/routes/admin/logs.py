@@ -86,7 +86,7 @@ def tail_log_file(
 
     if file:
         log_path = (log_dir / Path(file).name).resolve()
-        if log_path not in candidates:
+        if log_path.parent != log_dir.resolve() or log_path not in candidates:
             raise HTTPException(status_code=404, detail="Log file not found")
     else:
         log_path = candidates[0]

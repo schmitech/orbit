@@ -437,6 +437,10 @@ class TestAuditService:
             def __init__(self, database):
                 self.database = database
                 self.collection_name = 'api_keys'
+                self.config = {}
+
+            async def _find_by_raw_key(self, api_key):
+                return await self.database.find_one(self.collection_name, {'api_key': api_key})
 
         audit_service = AuditService(sqlite_config, sqlite_service, _FakeApiKeyService(sqlite_service))
         await audit_service.initialize()
@@ -467,6 +471,10 @@ class TestAuditService:
             def __init__(self, database):
                 self.database = database
                 self.collection_name = 'api_keys'
+                self.config = {}
+
+            async def _find_by_raw_key(self, api_key):
+                return await self.database.find_one(self.collection_name, {'api_key': api_key})
 
         audit_service = AuditService(sqlite_config, sqlite_service, _FakeApiKeyService(sqlite_service))
         await audit_service.initialize()

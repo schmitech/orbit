@@ -21,10 +21,21 @@ def _get_adapters_dir(request: Request) -> Path:
     return config_path.parent / "adapters"
 
 
-def _validate_adapter_filename(filename: str) -> None:
-    """Reject path-traversal attempts."""
+def _validate_adapter_filename(filename: str, adapters_dir: Path | None = None) -> None:
+    """Reject path-traversal attempts.
+
+    The blacklist checks below are the primary guard for FastAPI path params
+    (which already forbid a raw "/" in a single `{filename}` segment). When
+    `adapters_dir` is given, also assert the resolved path still resolves
+    inside it — defense-in-depth so this stays safe even if a future caller
+    passes an unvalidated filename in from elsewhere.
+    """
     if "/" in filename or "\\" in filename or ".." in filename or not filename.endswith(".yaml"):
         raise HTTPException(status_code=400, detail="Invalid adapter filename")
+    if adapters_dir is not None:
+        resolved = (adapters_dir / filename).resolve()
+        if resolved.parent != adapters_dir.resolve():
+            raise HTTPException(status_code=400, detail="Invalid adapter filename")
 
 
 def _find_adapter_block(lines: list[str], adapter_name: str) -> tuple[int, int]:

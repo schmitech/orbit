@@ -61,10 +61,15 @@ async def _label_api_key_groups(request: Request, groups: list[dict[str, Any]]) 
             # _id is unique by construction, so an id match is exact — no
             # collision handling needed here, unlike the masked-suffix path.
             id_to_name[str(doc_id)] = client_name
-        plaintext = doc.get("api_key")
-        if not plaintext:
-            continue
-        masked = mask_api_key(plaintext, show_last=True, num_chars=6)
+        suffix = doc.get("key_suffix")
+        if not suffix:
+            # Not-yet-migrated legacy record: still has a plaintext key.
+            legacy_plaintext = doc.get("api_key")
+            if not legacy_plaintext:
+                continue
+            masked = mask_api_key(legacy_plaintext, show_last=True, num_chars=6)
+        else:
+            masked = f"...{suffix}"
         masked_to_names.setdefault(masked, []).append(client_name)
 
     for group in groups:

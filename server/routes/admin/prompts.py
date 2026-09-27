@@ -156,6 +156,7 @@ def render_markdown_preview(
                 "a": {"href", "title", "target"},
             },
             url_schemes={"http", "https", "mailto"},
+            link_rel="noopener noreferrer",
         )
         return {"html": clean_html}
     except Exception as e:  # noqa: BLE001 - route handler must convert markdown-rendering failure to a 500

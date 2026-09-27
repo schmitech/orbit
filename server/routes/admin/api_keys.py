@@ -24,6 +24,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _masked_key_display(key_doc: dict) -> str:
+    """Build the admin-panel masked key string ("***xxxx") without ever reading
+    a plaintext key: from the non-secret `key_suffix` persisted at creation
+    time, falling back to a legacy not-yet-migrated plaintext `api_key` field."""
+    suffix = key_doc.get("key_suffix")
+    if suffix:
+        return f"***{suffix[-4:]}"
+    return mask_api_key(key_doc.get("api_key"), show_last=True, prefix="***")
+
+
 def _serialize_expiration_summary(api_key_service, key_doc: dict) -> dict:
     """Build the JSON-serializable expiration fields for a list/detail response."""
     info = api_key_service._serialize_expiration(key_doc)
@@ -163,7 +173,7 @@ async def list_api_keys(
             key_dict = {
                 "_id": record_id,   # legacy — admin_panel.js depends on this
                 "id": record_id,    # canonical
-                "api_key": mask_api_key(key.get("api_key"), show_last=True, prefix="***"),
+                "api_key": _masked_key_display(key),
                 "adapter_name": key.get("adapter_name"),
                 "client_name": key.get("client_name"),
                 "notes": key.get("notes"),
@@ -220,7 +230,7 @@ async def get_api_key_detail(
         key_dict = {
             "_id": record_id,   # legacy — admin_panel.js depends on this
             "id": record_id,    # canonical
-            "api_key": mask_api_key(key.get("api_key"), show_last=True, prefix="***"),
+            "api_key": _masked_key_display(key),
             "adapter_name": key.get("adapter_name"),
             "client_name": key.get("client_name"),
             "notes": key.get("notes"),
@@ -432,12 +442,36 @@ async def associate_prompt_with_api_key(
 
 
 # API Key Quota Management Routes
-async def _resolve_api_key(request: Request, api_key_id: str) -> str:
-    """Resolve a record _id to the raw API key value for quota service calls."""
+async def _resolve_api_key(request: Request, api_key_id: str) -> tuple[str, str | None]:
+    """Resolve a record _id to its quota-service identifier and display suffix.
+
+    Quota storage is keyed by the same HMAC hash used to look up the key at
+    validation time — never the raw key — so this returns `(api_key_hash,
+    key_suffix)`, computing and backfilling both from a legacy plaintext
+    record if needed. `key_suffix` (the last 6 chars of the *raw* key) is for
+    masked display only — never mask the hash itself, it isn't the key.
+    """
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
     doc = await api_key_service._resolve_key_doc(api_key_id)
-    return doc["api_key"]
+    key_hash = doc.get("api_key_hash")
+    if key_hash:
+        return key_hash, doc.get("key_suffix")
+    legacy_key = doc.get("api_key")
+    if not legacy_key:
+        raise HTTPException(status_code=500, detail="API key record is missing its hash identifier")
+    from services.api_key_service import hash_api_key
+    key_hash = hash_api_key(legacy_key, api_key_service.config)
+    key_suffix = legacy_key[-6:]
+    # Matches ApiKeyService._find_by_raw_key(): "api_key" is set to the hash
+    # (never $unset — SQL backends only apply $set from a combined update, so
+    # an $unset here would silently leave the real plaintext key in place).
+    await api_key_service.database.update_one(
+        api_key_service.collection_name,
+        {"_id": str(doc["_id"])},
+        {"$set": {"api_key_hash": key_hash, "key_suffix": key_suffix, "api_key": key_hash}},
+    )
+    return key_hash, key_suffix
 
 
 @router.get("/api-keys/{api_key_id}/quota", response_model=ApiKeyQuotaResponse, dependencies=[apikeys_auth])
@@ -453,7 +487,7 @@ async def get_api_key_quota(
             detail="Quota service is not available. Ensure throttling is enabled in configuration."
         )
 
-    api_key = await _resolve_api_key(request, api_key_id)
+    api_key, key_suffix = await _resolve_api_key(request, api_key_id)
     quota_config, usage_stats = await quota_service.get_quota_and_usage(api_key)
     daily_remaining, monthly_remaining = quota_service.calculate_remaining(quota_config, usage_stats)
 
@@ -481,8 +515,9 @@ async def get_api_key_quota(
                 # Exponential curve estimation
                 throttle_delay_ms = int(100 + (5000 - 100) * (normalized ** 2))
 
-    # Mask API key for response
-    masked_key = mask_api_key(api_key, show_last=True, prefix="***")
+    # Mask API key for response, from the non-secret key_suffix — never from
+    # `api_key`, which is the quota-service hash identifier, not the real key.
+    masked_key = f"***{key_suffix[-4:]}" if key_suffix else "****"
 
     return ApiKeyQuotaResponse(
         api_key_masked=masked_key,
@@ -519,7 +554,7 @@ async def update_api_key_quota(
             detail="Quota service is not available. Ensure throttling is enabled in configuration."
         )
 
-    api_key = await _resolve_api_key(request, api_key_id)
+    api_key, _ = await _resolve_api_key(request, api_key_id)
     success = await quota_service.update_quota_config(
         api_key,
         daily_limit=quota_data.daily_limit,
@@ -549,7 +584,7 @@ async def reset_api_key_quota(
             detail="Quota service is not available. Ensure throttling is enabled in configuration."
         )
 
-    api_key = await _resolve_api_key(request, api_key_id)
+    api_key, _ = await _resolve_api_key(request, api_key_id)
     success = await quota_service.reset_usage(api_key, period)
 
     if not success:
@@ -606,16 +641,30 @@ async def get_quota_usage_report(
         # Build usage report
         report = []
         for key_doc in api_keys:
-            api_key = key_doc.get('api_key', '')
-            if not api_key:
-                continue
+            # Quota storage is keyed by the HMAC hash, never the raw key or a
+            # not-yet-hashed legacy plaintext value — resolve/backfill exactly
+            # like _resolve_api_key() does for the single-key endpoints above.
+            key_hash = key_doc.get('api_key_hash')
+            key_suffix = key_doc.get('key_suffix')
+            if not key_hash:
+                legacy_key = key_doc.get('api_key')
+                if not legacy_key:
+                    continue
+                from services.api_key_service import hash_api_key
+                key_hash = hash_api_key(legacy_key, api_key_service.config)
+                key_suffix = legacy_key[-6:]
+                await api_key_service.database.update_one(
+                    api_key_service.collection_name,
+                    {"_id": str(key_doc["_id"])},
+                    {"$set": {"api_key_hash": key_hash, "key_suffix": key_suffix, "api_key": key_hash}},
+                )
 
             # Get usage for this key
-            usage_stats = await quota_service.get_usage(api_key)
-            quota_config = await quota_service.get_quota_config(api_key)
+            usage_stats = await quota_service.get_usage(key_hash)
+            quota_config = await quota_service.get_quota_config(key_hash)
 
-            # Mask API key
-            masked_key = mask_api_key(api_key, show_last=True, prefix="***")
+            # Mask API key from the non-secret key_suffix — never from the hash
+            masked_key = f"***{key_suffix[-4:]}" if key_suffix else "****"
 
             report.append({
                 "api_key_masked": masked_key,

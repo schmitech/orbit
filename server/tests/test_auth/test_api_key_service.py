@@ -926,10 +926,7 @@ async def test_rename_api_key_preserves_notes_and_metadata(api_key_service):
     # Note: notes are not returned in get_api_key_status, would need to query directly
 
     # Verify created_at is preserved by querying the database directly
-    key_doc = await api_key_service.database.find_one(
-        api_key_service.collection_name,
-        {"api_key": new_api_key}
-    )
+    key_doc = await api_key_service._find_by_raw_key(new_api_key)
     assert key_doc is not None
     assert key_doc.get("notes") == "Important notes about this key"
     # Created_at should be preserved (comparing datetime objects from MongoDB)

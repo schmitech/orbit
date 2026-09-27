@@ -213,7 +213,8 @@ class QuotaService:
         Get quota configuration for an API key.
 
         Args:
-            api_key: The API key to get quota for
+            api_key: The API key's hash identifier (see hash_api_key in
+                api_key_service.py) — never the raw key value.
 
         Returns:
             Dict with quota configuration (daily_limit, monthly_limit, throttle_enabled, throttle_priority)
@@ -235,8 +236,8 @@ class QuotaService:
 
         if self.database_service:
             try:
-                # Get API key document from database
-                api_key_doc = await self.database_service.find_one('api_keys', {'api_key': api_key})
+                # `api_key` here is already the hash identifier (see docstring).
+                api_key_doc = await self.database_service.find_one('api_keys', {'api_key_hash': api_key})
                 if api_key_doc:
                     # Override defaults with stored values if present
                     if api_key_doc.get('quota_daily_limit') is not None:
@@ -455,7 +456,7 @@ class QuotaService:
 
             result = await self.database_service.update_one(
                 'api_keys',
-                {'api_key': api_key},
+                {'api_key_hash': api_key},
                 {'$set': update_fields}
             )
 

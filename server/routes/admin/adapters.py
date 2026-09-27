@@ -27,8 +27,6 @@ from adapter_sdk.renderer import render_adapter
 from adapter_sdk.specs import get_spec, serialize_registry
 from adapter_sdk.validator import validate_answers, validate_providers, validate_yaml_text
 
-# Import auth dependencies
-from routes.auth_dependencies import require_permission
 from routes.admin._shared import (
     adapters_auth,
 )
@@ -330,8 +328,9 @@ async def get_adapter_config_file(
     request: Request,
 ):
     """Read the raw YAML content of a specific adapter config file."""
-    _validate_adapter_filename(filename)
-    file_path = _get_adapters_dir(request) / filename
+    adapters_dir = _get_adapters_dir(request)
+    _validate_adapter_filename(filename, adapters_dir)
+    file_path = adapters_dir / filename
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"Adapter file not found: {filename}")
     content = file_path.read_text(encoding="utf-8")
@@ -345,7 +344,8 @@ async def save_adapter_config_file(
     body: dict = Body(...)
 ):
     """Validate and write an adapter config file."""
-    _validate_adapter_filename(filename)
+    adapters_dir = _get_adapters_dir(request)
+    _validate_adapter_filename(filename, adapters_dir)
 
     content = body.get("content")
     if content is None:
@@ -356,7 +356,7 @@ async def save_adapter_config_file(
     except yaml.YAMLError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid YAML: {exc}")
 
-    file_path = _get_adapters_dir(request) / filename
+    file_path = adapters_dir / filename
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"Adapter file not found: {filename}")
 
@@ -1356,7 +1356,7 @@ async def reload_templates_async(
     }
 
 
-@router.post("/adapters/{adapter_name}/test-query", dependencies=[Depends(require_permission("adapters.manage"))])
+@router.post("/adapters/{adapter_name}/test-query", dependencies=[adapters_auth])
 async def test_adapter_query(
     adapter_name: str,
     body: TemplateTestRequest,
@@ -1421,7 +1421,7 @@ async def get_adapter_misses(adapter_name: str, limit: int = 100):
     return {"adapter": adapter_name, "misses": list_misses(adapter=adapter_name, limit=limit)}
 
 
-@router.post("/adapters/{adapter_name}/feedback", dependencies=[Depends(require_permission("adapters.manage"))])
+@router.post("/adapters/{adapter_name}/feedback", dependencies=[adapters_auth])
 async def post_adapter_feedback(adapter_name: str, body: TemplateFeedbackRequest):
     """
     Record human feedback on an intent template match or miss. The

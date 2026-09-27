@@ -311,10 +311,19 @@ locked out. See `docs/authentication.md`.
 
 Stores API keys for authentication and adapter configuration.
 
+**API keys are never stored in plaintext.** Only an HMAC-SHA256 hash of the
+key (peppered with `ORBIT_API_KEY_PEPPER` / `api_keys.hash_pepper`) is
+persisted, in `api_key_hash`; the raw key is shown to the admin once, at
+creation time, in the API response, and never again. See
+[`hash_api_key()` in `api_key_service.py`](../server/services/api_key_service.py)
+and the Security section below.
+
 ```sql
 CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY,
     api_key TEXT UNIQUE NOT NULL,
+    api_key_hash TEXT,
+    key_suffix TEXT,
     client_name TEXT NOT NULL,
     notes TEXT,
     active INTEGER NOT NULL DEFAULT 1,
@@ -335,7 +344,9 @@ CREATE TABLE IF NOT EXISTS api_keys (
 
 **Fields:**
 - `id` (TEXT, PK): Unique API key ID (UUID)
-- `api_key` (TEXT, UNIQUE): The actual API key string
+- `api_key` (TEXT, UNIQUE, NOT NULL): Legacy column, kept only for backward compatibility with the `NOT NULL`/`UNIQUE` constraint on SQLite/Postgres. For a key created, renamed, or lazily migrated since `api_key_hash` was introduced, this holds the *same* hash value as `api_key_hash` (never the raw key) — a harmless placeholder that satisfies the constraint. For an older, not-yet-migrated row it still holds the real plaintext key; it is rehashed and this column is overwritten with the hash the first time that key is used (`ApiKeyService._find_by_raw_key`), so no maintenance window or bulk migration is required.
+- `api_key_hash` (TEXT, UNIQUE, nullable): HMAC-SHA256 of the raw key (see `hash_api_key()`), used for every lookup — validation, quota, rename, deactivate/delete. `NULL` only for a not-yet-migrated legacy row (see `api_key` above).
+- `key_suffix` (TEXT, nullable): Last 6 characters of the raw key, kept only so the admin panel can display a masked identifier (`***xxxx`) and so cost/usage labels can be resolved, without ever reading a plaintext key back out of storage. `NULL` for a not-yet-migrated legacy row (backfilled alongside `api_key_hash`).
 - `client_name` (TEXT): Name of the client/application
 - `notes` (TEXT): Optional notes about the API key
 - `active` (INTEGER): Whether key is active (1=active, 0=inactive)
@@ -353,7 +364,10 @@ CREATE TABLE IF NOT EXISTS api_keys (
 - `expiration_justification` (TEXT): Required, non-empty justification recorded for a `non_expiring_exception`; `NULL` otherwise
 
 **Indexes:**
-- `idx_api_keys_api_key` on `api_key`
+- `idx_api_keys_api_key` (UNIQUE) on `api_key`
+- `idx_api_keys_api_key_hash` (UNIQUE, sparse) on `api_key_hash` — sparse so multiple not-yet-migrated legacy rows (`api_key_hash IS NULL`) don't collide on the unique constraint
+
+**Quota/throttle keying:** `QuotaService` and `ThrottleMiddleware` key their Redis/cache counters and their lookups against this table by `api_key_hash` (computed from the raw key at request time), never by the raw key itself — see `services/quota_service.py` and `middleware/throttle_middleware.py`.
 
 ---
 
@@ -1056,8 +1070,16 @@ User passwords are hashed using PBKDF2 with:
 
 ### API Keys
 
-API keys are stored in plain text as they need to be compared directly. Ensure:
+API keys are **never stored in plaintext**. Only `api_key_hash`, an HMAC-SHA256
+digest of the key peppered with `ORBIT_API_KEY_PEPPER` (or `api_keys.hash_pepper`
+in config), is persisted; validation hashes the presented key and looks up
+that hash. The raw key is returned to the caller once, in the creation
+response, and is not recoverable from the database afterward. Set
+`ORBIT_API_KEY_PEPPER` to a random secret in production — without it, a
+built-in (and logged-as-insecure) default pepper is used so a fresh install
+still works. Ensure:
 - Database file permissions are restricted
+- `ORBIT_API_KEY_PEPPER` is set to a strong random secret and kept out of version control
 - Use strong, random API keys
 - Rotate keys regularly
 
@@ -1092,6 +1114,12 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.22** (2026-09-27): API keys are no longer stored in plaintext (matches Postgres v1.12)
+  - Added `api_keys.api_key_hash` (HMAC-SHA256 of the raw key, peppered with `ORBIT_API_KEY_PEPPER`/`api_keys.hash_pepper`) and `api_keys.key_suffix` (last 6 chars of the raw key, for masked admin-panel display only). Added its unique, sparse index `idx_api_keys_api_key_hash`
+  - The legacy `api_key` column is retained only to satisfy its pre-existing `NOT NULL`/`UNIQUE` constraint; for any key created, renamed, or validated since this version it holds the same hash as `api_key_hash` (never the raw key), not the real plaintext key
+  - Existing (pre-upgrade) rows still have the real plaintext key in `api_key` and no `api_key_hash`/`key_suffix`. `ApiKeyService._find_by_raw_key()` lazily hashes and backfills `api_key_hash`/`key_suffix` (and overwrites `api_key` with the hash) the first time each such key is successfully validated — no bulk migration script or maintenance window required, and no functional change to callers
+  - `QuotaService` and `ThrottleMiddleware` now key their cache/DB lookups by `api_key_hash` instead of the raw key; `AuditService`'s stable-key-id resolution and the admin panel's masked-key display were updated to match. See `server/services/api_key_service.py`'s `hash_api_key()`/`_find_by_raw_key()`
+  - Applied to existing SQLite/PostgreSQL databases through the additive startup migration (`_migrate_table_schema` / `ApiKeyService.initialize()`'s `create_index` calls); MongoDB is schemaless and needs no migration
 - **v1.21** (2026-09-14): Bounded chat-history session-list and cleanup queries (matches Postgres v1.11)
   - No new columns. Added two indexes on `chat_history`: `idx_chat_history_user_id_timestamp_id` on `(user_id, timestamp, id)` and `idx_chat_history_session_id_timestamp_id` on `(session_id, timestamp, id)`, backing `DatabaseService.find_user_session_summaries()` and `delete_messages_beyond_token_budget()` respectively — see the new indexes and the "Bounded session-list and cleanup queries" note under `chat_history` above
   - `ChatHistoryService.get_user_sessions()` and `_cleanup_excess_messages()` now compute their results via DB-side grouping/window functions and a `DELETE ... RETURNING` boundary delete instead of fetching up to 10,000 rows into Python and grouping/walking them there; no longer capped at a fixed row count. See `docs/roadmap/chat-history-bounded-aggregation-queries.md`

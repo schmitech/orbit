@@ -1,5 +1,11 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Security
+- **API Keys Are No Longer Stored in Plaintext**: Only an HMAC-SHA256 hash of each API key (peppered with `ORBIT_API_KEY_PEPPER`/`api_keys.hash_pepper`) is persisted in `api_keys.api_key_hash`; the raw key is returned once, at creation, and is never recoverable from the database afterward. Existing keys migrate lazily and transparently on first successful validation — no maintenance window or bulk migration script. `QuotaService`, `ThrottleMiddleware`, `AuditService`, and the admin panel's masked-key display were updated to key off the hash and a small non-secret `key_suffix` (never the raw key). See `docs/security/api-key-pepper-setup.md` and the `api_keys` schema entry (SQLite v1.22 / Postgres v1.12) in `docs/sqlite-schema.md`/`docs/postgres-schema.md`.
+- **Admin Route Hardening**: Consolidated two adapter routes (`test-query`, `feedback`) onto the shared `adapters.manage` auth dependency instead of an inline duplicate; blocked the cloud-metadata address (169.254.0.0/16, including decimal/hex-encoded IP literals and DNS rebinding) on the MCP connection-test probe; added defense-in-depth path-containment checks to the log-tail and adapter-config-file endpoints; and set `rel="noopener noreferrer"` on links rendered by the admin markdown preview. Further hardening items (admin-route rate limiting, hashing the raw key stored in `uploaded_files`, broadening the SSRF denylist) are tracked in `docs/roadmap/admin-api-security-hardening.md`.
+
 ## [2.17.15] - 2026-09-26
 
 ### Security

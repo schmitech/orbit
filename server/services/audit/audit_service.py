@@ -318,9 +318,7 @@ class AuditService:
         if not self._api_key_service:
             return None
         try:
-            key_doc = await self._api_key_service.database.find_one(
-                self._api_key_service.collection_name, {"api_key": api_key}
-            )
+            key_doc = await self._api_key_service._find_by_raw_key(api_key)
             if key_doc and key_doc.get("_id") is not None:
                 return str(key_doc["_id"])
         except Exception as e:  # noqa: BLE001 - best-effort lookup must not fail the audit record

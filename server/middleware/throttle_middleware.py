@@ -46,6 +46,7 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             config: Application configuration dictionary
         """
         super().__init__(app)
+        self.config = config
 
         # Extract throttling configuration
         security_config = config.get('security', {}) or {}
@@ -278,8 +279,13 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         try:
+            # Quota storage/cache is keyed by a deterministic hash of the raw key,
+            # never the raw value itself (matches ApiKeyService's at-rest hashing).
+            from services.api_key_service import hash_api_key
+            key_identifier = hash_api_key(api_key, self.config)
+
             # Get quota config for this API key
-            quota_config = await quota_service.get_quota_config(api_key)
+            quota_config = await quota_service.get_quota_config(key_identifier)
 
             # Check if throttling is disabled for this key
             if not quota_config.get('throttle_enabled', True):
@@ -299,7 +305,7 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
                 monthly_reset_seconds,
                 exceeded_type
             ) = await quota_service.check_and_increment_usage(
-                api_key,
+                key_identifier,
                 daily_limit,
                 monthly_limit
             )
