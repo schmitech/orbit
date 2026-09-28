@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.16] - 2026-09-27
 
 ### Security
 - **API Keys Are No Longer Stored in Plaintext**: Only an HMAC-SHA256 hash of each API key (peppered with `ORBIT_API_KEY_PEPPER`/`api_keys.hash_pepper`) is persisted in `api_keys.api_key_hash`; the raw key is returned once, at creation, and is never recoverable from the database afterward. Existing keys migrate lazily and transparently on first successful validation — no maintenance window or bulk migration script. `QuotaService`, `ThrottleMiddleware`, `AuditService`, and the admin panel's masked-key display were updated to key off the hash and a small non-secret `key_suffix` (never the raw key). See `docs/security/api-key-pepper-setup.md` and the `api_keys` schema entry (SQLite v1.22 / Postgres v1.12) in `docs/sqlite-schema.md`/`docs/postgres-schema.md`.
