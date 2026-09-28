@@ -63,6 +63,16 @@ def hash_api_key(api_key: str, config: dict[str, Any]) -> str:
     return hmac.new(pepper.encode(), api_key.encode(), hashlib.sha256).hexdigest()
 
 
+def _masked_key_display(key_doc: dict[str, Any]) -> str:
+    """Build a masked key string ("***xxxx") without ever reading a plaintext
+    key: from the non-secret `key_suffix` persisted at creation time, falling
+    back to a legacy not-yet-migrated plaintext `api_key` field."""
+    suffix = key_doc.get("key_suffix")
+    if suffix:
+        return f"***{suffix[-4:]}"
+    return mask_api_key(key_doc.get("api_key"), show_last=True, prefix="***")
+
+
 def _normalize_allowed_emails(allowed_emails: list | None) -> list | None:
     """Normalize persisted API-key email allowlist entries."""
     if not allowed_emails:
@@ -457,6 +467,8 @@ class ApiKeyService:
 
             return {
                 "exists": True,
+                "id": str(key_doc["_id"]) if key_doc.get("_id") else None,
+                "masked_key": _masked_key_display(key_doc),
                 "active": bool(key_doc.get("active")),  # Convert to boolean
                 "adapter_name": adapter_name,
                 "client_name": key_doc.get("client_name"),
@@ -1129,6 +1141,8 @@ class ApiKeyService:
                 system_prompt_info = {"id": str(key_doc["system_prompt_id"]), "exists": True}
             return {
                 "exists": True,
+                "id": str(key_doc["_id"]) if key_doc.get("_id") else None,
+                "masked_key": _masked_key_display(key_doc),
                 "active": bool(key_doc.get("active")),
                 "adapter_name": key_doc.get("adapter_name"),
                 "client_name": key_doc.get("client_name"),

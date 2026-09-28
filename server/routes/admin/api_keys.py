@@ -18,20 +18,11 @@ from routes.auth_helpers import check_service_availability
 from routes.admin._shared import (
     _serialize_created_at, get_api_key_service, apikeys_auth,
 )
+from services.api_key_service import _masked_key_display
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def _masked_key_display(key_doc: dict) -> str:
-    """Build the admin-panel masked key string ("***xxxx") without ever reading
-    a plaintext key: from the non-secret `key_suffix` persisted at creation
-    time, falling back to a legacy not-yet-migrated plaintext `api_key` field."""
-    suffix = key_doc.get("key_suffix")
-    if suffix:
-        return f"***{suffix[-4:]}"
-    return mask_api_key(key_doc.get("api_key"), show_last=True, prefix="***")
 
 
 def _serialize_expiration_summary(api_key_service, key_doc: dict) -> dict:

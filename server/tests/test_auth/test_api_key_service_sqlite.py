@@ -218,6 +218,30 @@ async def test_get_api_key_status(api_key_service):
     assert status.get("active") is True
     assert status.get("adapter_name") == "qa-sql"
     assert status.get("client_name") == "test_client"
+    assert status.get("id")
+    assert status.get("masked_key", "").startswith("***")
+    assert status["masked_key"].endswith(api_key[-4:])
+
+
+@pytest.mark.asyncio
+async def test_get_api_key_status_by_id_includes_masked_key(api_key_service):
+    """get_api_key_status_by_id exposes the same non-sensitive id/masked_key
+    identifiers as get_api_key_status, so CLI/admin callers can act on a key
+    (rename/deactivate/delete) without ever seeing the raw value."""
+    result = await api_key_service.create_api_key(
+        client_name="test_client",
+        adapter_name="qa-sql",
+    )
+    api_key = result["api_key"]
+    key_doc = await api_key_service._resolve_key_doc(api_key)
+    doc_id = str(key_doc["_id"])
+
+    status = await api_key_service.get_api_key_status_by_id(doc_id)
+
+    assert status["exists"] is True
+    assert status["id"] == doc_id
+    assert status["masked_key"].startswith("***")
+    assert status["masked_key"].endswith(api_key[-4:])
 
 
 @pytest.mark.asyncio

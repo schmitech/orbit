@@ -135,7 +135,7 @@ class KeyListCommand(BaseCommand):
             self.formatter.format_json(result)
         else:
             if result:
-                headers = ['API Key', 'Client', 'Adapter', 'Active', 'Created', 'Expires']
+                headers = ['ID', 'API Key', 'Client', 'Adapter', 'Active', 'Created', 'Expires']
                 data = []
                 for key in result:
                     created_at = key.get('created_at', 'N/A')
@@ -153,7 +153,8 @@ class KeyListCommand(BaseCommand):
                         expires = 'N/A'
 
                     data.append({
-                        'API Key': key.get('api_key', 'N/A')[:20] + '...',
+                        'ID': key.get('id') or key.get('_id') or 'N/A',
+                        'API Key': key.get('api_key', 'N/A'),
                         'Client': key.get('client_name', 'N/A'),
                         'Adapter': key.get('adapter_name', 'N/A'),
                         'Active': '✓' if key.get('active', True) else '✗',
@@ -231,6 +232,10 @@ class KeyStatusCommand(BaseCommand):
         else:
             self.formatter.warning("API key is inactive")
         
+        if status.get('id'):
+            console.print(f"[bold]ID:[/bold] {status['id']}")
+        if status.get('masked_key'):
+            console.print(f"[bold]Key:[/bold] {status['masked_key']}")
         console.print(f"[bold]Client:[/bold] {status.get('client_name', 'N/A')}")
         if status.get('adapter_name'):
             console.print(f"[bold]Adapter:[/bold] {status['adapter_name']}")
