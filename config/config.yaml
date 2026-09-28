@@ -47,9 +47,10 @@ general:
 tool_skills:
   directory: "config/skills"
 
-# Detects the language of each user message with an ensemble of local libraries
-# (weighted voting plus script/heuristic checks). Used to keep replies in the
-# user's language and to bias RAG retrieval toward same-language documents.
+# Detects the language of each user message with local libraries, combining
+# their candidates into a calibrated confidence and abstaining when unsure.
+# Used to keep replies in the user's language, to bias RAG retrieval toward
+# same-language documents, and to report mixed-language spans.
 # Runs fully in-process — no network calls.
 language_detection:
   enabled: true
@@ -58,36 +59,34 @@ language_detection:
     - "langdetect"
     - "langid"
     - "pycld2"
-  # Relative trust of each backend when combining votes (higher = more influence).
-  backend_weights:
-    langdetect: 1.0
-    langid: 1.2
-    pycld2: 1.5
-  min_confidence: 0.7               # Min confidence for the winning language; below -> fallback_language
-  min_margin: 0.2                   # Min lead over the runner-up; below -> fallback_language
-  prefer_english_for_ascii: true    # Bias pure-ASCII text toward English (avoids es/de/nl false positives)
-  enable_stickiness: false          # Reuse the session's previous language for short/ambiguous messages
-  fallback_language: "en"           # Language assumed when detection is uncertain
+  # Pooling weights and the acceptance threshold are fitted on the benchmark
+  # and frozen in server/inference/pipeline/steps/language_detection_calibration.json.
+  enable_stickiness: false          # Also cache the last trusted language per session (fallback prior source)
+  ambiguous_response_language: "en"  # Reply language when detection abstains; never recorded as detected
+  min_letters: 5                    # Fewer letters is too little evidence: use a conversation prior or abstain
+  script_fast_path:                 # A single-language script (e.g. Hangul, Thai) selects its language directly
+    min_letters: 1
+    min_coverage: 0.8               # Also the coverage a shared script needs to restrict candidates
   backend_timeout: 10.0  # Timeout per backend in seconds (increase for cold starts)
 
-  # Configurable heuristic nudges for voting adjustments
-  heuristic_nudges:
-    en_boost: 0.2       # Boost for English in ASCII-heavy text
-    es_penalty: 0.1     # Penalty for Spanish in pure ASCII (avoids es/en confusion)
-    script_boost: 0.2   # Boost when script detection matches ensemble winner
+  # Mixed-language spans (metadata only: replies follow the primary language).
+  # Each clause or script run is detected on its own; smaller spans are ignored.
+  mixed_language:
+    min_span_letters: 5      # Min letters for a span to count
+    min_span_coverage: 0.1   # Min share of the message's letters
 
-  # Mixed language detection
-  mixed_language_threshold: 0.3  # Min confidence for secondary language to flag as mixed
-
-  # Chat history language prior (uses recent messages to stabilize detection)
+  # Conversation prior: decides the language only when the current message
+  # cannot (too short, or below threshold), never against an accepted detection.
+  # Source: persisted user-message detections, else the session cache (stickiness).
   use_chat_history_prior: true
-  chat_history_prior_weight: 0.3  # Weight given to chat history distribution
-  chat_history_messages_count: 5  # Number of recent messages to consider
+  chat_history_messages_count: 5   # Recent messages to read (assistant messages are skipped)
+  prior_min_confidence: 0.7        # Min confidence for a detection to become evidence for later turns
+  stickiness_ttl_seconds: 3600     # Session cache entry lifetime after the last trusted detection
 
   # RAG retrieval language boosting (boosts documents matching user's language)
   retrieval_match_boost: 0.1       # Boost for documents matching detected language
   retrieval_mismatch_penalty: 0.05 # Penalty for non-matching language documents
-  retrieval_min_confidence: 0.7    # Min detection confidence to apply boost
+  retrieval_min_confidence: 0.7    # Min calibrated confidence of an accepted detection to apply boost
 
 # Server concurrency and response-optimization tuning: worker processes, thread
 # pools, and optional GZip/ETag layers.
@@ -233,6 +232,33 @@ auth:
   allowlist:
     cache_ttl: 30                   # Seconds a worker caches allowlist rules (0 = always re-read)
 
+  # Admin IP allowlisting: restricts /admin/* and the admin-scoped /auth/*
+  # routes (user management, blacklist/allowlist, session revocation) to a
+  # configurable set of IP addresses/CIDR ranges, as defense-in-depth on top
+  # of authentication and RBAC. Off by default so this can't lock out an
+  # existing deployment on upgrade. Requests from loopback (127.0.0.1/::1) are
+  # always exempt regardless of these settings, so `orbit` CLI commands run on
+  # the server itself are never blocked. Additional rules can be managed at
+  # runtime via GET/POST/DELETE /auth/admin-ip-rules or `orbit user admin-ip`.
+  admin_ip_allowlist:
+    enabled: false
+    mode: allowlist          # allowlist | open — same fail-closed convention as auth.providers.access_control
+    default_ranges: []       # e.g. ["10.0.0.0/8", "203.0.113.4/32"]
+    cache_ttl: 30
+
+  # Two-factor authentication (TOTP) for local password accounts. See
+  # config/config.yaml for full documentation of this block.
+  two_factor:
+    enabled: false
+    required_for_roles: ["admin"]
+    issuer_name: "ORBIT"
+    recovery_codes_count: 10
+    remember_device_days: 30
+    rate_limit:
+      enabled: true
+      window_seconds: 60
+      max_attempts: 5
+
   # External identity providers (OIDC / OAuth2). Optional — the built-in
   # username/password auth above always works. When enabled, ORBIT validates
   # access-token JWTs presented as `Authorization: Bearer <jwt>` by clients
@@ -308,6 +334,11 @@ auth:
 api_keys:
   header_name: "X-API-Key"     # HTTP header clients send their API key in
   prefix: "orbit_"             # Prefix prepended to every generated key
+  default_lifetime_days: 90    # New keys expire this many days after creation unless overridden
+  max_lifetime_days: 365       # A caller-supplied expiration may not exceed this many days from creation
+  legacy_migration_lifetime_days: 90  # Lifetime assigned to pre-existing keys with no expiration on first startup
+  allow_non_expiring_exceptions: true # Whether an admin-justified non-expiring exception is permitted
+  expiration_warning_days: 14  # "Expiring soon" threshold surfaced in the admin panel/CLI
 
 # Loads and caches the named system prompts assigned to adapters / API keys, so
 # they aren't re-fetched from the database on every request.
@@ -393,8 +424,14 @@ logging:
       propagate: false
     httpx:
       level: "WARNING"
+    httpx2:
+      level: "WARNING"
+      propagate: false
     httpcore:
       level: "WARNING"
+    mcp.client.streamable_http:
+      level: "WARNING"
+      propagate: false
     primp:
       level: "WARNING"
     hpack:
