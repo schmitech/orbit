@@ -110,6 +110,9 @@ class MessageConsumerService:
                 "error": None,
                 "metadata": result.get("metadata", {}),
             }
+            # Decision-model adapters return typed answers alongside the JSON response.
+            if result.get("decision") is not None:
+                envelope["decision"] = result["decision"]
         await self._publish(reply_to, correlation_id, envelope)
 
     async def _resolve_adapter(

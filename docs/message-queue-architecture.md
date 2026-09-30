@@ -276,6 +276,9 @@ the same `correlation_id`):
 On a business failure, `status` is `"failed"`, `response` is `null`, and `error`
 carries the reason.
 
+Replies from [decision-model adapters](adapters/decision-models.md) also carry a
+`decision` object with the typed answers (`{model, answers, usage}`).
+
 ---
 
 ## Authentication

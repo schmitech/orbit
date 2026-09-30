@@ -132,6 +132,19 @@ class TestConsumerHandle:
             "metadata": {"m": 2},
         }
 
+    async def test_decision_is_carried_on_completed_envelope(self):
+        decision = {"model": "nimble", "answers": {"team": {"type": "choice", "choice": "billing"}}, "usage": {}}
+        consumer, _, _ = make_consumer(process_result={"response": "{}", "decision": decision})
+        await consumer._handle(make_msg({"id": "r1", "message": "charged twice", "api_key": "k"}))
+        env = consumer.broker.published[0]["envelope"]
+        assert env["status"] == "completed"
+        assert env["decision"] == decision
+
+    async def test_no_decision_key_for_non_decision_results(self):
+        consumer, _, _ = make_consumer(process_result={"response": "hi"})
+        await consumer._handle(make_msg({"id": "r1", "message": "hello", "api_key": "k"}))
+        assert "decision" not in consumer.broker.published[0]["envelope"]
+
     async def test_session_id_defaults_to_correlation_id(self):
         consumer, chat_service, _ = make_consumer()
         await consumer._handle(make_msg({"id": "r1", "message": "hey", "api_key": "k"}, correlation_id="corr-x"))

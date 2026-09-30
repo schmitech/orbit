@@ -4,6 +4,8 @@
 
 ### Core Features
 - **Decision Model Adapters (Jev-Style / System One)**: Added a new `decision_model` adapter type for non-conversational decision models. You define typed questions (`choice`, `noul`, `score`), and the model returns typed answers with probabilities in about 100 ms, instead of generated text. It is suited to light, real-time decisions such as ticket triage, content moderation and request routing.
+- **Triage Rush Decision-Model Demo**: Added a human-vs-AI tradeshow game in which a visitor races the `ticket-triage` decision adapter at sorting support tickets. Every AI decision travels through RabbitMQ (`orbit.requests`) and back, and the card shows its probability and measured round-trip latency. The game includes an attract mode, a SURGE burst injection with a live queue-depth display, a presenter panel for switching between local Ollama (`tev1:0.8b`) and TypeSafe (`ticket-triage-typesafe`), and a local leaderboard. The demo lives in `examples/triage-rush-game/` (Vite + React) and `examples/triage-rush-mq/game_bridge.py`, an HTTP/SSE-to-AMQP bridge.
+- **Decisions on Message-Queue Replies**: A `completed` MQ reply envelope now includes `decision` (`{model, answers, usage}`) when the adapter is a decision model, matching `/v1/chat`.
 
 ### Bug Fixes
 - **Image/Video Service Caches Not Closed on Shutdown**: `DynamicAdapterManager.close()` now closes the image and video generation service caches (and the new decision cache) along with the other service caches.

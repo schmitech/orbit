@@ -15,7 +15,7 @@
 # /v1/chat/completions).
 #
 # Providers are configured in config/decision.yaml:
-#   ollama   — local, run `ollama pull nimble` (and `ollama pull tev1:0.8b` for skill-router)
+#   ollama   — local, run `ollama pull tev1:0.8b` (ticket-triage, skill-router); `nimble` is the larger option
 #   typesafe — hosted, set TYPESAFE_API_KEY
 adapters:
   # Support ticket triage: route to a team, detect refund requests, estimate urgency.
@@ -26,7 +26,42 @@ adapters:
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
     decision_provider: "ollama"
-    model: "nimble"
+    model: "tev1:0.8b"          # tiny and fast; use "nimble" (9B) on a GPU box for higher accuracy
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_session_tracking: false
+    config:
+      state_key: "ticket"
+      allow_question_override: true
+      questions:
+        team:
+          type: "choice"
+          instructions: "Which team should handle this ticket?"
+          criteria:
+            billing: "Payments, invoices, charges and refunds"
+            technical: "Bugs, errors, outages and integrations"
+            account: "Login, passwords, profile and account settings"
+            other: "None of the above"
+        refund_requested:
+          type: "noul"
+          instructions: "Does the customer explicitly ask for a refund?"
+        urgency:
+          type: "score"
+          instructions: "How urgent is this ticket?"
+          criteria: ["Routine", "Soon", "Urgent"]
+
+  # Same ticket triage questions answered by TypeSafe's hosted model. Used by the Triage Rush
+  # demo (examples/triage-rush-mq/) to switch providers per message.
+  - name: "ticket-triage-typesafe"
+    enabled: true
+    type: "decision_model"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    decision_provider: "typesafe"
+    model: "jev-latest"
     capabilities:
       retrieval_behavior: "none"
       formatting_style: "clean"

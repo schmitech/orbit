@@ -212,11 +212,14 @@ No `inference_provider` is needed: decision adapters never call a chat LLM.
 
 | Adapter | Provider / model | Questions |
 |---------|------------------|-----------|
-| `ticket-triage` | `ollama` / `nimble` | `team` (choice), `refund_requested` (noul), `urgency` (score). Question override enabled |
+| `ticket-triage` | `ollama` / `tev1:0.8b` | `team` (choice), `refund_requested` (noul), `urgency` (score). Question override enabled |
 | `content-moderation` | `typesafe` / `jev-latest` | `category` (choice), `needs_human_review` (noul), `severity` (score) |
+| `ticket-triage-typesafe` | `typesafe` / `jev-latest` | Same questions as `ticket-triage`, answered by TypeSafe |
 | `skill-router` | `ollama` / `tev1:0.8b` | `skill` (choice across ORBIT skills), `needs_retrieval` (noul) |
 
 `skill-router` is an example configuration only. ORBIT's built-in skill router doesn't use it yet, but an application can call it as a fast routing step before deciding which adapter to send a request to.
+
+For a live, human-vs-AI booth demo of `ticket-triage` over the message queue, see [Triage Rush](../../examples/triage-rush-mq/README.md).
 
 ---
 
@@ -260,6 +263,7 @@ The response text is the `answers` JSON, so a chat UI shows the decision directl
 | `POST /v1/chat` (non-streaming) | `decision` in the response body |
 | `POST /v1/chat` (streaming) | `decision` on the final `{"done": true, ...}` event |
 | `POST /v1/chat/completions` | `orbit.decision` (streaming: on the final chunk) |
+| Message queue (`orbit.requests`) | `decision` on the `completed` reply envelope |
 
 ```json
 {
