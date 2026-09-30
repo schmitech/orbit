@@ -57,6 +57,7 @@ from .audio_service import (
 
 from .image_generation_service import ImageGenerationService
 from .video_generation_service import VideoGenerationService
+from .decision_service import DecisionService
 
 __all__ = [
     # Embedding
@@ -99,4 +100,5 @@ __all__ = [
 
     # Video Generation
     'VideoGenerationService',
+    'DecisionService',
 ]

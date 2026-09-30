@@ -1,5 +1,13 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **Decision Model Adapters (Jev-Style / System One)**: Added a new `decision_model` adapter type for non-conversational decision models. You define typed questions (`choice`, `noul`, `score`), and the model returns typed answers with probabilities in about 100 ms, instead of generated text. It is suited to light, real-time decisions such as ticket triage, content moderation and request routing.
+
+### Bug Fixes
+- **Image/Video Service Caches Not Closed on Shutdown**: `DynamicAdapterManager.close()` now closes the image and video generation service caches (and the new decision cache) along with the other service caches.
+
 ## [2.17.16] - 2026-09-27
 
 ### Security

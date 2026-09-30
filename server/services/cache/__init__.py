@@ -10,6 +10,7 @@ This package provides specialized cache managers for different service types:
 - AudioCacheManager: Manages audio service instances (TTS/STT)
 - ImageGenerationCacheManager: Manages image generation service instances
 - VideoGenerationCacheManager: Manages video generation service instances
+- DecisionCacheManager: Manages decision model service instances
 """
 
 from .adapter_cache_manager import AdapterCacheManager
@@ -20,6 +21,7 @@ from .vision_cache_manager import VisionCacheManager
 from .audio_cache_manager import AudioCacheManager
 from .image_cache_manager import ImageGenerationCacheManager
 from .video_cache_manager import VideoGenerationCacheManager
+from .decision_cache_manager import DecisionCacheManager
 
 __all__ = [
     "AdapterCacheManager",
@@ -30,4 +32,5 @@ __all__ = [
     "AudioCacheManager",
     "ImageGenerationCacheManager",
     "VideoGenerationCacheManager",
+    "DecisionCacheManager",
 ]

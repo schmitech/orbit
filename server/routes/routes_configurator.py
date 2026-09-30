@@ -643,15 +643,18 @@ class RouteConfigurator:
                             return
 
                         if isinstance(event, DoneEvent):
+                            extra = {}
+                            if event.total_audio_chunks is not None:
+                                extra["total_audio_chunks"] = event.total_audio_chunks
+                            if event.decision is not None:
+                                extra["decision"] = event.decision
                             orbit_extension = formatter.build_orbit_extension(
                                 sources=event.sources,
                                 metadata=event.metadata,
                                 audio=event.audio,
                                 audio_format=event.audio_format,
                                 threading=event.threading,
-                                extra={
-                                    "total_audio_chunks": event.total_audio_chunks
-                                } if event.total_audio_chunks is not None else None
+                                extra=extra or None
                             )
                             final_chunk = formatter.build_stream_chunk(
                                 finish_reason="stop",
@@ -711,7 +714,8 @@ class RouteConfigurator:
                 sources=result.get("sources", []),
                 audio=result.get("audio"),
                 audio_format=result.get("audio_format"),
-                threading=result.get("threading")
+                threading=result.get("threading"),
+                extra={"decision": result["decision"]} if result.get("decision") is not None else None
             )
 
     def _configure_stop_endpoint(self, app: FastAPI) -> None:

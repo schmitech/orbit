@@ -640,6 +640,7 @@ class StreamingHandler:
         generated_audio_url: Optional[str] = None,
         generated_audio_format: Optional[str] = None,
         generated_audio_revised_prompt: Optional[str] = None,
+        decision: Optional[dict[str, Any]] = None,
     ) -> DoneEvent:
         """
         Build the final done event with all metadata. Canonical producer —
@@ -684,6 +685,7 @@ class StreamingHandler:
             generated_audio_url=generated_audio_url or None,
             generated_audio_format=generated_audio_format or None,
             generated_audio_revised_prompt=generated_audio_revised_prompt or None,
+            decision=decision,
         )
 
         if threading_metadata:
@@ -719,6 +721,7 @@ class StreamingHandler:
         generated_audio_url: Optional[str] = None,
         generated_audio_format: Optional[str] = None,
         generated_audio_revised_prompt: Optional[str] = None,
+        decision: Optional[dict[str, Any]] = None,
     ) -> str:
         """
         Build the final done chunk with all metadata. Thin SSE-formatting
@@ -747,6 +750,7 @@ class StreamingHandler:
             generated_audio_url=generated_audio_url,
             generated_audio_format=generated_audio_format,
             generated_audio_revised_prompt=generated_audio_revised_prompt,
+            decision=decision,
         )
         formatted = format_stream_event(event)
 

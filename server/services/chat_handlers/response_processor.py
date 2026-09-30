@@ -402,6 +402,7 @@ class ResponseProcessor:
         generated_audio_url: Optional[str] = None,
         generated_audio_format: Optional[str] = None,
         generated_audio_revised_prompt: Optional[str] = None,
+        decision: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """
         Build the final result dictionary.
@@ -491,6 +492,10 @@ class ResponseProcessor:
             result["generated_audio_format"] = generated_audio_format or "mp3"
             if generated_audio_revised_prompt:
                 result["generated_audio_revised_prompt"] = generated_audio_revised_prompt
+
+        # Add typed decision-model answers if present
+        if decision is not None:
+            result["decision"] = decision
 
         return result
     

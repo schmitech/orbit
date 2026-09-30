@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, IntentClarificationStep, IntentNoMatchStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, AudioGenerationStep, MCPAgentStep, FetchStep, WebSearchStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, IntentClarificationStep, IntentNoMatchStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, AudioGenerationStep, MCPAgentStep, FetchStep, WebSearchStep, DecisionModelStep
 
 logger = logging.getLogger(__name__)
 
@@ -341,6 +341,8 @@ class InferencePipeline:
                 response_payload: dict = {"response": context.response, "done": True}
                 if context.sources:
                     response_payload["sources"] = context.sources
+                if context.decision is not None:
+                    response_payload["decision"] = context.decision
                 response_json = json.dumps(response_payload)
                 yield response_json
             
@@ -423,6 +425,9 @@ class InferencePipelineBuilder:
 
         # Web search — retrieves external search results as context for LLM synthesis
         steps.append(WebSearchStep(container))
+
+        # Decision model — executes instead of LLM for decision_model adapters
+        steps.append(DecisionModelStep(container))
 
         # LLM inference is always needed (skips image/video/document/audio/fetch generation adapters)
         steps.append(LLMInferenceStep(container))

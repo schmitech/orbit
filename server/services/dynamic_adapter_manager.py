@@ -25,6 +25,7 @@ from .cache import (
     AudioCacheManager,
     ImageGenerationCacheManager,
     VideoGenerationCacheManager,
+    DecisionCacheManager,
 )
 from .config import AdapterConfigManager
 from .loader import AdapterLoader
@@ -79,6 +80,7 @@ class DynamicAdapterManager:
         self.audio_cache = AudioCacheManager(self.config, self._thread_pool)
         self.image_cache = ImageGenerationCacheManager(self.config, self._thread_pool)
         self.video_cache = VideoGenerationCacheManager(self.config, self._thread_pool)
+        self.decision_cache = DecisionCacheManager(self.config, self._thread_pool)
 
     def _init_config_manager(self) -> None:
         """Initialize configuration manager."""
@@ -535,6 +537,19 @@ class DynamicAdapterManager:
 
         return await self.video_cache.create_service(provider_name, adapter_name)
 
+    async def get_decision_service(self, provider_name: str, adapter_name: str = None) -> Any:
+        """
+        Get a decision model service instance by name, loading and caching it if necessary.
+
+        Args:
+            provider_name: The name of the decision provider (e.g. 'ollama', 'typesafe')
+            adapter_name: Optional adapter name for logging context
+        """
+        if not provider_name:
+            raise ValueError("Decision provider name cannot be empty")
+
+        return await self.decision_cache.create_service(provider_name, adapter_name)
+
     def get_adapter_config(self, adapter_name: str) -> Optional[dict[str, Any]]:
         """
         Get the configuration for a specific adapter.
@@ -732,6 +747,7 @@ class DynamicAdapterManager:
             "cached_audio_services": self.audio_cache.get_cache_size(),
             "cached_image_services": self.image_cache.get_cache_size(),
             "cached_video_services": self.video_cache.get_cache_size(),
+            "cached_decision_services": self.decision_cache.get_cache_size(),
             "initializing_adapters": self.adapter_cache.get_initializing_count(),
             "adapter_configs": self.config_manager.get_available_adapters(),
             "cached_adapter_names": self.adapter_cache.get_cached_names(),
@@ -742,6 +758,7 @@ class DynamicAdapterManager:
             "cached_audio_service_keys": self.audio_cache.get_cached_keys(),
             "cached_image_service_keys": self.image_cache.get_cached_keys(),
             "cached_video_service_keys": self.video_cache.get_cached_keys(),
+            "cached_decision_service_keys": self.decision_cache.get_cached_keys(),
             "datasource_pool": datasource_stats
         }
 
@@ -866,6 +883,11 @@ class DynamicAdapterManager:
 
         # Close all cached audio services
         await self.audio_cache.close()
+
+        # Close all cached image, video and decision services
+        await self.image_cache.close()
+        await self.video_cache.close()
+        await self.decision_cache.close()
 
         # Clear all cached adapters
         await self.adapter_cache.clear()

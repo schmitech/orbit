@@ -18,6 +18,7 @@ import:
   - "ocr.yaml"
   - "image.yaml"
   - "video.yaml"
+  - "decision.yaml"
   - "document.yaml"
   - "tts.yaml"
   - "stt.yaml"

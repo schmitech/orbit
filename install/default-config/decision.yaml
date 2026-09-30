@@ -1,0 +1,39 @@
+# Global decision model configuration
+#
+# Decision models ("System One" / Jev-style models) do not generate text. They take a
+# `state` object plus typed questions (choice / noul / score) and return typed answers
+# with probabilities, typically in ~100ms. Used by adapters of type `decision_model`
+# (see config/adapters/decision.yaml).
+decision:
+  provider: "ollama"   # Default decision provider: ollama, typesafe
+  enabled: false        # Whether decision models are enabled globally
+
+# Provider-specific configurations
+decision_models:
+  # Local decision models served by Ollama 0.35+ at /v1/systemone.
+  # Pull first: ollama pull nimble   (also: tev1, tev1:0.8b)
+  ollama:
+    enabled: false
+    base_url: "http://localhost:11434"
+    model: "nimble"               # nimble (9B), tev1 (4B), tev1:0.8b (0.8B)
+    # Timeout configuration (milliseconds)
+    timeout:
+      connect: 5000
+      total: 30000
+    # Retry configuration (only connection errors, timeouts, 429 and 5xx are retried)
+    retry:
+      enabled: true
+      max_retries: 2
+      initial_wait_ms: 500
+      max_wait_ms: 5000
+      exponential_base: 2
+
+  # TypeSafe hosted System One API, called through the typesafe-sdk (retries handled by the SDK).
+  typesafe:
+    enabled: false
+    api_key: ${TYPESAFE_API_KEY}
+    base_url: "https://api.typesafe.ai"
+    model: "jev-latest"
+    # Timeout configuration (milliseconds; converted to seconds for the SDK)
+    timeout:
+      total: 30000

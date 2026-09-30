@@ -70,7 +70,7 @@ rerankers:
   anthropic:
     enabled: false
     api_key: ${ANTHROPIC_API_KEY}
-    api_base: "https://api.anthropic.com/v1"
+    api_base: "https://api.anthropic.com"
     model: "claude-haiku-4-5"
     max_tokens: 100
     batch_size: 3  # Smaller batch due to token limits

@@ -179,6 +179,7 @@ class DoneEvent:
     generated_audio_url: Optional[str] = None
     generated_audio_format: Optional[str] = None
     generated_audio_revised_prompt: Optional[str] = None
+    decision: Optional[dict[str, Any]] = None
 
 
 StreamEvent = Union[ResponseEvent, AudioChunkEvent, ErrorEvent, DoneEvent, RawEvent]
@@ -237,6 +238,7 @@ def parse_stream_payload(payload: dict[str, Any]) -> StreamEvent:
             generated_audio_url=payload.get("generated_audio_url"),
             generated_audio_format=payload.get("generated_audio_format"),
             generated_audio_revised_prompt=payload.get("generated_audio_revised_prompt"),
+            decision=payload.get("decision"),
         )
 
     if "response" in payload:
@@ -325,6 +327,8 @@ def stream_event_to_dict(event: StreamEvent) -> dict[str, Any]:
             payload["generated_audio_format"] = event.generated_audio_format or "mp3"
             if event.generated_audio_revised_prompt:
                 payload["generated_audio_revised_prompt"] = event.generated_audio_revised_prompt
+        if event.decision is not None:
+            payload["decision"] = event.decision
         # metadata is cache-hit-only and never co-occurs with the fields above
         # in practice, but is included here for completeness.
         if event.metadata:

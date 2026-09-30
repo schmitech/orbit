@@ -74,6 +74,7 @@ Understand how ORBIT works.
 | [File Adapter](adapters/file-adapter-guide.md) | Document upload and processing |
 | [Passthrough Adapter](adapters/multimodal-conversational-adapter.md) | Direct conversational AI without retrieval |
 | [Skills](adapters/skills.md) | Cross-adapter capabilities (image generation and more) |
+| [Decision Model Adapters](adapters/decision-models.md) | Fast, typed decisions with probabilities from Jev-style models (Ollama `nimble`/`tev1`, TypeSafe) |
 
 ---
 

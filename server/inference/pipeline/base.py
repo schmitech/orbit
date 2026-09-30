@@ -140,6 +140,9 @@ class ProcessingContext:
     generated_audio_revised_prompt: Optional[str] = None  # text that was spoken
     generated_audio_url: Optional[str] = None        # persistent server-side URL after storage
 
+    # Decision model output: {model, answers, usage} from a decision_model adapter
+    decision: Optional[dict[str, Any]] = None
+
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None

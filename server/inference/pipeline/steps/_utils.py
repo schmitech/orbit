@@ -20,6 +20,7 @@ NO_LLM_ADAPTER_TYPES = frozenset({
     'openai_realtime',
     'openai_realtime_translation',
     'gemini_live',
+    'decision_model',
 })
 
 # Adapter types that have no use for an inference_provider/rewrite_provider at all —
@@ -31,6 +32,7 @@ NO_INFERENCE_PROVIDER_ADAPTER_TYPES = frozenset({
     'openai_realtime',
     'openai_realtime_translation',
     'gemini_live',
+    'decision_model',
 })
 
 

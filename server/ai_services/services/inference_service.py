@@ -513,7 +513,8 @@ class OpenAIResponseFormatter:
         sources: Optional[list[dict[str, Any]]] = None,
         audio: Optional[str] = None,
         audio_format: Optional[str] = None,
-        threading: Optional[dict[str, Any]] = None
+        threading: Optional[dict[str, Any]] = None,
+        extra: Optional[dict[str, Any]] = None
     ) -> dict[str, Any]:
         """Create a complete OpenAI-style chat completion response."""
         response = {
@@ -541,7 +542,8 @@ class OpenAIResponseFormatter:
             metadata=metadata,
             audio=audio,
             audio_format=audio_format,
-            threading=threading
+            threading=threading,
+            extra=extra
         )
         if orbit_extension:
             response["orbit"] = orbit_extension

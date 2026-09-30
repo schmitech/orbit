@@ -22,6 +22,7 @@ dependencies = [
     "cohere>=5.21.1",
     "groq>=1.1.2",
     "xai-sdk>=1.12.1",
+    "typesafe-sdk>=0.7.2,<0.8",  # TypeSafe System One decision models
     "replicate>=1.0.7",
     "zai-sdk>=0.2.2",
     "mistralai>=2.9.4",

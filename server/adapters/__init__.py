@@ -97,7 +97,10 @@ def register_adapters():
     )
 
     # The generation step handles actual work; all these types share the same domain adapter.
-    for _adapter_type in ['passthrough', 'image_generation', 'video_generation', 'document_generation', 'audio_generation']:
+    for _adapter_type in [
+        'passthrough', 'image_generation', 'video_generation', 'document_generation', 'audio_generation',
+        'decision_model',
+    ]:
         ADAPTER_REGISTRY.register(
             adapter_type=_adapter_type,
             datasource="none",

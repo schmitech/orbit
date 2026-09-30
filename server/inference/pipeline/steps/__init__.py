@@ -19,6 +19,7 @@ from .audio_generation import AudioGenerationStep
 from .mcp_agent import MCPAgentStep
 from .fetch import FetchStep
 from .web_search import WebSearchStep
+from .decision_model import DecisionModelStep
 
 __all__ = [
     'SafetyFilterStep',
@@ -36,4 +37,5 @@ __all__ = [
     'MCPAgentStep',
     'FetchStep',
     'WebSearchStep',
+    'DecisionModelStep',
 ]

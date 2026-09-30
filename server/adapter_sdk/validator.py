@@ -22,7 +22,7 @@ REQUIRED_FIELDS = ["type", "datasource", "adapter", "implementation"]
 KNOWN_TYPES = {
     "retriever", "passthrough", "web-search", "document_generation", "image_generation",
     "video_generation", "audio_generation", "openai_realtime", "openai_realtime_translation",
-    "gemini_live", "mcp_agent", "fetch",
+    "gemini_live", "mcp_agent", "fetch", "decision_model",
 }
 
 KNOWN_DATASOURCES = {
@@ -31,7 +31,9 @@ KNOWN_DATASOURCES = {
 }
 
 # Types that skip the inference-provider requirement (steps/_utils.py:29-34).
-NO_INFERENCE_PROVIDER_TYPES = {"fetch", "openai_realtime", "openai_realtime_translation", "gemini_live"}
+NO_INFERENCE_PROVIDER_TYPES = {
+    "fetch", "openai_realtime", "openai_realtime_translation", "gemini_live", "decision_model",
+}
 
 
 def validate_structure(entry: dict[str, Any]) -> list[str]:

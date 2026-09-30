@@ -254,6 +254,17 @@ def register_video_generation_services(config: dict[str, Any] = None) -> None:
     ], config=config, config_section='video_generation', default_enabled=False)
 
 
+def register_decision_services(config: dict[str, Any] = None) -> None:
+    if config and not _is_enabled(config.get('decision', {}).get('enabled', False)):
+        logger.info("Decision models are globally disabled - skipping registration.")
+        return
+
+    _register_services(ServiceType.DECISION, 'ai_services.implementations.decision', [
+        ("ollama", "OllamaDecisionService", "Ollama"),
+        ("typesafe", "TypeSafeDecisionService", "TypeSafe"),
+    ], config=config, config_section='decision_models', default_enabled=False)
+
+
 def register_all_services(config: dict[str, Any] = None) -> None:
     """
     Register all available service implementations.
@@ -285,6 +296,7 @@ def register_all_services(config: dict[str, Any] = None) -> None:
         register_ocr_services(config)
         register_image_generation_services(config)
         register_video_generation_services(config)
+        register_decision_services(config)
         register_audio_services(config)
 
         _services_registered = True

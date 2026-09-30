@@ -266,6 +266,17 @@ class AdapterLoader:
             warning_label='video generation service',
         )
 
+        # Preload decision model service ONLY if the adapter explicitly specifies a decision_provider
+        decision_provider = adapter_config.get('decision_provider')
+
+        await self._preload_adapter_manager_service(
+            provider=decision_provider,
+            adapter_name=adapter_name,
+            manager_method='get_decision_service',
+            log_label='decision model',
+            warning_label='decision model service',
+        )
+
         # Preload TTS service ONLY if the adapter explicitly specifies a tts_provider
         # (Don't fall back to global default - most adapters don't need TTS)
         tts_provider = adapter_config.get('tts_provider')
