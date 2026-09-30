@@ -8,6 +8,49 @@ export const TEAMS = [
   { id: "other", label: "Other", key: "4" },
 ];
 
+// A second deck asks where the next scarce support slot should go. The policy is
+// deliberately short enough to stay visible while tickets fall.
+export const RESOURCE_OPTIONS = [
+  { id: "dispatch", label: "Dispatch", key: "1" },
+  { id: "escalate", label: "Escalate", key: "2" },
+  { id: "queue", label: "Queue", key: "3" },
+  { id: "self_serve", label: "Self-serve", key: "4" },
+];
+
+export const RESOURCE_POLICY = "Critical = active outage, security exposure, or data loss. Dispatch critical work when the needed specialist is free; otherwise escalate for backup. Queue a blocked noncritical workflow. Send information and how-to requests to self-serve. Customer tier and angry wording do not override impact.";
+
+export const RESOURCE_QUESTION = {
+  action: {
+    type: "choice",
+    instructions: "Apply the resource policy to this case. What is the next action?",
+    criteria: {
+      dispatch: "Critical incident and the required specialist is available now",
+      escalate: "Critical incident but the required specialist is unavailable; seek backup",
+      queue: "Noncritical work is blocked and needs a specialist later",
+      self_serve: "Information or how-to request; no specialist intervention needed",
+    },
+  },
+};
+
+export const RESOURCE_TICKETS = [
+  { answer: "dispatch", resource: "Security · 1 free", text: "A former admin is exporting customer records right now. Our security specialist is free." },
+  { answer: "escalate", resource: "Security · 0 free", text: "A former admin is exporting customer records right now. Security is occupied on another incident." },
+  { answer: "dispatch", resource: "Platform · 1 free", text: "Every customer checkout is returning 500 errors. One platform engineer can take this now." },
+  { answer: "escalate", resource: "Platform · 0 free", text: "Every customer checkout is returning 500 errors. All platform engineers are already committed." },
+  { answer: "dispatch", resource: "Data · 1 free", text: "The sync is deleting live customer records. A data specialist is available now." },
+  { answer: "escalate", resource: "Data · 0 free", text: "The sync is deleting live customer records. The data team has no free specialist." },
+  { answer: "queue", resource: "Billing · 0 free", text: "Month-end is next week. An error blocks our invoice export; billing support is at capacity." },
+  { answer: "queue", resource: "Account · 1 free", text: "An owner can still administer the workspace, but one teammate cannot reset their password." },
+  { answer: "queue", resource: "Platform · 1 free", text: "Customer-facing dashboards work. Our internal report has been stuck since yesterday." },
+  { answer: "queue", resource: "Billing · 1 free", text: "Our enterprise discount was missed on this month's invoice. Finance needs it corrected this week." },
+  { answer: "self_serve", resource: "Platform · 0 free", text: "No requests are failing. What is the documented API rate limit for next quarter?" },
+  { answer: "self_serve", resource: "Billing · 0 free", text: "The billing page opens. Where can I download last month's invoice?" },
+  { answer: "self_serve", resource: "Account · 1 free", text: "Nothing is broken. How do I invite a teammate with read-only access?" },
+  { answer: "queue", resource: "Platform · 0 free", text: "The rest of the dashboard works. Our CEO says one blank optional chart is urgent." },
+  { answer: "escalate", resource: "Security · 0 free", text: "An exposed API key is being used from an unknown IP. The security specialist is unavailable." },
+  { answer: "dispatch", resource: "Platform · 1 free", text: "Our payment integration is down for all buyers. The platform engineer just became available." },
+];
+
 export const TICKETS = [
   // Billing
   { team: "billing", urgency: "Soon", text: "I was charged twice for my subscription this month. Please refund the duplicate payment." },

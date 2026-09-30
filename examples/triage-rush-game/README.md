@@ -22,6 +22,8 @@ Export the key in the shell where you start the bridge (`python examples/triage-
 
 Decision adapters don't call a chat LLM, so the prompt doesn't change the answers, which come only from the adapter's `questions`. It stays with the key as documentation. [`triage-rush-intro.md`](triage-rush-intro.md) is a matching intro with sample tickets, for a chat client such as orbitchat.
 
+The presenter panel has two challenges. **Team routing** is the original four-team ticket sort. **Resource decisions** presents harder cases with a short policy and the availability of a needed specialist. Choose **Dispatch** for critical work with a free specialist, **Escalate** for critical work without one, **Queue** for blocked noncritical work, or **Self-serve** for information requests. The policy is visible above both lanes; each card carries its resource status. The bridge sends the same case, policy, and resource status to ORBIT as structured state and overrides the decision question for that ticket. Both challenges still use real decision-model replies, and each has its own top-10 leaderboard.
+
 ## Run the game
 
 ```bash
@@ -37,6 +39,7 @@ Open <http://localhost:5180>. Both `dev` and `preview` use that fixed port (with
 - **Waiting screen.** When idle, the game shows the leaderboard and sends nothing to ORBIT. Any key, or a tap on the left lane, starts a 3-2-1 countdown, and tickets start flowing to ORBIT when the round begins. To have ORBIT play its lane alone while idle (attract mode), turn on **AI autoplay when idle** in the presenter panel. That sends a ticket about every 2 seconds.
 - **Round.** A round lasts 60 seconds by default. Each ticket appears in both lanes at the same moment, and tickets arrive faster and fall faster as the round goes on.
 - **Your lane.** Sort the highlighted (lowest) ticket with keys `1`–`4` or by tapping a bin.
+- **Resource decisions.** Select this challenge in the presenter panel before a round. The four bins become Dispatch / Escalate / Queue / Self-serve. The policy and available specialist count determine the right answer; customer tier or dramatic wording alone does not.
 - **ORBIT's lane.** A card shows `deciding…` until its decision arrives. The card then shows the answer: the confidence bar, urgency, a refund flag and the round-trip time. It stays in the lane for 1.5 seconds, then drops into the chosen bin. Both copies of a ticket carry the same `#` number, so you can check they're the same question. Set the hold in the presenter panel (**AI answer display**, 0–4 s). It's display only: scores and latency use the real decision time.
 - **Queued cards.** Cards never overlap. A card that catches up with the one below it stops on top of it, and cards with no room yet wait above the lane, counted by a **+N waiting** badge. A waiting card can't be missed until it has fallen to the floor.
 - **Scoring**, the same for both lanes: a correct sort is +100 plus a speed bonus, a wrong one is −50, and a ticket that hits the floor is −100. A failed or timed-out AI decision also counts as a miss.
@@ -47,14 +50,14 @@ Open <http://localhost:5180>. Both `dev` and `preview` use that fixed port (with
 
 | Key | Action |
 |-----|--------|
-| `1`–`4` | Sort into Billing / Technical / Account / Other |
+| `1`–`4` | Choose the four bins for the selected challenge |
 | **Pause** button (top right) | Stop sending tickets to ORBIT: ends any round, clears the lanes, and blocks new rounds, surges and autoplay. It stays paused across page reloads until you press **Resume**. Tickets already published still get answered. Also in the presenter panel |
 | `S` | **Surge**: drop a burst of tickets (25 by default) on both lanes and onto the queue at once. Your lane piles up with a **+N waiting** badge while ORBIT works through its queue |
-| `P` | Presenter panel: bridge URL, adapter (local Ollama or TypeSafe), round length, speed, surge size, health, leaderboard reset |
+| `P` | Presenter panel: challenge, bridge URL, adapter (local Ollama or TypeSafe), round length, speed, surge size, health, leaderboard reset |
 | `Esc` | Close the presenter panel |
 
 The HUD along the bottom shows AI decisions per second, p50/p95 latency, `orbit.requests` depth, the worker count and tickets in flight.
 
-Settings and the leaderboard are saved in this browser's `localStorage`, so they survive a page reload on the booth machine.
+Settings and both leaderboards are saved in this browser's `localStorage`, so they survive a page reload on the booth machine. Presenter-panel reset clears only the selected challenge's leaderboard.
 
 The layout targets a 16:9 display and stacks the lanes vertically on narrow screens.

@@ -43,6 +43,7 @@ import time
 MAX_ITEMS_PER_PUBLISH = 50
 MAX_TEXT_LENGTH = 1000
 MAX_ID_LENGTH = 64
+MAX_DECISION_INPUT_LENGTH = 4000
 
 
 class Bridge:
@@ -77,7 +78,10 @@ class Bridge:
 
     async def publish(self, items: list[dict], adapter: str) -> None:
         for item in items:
-            request = {"id": item["id"], "message": item["text"], "adapter": adapter}
+            message = item["text"]
+            if "state" in item:
+                message = json.dumps({"state": item["state"], "questions": item["questions"]})
+            request = {"id": item["id"], "message": message, "adapter": adapter}
             if self.args.api_key:
                 request["api_key"] = self.args.api_key
             self.pending[item["id"]] = (time.monotonic(), adapter)
@@ -160,14 +164,30 @@ def validate_publish(body, allowed_adapters: list[str], default_adapter: str) ->
         return [], adapter, "items must be a non-empty list"
     if len(items) > MAX_ITEMS_PER_PUBLISH:
         return [], adapter, f"at most {MAX_ITEMS_PER_PUBLISH} items per publish"
+    ids = set()
     for item in items:
         if not isinstance(item, dict):
             return [], adapter, "each item must be an object with id and text"
         item_id, text = item.get("id"), item.get("text")
         if not isinstance(item_id, str) or not item_id or len(item_id) > MAX_ID_LENGTH:
             return [], adapter, f"item id must be a string of 1-{MAX_ID_LENGTH} characters"
+        if item_id in ids:
+            return [], adapter, f"duplicate item id: {item_id}"
+        ids.add(item_id)
         if not isinstance(text, str) or not text.strip() or len(text) > MAX_TEXT_LENGTH:
             return [], adapter, f"item text must be a non-empty string of at most {MAX_TEXT_LENGTH} characters"
+        if "state" in item or "questions" in item:
+            state, questions = item.get("state"), item.get("questions")
+            if not isinstance(state, dict) or not isinstance(questions, dict) or not questions:
+                return [], adapter, "state and questions must both be non-empty JSON objects"
+            if state.get("ticket") != text:
+                return [], adapter, "state.ticket must match item text"
+            try:
+                encoded = json.dumps({"state": state, "questions": questions})
+            except (TypeError, ValueError):
+                return [], adapter, "state and questions must contain JSON values"
+            if len(encoded) > MAX_DECISION_INPUT_LENGTH:
+                return [], adapter, f"structured decision input exceeds {MAX_DECISION_INPUT_LENGTH} characters"
     return items, adapter, None
 
 

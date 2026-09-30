@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Bot, Cpu, Gauge, Hexagon, Layers, Pause, Play, Settings2, Timer, Trophy, User, X, Zap } from "lucide-react";
-import { TEAMS, TICKETS } from "./tickets.js";
+import { TEAMS, TICKETS, RESOURCE_OPTIONS, RESOURCE_POLICY, RESOURCE_QUESTION, RESOURCE_TICKETS } from "./tickets.js";
 import "./styles.css";
 
 const DEFAULT_SETTINGS = {
   bridgeUrl: "http://localhost:8795",
   adapter: "ticket-triage-typesafe",
+  challenge: "team",
   roundSec: 60,
   speed: 1,
   surgeSize: 25,
@@ -18,8 +19,11 @@ const IDLE_ABORT_MS = 20000;
 const RESULTS_MS = 30000;
 const COUNTDOWN_MS = 3000;
 const RESOLVED_LINGER_MS = 900;
-// Must match --card-h in styles.css. Cards queue with this gap instead of overlapping.
+// Keep these in sync with styles.css: CARD_H_PX matches the default --card-h,
+// and RESOURCE_CARD_H_PX matches .arena-resource's --card-h. The queue spacing
+// uses these heights to keep falling cards from overlapping.
 const CARD_H_PX = 118;
+const RESOURCE_CARD_H_PX = 190;
 const CARD_GAP_PX = 10;
 // Cards still in the lane's flow; sorted/missed/failed cards are animating away.
 const FLOW_STATES = new Set(["falling", "deciding", "decided"]);
@@ -30,8 +34,10 @@ const SESSION = Math.random().toString(36).slice(2, 8);
 
 const cls = (...values) => values.filter(Boolean).join(" ");
 const lerp = (a, b, t) => a + (b - a) * Math.min(1, Math.max(0, t));
-const teamIndex = id => TEAMS.findIndex(t => t.id === id);
-const teamLabel = id => TEAMS.find(t => t.id === id)?.label ?? id;
+const optionsFor = challenge => challenge === "resource" ? RESOURCE_OPTIONS : TEAMS;
+const answerFor = ticket => ticket.answer ?? ticket.team;
+const answerLabel = (challenge, id) => optionsFor(challenge).find(option => option.id === id)?.label ?? id;
+const leaderboardFor = (entries, challenge) => entries.filter(entry => (entry.challenge || "team") === challenge);
 
 function readStorage(key, fallback) {
   try {
@@ -68,6 +74,8 @@ function newEngine() {
     cards: [],
     seq: 0,
     deck: shuffle(TICKETS),
+    deckChallenge: "team",
+    challenge: "team",
     deckIdx: 0,
     roundStart: 0,
     roundEnd: 0,
@@ -85,9 +93,14 @@ function newEngine() {
   };
 }
 
-function nextTicket(engine) {
+function nextTicket(engine, challenge) {
+  if (engine.deckChallenge !== challenge) {
+    engine.deckChallenge = challenge;
+    engine.deck = shuffle(challenge === "resource" ? RESOURCE_TICKETS : TICKETS);
+    engine.deckIdx = 0;
+  }
   if (engine.deckIdx >= engine.deck.length) {
-    engine.deck = shuffle(TICKETS);
+    engine.deck = shuffle(challenge === "resource" ? RESOURCE_TICKETS : TICKETS);
     engine.deckIdx = 0;
   }
   return engine.deck[engine.deckIdx++];
@@ -172,7 +185,12 @@ function Game() {
   // --- publishing ---------------------------------------------------------------
   const publish = async cards => {
     const { bridgeUrl, adapter } = settingsRef.current;
-    const items = cards.map(c => ({ id: c.bridgeId, text: c.ticket.text }));
+    const items = cards.map(c => c.challenge === "resource" ? {
+      id: c.bridgeId,
+      text: c.ticket.text,
+      state: { ticket: c.ticket.text, resources: c.ticket.resource, policy: RESOURCE_POLICY },
+      questions: RESOURCE_QUESTION,
+    } : { id: c.bridgeId, text: c.ticket.text });
     let error = null;
     try {
       const res = await fetch(`${bridgeUrl.replace(/\/$/, "")}/publish`, {
@@ -192,15 +210,16 @@ function Game() {
     const engine = engineRef.current;
     const { speed } = settingsRef.current;
     const playing = engine.mode === "playing";
+    const challenge = playing ? engine.challenge : settingsRef.current.challenge;
     const progress = playing ? (now - engine.roundStart) / (engine.roundEnd - engine.roundStart) : 0;
     const fallMs = (playing ? lerp(9000, 6000, progress) : 8000) / speed;
     const aiCards = [];
     for (let i = 0; i < count; i++) {
-      const ticket = nextTicket(engine);
+      const ticket = nextTicket(engine, challenge);
       const uid = ++engine.seq;
       const x = Math.round((Math.random() - 0.5) * 16);
       const spawnedAt = now + i * 220; // surge tickets stream in one after another
-      const base = { num: uid, ticket, x, spawnedAt, fallMs, state: "falling", resolvedAt: 0 };
+      const base = { num: uid, ticket, challenge, x, spawnedAt, fallMs, state: "falling", resolvedAt: 0 };
       if (playing) engine.cards.push({ ...base, uid: `h${uid}`, lane: "human" });
       const ai = { ...base, uid: `a${uid}`, lane: "ai", state: "deciding", bridgeId: `${SESSION}-${uid}` };
       engine.cards.push(ai);
@@ -230,7 +249,7 @@ function Game() {
     engine.lastInput = now;
     const active = activeHumanCard(engine, now);
     if (!active) return;
-    const correct = binId === active.ticket.team;
+    const correct = binId === answerFor(active.ticket);
     active.state = "sorted";
     active.bin = binId;
     active.correct = correct;
@@ -244,6 +263,7 @@ function Game() {
     if (healthRef.current.status !== "ready" || settingsRef.current.paused) return;
     const now = performance.now();
     engine.cards = [];
+    engine.challenge = settingsRef.current.challenge;
     engine.mode = "countdown";
     engine.countdownEnd = now + COUNTDOWN_MS;
     engine.lastInput = now;
@@ -269,15 +289,27 @@ function Game() {
   const saveScore = () => {
     const engine = engineRef.current;
     const name = initials.trim().toUpperCase() || "???";
-    const entry = { initials: name, score: engine.human.score, accuracy: accuracy(engine.human), at: Date.now() };
-    const next = [...leaderboardRef.current, entry].sort((a, b) => b.score - a.score).slice(0, 10);
+    const entry = { initials: name, score: engine.human.score, accuracy: accuracy(engine.human), at: Date.now(), challenge: engine.challenge };
+    const next = [
+      ...leaderboardFor(leaderboardRef.current, engine.challenge).concat(entry).sort((a, b) => b.score - a.score).slice(0, 10),
+      ...leaderboardRef.current.filter(item => (item.challenge || "team") !== engine.challenge),
+    ];
     setLeaderboard(next);
     writeStorage(LEADERBOARD_KEY, next);
     setSaved(true);
     engine.resultsAt = performance.now(); // give them time to see their rank
   };
 
-  const resetLeaderboard = () => { setLeaderboard([]); writeStorage(LEADERBOARD_KEY, []); };
+  const resetLeaderboard = () => {
+    const challenge = settingsRef.current.challenge;
+    const next = leaderboardRef.current.filter(entry => (entry.challenge || "team") !== challenge);
+    setLeaderboard(next);
+    writeStorage(LEADERBOARD_KEY, next);
+  };
+  const changeChallenge = challenge => {
+    if (engineRef.current.mode === "attract") enterAttract(engineRef.current);
+    setSettings({ challenge });
+  };
 
   // --- frame loop -----------------------------------------------------------------
   useEffect(() => {
@@ -320,8 +352,10 @@ function Game() {
       // Card physics: each lane is a queue. A card falls at its own speed but never closer than
       // one card height to the card below it, so tickets stack up (and wait above the lane,
       // shown as "+N waiting") instead of overlapping.
-      const span = Math.max(1, (playfieldRef.current?.clientHeight || 500) - CARD_H_PX);
-      const spacing = (CARD_H_PX + CARD_GAP_PX) / span;
+      const challenge = engine.mode === "attract" ? settingsRef.current.challenge : engine.challenge;
+      const cardHeight = challenge === "resource" ? RESOURCE_CARD_H_PX : CARD_H_PX;
+      const span = Math.max(1, (playfieldRef.current?.clientHeight || 500) - cardHeight);
+      const spacing = (cardHeight + CARD_GAP_PX) / span;
       for (const lane of ["human", "ai"]) {
         const flow = engine.cards
           .filter(c => c.lane === lane && FLOW_STATES.has(c.state) && now >= c.spawnedAt)
@@ -359,18 +393,18 @@ function Game() {
     };
     const applyReply = (engine, card, now) => {
       const { reply } = card;
-      const team = reply.answers?.team;
+      const answer = reply.answers?.[card.challenge === "resource" ? "action" : "team"];
       card.decision = reply;
-      if (reply.status === "completed" && team?.choice) {
-        const correct = team.choice === card.ticket.team;
+      if (reply.status === "completed" && optionsFor(card.challenge).some(option => option.id === answer?.choice)) {
+        const correct = answer.choice === answerFor(card.ticket);
         // Scored on the real round-trip latency now; the card just stays readable, falling
         // beside its twin in the human lane, for aiHoldMs before it drops into the bin.
         card.state = "decided";
         card.dropAt = now + settingsRef.current.aiHoldMs;
-        card.bin = team.choice;
+        card.bin = answer.choice;
         card.correct = correct;
-        score("ai", correct, reply.latency_ms, card.fallMs);
-        engine.latencies = [...engine.latencies.slice(-199), reply.latency_ms];
+        score("ai", correct, reply.latency_ms ?? card.fallMs, card.fallMs);
+        if (reply.latency_ms != null) engine.latencies = [...engine.latencies.slice(-199), reply.latency_ms];
         engine.decidedAt.push(now);
         engine.model = reply.model || engine.model;
       } else {
@@ -398,11 +432,11 @@ function Game() {
       if (key === "s") { surge(); return; }
       const engine = engineRef.current;
       if (engine.mode === "playing") {
-        const team = TEAMS.find(t => t.key === key);
-        if (team) humanSort(team.id);
+        const option = optionsFor(engine.challenge).find(choice => choice.key === key);
+        if (option) humanSort(option.id);
       } else if (engine.mode === "attract") {
         startCountdown();
-      } else if (engine.mode === "results" && (savedRef.current || !qualifiesFor(engine, leaderboardRef.current)) &&
+      } else if (engine.mode === "results" && (savedRef.current || !qualifiesFor(engine, leaderboardFor(leaderboardRef.current, engine.challenge))) &&
         performance.now() - engine.resultsAt > 1500) {
         startCountdown();
       }
@@ -415,7 +449,7 @@ function Game() {
   const engine = engineRef.current;
   const now = performance.now();
   const timeLeft = engine.mode === "playing" ? Math.max(0, Math.ceil((engine.roundEnd - now) / 1000)) : null;
-  const qualifies = engine.mode === "results" && qualifiesFor(engine, leaderboard);
+  const qualifies = engine.mode === "results" && qualifiesFor(engine, leaderboardFor(leaderboard, engine.challenge));
 
   return (
     <div className="app">
@@ -448,15 +482,17 @@ function Game() {
         </div>
       </header>
 
-      <main className="arena">
+      <main className={cls("arena", (engine.mode === "attract" ? settings.challenge : engine.challenge) === "resource" && "arena-resource")}>
+        {(engine.mode === "attract" ? settings.challenge : engine.challenge) === "resource" &&
+          <div className="resource-policy"><strong>RESOURCE POLICY</strong><span>{RESOURCE_POLICY}</span></div>}
         <Lane
-          lane="human" title="YOU" icon={User} engine={engine} now={now} onSort={humanSort} playfieldRef={playfieldRef}
+          lane="human" title="YOU" icon={User} engine={engine} challenge={engine.mode === "attract" ? settings.challenge : engine.challenge} now={now} onSort={humanSort} playfieldRef={playfieldRef}
           overlay={engine.mode === "attract" ? (
-            <AttractOverlay health={health} paused={settings.paused} leaderboard={leaderboard} onStart={startCountdown} />
+            <AttractOverlay health={health} paused={settings.paused} leaderboard={leaderboardFor(leaderboard, settings.challenge)} challenge={settings.challenge} onStart={startCountdown} />
           ) : null}
         />
         <Lane
-          lane="ai" title="ORBIT AI" icon={Bot} engine={engine} now={now}
+          lane="ai" title="ORBIT AI" icon={Bot} engine={engine} challenge={engine.mode === "attract" ? settings.challenge : engine.challenge} now={now}
           subtitle={`${settings.adapter}${engine.model ? ` · ${engine.model}` : ""}`}
           overlay={settings.paused ? <PausedOverlay onResume={togglePause} />
             : health.status !== "ready" && engine.mode !== "results" ? <BridgeOverlay health={health} />
@@ -468,7 +504,7 @@ function Game() {
         {engine.mode === "results" && (
           <Results
             engine={engine} qualifies={qualifies} saved={saved} initials={initials}
-            setInitials={setInitials} saveScore={saveScore} leaderboard={leaderboard} onAgain={startCountdown}
+            setInitials={setInitials} saveScore={saveScore} leaderboard={leaderboardFor(leaderboard, engine.challenge)} onAgain={startCountdown}
           />
         )}
       </main>
@@ -477,7 +513,7 @@ function Game() {
 
       {panelOpen && (
         <PresenterPanel
-          settings={settings} setSettings={setSettings} health={health} close={() => setPanelOpen(false)}
+          settings={settings} setSettings={setSettings} onChallengeChange={changeChallenge} health={health} mode={engine.mode} close={() => setPanelOpen(false)}
           surge={surge} togglePause={togglePause} resetLeaderboard={resetLeaderboard}
         />
       )}
@@ -521,7 +557,8 @@ function formatMs(ms) {
 // Lanes and cards
 // ---------------------------------------------------------------------------
 
-function Lane({ lane, title, icon: Icon, subtitle, engine, now, onSort, overlay, playfieldRef }) {
+function Lane({ lane, title, icon: Icon, subtitle, engine, challenge, now, onSort, overlay, playfieldRef }) {
+  const options = optionsFor(challenge);
   const stats = engine[lane];
   const cards = engine.cards.filter(c => c.lane === lane && now >= c.spawnedAt);
   const waiting = engine.cards.filter(c => c.lane === lane && FLOW_STATES.has(c.state) && (now < c.spawnedAt || c.y < 0)).length;
@@ -546,16 +583,16 @@ function Lane({ lane, title, icon: Icon, subtitle, engine, now, onSort, overlay,
         {overlay}
       </div>
       <div className="bins">
-        {TEAMS.map(team => (
+        {options.map(option => (
           <button
-            key={team.id}
-            className={cls("bin", flashing?.bin === team.id && (flashing.good ? "flash-good" : "flash-bad"))}
-            onClick={onSort ? () => onSort(team.id) : undefined}
+            key={option.id}
+            className={cls("bin", flashing?.bin === option.id && (flashing.good ? "flash-good" : "flash-bad"))}
+            onClick={onSort ? () => onSort(option.id) : undefined}
             disabled={!onSort}
             tabIndex={onSort ? 0 : -1}
           >
-            {onSort && <kbd>{team.key}</kbd>}
-            <span>{team.label}</span>
+            {onSort && <kbd>{option.key}</kbd>}
+            <span>{option.label}</span>
           </button>
         ))}
       </div>
@@ -566,43 +603,44 @@ function Lane({ lane, title, icon: Icon, subtitle, engine, now, onSort, overlay,
 function Card({ card, active }) {
   const y = Math.min(1, card.y ?? 0); // negative while waiting above the lane
   const resolved = card.state === "sorted";
-  const binIdx = resolved ? teamIndex(card.bin) : -1;
+  const binIdx = resolved ? optionsFor(card.challenge).findIndex(option => option.id === card.bin) : -1;
   const style = resolved
     ? { left: `calc(${12.5 + 25 * binIdx}% - var(--card-w) / 2)`, top: "calc(100% - var(--card-h))" }
     : { left: `calc(${50 + card.x}% - var(--card-w) / 2)`, top: `calc((100% - var(--card-h)) * ${y})` };
   const answers = card.decision?.answers;
   return (
     <article
-      className={cls("card", `state-${card.state}`, active && "active", resolved && (card.correct ? "good" : "bad"))}
+      className={cls("card", card.challenge === "resource" && "resource-card", `state-${card.state}`, active && "active", resolved && (card.correct ? "good" : "bad"))}
       style={style}
     >
       <span className="card-num">#{card.num}</span>
       <p>{card.ticket.text}</p>
+      {card.ticket.resource && <span className="resource-context">{card.ticket.resource}</span>}
       {card.lane === "ai" && card.state === "deciding" && <span className="deciding"><Cpu size={13} /> deciding…</span>}
-      {card.lane === "ai" && answers && <Decision answers={answers} latency={card.decision.latency_ms} />}
+      {card.lane === "ai" && answers && <Decision answers={answers} challenge={card.challenge} latency={card.decision.latency_ms} />}
       {card.state === "failed" && <span className="card-error">{card.decision?.error || "decision failed"}</span>}
-      {card.state === "missed" && <span className="card-error">MISSED · {teamLabel(card.ticket.team)}</span>}
-      {resolved && !card.correct && <span className="card-truth">was {teamLabel(card.ticket.team)}</span>}
+      {card.state === "missed" && <span className="card-error">MISSED · {answerLabel(card.challenge, answerFor(card.ticket))}</span>}
+      {resolved && !card.correct && <span className="card-truth">was {answerLabel(card.challenge, answerFor(card.ticket))}</span>}
     </article>
   );
 }
 
-function Decision({ answers, latency }) {
-  const team = answers.team;
-  const probability = team?.probabilities?.[team.choice];
+function Decision({ answers, challenge, latency }) {
+  const answer = answers[challenge === "resource" ? "action" : "team"];
+  const probability = answer?.probabilities?.[answer.choice];
   const urgency = answers.urgency;
   const urgencyLabel = urgency?.legend?.[String(Math.round(urgency.score))];
   const refund = answers.refund_requested?.noul;
   return (
     <div className="decision">
       <div className="decision-row">
-        <strong>→ {teamLabel(team?.choice)}</strong>
+        <strong>→ {answerLabel(challenge, answer?.choice)}</strong>
         {probability != null && <span className="prob"><i style={{ width: `${Math.round(probability * 100)}%` }} />{Math.round(probability * 100)}%</span>}
         <span className="latency">{formatMs(latency)}</span>
       </div>
       <div className="chips">
-        {urgencyLabel && <span className={cls("chip", `urgency-${urgencyLabel.toLowerCase()}`)}>{urgencyLabel}</span>}
-        {refund != null && refund >= 0.5 && <span className="chip refund">refund {Math.round(refund * 100)}%</span>}
+        {challenge === "team" && urgencyLabel && <span className={cls("chip", `urgency-${urgencyLabel.toLowerCase()}`)}>{urgencyLabel}</span>}
+        {challenge === "team" && refund != null && refund >= 0.5 && <span className="chip refund">refund {Math.round(refund * 100)}%</span>}
       </div>
     </div>
   );
@@ -650,13 +688,13 @@ function PausedOverlay({ onResume }) {
   );
 }
 
-function AttractOverlay({ health, paused, leaderboard, onStart }) {
+function AttractOverlay({ health, paused, leaderboard, challenge, onStart }) {
   const ready = health.status === "ready" && !paused;
   const cta = paused ? "PAUSED" : ready ? "PRESS ANY KEY OR TAP TO CHALLENGE ORBIT" : "WAITING FOR ORBIT…";
   return (
     <div className="overlay attract-overlay" onClick={ready ? onStart : undefined} role="button" tabIndex={-1}>
       <strong className="cta">{cta}</strong>
-      <p>Sort each support ticket into the right team before it hits the floor.<br />Keys <kbd>1</kbd>–<kbd>4</kbd> or tap a bin.</p>
+      <p>{challenge === "resource" ? "Choose the next action using the resource policy." : "Sort each support ticket into the right team before it hits the floor."}<br />Keys <kbd>1</kbd>–<kbd>4</kbd> or tap a bin.</p>
       <Leaderboard entries={leaderboard} />
     </div>
   );
@@ -773,9 +811,9 @@ function HudItem({ icon: Icon, label, value, hot }) {
   );
 }
 
-function PresenterPanel({ settings, setSettings, health, close, surge, togglePause, resetLeaderboard }) {
+function PresenterPanel({ settings, setSettings, onChallengeChange, health, mode, close, surge, togglePause, resetLeaderboard }) {
   const [bridgeDraft, setBridgeDraft] = useState(settings.bridgeUrl);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(null);
   const adapters = health.allowed_adapters?.length ? health.allowed_adapters : [settings.adapter];
   return (
     <aside className="panel">
@@ -795,6 +833,14 @@ function PresenterPanel({ settings, setSettings, health, close, surge, togglePau
         Decision adapter
         <select value={settings.adapter} onChange={e => setSettings({ adapter: e.target.value })}>
           {adapters.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </label>
+      <label>
+        Challenge
+        <select value={settings.challenge} disabled={mode === "playing" || mode === "countdown"}
+          onChange={e => onChallengeChange(e.target.value)}>
+          <option value="team">Team routing</option>
+          <option value="resource">Resource decisions</option>
         </select>
       </label>
       <label>
@@ -830,8 +876,11 @@ function PresenterPanel({ settings, setSettings, health, close, surge, togglePau
         <div><dt>Queue</dt><dd>{health.queue?.available ? `${health.queue.messages} ready · ${health.queue.consumers} consumers` : "—"}</dd></div>
         <div><dt>API key</dt><dd>{health.api_key_configured == null ? "—" : health.api_key_configured ? "configured" : "missing"}</dd></div>
       </dl>
-      <button className="reset" onClick={() => (confirmReset ? (resetLeaderboard(), setConfirmReset(false)) : setConfirmReset(true))}>
-        {confirmReset ? "Click again to clear the leaderboard" : "Reset leaderboard"}
+      <button className="reset" onClick={() => (confirmReset === settings.challenge
+        ? (resetLeaderboard(), setConfirmReset(null)) : setConfirmReset(settings.challenge))}>
+        {confirmReset === settings.challenge
+          ? `Click again to clear ${settings.challenge === "resource" ? "Resource" : "Team"} scores`
+          : `Reset ${settings.challenge === "resource" ? "Resource" : "Team"} leaderboard`}
       </button>
     </aside>
   );

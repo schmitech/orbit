@@ -17,6 +17,8 @@ browser game ──HTTP/SSE──► game_bridge.py ──AMQP──► orbit.re
 
 This folder holds the bridge, [`game_bridge.py`](game_bridge.py). The game itself is in [`../triage-rush-game/`](../triage-rush-game/).
 
+The game's **Resource decisions** challenge sends a structured `state` (ticket, resource availability, and the visible policy) and a per-ticket `action` question through this same bridge. Both ticket-triage adapters enable question overrides. The worker receives the JSON as its message and returns a typed choice with probabilities; the bridge never decides the answer itself.
+
 > All commands below assume your working directory is the repo root (`orbit/`).
 
 ## 1. Install the messaging profile and start RabbitMQ
@@ -107,7 +109,7 @@ curl -X POST http://127.0.0.1:8795/publish -H "Content-Type: application/json" \
 
 The bridge endpoints:
 
-- `POST /publish`: `{"items": [{"id", "text"}], "adapter"?}`, at most 50 items per call.
+- `POST /publish`: `{"items": [{"id", "text", "state"?, "questions"?}], "adapter"?}`, at most 50 items per call. `state` and `questions` must be supplied together, and `state.ticket` must match `text`. Without them, the plain-text team-routing behavior is unchanged.
 - `GET /events`: Server-Sent Events, one per reply.
 - `GET /health`: broker status, plus queue depth and consumer count for `orbit.requests`.
 
