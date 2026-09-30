@@ -14,7 +14,7 @@ from config.config_manager import was_resolved_from_preset
 from ai_services.factory import AIServiceFactory, ServiceType
 from embeddings.base import EmbeddingServiceFactory
 from services.adapter_capabilities import uses_retrieval_services
-from inference.pipeline.steps._utils import NO_INFERENCE_PROVIDER_ADAPTER_TYPES
+from inference.pipeline.steps._utils import NO_INFERENCE_PROVIDER_ADAPTER_TYPES, adapter_bypasses_rewrite_provider
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class AdapterLoader:
         # (FetchStep returns scraped content directly; openai_realtime goes straight to
         # OpenAI's speech-to-speech Realtime API), so skip provider preload entirely.
         adapter_type = adapter_config.get('type')
-        if adapter_type in NO_INFERENCE_PROVIDER_ADAPTER_TYPES:
+        if adapter_type in NO_INFERENCE_PROVIDER_ADAPTER_TYPES or adapter_bypasses_rewrite_provider(adapter_config):
             logger.debug(f"Adapter '{adapter_name}' is type '{adapter_type}' — skipping inference provider preload")
         else:
             inference_provider = adapter_config.get('inference_provider')

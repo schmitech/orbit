@@ -30,7 +30,7 @@ from .cache import (
 from .config import AdapterConfigManager
 from .loader import AdapterLoader
 from .reload import DependencyCacheCleaner, AdapterReloader
-from inference.pipeline.steps._utils import NO_INFERENCE_PROVIDER_ADAPTER_TYPES
+from inference.pipeline.steps._utils import NO_INFERENCE_PROVIDER_ADAPTER_TYPES, adapter_bypasses_rewrite_provider
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +257,10 @@ class DynamicAdapterManager:
         )
 
         parts = []
-        if adapter_config.get('type') not in NO_INFERENCE_PROVIDER_ADAPTER_TYPES:
+        if (
+            adapter_config.get('type') not in NO_INFERENCE_PROVIDER_ADAPTER_TYPES
+            and not adapter_bypasses_rewrite_provider(adapter_config)
+        ):
             parts.append(f"inference: {inference_provider}/{model_override}" if model_override else f"inference: {inference_provider}")
         parts.append(f"embedding: {embedding_provider}/{embedding_model}" if embedding_model else f"embedding: {embedding_provider}")
         if reranker_provider:
@@ -618,7 +621,10 @@ class DynamicAdapterManager:
 
                 # Also preload the inference provider (skip for adapter types that never call the LLM)
                 adapter_config = self.get_adapter_config(adapter_name) or {}
-                if adapter_config.get('type') not in NO_INFERENCE_PROVIDER_ADAPTER_TYPES:
+                if (
+                    adapter_config.get('type') not in NO_INFERENCE_PROVIDER_ADAPTER_TYPES
+                    and not adapter_bypasses_rewrite_provider(adapter_config)
+                ):
                     inference_provider = self._resolve_inference_provider(adapter_config)
 
                     try:

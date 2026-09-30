@@ -11,8 +11,8 @@ from typing import Optional, Any
 
 from ..base import PipelineStep, ProcessingContext
 from ._utils import (
-    get_generation_memory, get_rewrite_prompt_config, record_media_generation_usage,
-    store_generation_memory,
+    get_generation_memory, get_rewrite_prompt_config, is_prompt_rewrite_enabled,
+    record_media_generation_usage, store_generation_memory,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,10 @@ class ImageGenerationStep(PipelineStep):
             len(context.formatted_context),
             memory is not None,
         )
-        if context.context_messages or context.formatted_context or memory:
+        if (
+            is_prompt_rewrite_enabled(self.container, context.adapter_name)
+            and (context.context_messages or context.formatted_context or memory)
+        ):
             if context.context_messages and not context.formatted_context:
                 logger.debug(
                     "Image generation has conversation history but no structured retrieval "

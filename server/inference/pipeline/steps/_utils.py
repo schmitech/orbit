@@ -247,6 +247,48 @@ def get_adapter_type(container, adapter_name: str) -> Optional[str]:
     return None
 
 
+def is_prompt_rewrite_enabled(container, adapter_name: str) -> bool:
+    """Return whether prompt rewriting is enabled for this generation adapter.
+
+    Controlled by the adapter config's `rewrite_prompt` key (default True). Set
+    `rewrite_prompt: false` on an image/video/audio/document generation adapter
+    to bypass rewriters-prompts.yaml entirely and send the raw user message
+    straight to the generation provider.
+    """
+    if not adapter_name or not container.has('adapter_manager'):
+        return True
+    try:
+        adapter_manager = container.get('adapter_manager')
+        adapter_config = adapter_manager.get_adapter_config(adapter_name)
+        if adapter_config is not None:
+            return bool(adapter_config.get('rewrite_prompt', True))
+    except Exception:  # noqa: BLE001 - best-effort lookup, defaults to enabled on error
+        pass
+    return True
+
+
+REWRITABLE_GENERATION_ADAPTER_TYPES = frozenset({
+    'image_generation',
+    'video_generation',
+    'audio_generation',
+})
+
+
+def adapter_bypasses_rewrite_provider(adapter_config: dict[str, Any]) -> bool:
+    """Whether this image/video/audio generation adapter has opted out of prompt
+    rewriting (`rewrite_prompt: false`) and therefore has no dependency on its
+    rewrite_provider — callers that preload/validate inference providers should
+    skip it exactly like the NO_INFERENCE_PROVIDER_ADAPTER_TYPES.
+
+    False for any adapter that isn't one of the rewritable generation types,
+    since this check only ever applies to those.
+    """
+    return (
+        adapter_config.get('type') in REWRITABLE_GENERATION_ADAPTER_TYPES
+        and not adapter_config.get('rewrite_prompt', True)
+    )
+
+
 def get_rewrite_prompt_config(container, kind: str) -> dict[str, Any]:
     """Return the externalized rewrite-prompt config for a generation kind.
 

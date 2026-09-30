@@ -7,6 +7,8 @@
 - **Triage Rush Decision-Model Demo**: Added a human-vs-AI tradeshow game in which a visitor races the `ticket-triage` decision adapter at sorting support tickets.
 - **Decisions on Message-Queue Replies**: A `completed` MQ reply envelope now includes `decision` (`{model, answers, usage}`) when the adapter is a decision model, matching `/v1/chat`.
 
+- **Toggle for Generation Prompt Rewriting**: Image, video, and audio generation adapters gained a `rewrite_prompt` config key (default `true`). Set it to `false` to bypass `config/rewriters-prompts.yaml` and send the raw user message straight to the generation provider, instead of enriching it through a rewrite LLM first. Adapter preloading (`AdapterLoader.load_adapter`, `DynamicAdapterManager.preload_all_adapters`) now skips the rewrite provider entirely for these adapters, so a disabled or unavailable rewrite provider no longer blocks startup when rewriting is turned off.
+
 ### Bug Fixes
 - **Image/Video Service Caches Not Closed on Shutdown**: `DynamicAdapterManager.close()` now closes the image and video generation service caches (and the new decision cache) along with the other service caches.
 

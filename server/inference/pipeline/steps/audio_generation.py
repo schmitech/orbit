@@ -15,7 +15,7 @@ import logging
 from typing import Optional, Any
 
 from ..base import PipelineStep, ProcessingContext
-from ._utils import get_rewrite_prompt_config, record_media_generation_usage
+from ._utils import get_rewrite_prompt_config, is_prompt_rewrite_enabled, record_media_generation_usage
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,10 @@ class AudioGenerationStep(PipelineStep):
             return context
 
         rewrite_sink: dict = {}
-        text = await self._rewrite_text(context, rewrite_sink)
+        if is_prompt_rewrite_enabled(self.container, context.adapter_name):
+            text = await self._rewrite_text(context, rewrite_sink)
+        else:
+            text = context.message
         try:
             generate_kwargs = dict(context.runtime_audio_param_overrides or {})
             if context.runtime_model_name:
