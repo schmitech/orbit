@@ -430,6 +430,10 @@ logging:
       propagate: false
     httpcore:
       level: "WARNING"
+    # Suppress TypeSafe SDK per-request logs ("POST .../v1/systemone <- 200 in 142ms")
+    typesafe_sdk:
+      level: "WARNING"
+      propagate: false
     mcp.client.streamable_http:
       level: "WARNING"
       propagate: false

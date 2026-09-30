@@ -19,7 +19,7 @@ browser can't speak AMQP, so this bridge:
                  "NO WORKER" instead of pretending
 
 Nothing here decides anything: every answer comes from ORBIT's real worker
-running the `ticket-triage` decision adapter. This is not part of ORBIT — it is
+running a ticket-triage decision adapter. This is not part of ORBIT — it is
 a demo-only bridge, like the threat-telemetry bridges.
 
 It binds to 127.0.0.1 by default because it publishes with your ORBIT API key.
@@ -173,16 +173,18 @@ def validate_publish(body, allowed_adapters: list[str], default_adapter: str) ->
 
 def make_app(bridge: Bridge, web):
     @web.middleware
-    async def cors(request, handler):
+    async def preflight(request, handler):
         if request.method == "OPTIONS":
-            response = web.Response(status=204)
-        else:
-            response = await handler(request)
+            return web.Response(status=204)
+        return await handler(request)
+
+    # Added on prepare rather than in the middleware: the /events stream sends its headers
+    # before its handler returns, so a middleware would add them too late for the browser.
+    async def cors_headers(_request, response):
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
         response.headers["Cache-Control"] = "no-store"
-        return response
 
     async def publish(request):
         try:
@@ -229,7 +231,8 @@ def make_app(bridge: Bridge, web):
             }
         )
 
-    app = web.Application(middlewares=[cors])
+    app = web.Application(middlewares=[preflight])
+    app.on_response_prepare.append(cors_headers)
     app.router.add_post("/publish", publish)
     app.router.add_get("/events", events)
     app.router.add_get("/health", health)
@@ -282,7 +285,7 @@ def parse_args():
         default=os.environ.get("ORBIT_API_KEY"),
         help="ORBIT API key (defaults to $ORBIT_API_KEY). Omit only if the server has API-key auth disabled.",
     )
-    parser.add_argument("--adapter", default="ticket-triage", help="Default decision adapter for the game")
+    parser.add_argument("--adapter", default="ticket-triage-typesafe", help="Default decision adapter for the game")
     parser.add_argument(
         "--allowed-adapters",
         default="ticket-triage,ticket-triage-typesafe",

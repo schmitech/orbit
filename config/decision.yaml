@@ -15,7 +15,7 @@ decision_models:
   ollama:
     enabled: true
     base_url: "http://localhost:11434"
-    model: "nimble"               # nimble (9B), tev1 (4B), tev1:0.8b (0.8B)
+    model: "tev1:0.8b"               # nimble (9B), tev1 (4B), tev1:0.8b (0.8B)
     # Timeout configuration (milliseconds)
     timeout:
       connect: 5000

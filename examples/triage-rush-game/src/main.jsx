@@ -1,20 +1,28 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Bot, Cpu, Gauge, Hexagon, Layers, Settings2, Timer, Trophy, User, X, Zap } from "lucide-react";
+import { Bot, Cpu, Gauge, Hexagon, Layers, Pause, Play, Settings2, Timer, Trophy, User, X, Zap } from "lucide-react";
 import { TEAMS, TICKETS } from "./tickets.js";
 import "./styles.css";
 
 const DEFAULT_SETTINGS = {
   bridgeUrl: "http://localhost:8795",
-  adapter: "ticket-triage",
+  adapter: "ticket-triage-typesafe",
   roundSec: 60,
   speed: 1,
   surgeSize: 25,
+  paused: false,
+  autoplay: false, // AI plays alone while idle; off so nothing is sent to ORBIT until a round starts
+  aiHoldMs: 1500, // how long a decided AI card stays readable before it drops (display only, not scored)
 };
 const IDLE_ABORT_MS = 20000;
 const RESULTS_MS = 30000;
 const COUNTDOWN_MS = 3000;
 const RESOLVED_LINGER_MS = 900;
+// Must match --card-h in styles.css. Cards queue with this gap instead of overlapping.
+const CARD_H_PX = 118;
+const CARD_GAP_PX = 10;
+// Cards still in the lane's flow; sorted/missed/failed cards are animating away.
+const FLOW_STATES = new Set(["falling", "deciding", "decided"]);
 const LEADERBOARD_KEY = "triage-rush-leaderboard";
 const SETTINGS_KEY = "triage-rush-settings";
 // Unique per page load so ids never collide with replies still in flight from a previous load.
@@ -93,12 +101,14 @@ function Game() {
   const [settings, setSettingsState] = useState(() => ({ ...DEFAULT_SETTINGS, ...readStorage(SETTINGS_KEY, {}) }));
   const [leaderboard, setLeaderboard] = useState(() => readStorage(LEADERBOARD_KEY, []));
   const [health, setHealth] = useState({ status: "offline" });
+  const streamOpenRef = useRef(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [initials, setInitials] = useState("");
   const [saved, setSaved] = useState(false);
   const [, setFrame] = useState(0);
 
   const engineRef = useRef(newEngine());
+  const playfieldRef = useRef(null);
   const settingsRef = useRef(settings);
   const healthRef = useRef(health);
   const leaderboardRef = useRef(leaderboard);
@@ -129,7 +139,8 @@ function Game() {
         // A missing orbit.requests queue (no worker has declared it yet) is as unready as zero consumers:
         // publishing to it via the default exchange would silently drop the tickets.
         const hasWorker = body.queue?.available && body.queue.consumers > 0;
-        const status = !body.broker ? "no-broker" : hasWorker ? "ready" : "no-worker";
+        // Without the reply stream, published tickets would be answered but never shown.
+        const status = !body.broker ? "no-broker" : !hasWorker ? "no-worker" : streamOpenRef.current ? "ready" : "no-stream";
         setHealth({ status, ...body });
       } catch {
         if (active) setHealth({ status: "offline" });
@@ -143,6 +154,9 @@ function Game() {
   // --- bridge: decision stream ------------------------------------------------
   useEffect(() => {
     const source = new EventSource(`${settings.bridgeUrl.replace(/\/$/, "")}/events`);
+    streamOpenRef.current = false;
+    source.onopen = () => { streamOpenRef.current = true; };
+    source.onerror = () => { streamOpenRef.current = source.readyState === EventSource.OPEN; };
     source.onmessage = message => {
       let event;
       try { event = JSON.parse(message.data); } catch { return; }
@@ -152,7 +166,7 @@ function Game() {
       if (!card || card.state !== "deciding") return;
       card.reply = event; // applied in the frame loop once the card is on screen
     };
-    return () => source.close();
+    return () => { source.close(); streamOpenRef.current = false; };
   }, [settings.bridgeUrl]);
 
   // --- publishing ---------------------------------------------------------------
@@ -186,7 +200,7 @@ function Game() {
       const uid = ++engine.seq;
       const x = Math.round((Math.random() - 0.5) * 16);
       const spawnedAt = now + i * 220; // surge tickets stream in one after another
-      const base = { ticket, x, spawnedAt, fallMs, state: "falling", resolvedAt: 0 };
+      const base = { num: uid, ticket, x, spawnedAt, fallMs, state: "falling", resolvedAt: 0 };
       if (playing) engine.cards.push({ ...base, uid: `h${uid}`, lane: "human" });
       const ai = { ...base, uid: `a${uid}`, lane: "ai", state: "deciding", bridgeId: `${SESSION}-${uid}` };
       engine.cards.push(ai);
@@ -227,7 +241,7 @@ function Game() {
 
   const startCountdown = () => {
     const engine = engineRef.current;
-    if (healthRef.current.status !== "ready") return;
+    if (healthRef.current.status !== "ready" || settingsRef.current.paused) return;
     const now = performance.now();
     engine.cards = [];
     engine.mode = "countdown";
@@ -240,8 +254,16 @@ function Game() {
   const surge = () => {
     const engine = engineRef.current;
     if (engine.mode !== "playing" && engine.mode !== "attract") return;
-    if (healthRef.current.status !== "ready") return;
+    if (healthRef.current.status !== "ready" || settingsRef.current.paused) return;
     spawn(performance.now(), settingsRef.current.surgeSize);
+  };
+
+  // Pausing stops every new request to ORBIT: it ends any round, clears the lanes and stops
+  // attract-mode autoplay. It is saved, so a page reload stays paused.
+  const togglePause = () => {
+    const paused = !settingsRef.current.paused;
+    if (paused) enterAttract(engineRef.current);
+    setSettings({ paused });
   };
 
   const saveScore = () => {
@@ -267,7 +289,7 @@ function Game() {
     };
     const step = now => {
       const engine = engineRef.current;
-      const ready = healthRef.current.status === "ready";
+      const ready = healthRef.current.status === "ready" && !settingsRef.current.paused;
 
       if (engine.mode === "countdown" && now >= engine.countdownEnd) {
         Object.assign(engine, {
@@ -287,19 +309,44 @@ function Game() {
       if (engine.mode === "results" && now - engine.resultsAt > RESULTS_MS) enterAttract(engine);
 
       // Spawning
-      if ((engine.mode === "playing" || (engine.mode === "attract" && ready)) && now >= engine.nextSpawn) {
+      const autoplay = engine.mode === "attract" && settingsRef.current.autoplay;
+      if ((engine.mode === "playing" || autoplay) && ready && now >= engine.nextSpawn) {
         spawn(now);
         const progress = engine.mode === "playing" ? (now - engine.roundStart) / (engine.roundEnd - engine.roundStart) : 0;
         const interval = (engine.mode === "playing" ? lerp(2400, 1000, progress) : 1800) / settingsRef.current.speed;
         engine.nextSpawn = now + interval;
       }
 
-      // Card physics and AI decisions
+      // Card physics: each lane is a queue. A card falls at its own speed but never closer than
+      // one card height to the card below it, so tickets stack up (and wait above the lane,
+      // shown as "+N waiting") instead of overlapping.
+      const span = Math.max(1, (playfieldRef.current?.clientHeight || 500) - CARD_H_PX);
+      const spacing = (CARD_H_PX + CARD_GAP_PX) / span;
+      for (const lane of ["human", "ai"]) {
+        const flow = engine.cards
+          .filter(c => c.lane === lane && FLOW_STATES.has(c.state) && now >= c.spawnedAt)
+          .sort((a, b) => a.spawnedAt - b.spawnedAt); // oldest is lowest
+        let limit = Infinity;
+        for (const card of flow) {
+          // Capped so a briefly hidden tab doesn't drop every card to the floor at once.
+          const dt = Math.min(100, now - (card.lastStepAt ?? card.spawnedAt));
+          card.lastStepAt = now;
+          card.y = Math.min((card.y ?? 0) + dt / card.fallMs, limit);
+          limit = card.y - spacing;
+        }
+      }
+
+      // AI decisions and misses
       for (const card of engine.cards) {
-        card.y = (now - card.spawnedAt) / card.fallMs;
+        if (now < card.spawnedAt) continue;
         if (card.y >= 0 && card.visibleAt == null) card.visibleAt = now;
         const falling = card.state === "falling" || card.state === "deciding";
         if (falling && card.reply && card.y >= 0) applyReply(engine, card, now);
+        if (card.state === "decided" && now >= card.dropAt) {
+          card.state = "sorted";
+          card.resolvedAt = now;
+          flashBin("ai", card.bin, card.correct, now);
+        }
         if (falling && card.y >= 1) {
           card.state = "missed";
           card.resolvedAt = now;
@@ -314,14 +361,15 @@ function Game() {
       const { reply } = card;
       const team = reply.answers?.team;
       card.decision = reply;
-      card.resolvedAt = now;
       if (reply.status === "completed" && team?.choice) {
         const correct = team.choice === card.ticket.team;
-        card.state = "sorted";
+        // Scored on the real round-trip latency now; the card just stays readable, falling
+        // beside its twin in the human lane, for aiHoldMs before it drops into the bin.
+        card.state = "decided";
+        card.dropAt = now + settingsRef.current.aiHoldMs;
         card.bin = team.choice;
         card.correct = correct;
         score("ai", correct, reply.latency_ms, card.fallMs);
-        flashBin("ai", team.choice, correct, now);
         engine.latencies = [...engine.latencies.slice(-199), reply.latency_ms];
         engine.decidedAt.push(now);
         engine.model = reply.model || engine.model;
@@ -378,12 +426,22 @@ function Game() {
         </div>
         <div className="topbar-center">
           {engine.mode === "playing" && <span className="timer"><Timer size={18} />{timeLeft}s</span>}
-          {engine.mode === "attract" && <span className="mode-pill">ATTRACT MODE · AI PLAYING</span>}
+          {engine.mode === "attract" && (settings.paused
+            ? <span className="mode-pill paused">PAUSED · NO REQUESTS TO ORBIT</span>
+            : settings.autoplay
+              ? <span className="mode-pill">ATTRACT MODE · AI PLAYING</span>
+              : <span className="mode-pill">READY · PRESS ANY KEY</span>)}
           {engine.mode === "countdown" && <span className="mode-pill">GET READY</span>}
           {engine.mode === "results" && <span className="mode-pill">ROUND OVER</span>}
         </div>
         <div className="topbar-right">
           <BridgePill health={health} />
+          <button
+            className={cls("pause-button", settings.paused && "paused")} onClick={togglePause}
+            title={settings.paused ? "Resume sending tickets to ORBIT" : "Stop sending tickets to ORBIT"}
+          >
+            {settings.paused ? <><Play size={16} /> Resume</> : <><Pause size={16} /> Pause</>}
+          </button>
           <button className="icon-button" onClick={() => setPanelOpen(open => !open)} aria-label="Presenter panel (P)">
             <Settings2 size={18} />
           </button>
@@ -392,15 +450,17 @@ function Game() {
 
       <main className="arena">
         <Lane
-          lane="human" title="YOU" icon={User} engine={engine} now={now} onSort={humanSort}
+          lane="human" title="YOU" icon={User} engine={engine} now={now} onSort={humanSort} playfieldRef={playfieldRef}
           overlay={engine.mode === "attract" ? (
-            <AttractOverlay health={health} leaderboard={leaderboard} onStart={startCountdown} />
+            <AttractOverlay health={health} paused={settings.paused} leaderboard={leaderboard} onStart={startCountdown} />
           ) : null}
         />
         <Lane
           lane="ai" title="ORBIT AI" icon={Bot} engine={engine} now={now}
           subtitle={`${settings.adapter}${engine.model ? ` · ${engine.model}` : ""}`}
-          overlay={health.status !== "ready" && engine.mode !== "results" ? <BridgeOverlay health={health} /> : null}
+          overlay={settings.paused ? <PausedOverlay onResume={togglePause} />
+            : health.status !== "ready" && engine.mode !== "results" ? <BridgeOverlay health={health} />
+            : engine.mode === "attract" && !settings.autoplay && engine.cards.length === 0 ? <IdleOverlay /> : null}
         />
         {engine.mode === "countdown" && (
           <div className="countdown">{Math.max(1, Math.ceil((engine.countdownEnd - now) / 1000))}</div>
@@ -418,7 +478,7 @@ function Game() {
       {panelOpen && (
         <PresenterPanel
           settings={settings} setSettings={setSettings} health={health} close={() => setPanelOpen(false)}
-          surge={surge} resetLeaderboard={resetLeaderboard}
+          surge={surge} togglePause={togglePause} resetLeaderboard={resetLeaderboard}
         />
       )}
     </div>
@@ -461,9 +521,10 @@ function formatMs(ms) {
 // Lanes and cards
 // ---------------------------------------------------------------------------
 
-function Lane({ lane, title, icon: Icon, subtitle, engine, now, onSort, overlay }) {
+function Lane({ lane, title, icon: Icon, subtitle, engine, now, onSort, overlay, playfieldRef }) {
   const stats = engine[lane];
   const cards = engine.cards.filter(c => c.lane === lane && now >= c.spawnedAt);
+  const waiting = engine.cards.filter(c => c.lane === lane && FLOW_STATES.has(c.state) && (now < c.spawnedAt || c.y < 0)).length;
   const active = lane === "human" ? activeHumanCard(engine, now) : null;
   const flash = engine.binFlash[lane];
   const flashing = flash && now - flash.at < 450 ? flash : null;
@@ -477,7 +538,8 @@ function Lane({ lane, title, icon: Icon, subtitle, engine, now, onSort, overlay 
           <div><dt>Avg decision</dt><dd>{formatMs(avgMs(stats))}</dd></div>
         </dl>
       </div>
-      <div className="playfield">
+      <div className="playfield" ref={playfieldRef}>
+        {waiting > 0 && <span className="waiting">+{waiting} waiting</span>}
         {cards.map(card => (
           <Card key={card.uid} card={card} active={card === active} />
         ))}
@@ -502,7 +564,7 @@ function Lane({ lane, title, icon: Icon, subtitle, engine, now, onSort, overlay 
 }
 
 function Card({ card, active }) {
-  const y = Math.min(1, Math.max(0, card.y ?? 0));
+  const y = Math.min(1, card.y ?? 0); // negative while waiting above the lane
   const resolved = card.state === "sorted";
   const binIdx = resolved ? teamIndex(card.bin) : -1;
   const style = resolved
@@ -514,6 +576,7 @@ function Card({ card, active }) {
       className={cls("card", `state-${card.state}`, active && "active", resolved && (card.correct ? "good" : "bad"))}
       style={style}
     >
+      <span className="card-num">#{card.num}</span>
       <p>{card.ticket.text}</p>
       {card.lane === "ai" && card.state === "deciding" && <span className="deciding"><Cpu size={13} /> deciding…</span>}
       {card.lane === "ai" && answers && <Decision answers={answers} latency={card.decision.latency_ms} />}
@@ -553,6 +616,7 @@ const BRIDGE_MESSAGES = {
   offline: ["NO BRIDGE", "Start examples/triage-rush-mq/game_bridge.py, or press P to set its URL."],
   "no-broker": ["NO BROKER", "The bridge lost its RabbitMQ connection."],
   "no-worker": ["NO WORKER", "Nothing is consuming orbit.requests. Start ORBIT with messaging enabled."],
+  "no-stream": ["NO REPLY STREAM", "The bridge is up but its /events stream isn't connected. Restart game_bridge.py and reload."],
 };
 
 function BridgeOverlay({ health }) {
@@ -566,11 +630,32 @@ function BridgeOverlay({ health }) {
   );
 }
 
-function AttractOverlay({ health, leaderboard, onStart }) {
-  const ready = health.status === "ready";
+function IdleOverlay() {
+  return (
+    <div className="overlay idle-overlay">
+      <strong>STANDING BY</strong>
+      <p>ORBIT is ready. No tickets are sent until a round starts.</p>
+    </div>
+  );
+}
+
+function PausedOverlay({ onResume }) {
+  return (
+    <div className="overlay paused-overlay">
+      <strong>PAUSED</strong>
+      <p>No tickets are being sent to ORBIT.</p>
+      <button className="again" onClick={onResume}><Play size={16} /> Resume</button>
+      <small>Tickets already published still get answered, then the lane stays empty.</small>
+    </div>
+  );
+}
+
+function AttractOverlay({ health, paused, leaderboard, onStart }) {
+  const ready = health.status === "ready" && !paused;
+  const cta = paused ? "PAUSED" : ready ? "PRESS ANY KEY OR TAP TO CHALLENGE ORBIT" : "WAITING FOR ORBIT…";
   return (
     <div className="overlay attract-overlay" onClick={ready ? onStart : undefined} role="button" tabIndex={-1}>
-      <strong className="cta">{ready ? "PRESS ANY KEY OR TAP TO CHALLENGE ORBIT" : "WAITING FOR ORBIT…"}</strong>
+      <strong className="cta">{cta}</strong>
       <p>Sort each support ticket into the right team before it hits the floor.<br />Keys <kbd>1</kbd>–<kbd>4</kbd> or tap a bin.</p>
       <Leaderboard entries={leaderboard} />
     </div>
@@ -654,7 +739,7 @@ function ResultColumn({ title, stats, winner }) {
 // ---------------------------------------------------------------------------
 
 function BridgePill({ health }) {
-  const label = { ready: "LIVE", offline: "NO BRIDGE", "no-broker": "NO BROKER", "no-worker": "NO WORKER" }[health.status];
+  const label = { ready: "LIVE", offline: "NO BRIDGE", "no-broker": "NO BROKER", "no-worker": "NO WORKER", "no-stream": "NO STREAM" }[health.status];
   return <span className={cls("bridge-pill", health.status === "ready" ? "ok" : "bad")}><i />{label}</span>;
 }
 
@@ -688,7 +773,7 @@ function HudItem({ icon: Icon, label, value, hot }) {
   );
 }
 
-function PresenterPanel({ settings, setSettings, health, close, surge, resetLeaderboard }) {
+function PresenterPanel({ settings, setSettings, health, close, surge, togglePause, resetLeaderboard }) {
   const [bridgeDraft, setBridgeDraft] = useState(settings.bridgeUrl);
   const [confirmReset, setConfirmReset] = useState(false);
   const adapters = health.allowed_adapters?.length ? health.allowed_adapters : [settings.adapter];
@@ -723,11 +808,23 @@ function PresenterPanel({ settings, setSettings, health, close, surge, resetLead
           onChange={e => setSettings({ speed: Number(e.target.value) })} />
       </label>
       <label>
+        AI answer display: {(settings.aiHoldMs / 1000).toFixed(2)}s
+        <input type="range" min="0" max="4000" step="250" value={settings.aiHoldMs}
+          onChange={e => setSettings({ aiHoldMs: Number(e.target.value) })} />
+      </label>
+      <label>
         Surge size: {settings.surgeSize} tickets
         <input type="range" min="10" max="50" step="5" value={settings.surgeSize}
           onChange={e => setSettings({ surgeSize: Number(e.target.value) })} />
       </label>
-      <button className="surge" onClick={surge} disabled={health.status !== "ready"}><Zap size={16} /> Surge now</button>
+      <label className="toggle">
+        <input type="checkbox" checked={settings.autoplay} onChange={e => setSettings({ autoplay: e.target.checked })} />
+        AI autoplay when idle (sends a ticket to ORBIT every ~2s)
+      </label>
+      <button className="surge" onClick={surge} disabled={health.status !== "ready" || settings.paused}><Zap size={16} /> Surge now</button>
+      <button className={cls("pause-button", "wide", settings.paused && "paused")} onClick={togglePause}>
+        {settings.paused ? <><Play size={16} /> Resume requests to ORBIT</> : <><Pause size={16} /> Pause all requests to ORBIT</>}
+      </button>
       <dl className="health">
         <div><dt>Bridge</dt><dd>{health.status}</dd></div>
         <div><dt>Queue</dt><dd>{health.queue?.available ? `${health.queue.messages} ready · ${health.queue.consumers} consumers` : "—"}</dd></div>

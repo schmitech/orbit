@@ -127,7 +127,7 @@ adapters:
   # Skill routing: pick which ORBIT skill should handle a query, in a few milliseconds.
   # Config-only example — it is not wired into the skill router; call it as a pre-routing step.
   - name: "skill-router"
-    enabled: true
+    enabled: false
     type: "decision_model"
     datasource: "none"
     adapter: "multimodal"
