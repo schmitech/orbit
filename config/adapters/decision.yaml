@@ -89,7 +89,7 @@ adapters:
 
   # Content moderation: classify user-generated content and flag it for human review.
   - name: "content-moderation"
-    enabled: true
+    enabled: false
     type: "decision_model"
     datasource: "none"
     adapter: "multimodal"
@@ -123,6 +123,113 @@ adapters:
           type: "score"
           instructions: "How severe is the policy concern in this content?"
           criteria: ["None", "Low", "Medium", "High"]
+
+  # Sentiment analysis (provisional): polarity, valence, sarcasm, escalation and per-aspect
+  # stance. Disabled until the Phase 1 eval gate passes — see docs/roadmap/decision-model-sentiment-analysis.md.
+  - name: "sentiment-analysis"
+    enabled: true
+    type: "decision_model"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    decision_provider: "typesafe"
+    model: "jev-latest"
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_session_tracking: false
+    config:
+      state_key: "text"
+      allow_question_override: true
+      questions:
+        polarity:
+          type: "choice"
+          instructions: "What is the author's overall stance?"
+          criteria:
+            positive: "Satisfied, happy or praising"
+            neutral: "Factual, or no clear stance"
+            negative: "Unhappy, frustrated or complaining"
+            mixed: "Clearly both positive and negative, about different things"
+        valence:
+          type: "score"
+          instructions: "On a signed scale from very negative to very positive, where does the text sit overall?"
+          criteria: ["Very negative", "Negative", "Neutral", "Positive", "Very positive"]
+        sarcasm:
+          type: "noul"
+          instructions: "Does the literal wording say the opposite of what the author means?"
+        needs_escalation:
+          type: "noul"
+          instructions: "Does the author say they will cancel, leave or switch; report harm such as money taken wrongly, lost data, a safety issue or being locked out; or explicitly demand a reply from a person?"
+        aspect_price:
+          type: "choice"
+          instructions: "What is the author's stance on price or value?"
+          criteria: { positive: "Good value", negative: "Too expensive or poor value", not_mentioned: "Price has no clear stance or isn't discussed" }
+        aspect_support:
+          type: "choice"
+          instructions: "What is the author's stance on customer support?"
+          criteria: { positive: "Helpful support", negative: "Unhelpful or slow support", not_mentioned: "Support has no clear stance or isn't discussed" }
+        aspect_product:
+          type: "choice"
+          instructions: "What is the author's stance on the product itself?"
+          criteria: { positive: "Works well, high quality", negative: "Broken or low quality", not_mentioned: "The product has no clear stance or isn't discussed" }
+        aspect_delivery:
+          type: "choice"
+          instructions: "What is the author's stance on shipping or delivery?"
+          criteria: { positive: "Fast or on time", negative: "Late, lost or damaged", not_mentioned: "Delivery has no clear stance or isn't discussed" }
+
+  # Same sentiment questions answered by the local Ollama model.
+  - name: "sentiment-analysis-local"
+    enabled: true
+    type: "decision_model"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    decision_provider: "ollama"
+    model: "tev1:0.8b"
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_session_tracking: false
+    config:
+      state_key: "text"
+      allow_question_override: true
+      questions:
+        polarity:
+          type: "choice"
+          instructions: "What is the author's overall stance?"
+          criteria:
+            positive: "Satisfied, happy or praising"
+            neutral: "Factual, or no clear stance"
+            negative: "Unhappy, frustrated or complaining"
+            mixed: "Clearly both positive and negative, about different things"
+        valence:
+          type: "score"
+          instructions: "On a signed scale from very negative to very positive, where does the text sit overall?"
+          criteria: ["Very negative", "Negative", "Neutral", "Positive", "Very positive"]
+        sarcasm:
+          type: "noul"
+          instructions: "Does the literal wording say the opposite of what the author means?"
+        needs_escalation:
+          type: "noul"
+          instructions: "Does the author say they will cancel, leave or switch; report harm such as money taken wrongly, lost data, a safety issue or being locked out; or explicitly demand a reply from a person?"
+        aspect_price:
+          type: "choice"
+          instructions: "What is the author's stance on price or value?"
+          criteria: { positive: "Good value", negative: "Too expensive or poor value", not_mentioned: "Price has no clear stance or isn't discussed" }
+        aspect_support:
+          type: "choice"
+          instructions: "What is the author's stance on customer support?"
+          criteria: { positive: "Helpful support", negative: "Unhelpful or slow support", not_mentioned: "Support has no clear stance or isn't discussed" }
+        aspect_product:
+          type: "choice"
+          instructions: "What is the author's stance on the product itself?"
+          criteria: { positive: "Works well, high quality", negative: "Broken or low quality", not_mentioned: "The product has no clear stance or isn't discussed" }
+        aspect_delivery:
+          type: "choice"
+          instructions: "What is the author's stance on shipping or delivery?"
+          criteria: { positive: "Fast or on time", negative: "Late, lost or damaged", not_mentioned: "Delivery has no clear stance or isn't discussed" }
 
   # Skill routing: pick which ORBIT skill should handle a query, in a few milliseconds.
   # Config-only example — it is not wired into the skill router; call it as a pre-routing step.

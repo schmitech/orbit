@@ -33,7 +33,14 @@ def test_each_example_adapter_is_valid():
         assert validate_structure(adapter) == []
         assert validate_questions(adapter["config"]["questions"]) is None
         assert adapter["capabilities"]["retrieval_behavior"] == "none"
-    assert names == {"ticket-triage", "ticket-triage-typesafe", "content-moderation", "skill-router"}
+    assert names == {
+        "ticket-triage",
+        "ticket-triage-typesafe",
+        "content-moderation",
+        "skill-router",
+        "sentiment-analysis",
+        "sentiment-analysis-local",
+    }
 
 
 def test_decision_model_does_not_require_inference_provider():

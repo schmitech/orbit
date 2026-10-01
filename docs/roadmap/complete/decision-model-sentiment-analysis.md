@@ -1,5 +1,18 @@
 # Decision-Model Sentiment Analysis — Implementation Plan
 
+## Status
+
+- [x] Provisional adapters (`sentiment-analysis`, `sentiment-analysis-local`), disabled, in `config/adapters/decision.yaml`
+- [x] `test_decision_adapter_config.py` updated for the two new adapters
+- [x] Evaluation script `utils/scripts/eval_decision_adapter.py` (direct mode + metrics + script tests)
+- [x] Dataset schema/quota/overlap checker `examples/sentiment-pulse/eval/check_sentiment_dataset.py` (+ tests)
+- [x] Annotator labeling guide `examples/sentiment-pulse/eval/LABELING_GUIDE.md`
+- [ ] Labeled tuning set (`sentiment-tune.jsonl`, 60 texts) — needs human annotators
+- [ ] Labeled held-out set (`sentiment-test.jsonl`, 120 texts) + multilingual set — needs human annotators
+- [x] `--via-api` / `--burst` modes in the eval script (implemented + unit-tested against fakes) — running them for real still needs the adapter enabled and a live ORBIT + bridge
+- [ ] Phase 1 tuning, threshold freeze and gate decision
+- [x] Phase 2 "Sentiment Pulse" dashboard built (`examples/sentiment-pulse-dashboard/`, `npm run build` passes) — **dormant**, waiting on the Phase 1 gate before it's demoed
+
 ## Summary
 
 Extend the [decision-model adapters](../adapters/decision-models.md) to sentiment analysis, and add a live booth demo that shows it.
@@ -21,7 +34,6 @@ The evaluation decides what ships and what the demo may claim. Nothing is announ
 1. **Phase 0 — Provisional adapters and a labeled set.** Add the adapters disabled, so they can be evaluated without being offered to users. Build and freeze a labeled dataset split into a tuning set and a held-out test set.
 2. **Phase 1 — Evaluate and decide.** Tune the question wording and pick every threshold on the tuning set only. Then evaluate once on the held-out set, with everything frozen. The gate decides whether to enable the adapters, which claims are allowed, and whether Phase 2 goes ahead.
 3. **Phase 2 — "Sentiment Pulse" dashboard,** if the gate allows it. A live dashboard fed by MQ bursts, built on the existing Triage Rush bridge.
-4. **Phase 3 (optional) —** generalize the Triage Rush game so it works with any decision adapter.
 
 ## Signals
 
@@ -42,7 +54,7 @@ Every signal has one written definition. The question text sent to the model and
 
 ## Phase 0 — Provisional adapters and a labeled set
 
-### Provisional adapters
+### Provisional adapters ✅
 
 Add two adapters to `config/adapters/decision.yaml` with `enabled: false`. They validate and can be evaluated, but the server doesn't load them.
 - Use the same shape as `ticket-triage`: `type: decision_model`, `datasource: none`, the multimodal passthrough implementation, `state_key: "text"` and `allow_question_override: true`.
@@ -89,7 +101,9 @@ questions:
 
 Update `server/tests/test_decision/test_decision_adapter_config.py` so the expected name set includes both adapters. The test validates every adapter in the file, disabled ones too.
 
-### Labeled dataset
+### Labeled dataset ⬜ (schema tooling + labeling guide done; annotation itself pending)
+
+`examples/sentiment-pulse/eval/check_sentiment_dataset.py` validates schema completeness, the composition quotas and tune/test overlap once the files below exist — see `examples/sentiment-pulse/eval/README.md`. The annotator instructions are written up in `examples/sentiment-pulse/eval/LABELING_GUIDE.md`. The actual labeling (two annotators + adjudicator) is still to do.
 
 Put the data in `examples/sentiment-pulse/eval/` as two files with the same schema. **Every measured signal is labeled on every record:**
 
@@ -125,7 +139,7 @@ Put the data in `examples/sentiment-pulse/eval/` as two files with the same sche
 - Treat any signal with κ < 0.6 as too subjective to gate on. Report it, but don't let it block or justify shipping.
 - For polarity, record human-vs-human macro-F1 on the held-out set as well. It's **context only**: it's reported next to the model's score and explains a low result, but it never moves the gate's cutoffs.
 
-### Evaluation script
+### Evaluation script ✅
 
 `utils/scripts/eval_decision_adapter.py` is generic. It takes an adapter name from `config/adapters/*.yaml` and a JSONL file.
 - **Direct mode (default):** reads the adapter's questions straight from the YAML, whether or not the adapter is enabled, then loads the real config and calls `DecisionService.decide()`. This isolates model quality. It's the only mode used for the gate, which is why the adapters can stay disabled until then.
@@ -193,9 +207,9 @@ Put the data in `examples/sentiment-pulse/eval/` as two files with the same sche
 - Add a "Sentiment analysis" subsection under "Shipped examples" in `docs/adapters/decision-models.md`. It gives the band, the measured numbers, and how to read valence (expected level vs distribution).
 - Document a **triage + sentiment** variant: adding `polarity` and `needs_escalation` to `ticket-triage` returns routing and mood in one call. That's documentation only. Leave `ticket-triage` unchanged, because the Triage Rush game and its tests depend on it.
 
-## Phase 2 — "Sentiment Pulse" live dashboard
+## Phase 2 — "Sentiment Pulse" live dashboard ⬜ (built, dormant — only for a provider in the High or Middle band)
 
-Only for a provider in the High or Middle band.
+The dashboard app (`examples/sentiment-pulse-dashboard/`) is built and passes `npm run build`, but it is **not to be run at a booth or demoed** until Phase 1 actually produces a High or Middle band result. `src/gate.js` holds that result and starts unfilled (`evaluated: false`); every panel that depends on the gate (escalation lane, routing-signal line, the "experimental" badge) reads that file and renders nothing until it's filled in from a real, recorded held-out run.
 
 A head-to-head race works poorly for sentiment: the labels are subjective, and visitors argue with the answer key on ambiguous texts. The strength to show is speed at volume, so the demo is a live dashboard in the style of `examples/threat-telemetry-dashboard/`.
 
@@ -250,22 +264,11 @@ Use the same stack and dark HUD tokens as the Triage Rush game. Pin the port to 
   - a booth checklist: pause when away, warm up, fullscreen.
 - Add a prompt and intro pair in the example folder, as for Triage Rush: `sentiment-pulse-assistant-prompt.md` and `sentiment-pulse-intro.md`. Also add an orbitchat entry in `clients/orbitchat/orbitchat-local.yaml`.
 
-## Phase 3 (optional) — Generalize Triage Rush to any decision adapter
-
-The team-routing and resource-decision challenges each hard-code their bins and read one answer (`team` or `action`). Generalize them:
-- Add a per-adapter game profile: which `choice` question sets the bins, the bin labels and keys, the deck file, and whether the text goes plain or as structured state.
-- Add a profile for `sentiment-analysis*`, with polarity as the bins. Show a "labels are subjective" note, and give partial credit on `mixed` when the AI's top two polarities include the label.
-
-This phase is low priority. Do it only if the Phase 2 dashboard doesn't cover the booth need. If it adds a third client of the bridge, that's the point to move the bridge to a shared folder.
-
 ## Test plan
 
-- **Adapter config:** the two provisional sentiment adapters (disabled) pass `validate_yaml_text`, `validate_structure` and `validate_questions` in the extended `test_decision_adapter_config.py`.
-- **Eval script:** the unit tests listed under [Evaluation script](#evaluation-script).
-- **Dataset checks:** a small test asserts on both JSONL files:
-  - the schema is complete, with every signal labeled on every record;
-  - the quotas are met (120 held-out texts, 60 tuning texts, 25% per polarity, and the escalation-positive minimums);
-  - no text appears in both the tuning and held-out sets, or in the dashboard deck.
+- [x] **Adapter config:** the two provisional sentiment adapters (disabled) pass `validate_yaml_text`, `validate_structure` and `validate_questions` in the extended `test_decision_adapter_config.py`.
+- [x] **Eval script:** the unit tests listed under [Evaluation script](#evaluation-script) (`utils/scripts/tests/test_eval_decision_adapter.py`).
+- [x]/[ ] **Dataset checks:** `examples/sentiment-pulse/eval/check_sentiment_dataset.py` + `examples/sentiment-pulse/eval/tests/test_sentiment_dataset.py` cover the logic (schema completeness, quotas, tune/test overlap) against synthetic fixtures. Running it against the **real** JSONL files, and the dashboard-deck overlap check, are pending the actual labeled data.
 - **Gate procedure:** the Results section records the frozen `routing_signal`, `t_route` and `t_esc` (values or `none`) with a commit that predates the held-out run, and exactly one held-out run per set version, provider and model version.
 - **Surge drain:** after enablement (Phase 1, step 5), `--burst 100` through the bridge finishes inside the bridge `--timeout` on each provider. The results go in the Results section.
 - **Dashboard:** build check (`npm run build`), then a live run on Chrome in the foreground:
