@@ -54,5 +54,40 @@ class BridgeContractTest(unittest.TestCase):
         self.assertIn("duplicate", validate_publish({"items": [plain, plain]}, self.bridge.allowed_adapters, self.args.adapter)[2])
 
 
+class AdapterSelectionTest(unittest.TestCase):
+    """By default ORBIT uses the API key's adapter; overrides are opt-in and allowlisted."""
+
+    def make_bridge(self, adapter=None, allowed=""):
+        args = SimpleNamespace(adapter=adapter, allowed_adapters=allowed, api_key="example-key",
+                               requests_queue="orbit.requests")
+        bridge = Bridge(args)
+        bridge.channel = SimpleNamespace(default_exchange=Exchange())
+        bridge.reply_queue = SimpleNamespace(name="reply")
+        bridge.aio_pika = SimpleNamespace(Message=lambda **kwargs: SimpleNamespace(**kwargs))
+        return bridge
+
+    def published_request(self, bridge, body):
+        items, adapter, error = validate_publish(body, bridge.allowed_adapters, bridge.args.adapter)
+        self.assertIsNone(error)
+        asyncio.run(bridge.publish(items, adapter))
+        return bridge.channel.default_exchange.messages[0][0]
+
+    def test_default_sends_no_adapter_so_key_adapter_applies(self):
+        bridge = self.make_bridge()
+        request = self.published_request(bridge, {"items": [{"id": "one", "text": "Refund please"}]})
+        self.assertNotIn("adapter", request)
+
+    def test_override_is_rejected_unless_allowlisted(self):
+        bridge = self.make_bridge()
+        body = {"items": [{"id": "one", "text": "Refund please"}], "adapter": "ticket-triage-typesafe"}
+        self.assertIn("not allowed", validate_publish(body, bridge.allowed_adapters, bridge.args.adapter)[2])
+
+    def test_allowlisted_override_is_sent(self):
+        bridge = self.make_bridge(allowed="ticket-triage-typesafe")
+        request = self.published_request(
+            bridge, {"items": [{"id": "one", "text": "Refund please"}], "adapter": "ticket-triage-typesafe"})
+        self.assertEqual(request["adapter"], "ticket-triage-typesafe")
+
+
 if __name__ == "__main__":
     unittest.main()

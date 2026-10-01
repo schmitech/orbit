@@ -1,6 +1,6 @@
 # Triage Rush Game
 
-A human-vs-AI game for ORBIT's [decision-model adapters](../../docs/adapters/decision-models.md). A visitor races ORBIT's ticket-triage decision adapter at sorting support tickets. By default it's `ticket-triage-typesafe`, TypeSafe's hosted model; `ticket-triage` on local Ollama is the offline fallback. Every AI decision is real: it goes through RabbitMQ to an ORBIT worker and back, and the card shows the answer's probability and measured round-trip time.
+A human-vs-AI game for ORBIT's [decision-model adapters](../../docs/adapters/decision-models.md). A visitor races ORBIT's ticket-triage decision adapter at sorting support tickets. It uses whichever adapter the bridge's API key is bound to: `ticket-triage` on local Ollama, or `ticket-triage-typesafe` on TypeSafe's hosted model. Every AI decision is real: it goes through RabbitMQ to an ORBIT worker and back, and the card shows the answer's probability and measured round-trip time.
 
 Set up ORBIT, RabbitMQ, the decision model and the bridge first, following [`../triage-rush-mq/README.md`](../triage-rush-mq/README.md).
 
@@ -18,7 +18,7 @@ From the repo root, create a key bound to the `ticket-triage` adapter, using thi
 export ORBIT_API_KEY=orbit_...   # the key printed above
 ```
 
-Export the key in the shell where you start the bridge (`python examples/triage-rush-mq/game_bridge.py`), because the bridge sends it with every ticket. The game never sees the key. One key covers both `ticket-triage` and `ticket-triage-typesafe`.
+Export the key in the shell where you start the bridge (`python examples/triage-rush-mq/game_bridge.py`), because the bridge sends it with every ticket. The game never sees the key. ORBIT answers with the adapter the key is bound to, and the presenter panel shows its name. For TypeSafe, create the key with `--adapter ticket-triage-typesafe` instead.
 
 Decision adapters don't call a chat LLM, so the prompt doesn't change the answers, which come only from the adapter's `questions`. It stays with the key as documentation. [`triage-rush-intro.md`](triage-rush-intro.md) is a matching intro with sample tickets, for a chat client such as orbitchat.
 
@@ -53,7 +53,7 @@ Open <http://localhost:5180>. Both `dev` and `preview` use that fixed port (with
 | `1`–`4` | Choose the four bins for the selected challenge |
 | **Pause** button (top right) | Stop sending tickets to ORBIT: ends any round, clears the lanes, and blocks new rounds, surges and autoplay. It stays paused across page reloads until you press **Resume**. Tickets already published still get answered. Also in the presenter panel |
 | `S` | **Surge**: drop a burst of tickets (25 by default) on both lanes and onto the queue at once. Your lane piles up with a **+N waiting** badge while ORBIT works through its queue |
-| `P` | Presenter panel: challenge, bridge URL, adapter (local Ollama or TypeSafe), round length, speed, surge size, health, leaderboard reset |
+| `P` | Presenter panel: challenge, bridge URL, adapter (the API key's adapter, or an override the bridge allows), round length, speed, surge size, health, leaderboard reset |
 | `Esc` | Close the presenter panel |
 
 The HUD along the bottom shows AI decisions per second, p50/p95 latency, `orbit.requests` depth, the worker count and tickets in flight.

@@ -136,6 +136,7 @@ class MessageConsumerService:
         this transport cannot provide.
         """
         if not self.api_key_service:
+            self._check_override_available(adapter_override)
             return adapter_override or "default", None
 
         if not api_key:
@@ -151,7 +152,19 @@ class MessageConsumerService:
             # Invalid keys surface as HTTPException(401/403) from the key service.
             raise PermissionError(f"API key resolution failed: {e}")
 
+        self._check_override_available(adapter_override)
         return (adapter_override or adapter_name or "default"), system_prompt_id
+
+    def _check_override_available(self, adapter_override: Optional[str]) -> None:
+        """Reject an override naming an adapter that isn't loaded (unknown or disabled).
+
+        Without this, the pipeline finds no config for the name, skips the adapter-specific
+        steps, and answers with the global default LLM instead of failing.
+        """
+        if not adapter_override or self.adapter_manager is None:
+            return
+        if self.adapter_manager.get_adapter_config(adapter_override) is None:
+            raise PermissionError(f"Adapter '{adapter_override}' is not available (unknown or disabled)")
 
     @staticmethod
     def _failed(request_id: Optional[str], error: str) -> dict[str, Any]:

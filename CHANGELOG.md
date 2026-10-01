@@ -10,6 +10,7 @@
 - **Toggle for Generation Prompt Rewriting**: Image, video, and audio generation adapters gained a `rewrite_prompt` config key (default `true`). Set it to `false` to bypass `config/rewriters-prompts.yaml` and send the raw user message straight to the generation provider, instead of enriching it through a rewrite LLM first. Adapter preloading (`AdapterLoader.load_adapter`, `DynamicAdapterManager.preload_all_adapters`) now skips the rewrite provider entirely for these adapters, so a disabled or unavailable rewrite provider no longer blocks startup when rewriting is turned off.
 
 ### Bug Fixes
+- **MQ Adapter Override to an Unavailable Adapter Fell Through to the Default LLM**: When a message-queue request's `adapter` override named an adapter that was unknown or disabled, the pipeline found no config for it, skipped the adapter-specific steps, and answered with the global default inference provider. The consumer now replies with a `failed` envelope ("Adapter '…' is not available") without running the pipeline.
 - **Image/Video Service Caches Not Closed on Shutdown**: `DynamicAdapterManager.close()` now closes the image and video generation service caches (and the new decision cache) along with the other service caches.
 
 ## [2.17.16] - 2026-09-27

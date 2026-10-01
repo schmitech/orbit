@@ -3,7 +3,7 @@
 A booth game for [decision-model adapters](../../docs/adapters/decision-models.md). Support tickets fall down two lanes:
 
 - **YOU**: a visitor sorts each ticket into Billing, Technical, Account or Other before it hits the floor.
-- **ORBIT AI**: the same tickets go through ORBIT's message queue to the `ticket-triage-typesafe` decision adapter (TypeSafe's hosted model), or to `ticket-triage` on a local Ollama model. Each one is sorted as soon as its typed answer comes back, with the probability, urgency and measured round-trip time shown on the card.
+- **ORBIT AI**: the same tickets go through ORBIT's message queue to the decision adapter bound to the bridge's API key: `ticket-triage` on a local Ollama model, or `ticket-triage-typesafe` on TypeSafe's hosted model. Each one is sorted as soon as its typed answer comes back, with the probability, urgency and measured round-trip time shown on the card.
 
 Nothing is sent to ORBIT until a visitor presses a key to start a round. If you want the screen moving between visitors, turn on AI autoplay in the presenter panel. The AI then plays alone while idle, which costs one decision every couple of seconds. A **SURGE** drops a burst of tickets onto `orbit.requests` all at once. This is the same burst injection as the [threat telemetry query burst](../threat-telemetry-mq/README.md#part-a--query-burst): the queue absorbs the spike, the worker drains it at `prefetch` pace, and the queue-depth tile shows it rise and recover.
 
@@ -30,19 +30,18 @@ docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
 
 ## 2. Pick a decision provider
 
-By default the game uses `ticket-triage-typesafe`, which calls TypeSafe's hosted `jev-latest` model. Set your key in `.env` and restart ORBIT:
+The game uses whichever adapter the API key from step 4 is bound to. Pick the provider by choosing the adapter you create the key for, and make sure that adapter is `enabled: true` in `config/adapters/decision.yaml`:
 
-```bash
-TYPESAFE_API_KEY=...
-```
+- **`ticket-triage`** runs locally on Ollama with the tiny `tev1:0.8b` model. It works on a laptop and without internet:
 
-The hosted model needs a reliable internet connection at the booth. For an offline fallback, use `ticket-triage`, which runs locally on Ollama with the tiny `tev1:0.8b` model and works on a laptop:
+  ```bash
+  ollama pull tev1:0.8b
+  ```
 
-```bash
-ollama pull tev1:0.8b
-```
+  On a machine with a GPU you can set its `model:` to `nimble` (9B) for higher accuracy.
+- **`ticket-triage-typesafe`** calls TypeSafe's hosted `jev-latest` model. It needs `TYPESAFE_API_KEY` in `.env` (restart ORBIT after setting it) and a reliable internet connection at the booth.
 
-Switch to it in the game's presenter panel (`P`), or start the bridge with `--adapter ticket-triage`. On a machine with a GPU you can set that adapter's `model:` to `nimble` (9B) in `config/adapters/decision.yaml` for higher accuracy.
+To switch providers from the presenter panel during a demo, enable both adapters and start the bridge with `--allowed-adapters ticket-triage,ticket-triage-typesafe`. See [step 5](#5-start-the-bridge).
 
 ## 3. Enable messaging and start ORBIT
 
@@ -79,7 +78,9 @@ export ORBIT_API_KEY=orbit_...   # the key printed above
 
 Decision adapters don't call a chat LLM, so the prompt doesn't change the model's answers. The answers come only from the adapter's `questions`. The prompt documents the triage rules the questions encode, for anyone who opens the key in the admin panel. [`triage-rush-intro.md`](../triage-rush-game/triage-rush-intro.md) holds a matching intro with sample tickets, for a chat client such as orbitchat.
 
-One key covers both `ticket-triage` and `ticket-triage-typesafe`. The bridge sends the adapter with each message, and ORBIT applies it after validating the key.
+The bridge doesn't send an adapter by default, so ORBIT routes every ticket to the adapter this key is bound to. The presenter panel shows that adapter's name. ORBIT accepts a per-message adapter override after validating the key, but the bridge only sends one when you allow it with `--allowed-adapters` (or force one with `--adapter`).
+
+Override only to adapters that are **enabled**. ORBIT doesn't load disabled adapters, and a ticket routed to a name it doesn't know is answered by the default chat LLM instead of a decision model.
 
 ## 5. Start the bridge
 
@@ -87,13 +88,14 @@ One key covers both `ticket-triage` and `ticket-triage-typesafe`. The bridge sen
 python examples/triage-rush-mq/game_bridge.py
 ```
 
-It serves `http://127.0.0.1:8795` and prints the adapter it uses. Useful options:
+It serves `http://127.0.0.1:8795`. By default it sends no adapter, so the API key's adapter applies. Useful options:
 
 | Option | Default | Meaning |
 |--------|---------|---------|
 | `--api-key` | `$ORBIT_API_KEY` | Key sent with each message |
-| `--adapter` | `ticket-triage-typesafe` | Default adapter |
-| `--allowed-adapters` | `ticket-triage,ticket-triage-typesafe` | Adapters the game may switch to |
+| `--adapter` | none | Send this adapter with every ticket, overriding the key's adapter |
+| `--allowed-adapters` | none | Adapter overrides the presenter panel may choose, e.g. `ticket-triage,ticket-triage-typesafe` |
+| `--orbit-url` | `http://localhost:3000` | ORBIT server, used only to show the key's adapter name in the game |
 | `--url` | `$MESSAGING_RABBITMQ_URL` or `amqp://guest:guest@localhost:5672/` | Broker |
 | `--host` / `--port` | `127.0.0.1` / `8795` | Where the bridge listens. It publishes with your key, so keep it on localhost unless the game runs on another machine |
 | `--timeout` | `30` | Seconds before an unanswered ticket is reported as timed out |
@@ -129,7 +131,7 @@ Open <http://localhost:5180>. See [the game README](../triage-rush-game/README.m
 - **Fullscreen the browser** (F11, or ⌃⌘F on macOS). Turn off sleep and the screen saver.
 - **Keep the game tab in front.** Browsers pause animation in hidden tabs.
 - **Show the queue.** Press `S` for a surge while a visitor plays. Point at the queue-depth and latency tiles as they spike and drain. Open the RabbitMQ UI (<http://localhost:15672>) on a second screen for the broker's view.
-- **Show the provider switch.** Press `P` and change the adapter to compare local and hosted latency.
+- **Show the provider switch.** Start the bridge with `--allowed-adapters ticket-triage,ticket-triage-typesafe` (both enabled), then press `P` and change the adapter to compare local and hosted latency.
 - **Pause when you step away.** With autoplay on, the game sends a ticket to ORBIT every couple of seconds, which costs TypeSafe calls. Press **Pause** (top right) to stop all requests, including rounds and surges. Press **Resume** to start again.
 - **Reset the leaderboard** between show days from the presenter panel (`P`).
 
@@ -141,4 +143,4 @@ Open <http://localhost:5180>. See [the game README](../triage-rush-game/README.m
 - **Cards show `Missing API key`** or **`API key resolution failed`**: `$ORBIT_API_KEY` isn't set in the bridge's shell, or the key is invalid. The presenter panel shows whether the bridge has a key.
 - **Cards show `Ollama decision error (HTTP 404): model "tev1:0.8b" not found`**: run `ollama pull tev1:0.8b`.
 - **Cards time out during a surge**: a single small-laptop worker can fall behind a large surge. Lower the surge size in the presenter panel, raise `--timeout`, or start another worker.
-- **`TypeSafe API key not configured`**: set `TYPESAFE_API_KEY` in `.env` and restart ORBIT, or switch to the local `ticket-triage` adapter.
+- **`TypeSafe API key not configured`**: set `TYPESAFE_API_KEY` in `.env` and restart ORBIT, or use a key bound to the local `ticket-triage` adapter.

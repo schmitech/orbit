@@ -199,6 +199,21 @@ class TestConsumerHandle:
         assert kwargs["system_prompt_id"] == "PROMPT123"
         assert kwargs["api_key"] == "k"
 
+    async def test_unavailable_adapter_override_publishes_failed_without_pipeline(self):
+        consumer, chat_service, _ = make_consumer()
+        consumer.adapter_manager.get_adapter_config.return_value = None  # unknown or disabled
+        await consumer._handle(make_msg({"id": "r1", "message": "hello", "api_key": "k", "adapter": "gone"}))
+        chat_service.process_chat.assert_not_awaited()
+        env = consumer.broker.published[0]["envelope"]
+        assert env["status"] == "failed"
+        assert "not available" in env["error"]
+
+    async def test_key_adapter_used_without_override_is_not_rechecked(self):
+        consumer, chat_service, _ = make_consumer()
+        consumer.adapter_manager.get_adapter_config.return_value = None
+        await consumer._handle(make_msg({"id": "r1", "message": "hello", "api_key": "k"}))
+        assert chat_service.process_chat.await_args.kwargs["adapter_name"] == "hr"
+
     async def test_adapter_override_applied_after_key_validation(self):
         consumer, chat_service, api_key_service = make_consumer(adapter=("hr", "PROMPT123"))
         await consumer._handle(make_msg({"id": "r1", "message": "hi", "api_key": "k", "adapter": "sales"}))

@@ -6,7 +6,7 @@ import "./styles.css";
 
 const DEFAULT_SETTINGS = {
   bridgeUrl: "http://localhost:8795",
-  adapter: "ticket-triage-typesafe",
+  adapter: "", // "" = no override: ORBIT uses the adapter bound to the bridge's API key
   challenge: "team",
   roundSec: 60,
   speed: 1,
@@ -37,6 +37,12 @@ const lerp = (a, b, t) => a + (b - a) * Math.min(1, Math.max(0, t));
 const optionsFor = challenge => challenge === "resource" ? RESOURCE_OPTIONS : TEAMS;
 const answerFor = ticket => ticket.answer ?? ticket.team;
 const answerLabel = (challenge, id) => optionsFor(challenge).find(option => option.id === id)?.label ?? id;
+// The override to send, if the presenter picked one the bridge allows; otherwise none, so the
+// bridge's forced --adapter (if any) or the API key's own adapter applies.
+const overrideAdapter = (settings, health) =>
+  settings.adapter && health.allowed_adapters?.includes(settings.adapter) ? settings.adapter : null;
+const adapterLabel = (settings, health) =>
+  overrideAdapter(settings, health) || health.adapter || health.key_adapter || "API key's adapter";
 const leaderboardFor = (entries, challenge) => entries.filter(entry => (entry.challenge || "team") === challenge);
 
 function readStorage(key, fallback) {
@@ -184,7 +190,8 @@ function Game() {
 
   // --- publishing ---------------------------------------------------------------
   const publish = async cards => {
-    const { bridgeUrl, adapter } = settingsRef.current;
+    const { bridgeUrl } = settingsRef.current;
+    const adapter = overrideAdapter(settingsRef.current, healthRef.current);
     const items = cards.map(c => c.challenge === "resource" ? {
       id: c.bridgeId,
       text: c.ticket.text,
@@ -196,7 +203,7 @@ function Game() {
       const res = await fetch(`${bridgeUrl.replace(/\/$/, "")}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items, adapter }),
+        body: JSON.stringify(adapter ? { items, adapter } : { items }),
       });
       if (!res.ok) error = (await res.json().catch(() => ({}))).error || `bridge HTTP ${res.status}`;
     } catch (e) {
@@ -493,7 +500,7 @@ function Game() {
         />
         <Lane
           lane="ai" title="ORBIT AI" icon={Bot} engine={engine} challenge={engine.mode === "attract" ? settings.challenge : engine.challenge} now={now}
-          subtitle={`${settings.adapter}${engine.model ? ` · ${engine.model}` : ""}`}
+          subtitle={`${adapterLabel(settings, health)}${engine.model ? ` · ${engine.model}` : ""}`}
           overlay={settings.paused ? <PausedOverlay onResume={togglePause} />
             : health.status !== "ready" && engine.mode !== "results" ? <BridgeOverlay health={health} />
             : engine.mode === "attract" && !settings.autoplay && engine.cards.length === 0 ? <IdleOverlay /> : null}
@@ -795,7 +802,7 @@ function HudStrip({ engine, health, settings }) {
       <HudItem icon={Cpu} label="Workers" value={queue ? queue.consumers : "—"} />
       <HudItem icon={Bot} label="In flight" value={health.in_flight ?? "—"} />
       <div className="hud-note">
-        <span>via RabbitMQ <code>{health.requests_queue || "orbit.requests"}</code> → <code>{settings.adapter}</code></span>
+        <span>via RabbitMQ <code>{health.requests_queue || "orbit.requests"}</code> → <code>{adapterLabel(settings, health)}</code></span>
         <span className="keys"><kbd>S</kbd> surge · <kbd>P</kbd> presenter</span>
       </div>
     </footer>
@@ -814,7 +821,10 @@ function HudItem({ icon: Icon, label, value, hot }) {
 function PresenterPanel({ settings, setSettings, onChallengeChange, health, mode, close, surge, togglePause, resetLeaderboard }) {
   const [bridgeDraft, setBridgeDraft] = useState(settings.bridgeUrl);
   const [confirmReset, setConfirmReset] = useState(null);
-  const adapters = health.allowed_adapters?.length ? health.allowed_adapters : [settings.adapter];
+  const overrides = health.allowed_adapters || [];
+  const keyLabel = health.adapter
+    ? `Bridge default (${health.adapter})`
+    : `API key's adapter${health.key_adapter ? ` (${health.key_adapter})` : ""}`;
   return (
     <aside className="panel">
       <div className="panel-head">
@@ -831,8 +841,10 @@ function PresenterPanel({ settings, setSettings, onChallengeChange, health, mode
       </label>
       <label>
         Decision adapter
-        <select value={settings.adapter} onChange={e => setSettings({ adapter: e.target.value })}>
-          {adapters.map(a => <option key={a} value={a}>{a}</option>)}
+        <select value={overrideAdapter(settings, health) || ""} onChange={e => setSettings({ adapter: e.target.value })}
+          disabled={overrides.length === 0} title={overrides.length === 0 ? "Start the bridge with --allowed-adapters to enable overrides" : undefined}>
+          <option value="">{keyLabel}</option>
+          {overrides.filter(a => a !== health.adapter).map(a => <option key={a} value={a}>Override: {a}</option>)}
         </select>
       </label>
       <label>

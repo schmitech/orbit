@@ -51,9 +51,14 @@ class Bridge:
 
     def __init__(self, args):
         self.args = args
+        # By default no adapter is sent, so ORBIT uses the adapter bound to the API key.
+        # Per-message overrides are opt-in: --adapter forces one, --allowed-adapters lists
+        # the ones the game's presenter panel may switch to.
         self.allowed_adapters = [a.strip() for a in args.allowed_adapters.split(",") if a.strip()]
-        if args.adapter not in self.allowed_adapters:
+        if args.adapter and args.adapter not in self.allowed_adapters:
             self.allowed_adapters.insert(0, args.adapter)
+        self.key_adapter = None  # adapter bound to the API key, as reported by ORBIT
+        self.key_adapter_checked_at = None
         self.connection = None
         self.channel = None
         self.health_channel = None
@@ -76,12 +81,14 @@ class Bridge:
         for queue in self.subscribers:
             queue.put_nowait(event)
 
-    async def publish(self, items: list[dict], adapter: str) -> None:
+    async def publish(self, items: list[dict], adapter: str | None) -> None:
         for item in items:
             message = item["text"]
             if "state" in item:
                 message = json.dumps({"state": item["state"], "questions": item["questions"]})
-            request = {"id": item["id"], "message": message, "adapter": adapter}
+            request = {"id": item["id"], "message": message}
+            if adapter:
+                request["adapter"] = adapter
             if self.args.api_key:
                 request["api_key"] = self.args.api_key
             self.pending[item["id"]] = (time.monotonic(), adapter)
@@ -137,6 +144,31 @@ class Bridge:
                     }
                 )
 
+    async def lookup_key_adapter(self) -> str | None:
+        """Ask ORBIT which adapter the API key is bound to (cached for 30s)."""
+        now = time.monotonic()
+        if self.key_adapter_checked_at is not None and now - self.key_adapter_checked_at < 30:
+            return self.key_adapter
+        self.key_adapter_checked_at = now
+        if not self.args.api_key:
+            self.key_adapter = None
+            return None
+        import aiohttp
+
+        try:
+            async with (
+                aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=2)) as session,
+                session.get(
+                    f"{self.args.orbit_url.rstrip('/')}/admin/adapters/info",
+                    headers={"X-API-Key": self.args.api_key},
+                ) as response,
+            ):
+                body = await response.json() if response.status == 200 else {}
+            self.key_adapter = body.get("adapter_name")
+        except Exception:  # noqa: BLE001 - display-only lookup; ORBIT still resolves the key itself
+            self.key_adapter = None
+        return self.key_adapter
+
     async def queue_stats(self) -> dict:
         # A passive declare reports depth and consumer count without the RabbitMQ
         # management API. A failed passive declare closes its channel, so it gets its own.
@@ -152,13 +184,16 @@ class Bridge:
             return {"available": False, "reason": str(exc)}
 
 
-def validate_publish(body, allowed_adapters: list[str], default_adapter: str) -> tuple[list, str, str | None]:
-    """Return (items, adapter, error)."""
+def validate_publish(
+    body, allowed_adapters: list[str], default_adapter: str | None
+) -> tuple[list, str | None, str | None]:
+    """Return (items, adapter, error). adapter None means "use the API key's adapter"."""
     if not isinstance(body, dict):
         return [], default_adapter, "body must be a JSON object"
     adapter = body.get("adapter") or default_adapter
-    if adapter not in allowed_adapters:
-        return [], adapter, f"adapter {adapter!r} is not allowed (allowed: {', '.join(allowed_adapters)})"
+    if adapter is not None and adapter not in allowed_adapters:
+        allowed = ", ".join(allowed_adapters) or "none; the API key's adapter is used"
+        return [], adapter, f"adapter override {adapter!r} is not allowed (allowed: {allowed})"
     items = body.get("items")
     if not isinstance(items, list) or not items:
         return [], adapter, "items must be a non-empty list"
@@ -239,14 +274,16 @@ def make_app(bridge: Bridge, web):
         return response
 
     async def health(_request):
+        key_adapter = await bridge.lookup_key_adapter()
         return web.json_response(
             {
                 "broker": bridge.connection is not None and not bridge.connection.is_closed,
                 "requests_queue": bridge.args.requests_queue,
                 "queue": await bridge.queue_stats(),
                 "in_flight": len(bridge.pending),
-                "adapter": bridge.args.adapter,
-                "allowed_adapters": bridge.allowed_adapters,
+                "adapter": bridge.args.adapter,  # forced override, or null for the key's adapter
+                "allowed_adapters": bridge.allowed_adapters,  # overrides the game may choose
+                "key_adapter": key_adapter,  # adapter bound to the API key, if ORBIT reported it
                 "api_key_configured": bool(bridge.args.api_key),
             }
         )
@@ -286,7 +323,8 @@ async def run(args) -> int:
     await web.TCPSite(runner, args.host, args.port).start()
     expiry = asyncio.create_task(bridge.expire_pending())
 
-    print(f"Triage Rush bridge: http://{args.host}:{args.port}  (adapter: {args.adapter})")
+    adapter_note = f"override: {args.adapter}" if args.adapter else "using the API key's adapter"
+    print(f"Triage Rush bridge: http://{args.host}:{args.port}  ({adapter_note})")
     print(f"Publishing to '{args.requests_queue}'. Point the game's presenter panel at this URL.")
     print("Press Ctrl+C to stop.")
     try:
@@ -305,11 +343,20 @@ def parse_args():
         default=os.environ.get("ORBIT_API_KEY"),
         help="ORBIT API key (defaults to $ORBIT_API_KEY). Omit only if the server has API-key auth disabled.",
     )
-    parser.add_argument("--adapter", default="ticket-triage-typesafe", help="Default decision adapter for the game")
+    parser.add_argument(
+        "--adapter",
+        default=None,
+        help="Send this adapter with every ticket, overriding the API key's adapter (default: no override)",
+    )
     parser.add_argument(
         "--allowed-adapters",
-        default="ticket-triage,ticket-triage-typesafe",
-        help="Comma-separated adapters the game may switch between",
+        default="",
+        help="Comma-separated adapter overrides the game's presenter panel may choose (default: none)",
+    )
+    parser.add_argument(
+        "--orbit-url",
+        default="http://localhost:3000",
+        help="ORBIT server URL, used only to display which adapter the API key is bound to",
     )
     parser.add_argument(
         "--url",

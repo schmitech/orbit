@@ -36,48 +36,15 @@
   <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit" alt="Last commit" /></a>
 </p>
 
-<div id="multimodal-demo" align="center">
-  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls muted playsinline width="65%"></video>
-  <br />
-  <em>Upload PDFs, documents, and images, then ask questions across all of them in one conversation.
-  Context is preserved across turns, and local models keep every file and query on your infrastructure.
-  Follow the <a href="docs/tutorial/chat-with-files.md">tutorial</a> to see how it works.</em>
-</div>
-
-<br />
-
-<div id="sts-assistant" align="center">
-  <video src="https://github.com/user-attachments/assets/9c6530be-1116-4a14-aa82-321448ea5a8d" controls muted playsinline width="45%"></video>
-  <br />
-  <em>Create voice‑enabled virtual assistants that answer questions in any language, drawing knowledge
-  from any data source (API, database, file, etc.). See <a href="clients/realtime-voice/">realtime-voice</a></em>
-</div>
-
-<br />
-
-<div id="multimodal-demo" align="center">
-  <video src="https://github.com/user-attachments/assets/084024e7-5123-4943-8aa4-38d750332cfa" controls muted playsinline width="65%"></video>
-  <br />
-  <em>Using ORBIT to create music. Hit play, and a sampled piano performs it, the score auto-scrolls, and each note lights up as it sounds.</em>
-</div>
-
-<br />
-
-<div id="es-chat" align="center">
-  <video src="https://github.com/user-attachments/assets/e7fd2834-e438-4ac1-9173-0c0d56ca562b" controls muted playsinline width="65%"></video>
-  <br />
-  <em>Chat with your Elasticsearch application logs so incident management teams can ask natural-language
-  questions and let AI trace an incident back to its root cause. See <a href="examples/intent-templates/elasticsearch-intent-template/application-logs/">elasticsearch-intent-template</a></em>
-</div>
-
 <br />
 
 ## Why ORBIT
 
 | | What you get |
 | :---: | :--- |
-| **Connect anything** | Bring files, SQL, NoSQL, vector stores, Elasticsearch, REST/GraphQL APIs, and MCP tools together through YAML-configured adapters. |
-| **Use any model** | Keep one API contract while routing to Ollama, llama.cpp, vLLM, OpenAI, Anthropic, Gemini, Bedrock, Microsoft Foundry, OpenRouter, and more. |
+| **Connect anything** | Bring files, SQL, NoSQL, vector stores, APIs, and MCP tools together through YAML-configured adapters. |
+| **Use any model** | Keep one API contract while routing to hundreds of models. |
+| **Make real-time decisions** | Answer typed routing, triage, and moderation questions that return a choice with probabilities in a fraction of a second. |
 | **Keep data under your control** | Deploy on-premises, in a private cloud, or in an air-gapped environment while choosing local, self-hosted, or hosted models. |
 | **Govern AI operations** | RBAC, OIDC/SSO, identity allowlisting, per-key quotas, audit logs, moderation, and file encryption. |
 | **Stay resilient in production** | Use provider fallbacks, retries, circuit breakers, health checks, metrics, hot adapter reloads, and an integrated admin panel for day-to-day operations. |
@@ -97,7 +64,7 @@ For technical and security assessments, see [platform comparison and capability 
 **Prerequisites:** Python 3.11+ (3.12 preferred) and an internet connection for dependencies. The default configuration uses [Ollama](https://ollama.com/) for inference, so install Ollama as well if you use the default provider. Windows users can follow the [Windows installation guide](install/windows.md).
 
 1. Download the [ORBIT v2.17.16 tarball](https://github.com/schmitech/orbit/releases/download/v2.17.16/orbit-2.17.16.tar.gz).
-2. Extract it, enter the release directory, and start ORBIT:
+2. Extract it and start ORBIT:
 
 ```bash
 curl -LO https://github.com/schmitech/orbit/releases/download/v2.17.16/orbit-2.17.16.tar.gz
@@ -111,7 +78,6 @@ ollama pull nomic-embed-text
 ./bin/orbit.sh start
 ./bin/orbit.sh status
 ```
-![ORBIT server status](https://github.com/user-attachments/assets/d8dcbad8-1186-4c1b-bf0d-a875dcffbeba)
 
 The default setup enables Ollama in `config/inference.yaml`, selects it as the
 global provider in `config/config.yaml`, and uses the `gemma4-e2b-cpu` Ollama
@@ -127,7 +93,7 @@ server settings, `config/inference.yaml` for provider enablement and credentials
 `config/ollama.yaml` for Ollama presets, and the files under `config/adapters/`
 for adapter behavior.
 
-To use another provider, enable it in `config/inference.yaml`, set its
+To use another provider (openai, gemini, anthropic, etc.), enable it in `config/inference.yaml`, set its
 credential in `.env`, and select it globally or on the adapter that should use it.
 
 For the adapter implementations themselves, see [`server/adapters/`](server/adapters/); for
@@ -142,15 +108,6 @@ adapter system works.
 ORBIT starts at [http://localhost:3000](http://localhost:3000), and the dashboard at [http://localhost:3000/admin](http://localhost:3000/admin) - default credentials: admin/ChangeMe!2026.
 
 Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.md) and [create your first chat](docs/tutorial/first-chat.md).
-
-<br />
-<div id="admin-panel-demo" align="center">
-  <video src="https://github.com/user-attachments/assets/e1f91fbb-f398-40f0-beb0-45129d4b0e34" controls muted playsinline width="90%"></video>
-  <br />
-  <em>The built-in admin panel is ORBIT's control plane—manage adapters, API keys, prompts, and system operations without touching server code.</em>
-</div>
-
-<br />
 
 For a quick smoke test, the release seed includes `default-key` mapped to the
 `simple-chat` adapter:
@@ -174,16 +131,6 @@ Test it from a terminal with [orbit-cli](clients/orbit-cli/):
 npm install -g @schmitech/orbit-cli@latest
 orbit-chat --url http://localhost:3000 --key default-key
 ```
-
-<br />
-
-<div id="multimodal-demo" align="center">
-  <video src="https://github.com/user-attachments/assets/ba9a96dd-ef76-40d6-b129-3406d427cb81" controls muted playsinline width="55%"></video>
-  <br />
-  <em>The ORBIT chat CLI tool.</em>
-</div>
-
-<br />
 
 Or test it from the browser with [orbitchat](clients/orbitchat/):
 
@@ -219,6 +166,7 @@ Prefer containers or a bundled chat UI? Use the [Docker quick start](docker/READ
 | **Learn ORBIT** | [Tutorial](docs/tutorial.md) · [First chat](docs/tutorial/first-chat.md) · [HTTP APIs](docs/tutorial/http-apis.md) |
 | **Connect private data** | [Files](docs/adapters/file-adapter-guide.md) · [Vector stores](docs/vector-stores/vector_store_integration_guide.md) · [SQL](docs/sql-retriever-architecture.md) · [Intent templates](examples/intent-templates/) · [Adapter system overview](docs/adapters/adapters.md) |
 | **Build agents** | [MCP tools](docs/tutorial/mcp-tool-calling.md) · [Automatic skill routing](docs/tutorial/auto-skill-routing.md) · [A2A](docs/a2a-protocol.md) · [Adapter creation](docs/adapters/adapter-creation.md) |
+| **Make real-time decisions** | [Decision models](docs/adapters/decision-models.md) · [Triage Rush demo](examples/triage-rush-game/) |
 | **Run in production** | [Authentication](docs/authentication.md) · [Cost tracking](docs/token-usage-and-cost-tracking.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
 | **Use a client** | [OrbitChat](clients/orbitchat/) · [Realtime Voice](clients/realtime-voice/) · [Node.js SDK](clients/node-api/) · [Python API example](examples/openai-compatible-api/chat_completions.py) |
 
