@@ -12,6 +12,7 @@ import json
 from typing import Any, Optional
 from datetime import datetime, UTC
 
+from services.api_key_service import hash_api_key
 from services.database_service import create_database_service, DatabaseService
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,7 @@ class FileMetadataStore:
 
             # Create indexes for uploaded_files and file_chunks
             await self._db_service.create_index('uploaded_files', 'api_key')
+            await self._db_service.create_index('uploaded_files', 'api_key_hash')
             await self._db_service.create_index('file_chunks', 'file_id')
 
             self._initialized = True
@@ -113,6 +115,7 @@ class FileMetadataStore:
             document = {
                 '_id': file_id,
                 'api_key': api_key,
+                'api_key_hash': hash_api_key(api_key, self.config),
                 'filename': filename,
                 'mime_type': mime_type,
                 'file_size': file_size,
@@ -278,6 +281,11 @@ class FileMetadataStore:
         """
         List all files for an API key.
 
+        Filters by the HMAC hash of the key, never the raw value. A row
+        written before this field existed has no `api_key_hash` and is
+        excluded until it's rewritten (no bulk backfill — see
+        docs/roadmap/admin-api-security-hardening.md Phase 2).
+
         Args:
             api_key: API key to filter by
 
@@ -289,7 +297,7 @@ class FileMetadataStore:
         try:
             results = await self._db_service.find_many(
                 'uploaded_files',
-                {'api_key': api_key},
+                {'api_key_hash': hash_api_key(api_key, self.config)},
                 limit=1000,
                 sort=[('upload_timestamp', -1)]
             )
@@ -301,12 +309,14 @@ class FileMetadataStore:
             return []
 
     async def get_generated_file_ids_for_session(self, session_id: str, api_key: str) -> list[str]:
-        """Return IDs of all server-persisted generated images for a conversation session."""
+        """Return IDs of all server-persisted generated images for a conversation session.
+
+        Filters by api_key_hash; see the same-key gap note on list_files()."""
         await self._ensure_initialized()
         try:
             rows = await self._db_service.find_many(
                 'uploaded_files',
-                {'api_key': api_key},
+                {'api_key_hash': hash_api_key(api_key, self.config)},
                 limit=10000
             )
             result = []

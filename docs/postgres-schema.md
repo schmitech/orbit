@@ -370,6 +370,7 @@ CREATE TABLE IF NOT EXISTS thread_datasets (
 CREATE TABLE IF NOT EXISTS uploaded_files (
     id TEXT PRIMARY KEY,
     api_key TEXT NOT NULL,
+    api_key_hash TEXT,
     filename TEXT NOT NULL,
     mime_type TEXT,
     file_size INTEGER,
@@ -387,7 +388,9 @@ CREATE TABLE IF NOT EXISTS uploaded_files (
 )
 ```
 
-**Indexes:** `idx_uploaded_files_api_key` on `api_key`; `idx_uploaded_files_processing_status` on `processing_status`
+**Indexes:** `idx_uploaded_files_api_key` on `api_key`; `idx_uploaded_files_api_key_hash` on `api_key_hash`; `idx_uploaded_files_processing_status` on `processing_status`
+
+`api_key_hash` is an HMAC-SHA256 hash of the uploading key (via `hash_api_key()`, same pepper/algorithm as `api_keys.api_key_hash`), used for all ownership filtering (`list_files()`, `get_generated_file_ids_for_session()`) as of v1.13. `NULL` for rows written before v1.13; such rows are excluded from hash-filtered queries until rewritten — no bulk backfill (see `docs/roadmap/admin-api-security-hardening.md` Phase 2). The legacy `api_key` column still holds the raw key in plain text and is still written on every upload.
 
 > Note the `DEFAULT CURRENT_TIMESTAMP::TEXT` cast — Postgres's `CURRENT_TIMESTAMP` is a `timestamptz`, and the column is `TEXT` for cross-backend consistency with SQLite/MongoDB, so it's cast explicitly. SQLite's equivalent column uses a bare `DEFAULT CURRENT_TIMESTAMP`, which SQLite stores as text natively.
 
@@ -637,6 +640,9 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling (has
 
 ## Version History
 
+- **v1.13** (2026-10-02): `uploaded_files` ownership keyed by API-key hash, not the raw key (matches SQLite v1.23)
+  - Added `uploaded_files.api_key_hash` (HMAC-SHA256 of the raw key, via `hash_api_key()`) and its index `idx_uploaded_files_api_key_hash`; see the SQLite v1.23 entry for the full explanation
+  - Created/applied on existing databases through the additive startup migration (`ADD COLUMN IF NOT EXISTS` / `create_index`); no manual migration step needed. **No bulk backfill** of pre-existing rows — see the SQLite v1.23 entry's gap note
 - **v1.12** (2026-09-27): API keys are no longer stored in plaintext (matches SQLite v1.22)
   - Added `api_keys.api_key_hash` (HMAC-SHA256 of the raw key) and `api_keys.key_suffix` (last 6 chars, for masked admin-panel display only), plus a unique index `idx_api_keys_api_key_hash`; see the SQLite v1.22 entry for the full explanation, lazy-migration behavior, and affected services (`QuotaService`, `ThrottleMiddleware`, `AuditService`)
   - Created/applied on existing databases through the additive startup migration (`ADD COLUMN IF NOT EXISTS` / `create_index`); no manual migration step needed

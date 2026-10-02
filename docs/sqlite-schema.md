@@ -531,7 +531,7 @@ Requests with no API key (key enforcement disabled) skip all of this unchanged.
 
 > **Known race.** Ownership is derived from message rows, not from an immutable session-owner record. Two concurrent first writes to the same new client-supplied `session_id` can both observe an empty session and both stamp their own fingerprint, producing a mixed-owner session. That no longer authorizes deletion or reads — mixed ownership is denied for everyone — but it can strand the session for both parties. Closing this cleanly needs a dedicated session-ownership record with a unique `session_id` constraint and atomic create-or-compare. Not implemented.
 
-The raw key is never persisted in this table. `uploaded_files.api_key` stores keys in plain text and enforces its own ownership check by direct comparison; the two are independent.
+The raw key is never persisted in this table. `uploaded_files` is a separate, independent ownership check: as of v1.23 it filters by `api_key_hash` (see below) for any row written since; a pre-v1.23 row still carries only the plain-text `api_key` column until rewritten.
 
 ---
 
@@ -612,6 +612,7 @@ Stores uploaded file metadata for retrieval and file adapter workflows.
 CREATE TABLE IF NOT EXISTS uploaded_files (
     id TEXT PRIMARY KEY,
     api_key TEXT NOT NULL,
+    api_key_hash TEXT,
     filename TEXT NOT NULL,
     mime_type TEXT,
     file_size INTEGER,
@@ -631,7 +632,8 @@ CREATE TABLE IF NOT EXISTS uploaded_files (
 
 **Fields:**
 - `id` (TEXT, PK): Unique uploaded file ID (UUID)
-- `api_key` (TEXT): API key that uploaded the file
+- `api_key` (TEXT): API key that uploaded the file, in plain text. Legacy ownership/filter key, superseded by `api_key_hash` below; retained unmodified on existing rows (no backfill) and still written on new uploads as of v1.23, pending a future phase that stops writing it
+- `api_key_hash` (TEXT): HMAC-SHA256 hash of the uploading key (via `hash_api_key`, same pepper and algorithm as `api_keys.api_key_hash`), used for all ownership filtering (`list_files()`, `get_generated_file_ids_for_session()`) as of v1.23. `NULL` for rows written before v1.23; such rows are excluded from hash-filtered queries until rewritten — no bulk backfill (see `docs/roadmap/admin-api-security-hardening.md` Phase 2)
 - `filename` (TEXT): Original filename
 - `mime_type` (TEXT): File MIME type
 - `file_size` (INTEGER): File size in bytes
@@ -649,6 +651,7 @@ CREATE TABLE IF NOT EXISTS uploaded_files (
 
 **Indexes:**
 - `idx_uploaded_files_api_key` on `api_key`
+- `idx_uploaded_files_api_key_hash` on `api_key_hash`
 - `idx_uploaded_files_processing_status` on `processing_status`
 
 ---
@@ -1114,6 +1117,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.23** (2026-10-02): `uploaded_files` ownership keyed by API-key hash, not the raw key (matches Postgres v1.13)
+  - Added `uploaded_files.api_key_hash` (HMAC-SHA256 of the raw key, via `hash_api_key()` — same pepper/algorithm as `api_keys.api_key_hash`) and its index `idx_uploaded_files_api_key_hash`. Applied through the same additive startup migration as other columns (`_migrate_table_schema`)
+  - New uploads write both `api_key` (legacy, plain text) and `api_key_hash`; `list_files()` and `get_generated_file_ids_for_session()` now filter by `api_key_hash` instead of the raw `api_key`
+  - **No bulk backfill.** A row written before this version has `api_key_hash = NULL` and is excluded from hash-filtered queries until it's rewritten — a known, bounded gap (see `docs/roadmap/admin-api-security-hardening.md` Phase 2). The legacy `api_key` column and its index are unchanged and still populated on every write
 - **v1.22** (2026-09-27): API keys are no longer stored in plaintext (matches Postgres v1.12)
   - Added `api_keys.api_key_hash` (HMAC-SHA256 of the raw key, peppered with `ORBIT_API_KEY_PEPPER`/`api_keys.hash_pepper`) and `api_keys.key_suffix` (last 6 chars of the raw key, for masked admin-panel display only). Added its unique, sparse index `idx_api_keys_api_key_hash`
   - The legacy `api_key` column is retained only to satisfy its pre-existing `NOT NULL`/`UNIQUE` constraint; for any key created, renamed, or validated since this version it holds the same hash as `api_key_hash` (never the raw key), not the real plaintext key

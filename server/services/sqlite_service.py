@@ -301,6 +301,7 @@ class SQLiteService(DatabaseService):
                 CREATE TABLE IF NOT EXISTS uploaded_files (
                     id TEXT PRIMARY KEY,
                     api_key TEXT NOT NULL,
+                    api_key_hash TEXT,
                     filename TEXT NOT NULL,
                     mime_type TEXT,
                     file_size INTEGER,
@@ -459,6 +460,7 @@ class SQLiteService(DatabaseService):
             ],
             'uploaded_files': [
                 'CREATE INDEX IF NOT EXISTS idx_uploaded_files_api_key ON uploaded_files(api_key)',
+                'CREATE INDEX IF NOT EXISTS idx_uploaded_files_api_key_hash ON uploaded_files(api_key_hash)',
                 'CREATE INDEX IF NOT EXISTS idx_uploaded_files_processing_status ON uploaded_files(processing_status)',
             ],
             'file_chunks': [

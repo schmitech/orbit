@@ -97,7 +97,7 @@ their parsed bearer credential (scheme-casing-insensitive, matching
 Tests: `server/tests/test_middleware/test_admin_rate_limit_middleware.py`
 (8 cases). Full exit-gate suite passes; see commit for details.
 
-## Phase 2 — Hash the raw key in `uploaded_files`
+## Phase 2 — Hash the raw key in `uploaded_files` ✅ DONE
 
 **Why:** the exact class of exposure the `api_keys.api_key_hash` migration
 fixed still exists one collection over. `services/file_metadata/metadata_store.py`
@@ -136,6 +136,23 @@ Mongo field) purely as an ownership/filter key for `list_files()` and
 
 **Exit gate:** no new upload ever writes a raw key to a column intended for
 long-term storage; existing `test_services/test_*file*` suites pass.
+
+**Status: shipped.** Added `uploaded_files.api_key_hash` to the SQLite and
+Postgres schemas (`server/services/sqlite_service.py`,
+`server/services/postgres_service.py`) plus its index, picked up by the
+existing additive startup migration — no manual migration step. MongoDB
+needs no schema change. `FileMetadataStore.record_file_upload()` now writes
+`api_key_hash` (via `services.api_key_service.hash_api_key()`) alongside the
+legacy `api_key` column; `list_files()` and `get_generated_file_ids_for_session()`
+filter by `api_key_hash` instead of the raw key. Documented as SQLite v1.23 /
+Postgres v1.13 in `docs/sqlite-schema.md`/`docs/postgres-schema.md`, including
+the known gap (pre-existing rows have no hash and are excluded from
+hash-filtered queries until rewritten; no bulk backfill). Tests: new cases in
+`server/tests/file-adapter/test_metadata_store.py` covering hash-on-write,
+hash-filtered reads for a fresh upload, and the legacy-row exclusion gap.
+Full `server/tests/file-adapter/` suite passes (one pre-existing, unrelated
+failure in `test_file_types_full_pipeline.py::test_html_file_full_pipeline`
+reproduces identically on `main` before this change).
 
 ## Phase 3 — Broaden and unify the SSRF denylist
 

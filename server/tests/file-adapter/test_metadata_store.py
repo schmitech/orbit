@@ -539,6 +539,99 @@ async def test_list_files_ordering(metadata_store):
 
 
 @pytest.mark.asyncio
+async def test_record_file_upload_writes_api_key_hash(metadata_store):
+    """New uploads write api_key_hash, matching ApiKeyService's hashing."""
+    from services.api_key_service import hash_api_key
+
+    await metadata_store.record_file_upload(
+        file_id="hashed_file",
+        api_key="test_api_key",
+        filename="doc.txt",
+        mime_type="text/plain",
+        file_size=10,
+        storage_key="key",
+        storage_type="vector",
+    )
+
+    raw_row = await metadata_store._db_service.find_one('uploaded_files', {'_id': 'hashed_file'})
+    assert raw_row["api_key_hash"] == hash_api_key("test_api_key", metadata_store.config)
+    # Legacy raw column is still written alongside the hash in this phase.
+    assert raw_row["api_key"] == "test_api_key"
+
+
+@pytest.mark.asyncio
+async def test_list_files_filters_by_hash_for_fresh_upload(metadata_store):
+    """list_files() filters by the hash of the caller's key for a new upload."""
+    api_key = "fresh_key"
+    await metadata_store.record_file_upload(
+        file_id="fresh_file",
+        api_key=api_key,
+        filename="doc.txt",
+        mime_type="text/plain",
+        file_size=10,
+        storage_key="key",
+        storage_type="vector",
+    )
+
+    files = await metadata_store.list_files(api_key)
+    assert len(files) == 1
+    assert files[0]["file_id"] == "fresh_file"
+
+    # A different key must not match.
+    assert await metadata_store.list_files("other_key") == []
+
+
+@pytest.mark.asyncio
+async def test_get_generated_file_ids_for_session_filters_by_hash(metadata_store):
+    """get_generated_file_ids_for_session() filters by hash for a fresh upload."""
+    api_key = "fresh_key"
+    await metadata_store.record_file_upload(
+        file_id="generated_file",
+        api_key=api_key,
+        filename="image.png",
+        mime_type="image/png",
+        file_size=10,
+        storage_key="key",
+        storage_type="vector",
+        metadata={"generated": True, "session_id": "session_1"},
+    )
+
+    ids = await metadata_store.get_generated_file_ids_for_session("session_1", api_key)
+    assert ids == ["generated_file"]
+    assert await metadata_store.get_generated_file_ids_for_session("session_1", "other_key") == []
+
+
+@pytest.mark.asyncio
+async def test_pre_existing_row_with_no_hash_is_excluded_from_hash_filtered_query(metadata_store):
+    """A legacy row (raw api_key only, no api_key_hash) is excluded from the
+    hash-filtered list_files()/get_generated_file_ids_for_session() queries —
+    the expected, bounded gap for this phase (no bulk backfill)."""
+    api_key = "legacy_key"
+
+    # Simulate a pre-existing row written before api_key_hash existed, by
+    # inserting directly with no hash field populated.
+    await metadata_store._db_service.insert_one('uploaded_files', {
+        '_id': 'legacy_file',
+        'api_key': api_key,
+        'api_key_hash': None,
+        'filename': 'legacy.txt',
+        'mime_type': 'text/plain',
+        'file_size': 10,
+        'upload_timestamp': '2020-01-01T00:00:00+00:00',
+        'processing_status': 'completed',
+        'storage_key': 'legacy_key',
+        'storage_type': 'vector',
+        'metadata_json': '{}',
+        'chunk_count': 0,
+        'created_at': '2020-01-01T00:00:00+00:00',
+    })
+
+    # The row exists (by id) but is invisible to the hash-filtered query.
+    assert await metadata_store.get_file_info('legacy_file') is not None
+    assert await metadata_store.list_files(api_key) == []
+
+
+@pytest.mark.asyncio
 async def test_large_file_metadata(metadata_store):
     """Test handling large file metadata"""
     large_metadata = {
