@@ -1115,6 +1115,43 @@ security:
     # Response configuration
     retry_after_seconds: 60          # Retry-After header value when limited
 
+  # Rate limiting for a fixed allowlist of sensitive admin routes (key
+  # creation, audit/log export, MCP connection probes). Unlike
+  # rate_limiting above, this is enabled by default — these actions are
+  # expensive/sensitive enough to always be throttled, even on a fresh
+  # install with rate_limiting.enabled left at its default of false.
+  # Falls back to an in-memory limiter when no cache provider is enabled.
+  admin_rate_limiting:
+    enabled: true # Master switch; independent of rate_limiting.enabled
+
+    # Per-route requests-per-minute overrides, keyed as "METHOD /path".
+    # Any route not listed keeps its built-in default:
+    #   POST /admin/api-keys            -> 20/min
+    #   GET  /admin/audit/events        -> 60/min
+    #   GET  /admin/logs/tail           -> 60/min
+    #   POST /admin/mcp/test-connection -> 60/min
+    # Only these four routes are recognized; other keys are ignored. Example:
+    # route_limits:
+    #   "POST /admin/api-keys": 10
+    #   "GET /admin/audit/events": 120
+    #   "GET /admin/logs/tail": 30
+    #   "POST /admin/mcp/test-connection": 15
+    route_limits: {}
+
+    # Response configuration
+    retry_after_seconds: 60          # Retry-After header value when limited
+
+    # Proxy header trust configuration (used only for the unauthenticated-
+    # request fallback; see rate_limiting.trust_proxy_headers above)
+    trust_proxy_headers: false
+    trusted_proxies: []
+    # Example trusted_proxies configuration:
+    # trusted_proxies:
+    #   - "10.0.0.0/8"        # Private network
+    #   - "172.16.0.0/12"     # Private network
+    #   - "192.168.0.0/16"    # Private network
+    #   - "127.0.0.1"         # Localhost
+
   # Throttling configuration (executes BEFORE rate limiting)
   # Delays requests progressively instead of rejecting them
   throttling:

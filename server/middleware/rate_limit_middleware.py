@@ -16,9 +16,10 @@ import hashlib
 import time
 import logging
 import threading
-from typing import Any
+from typing import Any, ClassVar
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.security.utils import get_authorization_scheme_param
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from utils.ip_utils import extract_ip, parse_trusted_networks
@@ -368,8 +369,148 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         # Process the request
         response = await call_next(request)
-        
+
         # Add rate limit headers to successful responses
         self._add_rate_limit_headers(response, limit, remaining, reset_timestamp)
-        
+
+        return response
+
+
+class AdminRateLimitMiddleware(BaseHTTPMiddleware):
+    """
+    Rate limits a small, fixed allowlist of sensitive admin routes
+    (key creation, bulk audit/log export, outbound MCP connection probes),
+    independent of the general-purpose ``security.rate_limiting.enabled``
+    toggle. These actions are expensive or sensitive enough to always be
+    throttled, even on a fresh install with no rate-limiting config.
+
+    Reuses `InMemoryRateLimiter` as the no-cache fallback and the same
+    cache-backed fixed-window counter technique as `RateLimitMiddleware`.
+    """
+
+    # (method, path) -> default requests-per-minute limit
+    DEFAULT_ROUTE_LIMITS: ClassVar[dict[tuple[str, str], int]] = {
+        ("POST", "/admin/api-keys"): 20,
+        ("GET", "/admin/audit/events"): 60,
+        ("GET", "/admin/logs/tail"): 60,
+        ("POST", "/admin/mcp/test-connection"): 60,
+    }
+
+    def __init__(self, app, config: dict[str, Any]):
+        super().__init__(app)
+
+        security_config = config.get('security', {}) or {}
+        admin_config = security_config.get('admin_rate_limiting', {}) or {}
+
+        # Unlike the general-purpose limiter, this one defaults to enabled.
+        self.enabled = admin_config.get('enabled', True)
+
+        configured_limits = admin_config.get('route_limits', {}) or {}
+        self.route_limits: dict[tuple[str, str], int] = {}
+        for (method, path), default_limit in self.DEFAULT_ROUTE_LIMITS.items():
+            override_key = f"{method} {path}"
+            self.route_limits[(method, path)] = configured_limits.get(
+                override_key, default_limit
+            )
+
+        self.retry_after_seconds = admin_config.get('retry_after_seconds', 60)
+
+        self.trust_proxy_headers = admin_config.get('trust_proxy_headers', False)
+        self.trusted_proxies = parse_trusted_networks(
+            admin_config.get('trusted_proxies', [])
+        )
+
+        self._fallback_limiter = InMemoryRateLimiter()
+
+        logger.info(
+            f"Admin rate limiting middleware initialized: enabled={self.enabled}, "
+            f"routes={len(self.route_limits)}"
+        )
+
+    def _match_limit(self, request: Request) -> int | None:
+        return self.route_limits.get((request.method, request.url.path))
+
+    def _identifier(self, request: Request) -> str:
+        """Prefer the admin bearer credential (per-credential limiting), parsed
+        the same way FastAPI's HTTPBearer dependency does — case-insensitive
+        scheme, credential only — so varying the scheme's casing can't split
+        one token across multiple rate-limit buckets. Falls back to client IP
+        for unauthenticated/malformed/non-bearer headers, which the auth
+        dependency will reject anyway."""
+        auth_header = request.headers.get("Authorization")
+        if auth_header:
+            scheme, credential = get_authorization_scheme_param(auth_header)
+            if credential and scheme.lower() == "bearer":
+                return f"token:{credential}"
+        ip, _metadata = extract_ip(
+            request,
+            trust_proxy=self.trust_proxy_headers,
+            trusted_networks=self.trusted_proxies,
+        )
+        return f"ip:{ip}"
+
+    def _rate_limited_response(self, limit: int, reset: int) -> JSONResponse:
+        response = JSONResponse(
+            status_code=429,
+            content={
+                "detail": f"Rate limit exceeded. Please retry after {self.retry_after_seconds} seconds.",
+                "retry_after": self.retry_after_seconds,
+            },
+        )
+        response.headers["Retry-After"] = str(self.retry_after_seconds)
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = "0"
+        response.headers["X-RateLimit-Reset"] = str(reset)
+        return response
+
+    async def _is_allowed(
+        self, request: Request, key: str, limit: int
+    ) -> tuple[bool, int]:
+        cache_service = getattr(request.app.state, 'cache_service', None)
+        if not cache_service or not cache_service.enabled:
+            return self._fallback_limiter.is_allowed(key, limit)
+
+        if not cache_service.initialized:
+            try:
+                await cache_service.initialize()
+            except Exception as e:  # noqa: BLE001 - cache-backend boundary, must not block the request pipeline on init failure
+                logger.warning(f"Failed to initialize cache service for admin rate limiting: {e}")
+                return self._fallback_limiter.is_allowed(key, limit)
+
+        current_minute = int(time.time()) // 60
+        cache_key = f"adminratelimit:min:{current_minute}:{key}"
+        try:
+            count = await cache_service.increment_with_ttl(cache_key, 60)
+            if count <= 0:
+                raise RuntimeError("Cache increment returned a non-positive count")
+            return count <= limit, max(0, limit - count)
+        except Exception as e:  # noqa: BLE001 - cache-backend boundary, must fall back to in-memory limiting not crash the request
+            logger.warning(f"Cache-backed admin rate limit check failed, using in-memory fallback: {e}")
+            return self._fallback_limiter.is_allowed(key, limit)
+
+    async def dispatch(self, request: Request, call_next):
+        if not self.enabled:
+            return await call_next(request)
+
+        limit = self._match_limit(request)
+        if limit is None:
+            return await call_next(request)
+
+        identifier = self._identifier(request)
+        storage_key = hashlib.sha256(identifier.encode()).hexdigest()[:16]
+        key = f"{request.method}:{request.url.path}:{storage_key}"
+
+        allowed, remaining = await self._is_allowed(request, key, limit)
+        reset_time = (int(time.time()) // 60 + 1) * 60
+
+        if not allowed:
+            logger.warning(
+                f"Admin rate limit exceeded for {request.method} {request.url.path}"
+            )
+            return self._rate_limited_response(limit, reset_time)
+
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        response.headers["X-RateLimit-Reset"] = str(reset_time)
         return response

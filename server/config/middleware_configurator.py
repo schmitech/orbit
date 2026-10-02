@@ -124,6 +124,10 @@ class MiddlewareConfigurator:
         # Configure rate limiting middleware (rejects requests over hard limits)
         MiddlewareConfigurator._configure_rate_limit_middleware(app, config)
 
+        # Configure admin rate limiting middleware (sensitive admin routes;
+        # active by default, independent of security.rate_limiting.enabled)
+        MiddlewareConfigurator._configure_admin_rate_limit_middleware(app, config)
+
         # Configure throttle middleware (added last, executed first — delays requests before rate limiting)
         MiddlewareConfigurator._configure_throttle_middleware(app, config)
 
@@ -349,6 +353,35 @@ class MiddlewareConfigurator:
             _logger.warning(f"RateLimitMiddleware not available - rate limiting disabled: {e}")
         except Exception as e:  # noqa: BLE001 - middleware registration at startup must degrade gracefully, not crash app boot
             _logger.warning(f"Failed to configure rate limit middleware: {e}")
+
+    @staticmethod
+    def _configure_admin_rate_limit_middleware(app: FastAPI, config: dict[str, Any]) -> None:
+        """
+        Configure rate limiting for a fixed allowlist of sensitive admin
+        routes (key creation, audit/log export, MCP connection probes).
+
+        Active by default (security.admin_rate_limiting.enabled defaults to
+        true) and independent of security.rate_limiting.enabled — unlike the
+        general-purpose limiter, this guards actions expensive or sensitive
+        enough to always be throttled. Works without a cache provider
+        (falls back to an in-memory limiter) so it protects a fresh install
+        with no config changes.
+        """
+        security_config = config.get('security', {}) or {}
+        admin_config = security_config.get('admin_rate_limiting', {}) or {}
+
+        if not admin_config.get('enabled', True):
+            _logger.debug("Admin rate limiting middleware is disabled in configuration")
+            return
+
+        try:
+            from server.middleware.rate_limit_middleware import AdminRateLimitMiddleware
+            app.add_middleware(AdminRateLimitMiddleware, config=config)
+            _logger.debug("Admin rate limiting middleware configured successfully")
+        except ImportError as e:
+            _logger.warning(f"AdminRateLimitMiddleware not available - admin rate limiting disabled: {e}")
+        except Exception as e:  # noqa: BLE001 - middleware registration at startup must degrade gracefully, not crash app boot
+            _logger.warning(f"Failed to configure admin rate limit middleware: {e}")
 
     @staticmethod
     def _configure_throttle_middleware(app: FastAPI, config: dict[str, Any]) -> None:

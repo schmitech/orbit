@@ -45,7 +45,7 @@ No phase here changes an existing authenticated route's success-path
 response shape; a behavior change is either additive (a new 429/422) or an
 internal storage/lookup detail.
 
-## Phase 1 — Rate-limit sensitive admin actions independent of the general toggle
+## Phase 1 — Rate-limit sensitive admin actions independent of the general toggle ✅ DONE
 
 **Why first:** lowest implementation risk, highest abuse-reduction value —
 today a compromised or over-broadly-scoped bearer token can mass-create API
@@ -82,6 +82,20 @@ has separately opted into `security.rate_limiting.enabled`.
 **Exit gate:** the three routes above 429 under sustained abuse in a fresh
 install with no config changes; existing admin/mcp test suites pass
 unmodified.
+
+**Status: shipped.** Implemented as `AdminRateLimitMiddleware` in
+`server/middleware/rate_limit_middleware.py` (reuses `InMemoryRateLimiter`
+and the cache-backed fixed-window technique), registered unconditionally in
+`server/config/middleware_configurator.py`, with the
+`security.admin_rate_limiting` block added to `config/config.yaml` and
+`install/default-config/config.yaml`, and documented in
+`docs/rate-limiting-architecture.md`. The actual MCP probe path is
+`POST /admin/mcp/test-connection` (the plan text above said `/mcp/`), which
+the implementation and its route-limit default use. Callers are keyed by
+their parsed bearer credential (scheme-casing-insensitive, matching
+`HTTPBearer`), falling back to IP for unauthenticated/non-bearer requests.
+Tests: `server/tests/test_middleware/test_admin_rate_limit_middleware.py`
+(8 cases). Full exit-gate suite passes; see commit for details.
 
 ## Phase 2 — Hash the raw key in `uploaded_files`
 

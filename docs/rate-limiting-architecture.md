@@ -154,6 +154,51 @@ security:
       monthly_reset: "X-Quota-Monthly-Reset"
 ```
 
+### Admin Rate Limiting
+
+A fixed allowlist of sensitive admin routes is rate-limited independently of
+`security.rate_limiting.enabled`, configured under `security.admin_rate_limiting`:
+
+```yaml
+security:
+  admin_rate_limiting:
+    enabled: true                      # Master switch; defaults to true, unlike rate_limiting above
+
+    # Per-route requests-per-minute overrides, keyed as "METHOD /path".
+    # Unlisted routes keep their built-in default:
+    #   POST /admin/api-keys            -> 20/min
+    #   GET  /admin/audit/events        -> 60/min
+    #   GET  /admin/logs/tail           -> 60/min
+    #   POST /admin/mcp/test-connection -> 60/min
+    # Only these four routes are recognized; other keys are ignored. Example:
+    # route_limits:
+    #   "POST /admin/api-keys": 10
+    #   "GET /admin/audit/events": 120
+    #   "GET /admin/logs/tail": 30
+    #   "POST /admin/mcp/test-connection": 15
+    route_limits: {}
+
+    retry_after_seconds: 60            # Retry-After header value when limited
+    trust_proxy_headers: false         # Same semantics as rate_limiting.trust_proxy_headers
+    trusted_proxies: []
+    # Example trusted_proxies configuration:
+    # trusted_proxies:
+    #   - "10.0.0.0/8"        # Private network
+    #   - "172.16.0.0/12"     # Private network
+    #   - "192.168.0.0/16"    # Private network
+    #   - "127.0.0.1"         # Localhost
+```
+
+Unlike the general-purpose limiter, this guards actions expensive or
+sensitive enough to always be throttled — key creation, bulk audit/log
+export, and outbound MCP connection probes — and protects a fresh install
+with no config changes. When a cache provider (Redis) is enabled it uses the
+same cache-backed fixed-window counter as `rate_limiting`; otherwise it falls
+back to an in-memory limiter, same as `rate_limiting`'s no-cache fallback.
+Requests are keyed by the caller's bearer token (falling back to IP for
+unauthenticated requests, which the route's own auth dependency rejects
+regardless).
+
 ### Prerequisites
 
 Both rate limiting and throttling require:
@@ -472,6 +517,15 @@ The in-memory fallback is process-local. In multi-worker deployments, each worke
 | `server/middleware/rate_limit_middleware.py` | Rate limit middleware implementation |
 | `server/config/middleware_configurator.py` | Middleware registration |
 | `config/config.yaml` | Configuration (security.rate_limiting) |
+
+### Admin Rate Limiting
+
+| File | Purpose |
+|------|---------|
+| `server/middleware/rate_limit_middleware.py` | `AdminRateLimitMiddleware` implementation (same file as the general limiter) |
+| `server/config/middleware_configurator.py` | Middleware registration |
+| `config/config.yaml` | Configuration (security.admin_rate_limiting) |
+| `server/tests/test_middleware/test_admin_rate_limit_middleware.py` | Tests |
 
 ### Throttling & Quotas
 

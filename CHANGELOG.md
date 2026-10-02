@@ -9,6 +9,9 @@
 
 - **Toggle for Generation Prompt Rewriting**: Image, video, and audio generation adapters gained a `rewrite_prompt` config key (default `true`). Set it to `false` to bypass `config/rewriters-prompts.yaml` and send the raw user message straight to the generation provider, instead of enriching it through a rewrite LLM first. Adapter preloading (`AdapterLoader.load_adapter`, `DynamicAdapterManager.preload_all_adapters`) now skips the rewrite provider entirely for these adapters, so a disabled or unavailable rewrite provider no longer blocks startup when rewriting is turned off.
 
+### Security
+- **Rate Limiting for Sensitive Admin Routes (Phase 1 of Admin/API-Key Hardening)**: `POST /admin/api-keys`, `GET /admin/audit/events`, `GET /admin/logs/tail`, and `POST /admin/mcp/test-connection` are now rate-limited by default (20/60/60/60 requests per minute respectively), independent of the general-purpose `security.rate_limiting.enabled` toggle — a compromised or over-broadly-scoped bearer token can no longer mass-create API keys or scrape the full audit/log history with zero throttling on a fresh install.
+
 ### Bug Fixes
 - **MQ Adapter Override to an Unavailable Adapter Fell Through to the Default LLM**: When a message-queue request's `adapter` override named an adapter that was unknown or disabled, the pipeline found no config for it, skipped the adapter-specific steps, and answered with the global default inference provider. The consumer now replies with a `failed` envelope ("Adapter '…' is not available") without running the pipeline.
 - **Image/Video Service Caches Not Closed on Shutdown**: `DynamicAdapterManager.close()` now closes the image and video generation service caches (and the new decision cache) along with the other service caches.
