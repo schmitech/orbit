@@ -154,7 +154,7 @@ Full `server/tests/file-adapter/` suite passes (one pre-existing, unrelated
 failure in `test_file_types_full_pipeline.py::test_html_file_full_pipeline`
 reproduces identically on `main` before this change).
 
-## Phase 3 — Broaden and unify the SSRF denylist
+## Phase 3 — Broaden and unify the SSRF denylist ✅ DONE
 
 **Why:** `_reject_cloud_metadata_host()` only blocks the metadata range for
 one endpoint (`POST /mcp/test-connection`); a saved MCP server config
@@ -190,6 +190,35 @@ probe fix didn't close the config-write path.
 **Exit gate:** one shared implementation backs both surfaces; existing
 `test_admin_mcp_connection.py` and any MCP-config-write tests pass with the
 default (metadata-only) denylist.
+
+**Status: shipped.** `_reject_cloud_metadata_host()` was renamed to
+`_reject_denylisted_host(url, denylist)` in `server/routes/admin/mcp.py` and
+now checks a caller-supplied list of networks instead of the hardcoded
+metadata range, still handling IP-literal forms, DNS resolution, and IPv4-
+mapped IPv6 unwrapping exactly as before. A new `_parse_ssrf_denylist(config)`
+reads `security.ssrf_denylist` (default: `["169.254.0.0/16"]` — RFC1918/
+loopback stay allowed unless an operator opts in) and is called from all
+three write/probe surfaces: `POST /admin/mcp/test-connection`,
+`POST /admin/mcp/servers` (via `_validate_new_mcp_server`), and
+`PATCH /admin/mcp/servers/{name}` (via `_validate_mcp_connection`), so a
+saved config can no longer point at the metadata range just because the
+one-off probe already checked something else. Documented in
+`config/config.yaml` and `install/default-config/config.yaml` with the same
+worked-example convention as `admin_rate_limiting`. `_parse_ssrf_denylist()`
+always includes the metadata range alongside whatever is configured
+(additive, not a replacement — a configured denylist can no longer
+accidentally remove the default protection), and `_reject_denylisted_host()`
+checks both an IPv6 address and its unwrapped IPv4-mapped form against the
+denylist, so an IPv6-specific entry still matches a mapped literal and vice
+versa. The create/update config-write endpoints now serialize their
+read-validate-write section behind `_mcp_config_lock` (an `asyncio.Lock`),
+since the SSRF check's DNS-resolution `await` sits between reading
+`mcp_clients.yaml` and writing it back — without the lock, two concurrent
+saves could interleave and one would silently overwrite the other. Tests:
+`TestSsrfDenylist` class in
+`server/tests/test_routes/test_admin_mcp_connection.py` (17 cases, including
+the additive-denylist, IPv4-mapped/IPv6-specific matching, and concurrent-
+create regressions); full file (152 cases) passes.
 
 ## Phase 4 — Push audit free-text search into the datastore
 

@@ -119,31 +119,31 @@ class TestGlobalLoopBudgets:
 
 
 class TestValidateMcpConnection:
-    def test_empty_connection_is_a_noop(self):
-        admin_routes._validate_mcp_connection({"transport": "stdio"}, {})
+    async def test_empty_connection_is_a_noop(self):
+        await admin_routes._validate_mcp_connection({"transport": "stdio"}, {})
 
-    def test_rejects_url_field_for_stdio(self):
+    async def test_rejects_url_field_for_stdio(self):
         # url/headers are http-only; stdio has its own command/args/env keys.
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"url": "http://x"})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"url": "http://x"})
         assert exc.value.status_code == 422
         assert "url" in exc.value.detail
 
-    def test_rejects_unknown_transport(self):
+    async def test_rejects_unknown_transport(self):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection({"transport": "grpc"}, {"url": "http://x"})
+            await admin_routes._validate_mcp_connection({"transport": "grpc"}, {"url": "http://x"})
         assert exc.value.status_code == 422
         assert "grpc" in exc.value.detail
 
-    def test_rejects_command_field_for_http(self):
+    async def test_rejects_command_field_for_http(self):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"command": "npx"})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"command": "npx"})
         assert exc.value.status_code == 422
         assert "command" in exc.value.detail
 
-    def test_rejects_empty_url(self):
+    async def test_rejects_empty_url(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"url": "   "})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"url": "   "})
 
     @pytest.mark.parametrize(
         "url",
@@ -157,141 +157,141 @@ class TestValidateMcpConnection:
             "https://example.com:99999/mcp",
         ],
     )
-    def test_rejects_malformed_or_unsupported_urls(self, url):
+    async def test_rejects_malformed_or_unsupported_urls(self, url):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"url": url})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"url": url})
         assert exc.value.status_code == 422
 
-    def test_rejects_url_over_maximum_length(self):
+    async def test_rejects_url_over_maximum_length(self):
         url = "https://example.com/" + "x" * admin_routes._MCP_CONNECTION_URL_MAX_LENGTH
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"url": url})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"url": url})
         assert exc.value.status_code == 422
         assert "2048" in exc.value.detail
 
-    def test_rejects_legacy_token_field(self):
+    async def test_rejects_legacy_token_field(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"token": "abc"})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"token": "abc"})
 
-    def test_rejects_non_dict_connection(self):
+    async def test_rejects_non_dict_connection(self):
         for bad in ("url", 1, ["url"], True):
             with pytest.raises(HTTPException) as exc:
-                admin_routes._validate_mcp_connection({"transport": "http"}, bad)
+                await admin_routes._validate_mcp_connection({"transport": "http"}, bad)
             assert exc.value.status_code == 422
 
-    def test_falsy_non_dict_connection_is_a_noop(self):
+    async def test_falsy_non_dict_connection_is_a_noop(self):
         # Falsy values (None, {}, "", 0) short-circuit before the type check —
         # only a truthy non-dict is a client error.
-        admin_routes._validate_mcp_connection({"transport": "stdio"}, None)
-        admin_routes._validate_mcp_connection({"transport": "stdio"}, "")
-        admin_routes._validate_mcp_connection({"transport": "stdio"}, 0)
+        await admin_routes._validate_mcp_connection({"transport": "stdio"}, None)
+        await admin_routes._validate_mcp_connection({"transport": "stdio"}, "")
+        await admin_routes._validate_mcp_connection({"transport": "stdio"}, 0)
 
 
 class TestValidateMcpConnectionStdio:
-    def test_accepts_command_args_env(self):
-        admin_routes._validate_mcp_connection(
+    async def test_accepts_command_args_env(self):
+        await admin_routes._validate_mcp_connection(
             {"transport": "stdio"},
             {"command": "uvx", "args": ["mcp-atlassian"], "env": {"JIRA_URL": "https://x"}},
         )
 
-    def test_rejects_empty_command(self):
+    async def test_rejects_empty_command(self):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"command": "   "})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"command": "   "})
         assert exc.value.status_code == 422
 
-    def test_rejects_non_string_command(self):
+    async def test_rejects_non_string_command(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"command": 123})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"command": 123})
 
-    def test_rejects_command_over_maximum_length(self):
+    async def test_rejects_command_over_maximum_length(self):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "stdio"}, {"command": "x" * (admin_routes._MCP_CONNECTION_COMMAND_MAX_LENGTH + 1)}
             )
         assert exc.value.status_code == 422
 
-    def test_rejects_command_with_control_characters(self):
+    async def test_rejects_command_with_control_characters(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"command": "npx\n-y"})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"command": "npx\n-y"})
 
-    def test_null_args_is_allowed(self):
-        admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": None})
+    async def test_null_args_is_allowed(self):
+        await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": None})
 
-    def test_empty_args_list_is_allowed(self):
-        admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": []})
+    async def test_empty_args_list_is_allowed(self):
+        await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": []})
 
-    def test_rejects_non_list_args(self):
+    async def test_rejects_non_list_args(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": "not-a-list"})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": "not-a-list"})
 
-    def test_rejects_non_string_args_entry(self):
+    async def test_rejects_non_string_args_entry(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": ["-y", 5]})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"args": ["-y", 5]})
 
-    def test_rejects_too_many_args(self):
+    async def test_rejects_too_many_args(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "stdio"}, {"args": ["x"] * (admin_routes._MCP_CONNECTION_ARGS_MAX_COUNT + 1)}
             )
 
-    def test_rejects_arg_over_maximum_length(self):
+    async def test_rejects_arg_over_maximum_length(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "stdio"}, {"args": ["x" * (admin_routes._MCP_CONNECTION_ARG_MAX_LENGTH + 1)]}
             )
 
-    def test_null_env_is_allowed(self):
-        admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": None})
+    async def test_null_env_is_allowed(self):
+        await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": None})
 
-    def test_empty_env_map_is_allowed(self):
-        admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": {}})
+    async def test_empty_env_map_is_allowed(self):
+        await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": {}})
 
-    def test_rejects_non_dict_env(self):
+    async def test_rejects_non_dict_env(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": ["FOO=bar"]})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": ["FOO=bar"]})
 
     @pytest.mark.parametrize("bad_key", ["", "1FOO", "FOO-BAR", "FOO BAR", "foo.bar"])
-    def test_rejects_invalid_env_key(self, bad_key):
+    async def test_rejects_invalid_env_key(self, bad_key):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": {bad_key: "x"}})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": {bad_key: "x"}})
         assert exc.value.status_code == 422
 
-    def test_rejects_non_string_env_value(self):
+    async def test_rejects_non_string_env_value(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": {"FOO": 1}})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": {"FOO": 1}})
 
-    def test_rejects_too_many_env_entries(self):
+    async def test_rejects_too_many_env_entries(self):
         env = {f"VAR_{i}": "x" for i in range(admin_routes._MCP_CONNECTION_ENV_MAX_ENTRIES + 1)}
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": env})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"env": env})
 
 
 class TestValidateMcpConnectionHeaders:
-    def test_rejects_headers_for_stdio(self):
+    async def test_rejects_headers_for_stdio(self):
         # MCPClientManager._open_session never reads headers in its stdio
         # branch (only http via _expand_headers) — persisting a header
         # edit for a stdio server would be a silent no-op, so it's rejected.
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection({"transport": "stdio"}, {"headers": {"X-Trace": "abc"}})
+            await admin_routes._validate_mcp_connection({"transport": "stdio"}, {"headers": {"X-Trace": "abc"}})
         assert exc.value.status_code == 422
 
-    def test_accepts_headers_for_http(self):
-        admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {"X-Trace": "abc"}})
+    async def test_accepts_headers_for_http(self):
+        await admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {"X-Trace": "abc"}})
 
-    def test_null_headers_is_allowed(self):
-        admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": None})
+    async def test_null_headers_is_allowed(self):
+        await admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": None})
 
-    def test_rejects_non_dict_headers(self):
+    async def test_rejects_non_dict_headers(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": "Authorization: x"})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": "Authorization: x"})
 
-    def test_rejects_non_string_header_value(self):
+    async def test_rejects_non_string_header_value(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {"X-Trace": 1}})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {"X-Trace": 1}})
 
-    def test_rejects_header_key_with_colon(self):
+    async def test_rejects_header_key_with_colon(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {"X-Trace:": "abc"}})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {"X-Trace:": "abc"}})
 
     @pytest.mark.parametrize(
         "bad_key",
@@ -303,147 +303,147 @@ class TestValidateMcpConnectionHeaders:
             "",
         ],
     )
-    def test_rejects_yaml_unsafe_or_malformed_header_key(self, bad_key):
+    async def test_rejects_yaml_unsafe_or_malformed_header_key(self, bad_key):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {bad_key: "value"}})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": {bad_key: "value"}})
         assert exc.value.status_code == 422
 
-    def test_rejects_header_key_over_maximum_length(self):
+    async def test_rejects_header_key_over_maximum_length(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http"},
                 {"headers": {"X" * (admin_routes._MCP_CONNECTION_HEADER_KEY_MAX_LENGTH + 1): "value"}},
             )
 
-    def test_accepts_header_key_with_underscore(self):
-        admin_routes._validate_mcp_connection(
+    async def test_accepts_header_key_with_underscore(self):
+        await admin_routes._validate_mcp_connection(
             {"transport": "http"}, {"headers": {"CMIT_MCP_TOKEN": "value"}}
         )
 
-    def test_rejects_header_value_over_maximum_length(self):
+    async def test_rejects_header_value_over_maximum_length(self):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http"},
                 {"headers": {"X-Trace": "x" * (admin_routes._MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH + 1)}},
             )
         assert exc.value.status_code == 422
 
-    def test_accepts_header_value_at_maximum_length(self):
-        admin_routes._validate_mcp_connection(
+    async def test_accepts_header_value_at_maximum_length(self):
+        await admin_routes._validate_mcp_connection(
             {"transport": "http"},
             {"headers": {"X-Trace": "x" * admin_routes._MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH}},
         )
 
-    def test_rejects_too_many_headers(self):
+    async def test_rejects_too_many_headers(self):
         headers = {f"X-H{i}": "x" for i in range(admin_routes._MCP_CONNECTION_HEADER_MAX_ENTRIES + 1)}
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": headers})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"headers": headers})
 
 
 class TestValidateMcpConnectionAuth:
-    def test_accepts_oauth2_auth_for_http(self):
-        admin_routes._validate_mcp_connection(
+    async def test_accepts_oauth2_auth_for_http(self):
+        await admin_routes._validate_mcp_connection(
             {"transport": "http"}, {"auth": {"type": "oauth2", "scopes": ["a", "b"]}}
         )
 
-    def test_rejects_auth_for_stdio(self):
+    async def test_rejects_auth_for_stdio(self):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "stdio"}, {"auth": {"type": "oauth2"}}
             )
         assert exc.value.status_code == 422
 
-    def test_null_auth_is_allowed(self):
-        admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": None})
+    async def test_null_auth_is_allowed(self):
+        await admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": None})
 
-    def test_rejects_non_dict_auth(self):
+    async def test_rejects_non_dict_auth(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": "oauth2"})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": "oauth2"})
 
-    def test_rejects_unsupported_auth_type(self):
+    async def test_rejects_unsupported_auth_type(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": {"type": "basic"}})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": {"type": "basic"}})
 
-    def test_rejects_missing_auth_type(self):
+    async def test_rejects_missing_auth_type(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": {"scopes": ["a"]}})
+            await admin_routes._validate_mcp_connection({"transport": "http"}, {"auth": {"scopes": ["a"]}})
 
-    def test_rejects_unknown_auth_field(self):
+    async def test_rejects_unknown_auth_field(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http"}, {"auth": {"type": "oauth2", "bogus": "x"}}
             )
 
-    def test_rejects_non_list_scopes(self):
+    async def test_rejects_non_list_scopes(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http"}, {"auth": {"type": "oauth2", "scopes": "a b"}}
             )
 
-    def test_rejects_non_string_scope_entry(self):
+    async def test_rejects_non_string_scope_entry(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http"}, {"auth": {"type": "oauth2", "scopes": [1]}}
             )
 
-    def test_rejects_empty_client_id(self):
+    async def test_rejects_empty_client_id(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http"}, {"auth": {"type": "oauth2", "client_id": ""}}
             )
 
-    def test_accepts_client_id_and_secret(self):
-        admin_routes._validate_mcp_connection(
+    async def test_accepts_client_id_and_secret(self):
+        await admin_routes._validate_mcp_connection(
             {"transport": "http"},
             {"auth": {"type": "oauth2", "client_id": "abc", "client_secret": "def"}},
         )
 
-    def test_rejects_out_of_range_redirect_port(self):
+    async def test_rejects_out_of_range_redirect_port(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http"}, {"auth": {"type": "oauth2", "redirect_port": 70000}}
             )
 
-    def test_rejects_bool_redirect_port(self):
+    async def test_rejects_bool_redirect_port(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http"}, {"auth": {"type": "oauth2", "redirect_port": True}}
             )
 
-    def test_accepts_valid_redirect_port(self):
-        admin_routes._validate_mcp_connection(
+    async def test_accepts_valid_redirect_port(self):
+        await admin_routes._validate_mcp_connection(
             {"transport": "http"}, {"auth": {"type": "oauth2", "redirect_port": 8765}}
         )
 
 
 class TestValidateMcpConnectionMutualExclusion:
-    def test_rejects_auth_and_headers_in_same_payload(self):
+    async def test_rejects_auth_and_headers_in_same_payload(self):
         with pytest.raises(HTTPException) as exc:
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http"},
                 {"headers": {"Authorization": "Bearer x"}, "auth": {"type": "oauth2"}},
             )
         assert exc.value.status_code == 422
 
-    def test_rejects_new_auth_when_entry_already_has_headers(self):
+    async def test_rejects_new_auth_when_entry_already_has_headers(self):
         # entry reflects the on-disk state before this update is applied —
         # an update sending only `auth` must still be rejected if `headers`
         # would still be present afterward.
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http", "headers": {"Authorization": "Bearer x"}},
                 {"auth": {"type": "oauth2"}},
             )
 
-    def test_rejects_new_headers_when_entry_already_has_auth(self):
+    async def test_rejects_new_headers_when_entry_already_has_auth(self):
         with pytest.raises(HTTPException):
-            admin_routes._validate_mcp_connection(
+            await admin_routes._validate_mcp_connection(
                 {"transport": "http", "auth": {"type": "oauth2"}},
                 {"headers": {"Authorization": "Bearer x"}},
             )
 
-    def test_clearing_headers_while_setting_auth_is_allowed(self):
-        admin_routes._validate_mcp_connection(
+    async def test_clearing_headers_while_setting_auth_is_allowed(self):
+        await admin_routes._validate_mcp_connection(
             {"transport": "http", "headers": {"Authorization": "Bearer x"}},
             {"headers": {}, "auth": {"type": "oauth2"}},
         )
@@ -1106,3 +1106,156 @@ class TestDeleteMcpServer:
         assert result["reload_error"] == "reload unavailable"
         written = yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())
         assert all(server["name"] != "stdio-server" for server in written["mcp_clients"]["servers"])
+
+
+class TestSsrfDenylist:
+    """The shared SSRF check (Phase 3): same denylist, same helper, applied to
+    both the one-off probe (test_mcp_connection) and saved-config writes
+    (create_mcp_server/update_mcp_server) — not just the probe alone."""
+
+    def test_parse_ssrf_denylist_defaults_to_metadata_range_only(self):
+        assert admin_routes._parse_ssrf_denylist(None) == admin_routes._DEFAULT_SSRF_DENYLIST
+        assert admin_routes._parse_ssrf_denylist({}) == admin_routes._DEFAULT_SSRF_DENYLIST
+        assert admin_routes._parse_ssrf_denylist({"security": {}}) == admin_routes._DEFAULT_SSRF_DENYLIST
+
+    def test_parse_ssrf_denylist_reads_configured_ranges_additively(self):
+        # Configuring additional ranges must not drop the default metadata
+        # range — it is always included alongside whatever is configured.
+        import ipaddress
+
+        config = {"security": {"ssrf_denylist": ["10.0.0.0/8"]}}
+        assert admin_routes._parse_ssrf_denylist(config) == [
+            ipaddress.ip_network("169.254.0.0/16"),
+            ipaddress.ip_network("10.0.0.0/8"),
+        ]
+
+    def test_parse_ssrf_denylist_ignores_invalid_entries_but_keeps_default(self):
+        assert admin_routes._parse_ssrf_denylist(
+            {"security": {"ssrf_denylist": ["not-a-network"]}}
+        ) == admin_routes._DEFAULT_SSRF_DENYLIST
+
+    async def test_reject_denylisted_host_blocks_metadata_literal_by_default(self):
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes._reject_denylisted_host(
+                "http://169.254.169.254/latest/meta-data/", admin_routes._DEFAULT_SSRF_DENYLIST
+            )
+        assert exc.value.status_code == 422
+
+    async def test_reject_denylisted_host_allows_private_network_by_default(self):
+        # RFC1918 stays allowed unless an operator opts in — see config.yaml.
+        await admin_routes._reject_denylisted_host("http://10.0.0.1/", admin_routes._DEFAULT_SSRF_DENYLIST)
+
+    async def test_reject_denylisted_host_blocks_private_network_when_configured(self):
+        import ipaddress
+
+        denylist = [ipaddress.ip_network("10.0.0.0/8")]
+        with pytest.raises(HTTPException):
+            await admin_routes._reject_denylisted_host("http://10.0.0.1/", denylist)
+
+    async def test_reject_denylisted_host_blocks_metadata_even_with_configured_denylist(self):
+        # A configured denylist is additive: it must never silently drop the
+        # metadata-range protection that was already in effect.
+        denylist = admin_routes._parse_ssrf_denylist({"security": {"ssrf_denylist": ["10.0.0.0/8"]}})
+        with pytest.raises(HTTPException):
+            await admin_routes._reject_denylisted_host("http://169.254.169.254/", denylist)
+
+    async def test_reject_denylisted_host_matches_ipv4_mapped_ipv6_literal(self):
+        # http://[::ffff:10.0.0.1]/ must match an IPv4-only denylist entry
+        # via the unwrapped mapped address, not just the raw IPv6 form.
+        import ipaddress
+
+        denylist = [ipaddress.ip_network("10.0.0.0/8")]
+        with pytest.raises(HTTPException):
+            await admin_routes._reject_denylisted_host("http://[::ffff:10.0.0.1]/", denylist)
+
+    async def test_reject_denylisted_host_matches_ipv6_specific_denylist_entry(self):
+        # An IPv6-specific denylist entry (e.g. covering the mapped-address
+        # range itself) must match the original address, not just its
+        # unwrapped IPv4 form.
+        import ipaddress
+
+        denylist = [ipaddress.ip_network("::ffff:0:0/96")]
+        with pytest.raises(HTTPException):
+            await admin_routes._reject_denylisted_host("http://[::ffff:10.0.0.1]/", denylist)
+
+    async def test_test_connection_probe_rejects_metadata_url(self):
+        request = _fake_request(Path("/unused/config.yaml"))
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes.test_mcp_connection(
+                request, {"transport": "http", "url": "http://169.254.169.254/"}
+            )
+        assert exc.value.status_code == 422
+
+    async def test_create_mcp_server_rejects_metadata_url(self, tmp_path):
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes.create_mcp_server(
+                request,
+                {"name": "evil", "transport": "http", "connection": {"url": "http://169.254.169.254/mcp"}},
+            )
+        assert exc.value.status_code == 422
+        # The rejected create never touched the file on disk.
+        assert (tmp_path / "mcp_clients.yaml").read_text() == MCP_YAML
+
+    async def test_create_mcp_server_rejects_private_network_url_when_configured(self, tmp_path):
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path, config={"security": {"ssrf_denylist": ["10.0.0.0/8"]}})
+        with pytest.raises(HTTPException):
+            await admin_routes.create_mcp_server(
+                request,
+                {"name": "internal", "transport": "http", "connection": {"url": "http://10.0.0.5/mcp"}},
+            )
+
+    async def test_update_mcp_server_rejects_metadata_url(self, tmp_path):
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+        with pytest.raises(HTTPException) as exc:
+            await admin_routes.update_mcp_server(
+                "http-server", request, {"connection": {"url": "http://169.254.169.254/mcp"}}
+            )
+        assert exc.value.status_code == 422
+        assert (tmp_path / "mcp_clients.yaml").read_text() == MCP_YAML
+
+    async def test_concurrent_creates_do_not_clobber_each_other(self, tmp_path):
+        """Regression test: the SSRF check's await (DNS resolution) sits
+        between reading mcp_clients.yaml and writing it back. Without a lock
+        around that section, two concurrent creates could each read the same
+        pre-change content, both validate successfully, and the second
+        request's write would silently erase the first request's server.
+        """
+        import asyncio
+
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+
+        async def _slow_reject(url, denylist):
+            await asyncio.sleep(0.05)
+
+        with (
+            patch.object(admin_routes, "_reject_denylisted_host", side_effect=_slow_reject),
+            patch.object(admin_routes, "reload_adapters_config", side_effect=self._reload_from_disk(tmp_path)),
+            patch.object(mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])),
+        ):
+            await asyncio.gather(
+                admin_routes.create_mcp_server(
+                    request,
+                    {"name": "concurrent-a", "transport": "http", "connection": {"url": "https://a.example.com/mcp"}},
+                ),
+                admin_routes.create_mcp_server(
+                    request,
+                    {"name": "concurrent-b", "transport": "http", "connection": {"url": "https://b.example.com/mcp"}},
+                ),
+            )
+
+        names = {
+            s["name"]
+            for s in yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]["servers"]
+        }
+        assert {"concurrent-a", "concurrent-b"} <= names
+
+    @staticmethod
+    def _reload_from_disk(tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+        return _fake_reload

@@ -1152,6 +1152,21 @@ security:
     #   - "192.168.0.0/16"    # Private network
     #   - "127.0.0.1"         # Localhost
 
+  # Additional networks the MCP "test connection" probe and saved MCP server
+  # config writes (admin panel create/update) may never target, checked
+  # against both an IP-literal URL and a hostname's resolved address (DNS
+  # rebinding). The cloud-metadata range (169.254.0.0/16) is always blocked
+  # and does not need to be listed here. RFC1918/loopback are NOT blocked by
+  # default since many deployments legitimately point MCP servers at
+  # private-network hosts — add ranges below to opt in.
+  ssrf_denylist: []
+  # Example additions for a locked-down deployment:
+  # ssrf_denylist:
+  #   - "127.0.0.0/8"      # Loopback
+  #   - "10.0.0.0/8"       # Private network
+  #   - "172.16.0.0/12"    # Private network
+  #   - "192.168.0.0/16"   # Private network
+
   # Throttling configuration (executes BEFORE rate limiting)
   # Delays requests progressively instead of rejecting them
   throttling:

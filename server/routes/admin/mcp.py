@@ -192,6 +192,15 @@ def _validate_mcp_endpoint_url(url: str) -> None:
 
 
 _METADATA_NETWORK = ipaddress.ip_network("169.254.0.0/16")
+_DEFAULT_SSRF_DENYLIST = [_METADATA_NETWORK]
+
+# Serializes the read-validate-write critical section for config-mutating MCP
+# server endpoints. Needed because SSRF validation now awaits a DNS lookup
+# between reading mcp_clients.yaml's content and writing it back — without
+# this lock, a second request could save during that await and have its
+# change silently overwritten when the first request resumes and writes its
+# now-stale snapshot.
+_mcp_config_lock = asyncio.Lock()
 
 
 def _parse_ip_literal(hostname: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
@@ -210,20 +219,40 @@ def _parse_ip_literal(hostname: str) -> ipaddress.IPv4Address | ipaddress.IPv6Ad
         return None
 
 
-async def _reject_cloud_metadata_host(url: str) -> None:
-    """Block the cloud-metadata network for the one-off reachability probe.
+def _parse_ssrf_denylist(config: dict[str, Any] | None) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Read `security.ssrf_denylist` from the live config, always including the
+    cloud-metadata range (the existing, pre-Phase-3 behavior) in addition to
+    whatever the operator configures.
 
-    This endpoint dials an admin-supplied URL immediately, unlike a saved MCP
-    server config (which many deployments legitimately point at an internal/
-    private-network host) — so it's the SSRF-relevant surface, and the
-    cloud-metadata range (169.254.0.0/16, which covers every major cloud
-    provider's 169.254.169.254 metadata service) is worth blocking outright
-    since no legitimate MCP server lives there. Handles both an IP literal
-    (in any form a resolver would accept) and a hostname that resolves to an
-    address in that range (DNS rebinding).
+    RFC1918/loopback are deliberately NOT in the default — many deployments
+    legitimately point MCP servers at private-network hosts — but an operator
+    can opt into blocking them by listing the ranges explicitly. Configuring
+    additional ranges is additive, never a replacement: the metadata range
+    stays blocked even if it's left out of `ssrf_denylist`.
+    """
+    networks = list(_DEFAULT_SSRF_DENYLIST)
+    for entry in (config or {}).get("security", {}).get("ssrf_denylist") or []:
+        try:
+            networks.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError:
+            logger.warning("Ignoring invalid security.ssrf_denylist entry: %r", entry)
+    return networks
+
+
+async def _reject_denylisted_host(url: str, denylist: list[ipaddress.IPv4Network | ipaddress.IPv6Network]) -> None:
+    """Block a configurable set of networks (the cloud-metadata range by
+    default) for both the one-off reachability probe and saved MCP server
+    config writes.
+
+    The probe endpoint dials an admin-supplied URL immediately; a saved
+    config is dialed later by the running server — either way, a URL
+    pointed at 169.254.169.254 reaches the same cloud-metadata service, so
+    both surfaces enforce the same policy. Handles both an IP literal (in
+    any form a resolver would accept) and a hostname that resolves to a
+    denylisted address (DNS rebinding).
     """
     hostname = urlsplit(url).hostname or ""
-    if not hostname:
+    if not hostname or not denylist:
         return
 
     literal = _parse_ip_literal(hostname)
@@ -239,10 +268,16 @@ async def _reject_cloud_metadata_host(url: str) -> None:
             return
 
     for addr in addresses:
+        # Check the address as resolved first — an IPv6-specific denylist
+        # entry (e.g. "::ffff:0:0/96") must still match a mapped address —
+        # then also check its unwrapped IPv4 form, since most denylist
+        # entries (including the metadata-range default) are IPv4 networks
+        # a mapped address would otherwise never match.
+        candidates = [addr]
         if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
-            addr = addr.ipv4_mapped
-        if addr in _METADATA_NETWORK:
-            raise HTTPException(status_code=422, detail="'url' may not target the cloud metadata address")
+            candidates.append(addr.ipv4_mapped)
+        if any(candidate in network for candidate in candidates for network in denylist):
+            raise HTTPException(status_code=422, detail="'url' may not target a denylisted network address")
 
 
 def _validate_mcp_command(command: Any) -> None:
@@ -358,7 +393,9 @@ def _validate_mcp_auth(auth: Any) -> None:
             raise HTTPException(status_code=422, detail="'auth.redirect_port' must be an integer between 1 and 65535")
 
 
-def _validate_new_mcp_server(body: Any, block: dict[str, Any]) -> dict[str, Any]:
+async def _validate_new_mcp_server(
+    body: Any, block: dict[str, Any], denylist: list[ipaddress.IPv4Network | ipaddress.IPv6Network]
+) -> dict[str, Any]:
     """Validate and normalize the payload accepted by POST /mcp/servers."""
     if not isinstance(body, dict):
         raise HTTPException(status_code=422, detail="Request body must be an object")
@@ -382,7 +419,7 @@ def _validate_new_mcp_server(body: Any, block: dict[str, Any]) -> dict[str, Any]
     if not isinstance(connection, dict):
         raise HTTPException(status_code=422, detail="'connection' must be an object")
     entry = {"name": name, "transport": transport, "enabled": True}
-    _validate_mcp_connection(entry, connection)
+    await _validate_mcp_connection(entry, connection, denylist)
 
     required = "url" if transport == "http" else "command"
     if required not in connection:
@@ -391,7 +428,11 @@ def _validate_new_mcp_server(body: Any, block: dict[str, Any]) -> dict[str, Any]
     return entry
 
 
-def _validate_mcp_connection(entry: dict[str, Any], connection: Any) -> None:
+async def _validate_mcp_connection(
+    entry: dict[str, Any],
+    connection: Any,
+    denylist: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = _DEFAULT_SSRF_DENYLIST,
+) -> None:
     """Reject connection edits for transports/fields that don't support them.
 
     url may not be cleared, since a server with no endpoint can never be
@@ -423,6 +464,7 @@ def _validate_mcp_connection(entry: dict[str, Any], connection: Any) -> None:
         if not isinstance(url, str):
             raise HTTPException(status_code=422, detail="'url' must be a string")
         _validate_mcp_endpoint_url(url)
+        await _reject_denylisted_host(url, denylist)
 
     if "command" in connection:
         _validate_mcp_command(connection["command"])
@@ -748,7 +790,7 @@ async def discover_mcp_tools(request: Request, server: Optional[str] = None):
 
 
 @router.post("/mcp/test-connection", dependencies=[config_auth])
-async def test_mcp_connection(payload: dict = Body(...)):
+async def test_mcp_connection(request: Request, payload: dict = Body(...)):
     """One-off connectivity check for an HTTP MCP endpoint, using whatever
     URL/headers are currently in the form — not yet saved, and not the live
     MCPClientManager's config for this server (if it already exists).
@@ -761,7 +803,8 @@ async def test_mcp_connection(payload: dict = Body(...)):
         raise HTTPException(status_code=422, detail="Only 'http' connections can be tested from the form.")
     url = payload.get("url", "")
     _validate_mcp_endpoint_url(url)
-    await _reject_cloud_metadata_host(url)
+    denylist = _parse_ssrf_denylist(getattr(request.app.state, "config", None))
+    await _reject_denylisted_host(url, denylist)
     headers = payload.get("headers") or {}
     if not isinstance(headers, dict) or any(
         not isinstance(k, str) or not _MCP_HEADER_KEY_RE.match(k) or not isinstance(v, str)
@@ -1093,19 +1136,22 @@ def _remove_mcp_server(lines: list, server_name: str) -> list:
 @router.post("/mcp/servers", dependencies=[config_auth])
 async def create_mcp_server(request: Request, body: dict = Body(...)):
     """Create an enabled HTTP or stdio MCP server and apply it immediately."""
-    path, content, block = _read_mcp_config(request)
-    entry = _validate_new_mcp_server(body, block)
-    lines = _insert_mcp_server(content.split("\n"), entry)
-    new_content = "\n".join(lines)
-    try:
-        reparsed = yaml.safe_load(new_content) or {}
-    except yaml.YAMLError as exc:
-        raise HTTPException(status_code=422, detail=f"Create produced invalid YAML: {exc}")
-    servers = ((reparsed.get("mcp_clients") or {}).get("servers") or [])
-    if not any(isinstance(server, dict) and server.get("name") == entry["name"] for server in servers):
-        raise HTTPException(status_code=422, detail="Create would not add the requested MCP server")
+    denylist = _parse_ssrf_denylist(getattr(request.app.state, "config", None))
+    async with _mcp_config_lock:
+        path, content, block = _read_mcp_config(request)
+        entry = await _validate_new_mcp_server(body, block, denylist)
+        lines = _insert_mcp_server(content.split("\n"), entry)
+        new_content = "\n".join(lines)
+        try:
+            reparsed = yaml.safe_load(new_content) or {}
+        except yaml.YAMLError as exc:
+            raise HTTPException(status_code=422, detail=f"Create produced invalid YAML: {exc}")
+        servers = ((reparsed.get("mcp_clients") or {}).get("servers") or [])
+        if not any(isinstance(server, dict) and server.get("name") == entry["name"] for server in servers):
+            raise HTTPException(status_code=422, detail="Create would not add the requested MCP server")
 
-    _write_adapter_config(path, new_content)
+        _write_adapter_config(path, new_content)
+
     reload_summary, reload_error = None, None
     try:
         reload_summary = await _reload_mcp_clients(request, server_name=entry["name"])
@@ -1162,78 +1208,80 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
     `settings` values of null delete the override so the server inherits the
     mcp_clients-level default again. `connection.url` may not be null.
     """
-    path, content, block = _read_mcp_config(request)
     overridable = _mcp_overridable()
-
-    entry = next(
-        (
-            s for s in (block.get("servers") or [])
-            if isinstance(s, dict) and s.get("name") == server_name
-        ),
-        None,
-    )
-    if entry is None:
-        raise HTTPException(status_code=404, detail=f"MCP server '{server_name}' not found")
-
     settings = body.get("settings") or {}
     _validate_mcp_settings(settings, overridable)
-
     connection = body.get("connection") or {}
-    _validate_mcp_connection(entry, connection)
+    denylist = _parse_ssrf_denylist(getattr(request.app.state, "config", None))
 
-    lines = content.split("\n")
-    start, end = _find_adapter_block(lines, server_name)
-    if start < 0:
-        raise HTTPException(status_code=404, detail=f"MCP server '{server_name}' not found")
+    async with _mcp_config_lock:
+        path, content, block = _read_mcp_config(request)
 
-    name_line = lines[start]
-    indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
+        entry = next(
+            (
+                s for s in (block.get("servers") or [])
+                if isinstance(s, dict) and s.get("name") == server_name
+            ),
+            None,
+        )
+        if entry is None:
+            raise HTTPException(status_code=404, detail=f"MCP server '{server_name}' not found")
 
-    map_fields = {k: connection[k] for k in ("env", "headers") if k in connection}
-    list_fields = {k: connection[k] for k in ("args",) if k in connection}
-    # auth isn't a flat string map (scopes is a list), so it can't go
-    # through _patch_yaml_map like env/headers — it gets its own patcher.
-    nested_fields = {k: connection[k] for k in ("auth",) if k in connection}
-    scalar_connection = {
-        k: v for k, v in connection.items()
-        if k not in map_fields and k not in list_fields and k not in nested_fields
-    }
+        await _validate_mcp_connection(entry, connection, denylist)
 
-    values: dict[str, Any] = dict(settings)
-    values.update(scalar_connection)
-    if "enabled" in body:
-        values["enabled"] = bool(body["enabled"])
-
-    lines = _patch_yaml_scalars(lines, start, end, values, indent)
-
-    for map_key, target_map in map_fields.items():
+        lines = content.split("\n")
         start, end = _find_adapter_block(lines, server_name)
+        if start < 0:
+            raise HTTPException(status_code=404, detail=f"MCP server '{server_name}' not found")
+
         name_line = lines[start]
         indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
-        lines = _patch_yaml_map(lines, start, end, map_key, target_map or {}, indent)
 
-    for list_key, list_values in list_fields.items():
-        start, end = _find_adapter_block(lines, server_name)
-        name_line = lines[start]
-        indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
-        lines = _patch_yaml_list(lines, start, end, list_key, list_values, indent)
+        map_fields = {k: connection[k] for k in ("env", "headers") if k in connection}
+        list_fields = {k: connection[k] for k in ("args",) if k in connection}
+        # auth isn't a flat string map (scopes is a list), so it can't go
+        # through _patch_yaml_map like env/headers — it gets its own patcher.
+        nested_fields = {k: connection[k] for k in ("auth",) if k in connection}
+        scalar_connection = {
+            k: v for k, v in connection.items()
+            if k not in map_fields and k not in list_fields and k not in nested_fields
+        }
 
-    if "auth" in nested_fields:
-        start, end = _find_adapter_block(lines, server_name)
-        name_line = lines[start]
-        indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
-        lines = _patch_yaml_auth(lines, start, end, nested_fields["auth"], indent)
+        values: dict[str, Any] = dict(settings)
+        values.update(scalar_connection)
+        if "enabled" in body:
+            values["enabled"] = bool(body["enabled"])
 
-    new_content = "\n".join(lines)
+        lines = _patch_yaml_scalars(lines, start, end, values, indent)
 
-    try:
-        reparsed = yaml.safe_load(new_content) or {}
-    except yaml.YAMLError as exc:
-        raise HTTPException(status_code=422, detail=f"Edit produced invalid YAML: {exc}")
-    if not isinstance(reparsed.get("mcp_clients"), dict):
-        raise HTTPException(status_code=422, detail="Edit would remove the mcp_clients section")
+        for map_key, target_map in map_fields.items():
+            start, end = _find_adapter_block(lines, server_name)
+            name_line = lines[start]
+            indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
+            lines = _patch_yaml_map(lines, start, end, map_key, target_map or {}, indent)
 
-    _write_adapter_config(path, new_content)
+        for list_key, list_values in list_fields.items():
+            start, end = _find_adapter_block(lines, server_name)
+            name_line = lines[start]
+            indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
+            lines = _patch_yaml_list(lines, start, end, list_key, list_values, indent)
+
+        if "auth" in nested_fields:
+            start, end = _find_adapter_block(lines, server_name)
+            name_line = lines[start]
+            indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
+            lines = _patch_yaml_auth(lines, start, end, nested_fields["auth"], indent)
+
+        new_content = "\n".join(lines)
+
+        try:
+            reparsed = yaml.safe_load(new_content) or {}
+        except yaml.YAMLError as exc:
+            raise HTTPException(status_code=422, detail=f"Edit produced invalid YAML: {exc}")
+        if not isinstance(reparsed.get("mcp_clients"), dict):
+            raise HTTPException(status_code=422, detail="Edit would remove the mcp_clients section")
+
+        _write_adapter_config(path, new_content)
 
     reload_summary, reload_error = None, None
     try:
