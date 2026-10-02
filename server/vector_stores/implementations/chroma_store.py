@@ -3,14 +3,31 @@ ChromaDB store implementation for vector operations.
 """
 
 import asyncio
+import json
 import logging
-from typing import Any, Optional
 from pathlib import Path
+from typing import Any, Optional
 
 from ..base.base_vector_store import BaseVectorStore
 from ..base.base_store import StoreConfig, StoreStatus
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_chroma_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    """JSON-encode any dict-valued metadata field.
+
+    ChromaDB's upsert() accepts only str/int/float/bool/list/None metadata
+    values and rejects a dict outright (even an empty one), raising for the
+    whole batch. Callers build chunk metadata by merging file-level metadata
+    (e.g. HTMLProcessor's `meta_tags`) into every chunk, so a single
+    dict-valued field anywhere upstream would otherwise fail indexing for
+    every chunk in the file.
+    """
+    return {
+        key: json.dumps(value) if isinstance(value, dict) else value
+        for key, value in metadata.items()
+    }
 
 
 class ChromaStore(BaseVectorStore):
@@ -178,7 +195,7 @@ class ChromaStore(BaseVectorStore):
             collection.upsert(
                 embeddings=vectors,
                 documents=doc_texts,
-                metadatas=metadata or [{}] * len(vectors),
+                metadatas=[_sanitize_chroma_metadata(meta) for meta in metadata] if metadata else [{}] * len(vectors),
                 ids=ids
             )
 
