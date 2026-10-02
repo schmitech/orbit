@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.17.17] - 2026-10-02
 
 ### Core Features
 - **Decision Model Adapters (Jev-Style / System One)**: Added a new `decision_model` adapter type for non-conversational decision models. You define typed questions (`choice`, `noul`, `score`), and the model returns typed answers with probabilities in about 100 ms, instead of generated text. It is suited to light, real-time decisions such as ticket triage, content moderation and request routing.

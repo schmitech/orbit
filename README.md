@@ -63,12 +63,12 @@ For technical and security assessments, see [platform comparison and capability 
 
 **Prerequisites:** Python 3.11+ (3.12 preferred) and an internet connection for dependencies. The default configuration uses [Ollama](https://ollama.com/) for inference, so install Ollama as well if you use the default provider. Windows users can follow the [Windows installation guide](install/windows.md).
 
-1. Download the [ORBIT v2.17.16 tarball](https://github.com/schmitech/orbit/releases/download/v2.17.16/orbit-2.17.16.tar.gz).
+1. Download the [ORBIT v2.17.17 tarball](https://github.com/schmitech/orbit/releases/download/v2.17.17/orbit-2.17.17.tar.gz).
 2. Extract it and start ORBIT:
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.17.16/orbit-2.17.16.tar.gz
-tar -xzf orbit-2.17.16.tar.gz && cd orbit-2.17.16
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.17.17/orbit-2.17.17.tar.gz
+tar -xzf orbit-2.17.17.tar.gz && cd orbit-2.17.17
 ./install/setup.sh --profile default
 
 ollama pull gemma4:e2b
