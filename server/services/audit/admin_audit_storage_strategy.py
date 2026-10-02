@@ -121,7 +121,12 @@ class AdminAuditStorageStrategy(ABC):
         offset: int = 0,
         sort_by: str = "timestamp",
         sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
+        """`search`, when given, free-text-matches across the backend's
+        indexed text columns (event_type, action, actor_username, actor_id,
+        path, resource_id, resource_type, ip) at the datastore layer rather
+        than requiring the caller to oversample and filter in Python."""
         ...
 
     @abstractmethod

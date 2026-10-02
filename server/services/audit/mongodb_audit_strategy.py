@@ -8,6 +8,7 @@ Uses the existing MongoDBService/DatabaseService interface for storage operation
 
 import binascii
 import logging
+import re
 from datetime import datetime
 from typing import Any, Optional
 
@@ -175,13 +176,25 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error storing audit record in MongoDB: {e}")
             return False
 
+    # Columns a free-text `search` matches against. response_plain is an
+    # always-plaintext copy of a compressed `response` (see
+    # AuditRecord.to_dict), only ever populated when response_compressed is
+    # true — including it here means a compressed response's text is still
+    # searchable via the native $regex below, with no separate
+    # decompress-and-check pass needed.
+    _SEARCH_FIELDS = (
+        "provider", "model", "adapter_name", "session_id", "user_id",
+        "ip", "api_key.key", "query", "response", "response_plain",
+    )
+
     async def query(
         self,
         filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
-        sort_order: int = -1
+        sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """
         Query audit records from MongoDB.
@@ -192,6 +205,8 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             offset: Number of records to skip
             sort_by: Field to sort by (default: 'timestamp')
             sort_order: Sort direction (1=ascending, -1=descending)
+            search: Free-text match across _SEARCH_FIELDS, pushed down as a
+                native MongoDB $regex rather than filtered in Python.
 
         Returns:
             List of matching audit records as dictionaries
@@ -200,10 +215,22 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
             await self.initialize()
 
         try:
+            query = dict(filters)
+            if search:
+                # re.escape() keeps the term a literal substring match —
+                # MongoDB treats an un-escaped $regex as a real regex, so a
+                # term like "[" would otherwise be invalid regex syntax and
+                # silently match nothing instead of searching for a literal
+                # "[".
+                pattern = re.escape(search)
+                query["$or"] = [
+                    {field: {"$regex": pattern, "$options": "i"}} for field in self._SEARCH_FIELDS
+                ]
+
             # Query the database
             results = await self._database_service.find_many(
                 collection_name=self._collection_name,
-                query=filters,
+                query=query,
                 limit=limit,
                 skip=offset,
                 sort=[(sort_by, sort_order)]
@@ -218,6 +245,10 @@ class MongoDBDAuditStrategy(AuditStorageStrategy):
                         except (binascii.Error, OSError, UnicodeDecodeError) as e:
                             logger.warning(f"Failed to decompress response: {e}")
                             # Keep compressed response if decompression fails
+                # response_plain exists only to make a compressed response
+                # searchable (see _SEARCH_FIELDS) — never part of the
+                # returned record.
+                record.pop('response_plain', None)
 
             return results
 

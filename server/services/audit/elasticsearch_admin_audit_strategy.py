@@ -158,6 +158,22 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
             logger.error(f"Failed to store admin audit record in Elasticsearch: {e}")
             return False
 
+    # All admin-event search fields are mapped as "keyword" (exact-match), so
+    # free-text search uses a case-insensitive wildcard (substring) query
+    # rather than term/match. ip is mapped as the Elasticsearch "ip" type (no
+    # substring queries), so ip_metadata's keyword-typed copy is used instead.
+    _SEARCH_FIELDS = (
+        "event_type", "action", "actor_username", "actor_id",
+        "path", "resource_id", "resource_type", "ip_metadata.originalValue",
+    )
+
+    @staticmethod
+    def _escape_wildcard(term: str) -> str:
+        """Escape Lucene wildcard metacharacters so `search` is matched as a
+        literal substring — otherwise a term containing `*`/`?` would be
+        interpreted as a wildcard pattern instead of literal text."""
+        return term.replace("\\", "\\\\").replace("*", "\\*").replace("?", "\\?")
+
     async def query(
         self,
         filters: dict[str, Any],
@@ -165,6 +181,7 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
         offset: int = 0,
         sort_by: str = "timestamp",
         sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         if not self._initialized or not self._es_client:
             return []
@@ -178,6 +195,14 @@ class ElasticsearchAdminAuditStrategy(AdminAuditStorageStrategy):
                     must_clauses.append({"term": {key: value}})
                 else:
                     must_clauses.append({"match": {key: value}})
+
+            if search:
+                pattern = f"*{self._escape_wildcard(search)}*"
+                should_clauses = [
+                    {"wildcard": {field: {"value": pattern, "case_insensitive": True}}}
+                    for field in self._SEARCH_FIELDS
+                ]
+                must_clauses.append({"bool": {"should": should_clauses, "minimum_should_match": 1}})
 
             query = {"bool": {"must": must_clauses}} if must_clauses else {"match_all": {}}
 

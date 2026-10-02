@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 from datetime import datetime
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_asyncio import fixture
@@ -340,6 +340,262 @@ class TestSQLiteAuditStrategy:
         # Check nested api_key is restored
         assert 'api_key' in record
         assert record['api_key']['key'] == 'test_api_key_123'
+
+    @pytest.mark.asyncio
+    async def test_search_treats_term_as_literal_substring(self, sqlite_service_with_audit):
+        """A search term containing SQL LIKE wildcards (%, _) or regex-only
+        metacharacters must match literally, not as a pattern — otherwise
+        "100%" would match any model name starting with "100", and "a_b"
+        would match "aXb"."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+
+        await strategy.store(AuditRecord(
+            timestamp=datetime.now(), query="q1", response="r1",
+            provider="test", blocked=False, ip="127.0.0.1", model="100% match",
+        ))
+        await strategy.store(AuditRecord(
+            timestamp=datetime.now(), query="q2", response="r2",
+            provider="test", blocked=False, ip="127.0.0.1", model="100x match",
+        ))
+
+        results = await strategy.query({}, search="100%")
+        assert {r['model'] for r in results} == {"100% match"}
+
+    @pytest.mark.asyncio
+    async def test_search_uses_fts5_index_not_a_full_table_scan(self, sqlite_service_with_audit):
+        """Phase 4 P1 fix: a `search` long enough for the trigram tokenizer
+        must resolve via the FTS5 index (SCAN ... VIRTUAL TABLE), not an
+        unindexed LIKE scan of the whole audit_logs table."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+        assert strategy._fts_available is True
+
+        await strategy.store(AuditRecord(
+            timestamp=datetime.now(), query="unique refund question", response="r1",
+            provider="test", blocked=False, ip="127.0.0.1",
+        ))
+
+        fts_results = await strategy._fts_search({}, "refund", limit=100, offset=0, sort_by="timestamp", sort_order=-1)
+        assert fts_results
+
+        connection = strategy._database_service.connection
+        cursor = connection.cursor()
+        cursor.execute(
+            "EXPLAIN QUERY PLAN SELECT t.* FROM audit_logs_fts JOIN audit_logs t "
+            'ON t.rowid = audit_logs_fts.rowid WHERE audit_logs_fts MATCH ? '
+            'ORDER BY t."timestamp" DESC LIMIT ? OFFSET ?',
+            ('"refund"', 100, 0),
+        )
+        plan = " ".join(row[-1] for row in cursor.fetchall())
+        assert "VIRTUAL TABLE" in plan
+        assert "SCAN audit_logs USING" not in plan
+
+    @pytest.mark.asyncio
+    async def test_fts_search_applies_sort_filters_and_pagination_correctly(self, sqlite_service_with_audit):
+        """Regression test: _fts_search() must apply the caller's filters,
+        sort order, and pagination within the single joined query (not via a
+        separate id-resolution step with its own LIMIT, which truncates the
+        candidate set before those are applied — see _fts_search's
+        docstring)."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+        assert strategy._fts_available is True
+
+        # Three matches, stored oldest-first, with a non-search filter field
+        # (adapter_name) that only the newest two share.
+        await strategy.store(AuditRecord(
+            timestamp=datetime(2026, 1, 1), query="refund oldest", response="r",
+            provider="test", blocked=False, ip="127.0.0.1", adapter_name="other",
+        ))
+        await strategy.store(AuditRecord(
+            timestamp=datetime(2026, 1, 2), query="refund middle", response="r",
+            provider="test", blocked=False, ip="127.0.0.1", adapter_name="support",
+        ))
+        await strategy.store(AuditRecord(
+            timestamp=datetime(2026, 1, 3), query="refund newest", response="r",
+            provider="test", blocked=False, ip="127.0.0.1", adapter_name="support",
+        ))
+
+        # Newest-first ordering with limit=1 must return the newest match,
+        # not whatever the FTS engine happened to list first internally.
+        page1 = await strategy.query({}, limit=1, offset=0, search="refund")
+        assert len(page1) == 1
+        assert page1[0]["query"] == "refund newest"
+
+        # Pagination: offset=1 must return the next-newest, not come back
+        # empty just because the id-resolution step only looked at 1 row.
+        page2 = await strategy.query({}, limit=1, offset=1, search="refund")
+        assert len(page2) == 1
+        assert page2[0]["query"] == "refund middle"
+
+        # Combining search with another equality filter must still be an
+        # AND over the full candidate set, not just whatever the (now
+        # correctly unbounded-by-page-size) candidate ids already excluded.
+        filtered = await strategy.query({"adapter_name": "support"}, search="refund")
+        assert {r["query"] for r in filtered} == {"refund middle", "refund newest"}
+
+    @pytest.mark.asyncio
+    async def test_fts_search_pagination_is_exhaustive_with_no_candidate_cap(self, sqlite_service_with_audit):
+        """There is no intermediate id-resolution step with its own LIMIT
+        left to reproduce the reported bug at a larger scale — paging
+        through every match in fixed-size pages must visit each one exactly
+        once, regardless of how many matches exist."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+        assert strategy._fts_available is True
+
+        total = 15
+        for i in range(total):
+            await strategy.store(AuditRecord(
+                timestamp=datetime(2026, 1, 1 + i), query=f"refund case {i}", response="r",
+                provider="test", blocked=False, ip="127.0.0.1",
+            ))
+
+        page_size = 4
+        seen = []
+        for offset in range(0, total + page_size, page_size):
+            page = await strategy.query({}, limit=page_size, offset=offset, search="refund")
+            seen.extend(r["query"] for r in page)
+        assert len(seen) == total
+        assert len(set(seen)) == total  # no duplicates across page boundaries
+        assert seen == sorted(seen, key=lambda q: int(q.split()[-1]), reverse=True)
+
+    @pytest.mark.asyncio
+    async def test_contains_fallback_uses_timestamp_index_not_a_full_scan(self, sqlite_service_with_audit):
+        """The unindexed-substring fallback must still bound its own cost: its
+        inner "most recent N rows" subquery should use idx_audit_logs_timestamp
+        (an index-ordered scan that stops at the cap), not a full table scan."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+        strategy._fts_available = False  # force the fallback path
+
+        connection = strategy._database_service.connection
+        cursor = connection.cursor()
+        cursor.execute(
+            "EXPLAIN QUERY PLAN "
+            "SELECT * FROM (SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT ?) recent "
+            "WHERE recent.response LIKE ? ESCAPE '\\' LIMIT ? OFFSET ?",
+            (strategy._FALLBACK_SCAN_CAP, "%refund%", 50, 0),
+        )
+        plan = " ".join(row[-1] for row in cursor.fetchall())
+        assert "idx_audit_logs_timestamp" in plan
+
+    @pytest.mark.asyncio
+    async def test_contains_fallback_scan_is_bounded_by_cap(self, sqlite_service_with_audit):
+        """A match older than _FALLBACK_SCAN_CAP rows must not be found via
+        the fallback path — this is the explicit, accepted trade-off that
+        bounds its cost; a smaller cap is used here to make the boundary
+        reachable in a test without storing tens of thousands of rows."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+        strategy._fts_available = False
+        strategy._FALLBACK_SCAN_CAP = 5
+
+        # One old row with the needle, then more than the cap worth of newer
+        # rows without it, so the needle falls outside the bounded window.
+        await strategy.store(AuditRecord(
+            timestamp=datetime(2020, 1, 1), query="the needle refund phrase", response="r",
+            provider="test", blocked=False, ip="127.0.0.1",
+        ))
+        for i in range(10):
+            await strategy.store(AuditRecord(
+                timestamp=datetime(2026, 1, 1 + i), query=f"unrelated {i}", response="r",
+                provider="test", blocked=False, ip="127.0.0.1",
+            ))
+
+        results = await strategy.query({}, search="refund")
+        assert results == []
+
+        # Raising the cap back above the dataset size finds it again,
+        # confirming the miss above was the cap, not a logic bug.
+        strategy._FALLBACK_SCAN_CAP = 1000
+        results = await strategy.query({}, search="refund")
+        assert len(results) == 1
+
+    @pytest.mark.asyncio
+    async def test_short_search_term_falls_back_without_fts(self, sqlite_service_with_audit):
+        """Trigram FTS can't match terms under 3 characters — query() must
+        still find them via the $contains fallback instead of silently
+        returning nothing."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+
+        await strategy.store(AuditRecord(
+            timestamp=datetime.now(), query="q", response="r",
+            provider="test", blocked=False, ip="127.0.0.1", model="ab-model",
+        ))
+
+        assert await strategy._fts_search({}, "ab", limit=100, offset=0, sort_by="timestamp", sort_order=-1) is None
+        results = await strategy.query({}, search="ab")
+        assert any(r['model'] == "ab-model" for r in results)
+
+    @pytest.mark.asyncio
+    async def test_search_still_correct_when_fts_unavailable(self, sqlite_service_with_audit):
+        """When FTS5/the trigram tokenizer isn't available (e.g. an older
+        SQLite build), query() must fall back to $contains and still return
+        correct results — just without the index. This does not bound the
+        scan cost (the $contains path is an ordinary LIKE), only correctness;
+        see docs/roadmap/admin-api-security-hardening.md Phase 4 for the
+        explicit, documented trade-off."""
+        services = sqlite_service_with_audit
+        strategy = services['audit']._strategy
+        strategy._fts_available = False  # simulate an environment without FTS5 trigram support
+
+        await strategy.store(AuditRecord(
+            timestamp=datetime.now(), query="unique refund question", response="r",
+            provider="test", blocked=False, ip="127.0.0.1",
+        ))
+        await strategy.store(AuditRecord(
+            timestamp=datetime.now(), query="unrelated", response="r",
+            provider="test", blocked=False, ip="127.0.0.1",
+        ))
+
+        assert await strategy._fts_search({}, "refund", limit=100, offset=0, sort_by="timestamp", sort_order=-1) is None
+        results = await strategy.query({}, search="refund")
+        assert len(results) == 1
+        assert results[0]['query'] == "unique refund question"
+
+    @pytest.mark.asyncio
+    async def test_fts_setup_failure_is_non_fatal_and_falls_back(self):
+        """If FTS5 virtual-table creation raises sqlite3.OperationalError
+        (e.g. the SQLite build lacks FTS5, or lacks the trigram tokenizer
+        specifically), _ensure_fts_index() must not propagate — it should log
+        a warning and leave _fts_available False, so initialize() still
+        succeeds and $contains carries search instead."""
+        import sqlite3
+        from concurrent.futures import ThreadPoolExecutor
+        from unittest.mock import MagicMock
+        from services.audit.sqlite_audit_strategy import SQLiteAuditStrategy
+
+        config = {'internal_services': {'audit': {'collection_name': 'audit_logs'}}}
+        strategy = SQLiteAuditStrategy(config)
+
+        mock_cursor = MagicMock()
+
+        def fake_execute(sql, *params):
+            if "sqlite_master WHERE type='table'" in sql:
+                mock_cursor.fetchone.return_value = ("audit_logs",)
+            elif "sqlite_master WHERE name=" in sql:
+                mock_cursor.fetchone.return_value = None  # FTS shadow table not yet created
+            elif "CREATE VIRTUAL TABLE" in sql:
+                raise sqlite3.OperationalError("no such module: fts5")
+
+        mock_cursor.execute.side_effect = fake_execute
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+
+        mock_db_service = MagicMock()
+        mock_db_service.connection = mock_connection
+        mock_db_service.executor = ThreadPoolExecutor(max_workers=1)
+        mock_db_service._db_lock = None
+        strategy._database_service = mock_db_service
+
+        await strategy._ensure_fts_index()
+
+        assert strategy._fts_available is False
+        mock_connection.rollback.assert_called_once()
+        mock_db_service.executor.shutdown(wait=True)
 
 
 # ============================================================================
@@ -728,6 +984,80 @@ class TestMongoDBDAuditStrategy:
         assert results[0]['query'] == 'Plain text query'
         assert results[0]['response'] == 'Compressed response body'
 
+    @pytest.mark.asyncio
+    async def test_mongodb_search_escapes_regex_metacharacters(self):
+        """A search term containing a regex metacharacter (e.g. "[") must be
+        matched literally — an un-escaped $regex would otherwise be invalid
+        regex syntax and silently match nothing."""
+        mock_db = AsyncMock()
+        mock_db._initialized = True
+        mock_db.create_index = AsyncMock()
+        mock_db.find_many = AsyncMock(return_value=[])
+
+        config = {'internal_services': {'audit': {'collection_name': 'audit_logs'}}}
+        strategy = MongoDBDAuditStrategy(config, mock_db)
+        await strategy.initialize()
+
+        await strategy.query({}, search="[bracket]")
+
+        # First call is the primary search; its $or clauses must carry the
+        # re.escape()'d pattern, not the raw bracket (which is a regex
+        # metacharacter — passed through unescaped, pymongo/the server
+        # itself would reject it as invalid regex).
+        call_query = mock_db.find_many.call_args_list[0].kwargs['query']
+        or_patterns = {clause[field]['$regex'] for clause in call_query['$or'] for field in clause}
+        assert or_patterns == {r"\[bracket\]"}
+
+    @pytest.mark.asyncio
+    async def test_mongodb_search_matches_compressed_response_text(self):
+        """A search term that only appears in a compressed response must
+        still be found — response_plain (an always-plaintext copy, written
+        only when the response is compressed) is included in the pushed-down
+        $or, so this needs no separate decompress-and-check pass."""
+        from services.audit import compress_text
+
+        mock_db = AsyncMock()
+        mock_db._initialized = True
+        mock_db.create_index = AsyncMock()
+        mock_db.find_many = AsyncMock(return_value=[{
+            '_id': '1', 'query': 'q', 'session_id': 's1',
+            'response': compress_text('unique refund message'),
+            'response_plain': 'unique refund message',
+            'response_compressed': True,
+        }])
+
+        config = {'internal_services': {'audit': {'collection_name': 'audit_logs'}}}
+        strategy = MongoDBDAuditStrategy(config, mock_db)
+        await strategy.initialize()
+
+        results = await strategy.query({}, search="refund")
+
+        # A single query, not a primary-plus-decompress-scan pair.
+        mock_db.find_many.assert_called_once()
+        assert len(results) == 1
+        assert results[0]['response'] == 'unique refund message'
+        # The search-only helper field is never leaked in the API response.
+        assert 'response_plain' not in results[0]
+
+    async def test_mongodb_search_includes_response_plain_field(self):
+        """response_plain must be one of the fields the pushed-down $or
+        checks, since it's the only place a compressed response's text is
+        searchable in plain form."""
+        mock_db = AsyncMock()
+        mock_db._initialized = True
+        mock_db.create_index = AsyncMock()
+        mock_db.find_many = AsyncMock(return_value=[])
+
+        config = {'internal_services': {'audit': {'collection_name': 'audit_logs'}}}
+        strategy = MongoDBDAuditStrategy(config, mock_db)
+        await strategy.initialize()
+
+        await strategy.query({}, search="refund")
+
+        call_query = mock_db.find_many.call_args.kwargs['query']
+        searched_fields = {field for clause in call_query['$or'] for field in clause}
+        assert 'response_plain' in searched_fields
+
 
 # ============================================================================
 # Integration Tests
@@ -1007,6 +1337,47 @@ class TestSQLiteAuditCompression:
         assert len(results) == 1
         assert results[0]['response'] == "Plain text response."
         assert results[0]['response_compressed'] is False
+
+        await audit_service.close()
+        sqlite_service.close()
+        SQLiteService.clear_cache()
+
+    @pytest.mark.asyncio
+    async def test_search_matches_compressed_response_text(self, tmp_path):
+        """A `search` term that only appears in a compressed response must
+        still be found — the pushed-down query can only match a compressed
+        response's base64-gzip bytes, so query() must also decompress and
+        check compressed rows directly (see _merge_compressed_response_matches)."""
+        db_path = os.path.join(tmp_path, "test_search_compressed.db")
+        config = {
+            'general': {'inference_provider': 'test'},
+            'internal_services': {
+                'backend': {'type': 'sqlite', 'sqlite': {'database_path': db_path}},
+                'audit': {
+                    'enabled': True,
+                    'storage_backend': 'sqlite',
+                    'collection_name': 'audit_logs',
+                    'compress_responses': True,
+                },
+            },
+        }
+
+        sqlite_service = SQLiteService(config)
+        await sqlite_service.initialize()
+        audit_service = AuditService(config, sqlite_service)
+        await audit_service.initialize()
+
+        await audit_service.log_conversation(
+            query="what's the policy", response="unique refund message", session_id="s1",
+        )
+        await audit_service.log_conversation(
+            query="hello", response="hi, how can I help?", session_id="s2",
+        )
+
+        results = await audit_service.query_audit_logs({}, search="refund")
+        assert len(results) == 1
+        assert results[0]['session_id'] == 's1'
+        assert results[0]['response'] == "unique refund message"
 
         await audit_service.close()
         sqlite_service.close()
@@ -1878,6 +2249,114 @@ class TestAggregateUsage:
         assert result['totals']['cost_usd'] == 0.0
         assert result['series'] == []
         assert result['groups'] == []
+
+
+class TestElasticsearchWildcardEscaping:
+    """A search term containing a Lucene wildcard metacharacter (*, ?) must
+    be escaped before being embedded in a `wildcard` query pattern —
+    otherwise the user's own literal "*"/"?" would be interpreted as a
+    wildcard instead of matched as text."""
+
+    def test_chat_strategy_escapes_wildcard_metacharacters(self):
+        from services.audit.elasticsearch_audit_strategy import ElasticsearchAuditStrategy
+        assert ElasticsearchAuditStrategy._escape_wildcard("50% off*") == r"50% off\*"
+        assert ElasticsearchAuditStrategy._escape_wildcard("a?b") == r"a\?b"
+        assert ElasticsearchAuditStrategy._escape_wildcard(r"back\slash") == r"back\\slash"
+
+    def test_admin_strategy_escapes_wildcard_metacharacters(self):
+        from services.audit.elasticsearch_admin_audit_strategy import ElasticsearchAdminAuditStrategy
+        assert ElasticsearchAdminAuditStrategy._escape_wildcard("50% off*") == r"50% off\*"
+        assert ElasticsearchAdminAuditStrategy._escape_wildcard("a?b") == r"a\?b"
+
+
+class TestElasticsearchRawSubfieldSearch:
+    """A wildcard query against an analyzed `text` field can only match
+    within a single indexed token, so a multi-word search term (e.g. "refund
+    message") spanning a token boundary could never match "refund message"
+    stored in `response`. query/response/response_plain must be searched via
+    their `.raw` keyword multi-field instead, which holds the whole value
+    verbatim."""
+
+    def test_search_text_fields_target_the_raw_subfield(self):
+        from services.audit.elasticsearch_audit_strategy import ElasticsearchAuditStrategy
+        assert ElasticsearchAuditStrategy._SEARCH_TEXT_FIELDS == (
+            "query.raw", "response.raw", "response_plain.raw",
+        )
+
+    def test_mapping_declares_the_raw_subfield_with_a_length_ceiling(self):
+        from services.audit.elasticsearch_audit_strategy import ElasticsearchAuditStrategy
+        props = ElasticsearchAuditStrategy._usage_mapping_properties()
+        for field in ("query", "response", "response_plain"):
+            assert props[field]["type"] == "text"
+            raw = props[field]["fields"]["raw"]
+            assert raw["type"] == "keyword"
+            assert raw["ignore_above"] == ElasticsearchAuditStrategy._RAW_SUBFIELD_IGNORE_ABOVE
+
+    @pytest.mark.asyncio
+    async def test_query_builds_wildcard_clauses_against_raw_fields(self):
+        """End-to-end (mocked client): the actual search query sent to
+        Elasticsearch must reference `response.raw`, not bare `response`, so
+        a multi-word term can match the whole stored value."""
+        from services.audit.elasticsearch_audit_strategy import ElasticsearchAuditStrategy
+
+        strategy = ElasticsearchAuditStrategy({'internal_services': {'audit': {}}})
+        strategy._initialized = True
+        strategy._es_client = AsyncMock()
+        strategy._es_client.search = AsyncMock(return_value={"hits": {"hits": []}})
+
+        await strategy.query({}, search="refund message")
+
+        query_arg = strategy._es_client.search.call_args.kwargs["query"]
+        should_fields = {
+            field
+            for clause in query_arg["bool"]["must"][0]["bool"]["should"]
+            for field in clause["wildcard"]
+        }
+        assert "response.raw" in should_fields
+        assert "response" not in should_fields
+
+
+class TestPostgresSearchAlwaysBounded:
+    """Whether Postgres's planner actually uses a pg_trgm GIN index for a
+    given `ILIKE '%term%'` is a cost-based decision this code cannot verify
+    or predict from the term alone — a pattern's selectivity (not just its
+    length) determines whether the planner prefers the index or a full scan
+    (e.g. a low-selectivity pattern like "..." can make the planner prefer a
+    full scan even with the index present and the term 3+ characters long).
+    So query() must always route search through the bounded fallback,
+    regardless of _trgm_available or the term's length — there is no
+    "trust the index" fast path left to accidentally bypass the bound.
+    https://www.postgresql.org/docs/current/pgtrgm.html#PGTRGM-INDEX"""
+
+    @pytest.mark.asyncio
+    async def test_chat_strategy_always_uses_the_bounded_path(self):
+        from services.audit.postgres_audit_strategy import PostgresAuditStrategy
+
+        config = {'internal_services': {'audit': {'collection_name': 'audit_logs'}}}
+        strategy = PostgresAuditStrategy(config, database_service=AsyncMock())
+        strategy._initialized = True
+
+        for trgm_available, term in ((True, "ab"), (True, "refund"), (False, "refund")):
+            strategy._trgm_available = trgm_available
+            with patch.object(strategy, "_bounded_contains_search", new=AsyncMock(return_value=[])) as bounded:
+                await strategy.query({}, search=term)
+            bounded.assert_called_once()
+            strategy._database_service.find_many.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_admin_strategy_always_uses_the_bounded_path(self):
+        from services.audit.postgres_admin_audit_strategy import PostgresAdminAuditStrategy
+
+        config = {'internal_services': {'audit': {'admin_events': {'collection_name': 'audit_admin_logs'}}}}
+        strategy = PostgresAdminAuditStrategy(config, database_service=AsyncMock())
+        strategy._initialized = True
+
+        for trgm_available, term in ((True, "ab"), (True, "alice"), (False, "alice")):
+            strategy._trgm_available = trgm_available
+            with patch.object(strategy, "_bounded_contains_search", new=AsyncMock(return_value=[])) as bounded:
+                await strategy.query({}, search=term)
+            bounded.assert_called_once()
+            strategy._database_service.find_many.assert_not_called()
 
 
 if __name__ == "__main__":

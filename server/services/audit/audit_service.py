@@ -427,7 +427,8 @@ class AuditService:
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
-        sort_order: int = -1
+        sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """
         Query audit logs with optional filters.
@@ -438,6 +439,9 @@ class AuditService:
             offset: Number of records to skip
             sort_by: Field to sort by (default: 'timestamp')
             sort_order: Sort direction (1=ascending, -1=descending)
+            search: Free-text match, pushed down to the active backend's
+                indexed query rather than requiring the caller to oversample
+                and filter in Python.
 
         Returns:
             List of matching audit records
@@ -451,7 +455,8 @@ class AuditService:
                 limit=limit,
                 offset=offset,
                 sort_by=sort_by,
-                sort_order=sort_order
+                sort_order=sort_order,
+                search=search,
             )
         except Exception as e:  # noqa: BLE001 - pluggable audit backend boundary, must fail safe with empty results
             logger.error(f"Error querying audit logs: {e}")
@@ -519,8 +524,14 @@ class AuditService:
         offset: int = 0,
         sort_by: str = 'timestamp',
         sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
-        """Query stored admin audit events."""
+        """Query stored admin audit events.
+
+        `search` free-text matches, pushed down to the active backend's
+        indexed query rather than requiring the caller to oversample and
+        filter in Python.
+        """
         if not self._admin_strategy or not self._admin_strategy.is_initialized():
             return []
         try:
@@ -530,6 +541,7 @@ class AuditService:
                 offset=offset,
                 sort_by=sort_by,
                 sort_order=sort_order,
+                search=search,
             )
         except Exception as e:  # noqa: BLE001 - pluggable audit backend boundary, must fail safe with empty results
             logger.error(f"Error querying admin audit events: {e}")

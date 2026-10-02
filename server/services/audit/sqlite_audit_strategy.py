@@ -8,6 +8,8 @@ Uses the existing SQLiteService/DatabaseService interface for storage operations
 
 import asyncio
 import logging
+import re
+import sqlite3
 from contextlib import nullcontext as _NullContext
 from typing import Any, Optional
 
@@ -71,6 +73,7 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             # handled by SQLiteService's schema + _migrate_table_schema.
             # This strategy only needs to ensure its own indexes exist.
             await self._ensure_audit_indexes()
+            await self._ensure_fts_index()
 
             logger.debug(f"SQLite audit storage initialized with collection: {self._collection_name}")
             self._initialized = True
@@ -118,6 +121,243 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(executor, ensure_indexes)
 
+    # FTS5's trigram tokenizer requires queries of at least 3 characters —
+    # shorter terms silently match nothing, so those fall back to the
+    # $contains OR-of-LIKE path in query() instead (an unindexed scan of a
+    # 1-2 character term is cheap regardless, since so little can narrow it).
+    _FTS_MIN_SEARCH_LENGTH = 3
+
+    async def _ensure_fts_index(self) -> None:
+        """Create an FTS5 (trigram tokenizer) shadow index over
+        _SEARCH_FIELDS, kept in sync via triggers, so `search` can be
+        resolved as an indexed lookup instead of an unindexed LIKE '%term%'
+        scan of the whole table.
+
+        Falls back silently (self._fts_available stays False) on a SQLite
+        build without FTS5/the trigram tokenizer (added in SQLite 3.34, Jan
+        2021) — the $contains OR-of-LIKE path in query() still works, just
+        without this index, exactly like today.
+        """
+        self._fts_available = False
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            return
+
+        table = self._collection_name
+        fts_table = f"{table}_fts"
+        columns = self._SEARCH_FIELDS
+        col_list = ", ".join(columns)
+        new_cols = ", ".join(f"new.{c}" for c in columns)
+        old_cols = ", ".join(f"old.{c}" for c in columns)
+
+        def setup() -> bool:
+            cursor = connection.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            )
+            if cursor.fetchone() is None:
+                return False
+            cursor.execute("SELECT name FROM sqlite_master WHERE name=?", (fts_table,))
+            if cursor.fetchone() is not None:
+                return True
+            try:
+                cursor.execute(
+                    f"CREATE VIRTUAL TABLE {fts_table} USING fts5("
+                    f"{col_list}, content='{table}', content_rowid='rowid', "
+                    f"tokenize='trigram case_sensitive 0')"
+                )
+                cursor.execute(f"INSERT INTO {fts_table}(rowid, {col_list}) "
+                                f"SELECT rowid, {col_list} FROM {table}")
+                cursor.execute(f"""
+                    CREATE TRIGGER {table}_fts_ai AFTER INSERT ON {table} BEGIN
+                      INSERT INTO {fts_table}(rowid, {col_list}) VALUES (new.rowid, {new_cols});
+                    END
+                """)
+                cursor.execute(f"""
+                    CREATE TRIGGER {table}_fts_ad AFTER DELETE ON {table} BEGIN
+                      INSERT INTO {fts_table}({fts_table}, rowid, {col_list}) VALUES('delete', old.rowid, {old_cols});
+                    END
+                """)
+                cursor.execute(f"""
+                    CREATE TRIGGER {table}_fts_au AFTER UPDATE ON {table} BEGIN
+                      INSERT INTO {fts_table}({fts_table}, rowid, {col_list}) VALUES('delete', old.rowid, {old_cols});
+                      INSERT INTO {fts_table}(rowid, {col_list}) VALUES (new.rowid, {new_cols});
+                    END
+                """)
+                connection.commit()
+                return True
+            except sqlite3.OperationalError as exc:
+                logger.warning(
+                    f"FTS5 trigram index unavailable for {table} "
+                    f"(falling back to unindexed LIKE search): {exc}"
+                )
+                connection.rollback()
+                return False
+
+        def run() -> bool:
+            if db_lock is not None:
+                with db_lock:
+                    return setup()
+            return setup()
+
+        loop = asyncio.get_running_loop()
+        self._fts_available = await loop.run_in_executor(executor, run)
+
+    async def _fts_search(
+        self,
+        converted_filters: dict[str, Any],
+        search: str,
+        limit: int,
+        offset: int,
+        sort_by: str,
+        sort_order: int,
+    ) -> Optional[list[dict[str, Any]]]:
+        """Resolve `search` via the FTS5 index AND apply the caller's other
+        filters, sort order, and pagination in the same query.
+
+        An earlier version of this resolved matching ids via FTS first (with
+        its own LIMIT), then ran a separate find_many() call to apply the
+        real filters/sort/limit/offset against that id list. Any LIMIT inside
+        the id-resolution step — whether set to the page size or to a larger
+        safety cap — necessarily truncates the candidate set *before*
+        filtering and ordering happen, so a dataset with more matches than
+        that cap can reproduce the exact bug a smaller page-size cap did: a
+        wrong row returned for a given page, a combined filter coming back
+        empty despite a real match, or a later page coming back empty despite
+        more matches existing. A single joined query has no such
+        intermediate truncation point — FTS resolves the match set, the
+        WHERE/ORDER BY/LIMIT/OFFSET apply to it exactly as they would for any
+        other query.
+
+        Returns None (not an empty list) when FTS isn't available or the
+        term is too short for the trigram tokenizer, signaling the caller to
+        use the $contains fallback instead of treating "no FTS match" as "no
+        match at all".
+        """
+        if not getattr(self, "_fts_available", False) or len(search) < self._FTS_MIN_SEARCH_LENGTH:
+            return None
+
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            return None
+
+        db = self._database_service
+        table = self._collection_name
+        fts_table = f"{table}_fts"
+        # FTS5 query syntax is special (quotes, AND/OR, column filters, '*',
+        # etc.) — wrapping in double quotes (escaping embedded quotes) makes
+        # `search` a single literal phrase rather than FTS query syntax.
+        match_expr = '"' + search.replace('"', '""') + '"'
+
+        base_where, base_params = db._convert_query_to_sql(table, converted_filters)
+        where_parts = [f"{fts_table} MATCH ?"]
+        params: list[Any] = [match_expr]
+        if base_where:
+            # _convert_query_to_sql quotes every bare column reference (e.g.
+            # "provider" = ?) without a table prefix. fts_table also has a
+            # same-named "provider" column (it mirrors _SEARCH_FIELDS), so an
+            # unqualified reference in this JOIN would be ambiguous — qualify
+            # every one with the main table's alias.
+            where_parts.append(re.sub(r'"(\w+)"', r't."\1"', base_where))
+            params.extend(base_params)
+        where_sql = " AND ".join(where_parts)
+        order_dir = "ASC" if sort_order == 1 else "DESC"
+
+        sql = (
+            f"SELECT t.* FROM {fts_table} JOIN {table} t ON t.rowid = {fts_table}.rowid "
+            f'WHERE {where_sql} ORDER BY t."{sort_by}" {order_dir} LIMIT ? OFFSET ?'
+        )
+        params.extend([limit, offset])
+
+        def run() -> list[dict[str, Any]]:
+            def execute() -> list[dict[str, Any]]:
+                cursor = connection.cursor()
+                cursor.execute(sql, params)
+                columns = [d[0] for d in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+            if db_lock is not None:
+                with db_lock:
+                    return execute()
+            return execute()
+
+        loop = asyncio.get_running_loop()
+        rows = await loop.run_in_executor(executor, run)
+        return [db._convert_row_to_document(table, row) for row in rows]
+
+    # Hard cap on how many rows the unindexed substring fallback (below) will
+    # ever examine, regardless of table size — an explicit, accepted
+    # trade-off: a match older than the most recent _FALLBACK_SCAN_CAP rows
+    # (by `timestamp`) is not found via this path. This only matters when
+    # FTS5/the trigram tokenizer is unavailable or `search` is under
+    # _FTS_MIN_SEARCH_LENGTH characters; the FTS5 path has no such limit.
+    _FALLBACK_SCAN_CAP = 20000
+
+    async def _bounded_contains_search(
+        self,
+        converted_filters: dict[str, Any],
+        search: str,
+        limit: int,
+        offset: int,
+        sort_by: str,
+        sort_order: int,
+    ) -> list[dict[str, Any]]:
+        """Unindexed substring search, bounded to the most recent
+        _FALLBACK_SCAN_CAP rows via the existing idx_{table}_timestamp index
+        (`ORDER BY timestamp DESC LIMIT <cap>` as an inner subquery, verified
+        via EXPLAIN QUERY PLAN in tests to use that index rather than a full
+        table scan) instead of scanning the whole table. This is the only
+        path search cost isn't bounded by an index lookup, and it is bounded
+        by this cap rather than left unbounded — see _FALLBACK_SCAN_CAP.
+        """
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            return []
+
+        db = self._database_service
+        table = self._collection_name
+        base_where, base_params = db._convert_query_to_sql(table, converted_filters)
+        search_filter = {"$or": [{field: {"$contains": search}} for field in self._SEARCH_FIELDS]}
+        search_where, search_params = db._convert_query_to_sql(table, search_filter)
+        where_parts = [p for p in (base_where, search_where) if p]
+        where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+        order_dir = "ASC" if sort_order == 1 else "DESC"
+
+        sql = (
+            f"SELECT * FROM (SELECT * FROM {table} ORDER BY timestamp DESC LIMIT ?) recent "
+            f"{where_sql} ORDER BY {sort_by} {order_dir} LIMIT ? OFFSET ?"
+        )
+        params = (self._FALLBACK_SCAN_CAP, *base_params, *search_params, limit, offset)
+
+        logger.warning(
+            f"Audit search on {table} is using the unindexed substring fallback, bounded to "
+            f"the {self._FALLBACK_SCAN_CAP} most recent rows (FTS5/trigram tokenizer "
+            f"unavailable or search term under {self._FTS_MIN_SEARCH_LENGTH} characters) — "
+            f"a match older than that window will not be found."
+        )
+
+        def run() -> list[dict[str, Any]]:
+            def execute() -> list[dict[str, Any]]:
+                cursor = connection.cursor()
+                cursor.execute(sql, params)
+                columns = [d[0] for d in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+            if db_lock is not None:
+                with db_lock:
+                    return execute()
+            return execute()
+
+        loop = asyncio.get_running_loop()
+        rows = await loop.run_in_executor(executor, run)
+        return [db._convert_row_to_document(table, row) for row in rows]
+
     async def store(self, record: AuditRecord) -> bool:
         """
         Store an audit record in SQLite.
@@ -153,13 +393,26 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error storing audit record in SQLite: {e}")
             return False
 
+    # Columns a free-text `search` matches against — same fields the admin
+    # panel showed via Python-side substring search before Phase 4.
+    # response_plain is an always-plaintext copy of a compressed `response`
+    # (see AuditRecord.to_flat_dict), only ever populated when
+    # response_compressed=1 — including it here means a compressed
+    # response's text is still searchable at the datastore layer, with no
+    # separate decompress-and-check pass needed.
+    _SEARCH_FIELDS = (
+        "provider", "model", "adapter_name", "session_id", "user_id",
+        "ip", "api_key_value", "query", "response", "response_plain",
+    )
+
     async def query(
         self,
         filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
-        sort_order: int = -1
+        sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """
         Query audit records from SQLite.
@@ -170,6 +423,8 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
             offset: Number of records to skip
             sort_by: Field to sort by (default: 'timestamp')
             sort_order: Sort direction (1=ascending, -1=descending)
+            search: Free-text match across _SEARCH_FIELDS, pushed down as an
+                indexed-table LIKE rather than filtered in Python.
 
         Returns:
             List of matching audit records as dictionaries
@@ -186,14 +441,28 @@ class SQLiteAuditStrategy(AuditStorageStrategy):
                 else:
                     converted_filters[key] = value
 
-            # Query the database
-            results = await self._database_service.find_many(
-                collection_name=self._collection_name,
-                query=converted_filters,
-                limit=limit,
-                skip=offset,
-                sort=[(sort_by, sort_order)]
-            )
+            results: list[dict[str, Any]] = []
+            if search:
+                # Prefer the FTS5 trigram index (an indexed lookup) over the
+                # $contains OR-of-LIKE path (an unindexed scan) when it's
+                # available and the term is long enough for it to apply.
+                fts_results = await self._fts_search(
+                    converted_filters, search, limit, offset, sort_by, sort_order
+                )
+                if fts_results is not None:
+                    results = fts_results
+                else:
+                    results = await self._bounded_contains_search(
+                        converted_filters, search, limit, offset, sort_by, sort_order
+                    )
+            else:
+                results = await self._database_service.find_many(
+                    collection_name=self._collection_name,
+                    query=converted_filters,
+                    limit=limit,
+                    skip=offset,
+                    sort=[(sort_by, sort_order)]
+                )
 
             # Convert results back to nested format for consistency
             return [self._unflatten_record(record) for record in results]

@@ -67,12 +67,73 @@ class PostgresAuditStrategy(AuditStorageStrategy):
             if not self._database_service._initialized:
                 await self._database_service.initialize()
 
+            await self._ensure_trigram_indexes()
+
             logger.debug(f"Postgres audit storage initialized with collection: {self._collection_name}")
             self._initialized = True
 
         except Exception as e:
             logger.error(f"Failed to initialize Postgres audit storage: {e}")
             raise
+
+    async def _ensure_trigram_indexes(self) -> None:
+        """Best-effort pg_trgm GIN indexes on the `search` columns.
+
+        Not load-bearing for correctness: query() always runs search through
+        _bounded_contains_search() regardless of whether this succeeds.
+        Whether Postgres's planner actually uses a GIN trigram index for a
+        given `ILIKE '%term%'` is a cost-based decision this code cannot
+        verify or predict — a pattern's selectivity (not just its length)
+        determines whether the planner prefers the index or a full scan, so
+        neither "the index exists" nor "the term is long enough" is a
+        reliable signal that the scan is actually bounded. self._trgm_available
+        is recorded for observability only (e.g. to explain in logs/metrics
+        why search might be slower on a given deployment), never to choose
+        the query shape.
+
+        Requires the pg_trgm extension, which needs CREATE EXTENSION
+        privileges — most commonly unavailable because the connecting role
+        isn't a superuser on a managed/shared Postgres instance. Failure is
+        logged and otherwise ignored.
+        """
+        self._trgm_available = False
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            return
+
+        table = self._collection_name
+        columns = self._SEARCH_FIELDS
+
+        def setup() -> bool:
+            cursor = connection.cursor()
+            try:
+                cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+                for column in columns:
+                    index_name = f"idx_{table}_{column}_trgm"
+                    cursor.execute(
+                        f"CREATE INDEX IF NOT EXISTS {index_name} "
+                        f"ON {table} USING gin ({column} gin_trgm_ops)"
+                    )
+                connection.commit()
+                return True
+            except Exception as exc:  # noqa: BLE001 - best-effort index creation; a missing extension/privilege must not block startup
+                logger.warning(
+                    f"pg_trgm trigram index unavailable for {table} "
+                    f"(search will use a scan bounded to the most recent rows instead): {exc}"
+                )
+                connection.rollback()
+                return False
+
+        def run() -> bool:
+            if db_lock is not None:
+                with db_lock:
+                    return setup()
+            return setup()
+
+        loop = asyncio.get_running_loop()
+        self._trgm_available = await loop.run_in_executor(executor, run)
 
     async def store(self, record: AuditRecord) -> bool:
         """
@@ -104,13 +165,26 @@ class PostgresAuditStrategy(AuditStorageStrategy):
             logger.error(f"Error storing audit record in Postgres: {e}")
             return False
 
+    # Columns a free-text `search` matches against — same fields the admin
+    # panel showed via Python-side substring search before Phase 4.
+    # response_plain is an always-plaintext copy of a compressed `response`
+    # (see AuditRecord.to_flat_dict), only ever populated when
+    # response_compressed=1 — including it here means a compressed
+    # response's text is still searchable at the datastore layer, with no
+    # separate decompress-and-check pass needed.
+    _SEARCH_FIELDS = (
+        "provider", "model", "adapter_name", "session_id", "user_id",
+        "ip", "api_key_value", "query", "response", "response_plain",
+    )
+
     async def query(
         self,
         filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
-        sort_order: int = -1
+        sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """
         Query audit records from Postgres.
@@ -121,6 +195,8 @@ class PostgresAuditStrategy(AuditStorageStrategy):
             offset: Number of records to skip
             sort_by: Field to sort by (default: 'timestamp')
             sort_order: Sort direction (1=ascending, -1=descending)
+            search: Free-text match across _SEARCH_FIELDS, pushed down as an
+                indexed-table ILIKE rather than filtered in Python.
 
         Returns:
             List of matching audit records as dictionaries
@@ -136,19 +212,100 @@ class PostgresAuditStrategy(AuditStorageStrategy):
                 else:
                     converted_filters[key] = value
 
-            results = await self._database_service.find_many(
-                collection_name=self._collection_name,
-                query=converted_filters,
-                limit=limit,
-                skip=offset,
-                sort=[(sort_by, sort_order)]
-            )
+            if search:
+                # Whether Postgres's planner actually uses the pg_trgm GIN
+                # index for a given ILIKE '%term%' is a cost-based decision,
+                # not something this code can verify or guarantee — it
+                # depends on the term's selectivity (e.g. "..." or any
+                # low-cardinality pattern can make the planner prefer a full
+                # scan even with the index present), not just its length.
+                # Rather than trust a heuristic that can't actually bound the
+                # scan, every search always goes through the bounded fallback
+                # below — a fixed, verified cost ceiling regardless of what
+                # the planner would have chosen. The pg_trgm index, when
+                # present, is a (no longer load-bearing) best-effort extra.
+                results = await self._bounded_contains_search(
+                    converted_filters, search, limit, offset, sort_by, sort_order
+                )
+            else:
+                results = await self._database_service.find_many(
+                    collection_name=self._collection_name,
+                    query=converted_filters,
+                    limit=limit,
+                    skip=offset,
+                    sort=[(sort_by, sort_order)]
+                )
 
             return [self._unflatten_record(record) for record in results]
 
         except Exception as e:  # noqa: BLE001 - database-backend call; audit query must fail safe
             logger.error(f"Error querying audit records from Postgres: {e}")
             return []
+
+    # Hard cap on how many rows search will ever examine, regardless of table
+    # size — an explicit, accepted trade-off: a match older than the most
+    # recent _FALLBACK_SCAN_CAP rows (by `timestamp`) is not found. Applied
+    # unconditionally (see query()) because whether a pg_trgm index actually
+    # bounds a given ILIKE is a planner decision this code can't verify.
+    _FALLBACK_SCAN_CAP = 20000
+
+    async def _bounded_contains_search(
+        self,
+        converted_filters: dict[str, Any],
+        search: str,
+        limit: int,
+        offset: int,
+        sort_by: str,
+        sort_order: int,
+    ) -> list[dict[str, Any]]:
+        """Unindexed substring search, bounded to the most recent
+        _FALLBACK_SCAN_CAP rows via the existing idx_{table}_timestamp index
+        (`ORDER BY timestamp DESC LIMIT <cap>` as an inner subquery) instead
+        of scanning the whole table.
+        """
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            return []
+
+        db = self._database_service
+        table = self._collection_name
+        base_where, base_params = db._convert_query_to_sql(table, converted_filters)
+        search_filter = {"$or": [{field: {"$contains": search}} for field in self._SEARCH_FIELDS]}
+        search_where, search_params = db._convert_query_to_sql(table, search_filter)
+        where_parts = [p for p in (base_where, search_where) if p]
+        where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+        order_dir = "ASC" if sort_order == 1 else "DESC"
+
+        sql = (
+            f"SELECT * FROM (SELECT * FROM {table} ORDER BY timestamp DESC LIMIT %s) recent "
+            f"{where_sql} ORDER BY {sort_by} {order_dir} LIMIT %s OFFSET %s"
+        )
+        params = (self._FALLBACK_SCAN_CAP, *base_params, *search_params, limit, offset)
+
+        logger.warning(
+            f"Audit search on {table} is using the unindexed ILIKE fallback, bounded to "
+            f"the {self._FALLBACK_SCAN_CAP} most recent rows (pg_trgm unavailable) — "
+            f"a match older than that window will not be found."
+        )
+
+        def run() -> list[dict[str, Any]]:
+            def execute() -> list[dict[str, Any]]:
+                cursor = connection.cursor()
+                cursor.execute(sql, params)
+                # The connection uses psycopg's dict_row factory, so rows are
+                # already plain dicts keyed by column name.
+                return cursor.fetchall()
+
+            if db_lock is not None:
+                with db_lock:
+                    return execute()
+            return execute()
+
+        loop = asyncio.get_running_loop()
+        rows = await loop.run_in_executor(executor, run)
+        return [db._convert_row_to_document(table, row) for row in rows]
 
     # Logical group-by dimension -> the column that actually holds it. Most
     # are identity mappings; api_key is handled separately by

@@ -423,6 +423,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     timestamp TEXT NOT NULL,
     query TEXT NOT NULL,
     response TEXT NOT NULL,
+    response_plain TEXT,
     response_compressed INTEGER NOT NULL DEFAULT 0,
     provider TEXT,
     blocked INTEGER NOT NULL DEFAULT 0,
@@ -464,6 +465,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_call_type` on `call_type`
 - `idx_audit_logs_api_key_value` on `api_key_value`
 - `idx_audit_logs_api_key_id` on `api_key_id`
+- Best-effort `pg_trgm` GIN indexes (`idx_audit_logs_<column>_trgm`) on each of the free-text search columns (`provider`, `model`, `adapter_name`, `session_id`, `user_id`, `ip`, `api_key_value`, `query`, `response`, `response_plain`), created by `PostgresAuditStrategy` if the `pg_trgm` extension can be installed. Not load-bearing: `GET /admin/audit/events?q=...` always runs through a query bounded to the most recent rows regardless of whether these indexes exist or the planner chooses to use them — see `docs/roadmap/admin-api-security-hardening.md` (Phase 4).
+
+`response_plain` (TEXT): always-plaintext copy of `response`, written **only** when `response_compressed` is true (NULL otherwise, so it costs nothing in the default, uncompressed configuration). Exists solely so `GET /admin/audit/events?q=...` can still substring-match a compressed response's text at the storage layer — a compressed `response` is base64-gzip, not literal text — and is never returned by `query_audit_logs()`/the admin API. `NULL` for rows written before v1.14; such rows are not response-text searchable until rewritten — no bulk backfill (see `docs/roadmap/admin-api-security-hardening.md` Phase 4).
 
 `prompt_tokens`, `completion_tokens`, `total_tokens`, `reasoning_tokens`, `cached_prompt_tokens`, `cost_usd`, `input_rate_per_1m`, `output_rate_per_1m`, `pricing_source`, `usage_unit`, `usage_quantity`: token usage and cost tracking columns — see [`docs/sqlite-schema.md#audit_logs`](sqlite-schema.md#audit_logs) for the full field descriptions (identical semantics; `cost_usd`/`input_rate_per_1m`/`output_rate_per_1m` are `DOUBLE PRECISION` in Postgres vs. `REAL` in SQLite).
 
@@ -511,6 +515,7 @@ CREATE TABLE IF NOT EXISTS audit_admin_logs (
 - `idx_audit_admin_logs_event_type` on `event_type`
 - `idx_audit_admin_logs_resource_type` on `resource_type`
 - `idx_audit_admin_logs_success` on `success`
+- Best-effort `pg_trgm` GIN indexes (`idx_audit_admin_logs_<column>_trgm`) on `event_type`, `action`, `actor_username`, `actor_id`, `path`, `resource_id`, `resource_type`, `ip` — same mechanism as `audit_logs` above; not load-bearing, search is always bounded regardless
 
 See [`docs/sqlite-schema.md#audit_admin_logs`](sqlite-schema.md#audit_admin_logs) for field descriptions and the `admin_events` config block.
 
@@ -640,6 +645,10 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling (has
 
 ## Version History
 
+- **v1.14** (2026-10-02): Audit free-text search pushed into the datastore (Phase 4 of Admin/API-Key Hardening; matches SQLite v1.24)
+  - Added `audit_logs.response_plain` — an always-plaintext copy of `response`, written only when `response_compressed` is true, used only so a compressed response stays searchable (never returned by `query_audit_logs()`)
+  - `GET /admin/audit/events?q=...` now matches `q` as a literal substring at the storage layer instead of oversampling rows into Python; see the `audit_logs` Indexes note above and `docs/roadmap/admin-api-security-hardening.md` (Phase 4)
+  - Created/applied on existing databases through the additive startup migration (`ADD COLUMN IF NOT EXISTS`); no manual migration step needed. **No bulk backfill** of `response_plain` for pre-existing compressed rows
 - **v1.13** (2026-10-02): `uploaded_files` ownership keyed by API-key hash, not the raw key (matches SQLite v1.23)
   - Added `uploaded_files.api_key_hash` (HMAC-SHA256 of the raw key, via `hash_api_key()`) and its index `idx_uploaded_files_api_key_hash`; see the SQLite v1.23 entry for the full explanation
   - Created/applied on existing databases through the additive startup migration (`ADD COLUMN IF NOT EXISTS` / `create_index`); no manual migration step needed. **No bulk backfill** of pre-existing rows — see the SQLite v1.23 entry's gap note

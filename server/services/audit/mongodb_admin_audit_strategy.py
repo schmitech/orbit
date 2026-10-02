@@ -7,7 +7,8 @@ collection via the shared DatabaseService abstraction.
 """
 
 import logging
-from typing import Any
+import re
+from typing import Any, Optional
 
 from .admin_audit_storage_strategy import AdminAuditRecord, AdminAuditStorageStrategy
 
@@ -87,6 +88,13 @@ class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
             logger.error(f"Error storing admin audit record in MongoDB: {e}")
             return False
 
+    # Columns a free-text `search` matches against — same fields the admin
+    # panel showed via Python-side substring search before Phase 4.
+    _SEARCH_FIELDS = (
+        "event_type", "action", "actor_username", "actor_id",
+        "path", "resource_id", "resource_type", "ip",
+    )
+
     async def query(
         self,
         filters: dict[str, Any],
@@ -94,14 +102,25 @@ class MongoDBAdminAuditStrategy(AdminAuditStorageStrategy):
         offset: int = 0,
         sort_by: str = "timestamp",
         sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         if not self._initialized:
             await self.initialize()
 
         try:
+            query = dict(filters)
+            if search:
+                # re.escape() keeps the term a literal substring match — MongoDB
+                # treats an un-escaped $regex as a real regex, so a term like
+                # "[" would otherwise be invalid regex syntax and silently
+                # match nothing instead of searching for a literal "[".
+                pattern = re.escape(search)
+                query["$or"] = [
+                    {field: {"$regex": pattern, "$options": "i"}} for field in self._SEARCH_FIELDS
+                ]
             return await self._database_service.find_many(
                 collection_name=self._collection_name,
-                query=filters,
+                query=query,
                 limit=limit,
                 skip=offset,
                 sort=[(sort_by, sort_order)],

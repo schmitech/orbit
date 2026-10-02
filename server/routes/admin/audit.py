@@ -23,7 +23,7 @@ router = APIRouter()
 async def list_admin_audit_events(
     request: Request,
     limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=50000, description="Capped at 50,000; page further back with a narrower `since`/`until` window instead"),
     source: str = Query("all", pattern="^(all|admin|chat)$"),
     event_type: Optional[str] = Query(None),
     event_prefix: Optional[str] = Query(None, description="Match event_type that starts with this prefix (e.g. 'auth.', 'admin.api_key.')"),
@@ -52,19 +52,6 @@ async def list_admin_audit_events(
             "audit_kind": "admin_event",
             "title": row.get("event_type") or "admin.event",
             "subtitle": row.get("action") or "",
-            "search_text": " ".join(
-                str(row.get(field, "") or "")
-                for field in (
-                    "event_type",
-                    "action",
-                    "actor_username",
-                    "actor_id",
-                    "path",
-                    "resource_id",
-                    "resource_type",
-                    "ip",
-                )
-            ).lower(),
         }
 
     def _normalize_chat(row: dict) -> dict:
@@ -84,8 +71,6 @@ async def list_admin_audit_events(
         model = row.get("model")
         adapter_name = row.get("adapter_name")
         session_id = row.get("session_id")
-        query_text = str(row.get("query") or "")
-        response_text = str(row.get("response") or "")
 
         return {
             **row,
@@ -126,21 +111,6 @@ async def list_admin_audit_events(
             },
             "title": model or provider,
             "subtitle": adapter_name or "chat request",
-            "search_text": " ".join(
-                value
-                for value in (
-                    provider,
-                    model,
-                    adapter_name,
-                    session_id,
-                    row.get("user_id"),
-                    masked_key,
-                    row.get("ip"),
-                    query_text,
-                    response_text,
-                )
-                if value
-            ).lower(),
         }
 
     audit_service = getattr(request.app.state, "audit_service", None)
@@ -199,6 +169,7 @@ async def list_admin_audit_events(
                 offset=0,
                 sort_by="timestamp",
                 sort_order=-1,
+                search=q,
             )
             rows.extend(_normalize_admin(row) for row in admin_rows)
 
@@ -209,6 +180,7 @@ async def list_admin_audit_events(
                 offset=0,
                 sort_by="timestamp",
                 sort_order=-1,
+                search=q,
             )
             rows.extend(_normalize_chat(row) for row in chat_rows)
     except Exception as exc:  # noqa: BLE001 - route handler must convert an unexpected audit-backend failure to a 500
@@ -217,11 +189,13 @@ async def list_admin_audit_events(
 
     rows.sort(key=lambda row: str(row.get("timestamp", "")), reverse=True)
 
-    q_lower = q.lower() if q else None
     prefix = event_prefix
     since_val = since
     until_val = until
 
+    # q is no longer applied here — each backend's query() above already
+    # pushed it down to an indexed match/LIKE, instead of oversampling up to
+    # fetch_limit rows per source and substring-filtering them in Python.
     def keep(row: dict) -> bool:
         if source != "all" and row.get("audit_source") != source:
             return False
@@ -250,16 +224,11 @@ async def list_admin_audit_events(
             return False
         if until_val and str(row.get("timestamp", "")) >= until_val:
             return False
-        if q_lower and q_lower not in str(row.get("search_text", "")):
-            return False
         return True
 
     filtered = [row for row in rows if keep(row)]
     total_after_filter = len(filtered)
     page = filtered[offset : offset + limit]
-
-    for row in page:
-        row.pop("search_text", None)
 
     return {
         "events": page,

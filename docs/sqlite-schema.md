@@ -697,6 +697,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     timestamp TEXT NOT NULL,
     query TEXT NOT NULL,
     response TEXT NOT NULL,
+    response_plain TEXT,
     response_compressed INTEGER NOT NULL DEFAULT 0,
     provider TEXT,
     blocked INTEGER NOT NULL DEFAULT 0,
@@ -732,6 +733,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `timestamp` (TEXT): ISO format timestamp of the conversation
 - `query` (TEXT): The user's query/message
 - `response` (TEXT): The system's response (plain text or base64-encoded gzip if compressed)
+- `response_plain` (TEXT): always-plaintext copy of `response`, written **only** when `response_compressed` is true (`NULL` otherwise, so it costs nothing in the default, uncompressed configuration). Exists solely so `GET /admin/audit/events?q=...` can still substring-match a compressed response's text — a compressed `response` is base64-gzip, not literal text — and is one of the columns indexed by the FTS5 shadow table (see Indexes below). Never returned by `query_audit_logs()`/the admin API. `NULL` for rows written before v1.24; such rows are not response-text searchable until rewritten — no bulk backfill (see `docs/roadmap/admin-api-security-hardening.md` Phase 4)
 - `response_compressed` (INTEGER): Whether response is compressed (1=compressed, 0=plain text)
 - `provider` (TEXT): The inference provider used (e.g., `ollama`, `openai`, `anthropic`)
 - `blocked` (INTEGER): Whether the query was blocked (1=blocked, 0=allowed)
@@ -771,6 +773,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 - `idx_audit_logs_call_type` on `call_type`
 - `idx_audit_logs_api_key_value` on `api_key_value`
 - `idx_audit_logs_api_key_id` on `api_key_id`
+- `audit_logs_fts`: an FTS5 virtual table (trigram tokenizer) shadowing `provider`, `model`, `adapter_name`, `session_id`, `user_id`, `ip`, `api_key_value`, `query`, `response`, and `response_plain`, kept in sync via insert/update/delete triggers. Used to resolve `GET /admin/audit/events?q=...` as an indexed lookup; falls back to an unindexed, recency-bounded scan when FTS5/the trigram tokenizer isn't available (older SQLite builds) or the term is under 3 characters. See `docs/roadmap/admin-api-security-hardening.md` (Phase 4)
 
 **Configuration:**
 The audit storage backend is configured in `config/config.yaml`:
@@ -850,6 +853,7 @@ CREATE TABLE IF NOT EXISTS audit_admin_logs (
 - `idx_audit_admin_logs_event_type` on `event_type`
 - `idx_audit_admin_logs_resource_type` on `resource_type`
 - `idx_audit_admin_logs_success` on `success`
+- `audit_admin_logs_fts`: an FTS5 virtual table (trigram tokenizer) shadowing `event_type`, `action`, `actor_username`, `actor_id`, `path`, `resource_id`, `resource_type`, and `ip`, kept in sync via insert/update/delete triggers — same mechanism as `audit_logs_fts` above; see `docs/roadmap/admin-api-security-hardening.md` (Phase 4)
 
 **Configuration:**
 Admin-event auditing is opt-in and configured in `config/config.yaml` under the main audit block:
@@ -1117,6 +1121,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v1.24** (2026-10-02): Audit free-text search pushed into the datastore (Phase 4 of Admin/API-Key Hardening; matches Postgres v1.14)
+  - Added `audit_logs.response_plain` — an always-plaintext copy of `response`, written only when `response_compressed` is true, used only so a compressed response stays searchable (never returned by `query_audit_logs()`)
+  - Added the `audit_logs_fts`/`audit_admin_logs_fts` FTS5 trigram shadow tables and sync triggers, so `GET /admin/audit/events?q=...` resolves via an indexed lookup instead of oversampling rows into Python; see the `audit_logs` Indexes note above and `docs/roadmap/admin-api-security-hardening.md` (Phase 4)
+  - `response_plain` is created/applied on existing databases through the additive startup migration; the FTS5 shadow tables are created (and backfilled from existing rows) on first startup after upgrade, or left unavailable with a logged warning on a SQLite build without FTS5/the trigram tokenizer — in which case search falls back to a recency-bounded scan. **No bulk backfill** of `response_plain` for pre-existing compressed rows
 - **v1.23** (2026-10-02): `uploaded_files` ownership keyed by API-key hash, not the raw key (matches Postgres v1.13)
   - Added `uploaded_files.api_key_hash` (HMAC-SHA256 of the raw key, via `hash_api_key()` — same pepper/algorithm as `api_keys.api_key_hash`) and its index `idx_uploaded_files_api_key_hash`. Applied through the same additive startup migration as other columns (`_migrate_table_schema`)
   - New uploads write both `api_key` (legacy, plain text) and `api_key_hash`; `list_files()` and `get_generated_file_ids_for_session()` now filter by `api_key_hash` instead of the raw `api_key`

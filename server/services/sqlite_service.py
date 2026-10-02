@@ -336,6 +336,7 @@ class SQLiteService(DatabaseService):
                     timestamp TEXT NOT NULL,
                     query TEXT NOT NULL,
                     response TEXT NOT NULL,
+                    response_plain TEXT,
                     response_compressed INTEGER NOT NULL DEFAULT 0,
                     provider TEXT,
                     blocked INTEGER NOT NULL DEFAULT 0,
@@ -882,7 +883,16 @@ class SQLiteService(DatabaseService):
         params = []
 
         for key, value in query.items():
-            if key == '_id' and isinstance(value, dict) and '$in' in value:
+            if key == '$or':
+                sub_clauses = []
+                for sub_query in value:
+                    sub_where, sub_params = self._convert_query_to_sql(collection_name, sub_query)
+                    if sub_where:
+                        sub_clauses.append(f"({sub_where})")
+                        params.extend(sub_params)
+                if sub_clauses:
+                    conditions.append("(" + " OR ".join(sub_clauses) + ")")
+            elif key == '_id' and isinstance(value, dict) and '$in' in value:
                 # Convert _id to id (quote to handle reserved keywords); ids are
                 # strings, so route through id_to_string rather than the generic
                 # $in branch below (which uses _convert_value_for_sql)
@@ -922,6 +932,20 @@ class SQLiteService(DatabaseService):
                         # Convert regex to SQL LIKE pattern
                         pattern = op_value.replace('.*', '%').replace('.', '_')
                         params.append(f"%{pattern}%")
+                    elif op == '$contains':
+                        # Literal case-insensitive substring match: unlike
+                        # $regex above, op_value is NOT a pattern — % and _
+                        # (LIKE wildcards) in it are escaped so a search term
+                        # containing them matches literally instead of being
+                        # interpreted as a wildcard.
+                        escaped = (
+                            str(op_value)
+                            .replace('\\', '\\\\')
+                            .replace('%', '\\%')
+                            .replace('_', '\\_')
+                        )
+                        conditions.append(f"{quoted_key} LIKE ? ESCAPE '\\'")
+                        params.append(f"%{escaped}%")
             elif value is None:
                 # Handle None/NULL comparisons
                 quoted_key = f'"{key}"'

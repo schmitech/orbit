@@ -6,9 +6,10 @@ Stores AdminAuditRecord rows into the `audit_admin_logs` PostgreSQL table via th
 shared DatabaseService abstraction.
 """
 
+import asyncio
 import json
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from .admin_audit_storage_strategy import AdminAuditRecord, AdminAuditStorageStrategy
 from utils.id_utils import generate_id
@@ -51,6 +52,7 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
 
             # The audit_admin_logs table is defined in postgres_service.py's schema
             # and auto-created at DatabaseService initialization time.
+            await self._ensure_trigram_indexes()
 
             logger.debug(
                 f"Postgres admin audit storage initialized with collection: {self._collection_name}"
@@ -60,6 +62,51 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
         except Exception as e:
             logger.error(f"Failed to initialize Postgres admin audit storage: {e}")
             raise
+
+    async def _ensure_trigram_indexes(self) -> None:
+        """Best-effort pg_trgm GIN indexes on the `search` columns — see
+        PostgresAuditStrategy._ensure_trigram_indexes for the full rationale.
+        Not load-bearing for correctness: query() always runs search through
+        _bounded_contains_search() regardless of whether this succeeds.
+        """
+        self._trgm_available = False
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            return
+
+        table = self._collection_name
+        columns = self._SEARCH_FIELDS
+
+        def setup() -> bool:
+            cursor = connection.cursor()
+            try:
+                cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+                for column in columns:
+                    index_name = f"idx_{table}_{column}_trgm"
+                    cursor.execute(
+                        f"CREATE INDEX IF NOT EXISTS {index_name} "
+                        f"ON {table} USING gin ({column} gin_trgm_ops)"
+                    )
+                connection.commit()
+                return True
+            except Exception as exc:  # noqa: BLE001 - best-effort index creation; a missing extension/privilege must not block startup
+                logger.warning(
+                    f"pg_trgm trigram index unavailable for {table} "
+                    f"(search will use a scan bounded to the most recent rows instead): {exc}"
+                )
+                connection.rollback()
+                return False
+
+        def run() -> bool:
+            if db_lock is not None:
+                with db_lock:
+                    return setup()
+            return setup()
+
+        loop = asyncio.get_running_loop()
+        self._trgm_available = await loop.run_in_executor(executor, run)
 
     async def store(self, record: AdminAuditRecord) -> bool:
         if not self._initialized:
@@ -78,6 +125,13 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
             logger.error(f"Error storing admin audit record in Postgres: {e}")
             return False
 
+    # Columns a free-text `search` matches against — same fields the admin
+    # panel showed via Python-side substring search before Phase 4.
+    _SEARCH_FIELDS = (
+        "event_type", "action", "actor_username", "actor_id",
+        "path", "resource_id", "resource_type", "ip",
+    )
+
     async def query(
         self,
         filters: dict[str, Any],
@@ -85,6 +139,7 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
         offset: int = 0,
         sort_by: str = "timestamp",
         sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         if not self._initialized:
             await self.initialize()
@@ -97,17 +152,87 @@ class PostgresAdminAuditStrategy(AdminAuditStorageStrategy):
                 else:
                     converted[key] = value
 
-            results = await self._database_service.find_many(
-                collection_name=self._collection_name,
-                query=converted,
-                limit=limit,
-                skip=offset,
-                sort=[(sort_by, sort_order)],
-            )
+            if search:
+                # Always bounded — see PostgresAuditStrategy.query() for why
+                # trusting pg_trgm index availability/term length isn't a
+                # reliable way to guarantee the scan is actually bounded.
+                results = await self._bounded_contains_search(
+                    converted, search, limit, offset, sort_by, sort_order
+                )
+            else:
+                results = await self._database_service.find_many(
+                    collection_name=self._collection_name,
+                    query=converted,
+                    limit=limit,
+                    skip=offset,
+                    sort=[(sort_by, sort_order)],
+                )
             return [self._unflatten(r) for r in results]
         except Exception as e:  # noqa: BLE001 - database-backend call must fail safe, matching precedent from sibling audit strategies
             logger.error(f"Error querying admin audit records from Postgres: {e}")
             return []
+
+    # Hard cap on how many rows search will ever examine, regardless of table
+    # size — an explicit, accepted trade-off: a match older than the most
+    # recent _FALLBACK_SCAN_CAP rows (by `timestamp`) is not found. Applied
+    # unconditionally — see PostgresAuditStrategy.query().
+    _FALLBACK_SCAN_CAP = 20000
+
+    async def _bounded_contains_search(
+        self,
+        converted_filters: dict[str, Any],
+        search: str,
+        limit: int,
+        offset: int,
+        sort_by: str,
+        sort_order: int,
+    ) -> list[dict[str, Any]]:
+        """Unindexed substring search, bounded to the most recent
+        _FALLBACK_SCAN_CAP rows via the existing idx_{table}_timestamp index
+        — see PostgresAuditStrategy's identical method for the full
+        rationale.
+        """
+        connection = getattr(self._database_service, "connection", None)
+        executor = getattr(self._database_service, "executor", None)
+        db_lock = getattr(self._database_service, "_db_lock", None)
+        if connection is None or executor is None:
+            return []
+
+        db = self._database_service
+        table = self._collection_name
+        base_where, base_params = db._convert_query_to_sql(table, converted_filters)
+        search_filter = {"$or": [{field: {"$contains": search}} for field in self._SEARCH_FIELDS]}
+        search_where, search_params = db._convert_query_to_sql(table, search_filter)
+        where_parts = [p for p in (base_where, search_where) if p]
+        where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+        order_dir = "ASC" if sort_order == 1 else "DESC"
+
+        sql = (
+            f"SELECT * FROM (SELECT * FROM {table} ORDER BY timestamp DESC LIMIT %s) recent "
+            f"{where_sql} ORDER BY {sort_by} {order_dir} LIMIT %s OFFSET %s"
+        )
+        params = (self._FALLBACK_SCAN_CAP, *base_params, *search_params, limit, offset)
+
+        logger.warning(
+            f"Audit search on {table} is using the unindexed ILIKE fallback, bounded to "
+            f"the {self._FALLBACK_SCAN_CAP} most recent rows (pg_trgm unavailable) — "
+            f"a match older than that window will not be found."
+        )
+
+        def run() -> list[dict[str, Any]]:
+            def execute() -> list[dict[str, Any]]:
+                cursor = connection.cursor()
+                cursor.execute(sql, params)
+                return cursor.fetchall()  # dict_row row factory: already dicts
+
+            if db_lock is not None:
+                with db_lock:
+                    return execute()
+            return execute()
+
+        loop = asyncio.get_running_loop()
+        rows = await loop.run_in_executor(executor, run)
+        return [db._convert_row_to_document(table, row) for row in rows]
 
     def _unflatten(self, row: dict[str, Any]) -> dict[str, Any]:
         summary = row.get("request_summary")

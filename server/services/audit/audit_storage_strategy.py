@@ -139,6 +139,17 @@ class AuditRecord:
             'ip_metadata': self.ip_metadata,
         }
 
+        # A compressed `response` is base64-gzip, so no pushed-down text
+        # search can match its plaintext. Store an always-plaintext copy
+        # under its own field, used only for search (never returned by a
+        # strategy's query() — see each strategy's `_unflatten`/result
+        # stripping) so a search backend never needs an extra decompress-
+        # and-check pass to find a match inside a compressed response.
+        # Omitted entirely when the response isn't compressed, since
+        # `response` itself already holds searchable plaintext then.
+        if is_response_compressed:
+            result['response_plain'] = self.response
+
         if self.api_key:
             result['api_key'] = self.api_key
         if self.session_id:
@@ -198,6 +209,12 @@ class AuditRecord:
             'timestamp': self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else self.timestamp,
             'query': self.query,
             'response': response_value,
+            # Always-plaintext copy of a compressed response, used only for
+            # search (never surfaced by a strategy's query()) — see
+            # AuditRecord.to_dict() for the full rationale. NULL/omitted when
+            # the response isn't compressed, since `response` is already
+            # searchable plaintext then.
+            'response_plain': self.response if is_response_compressed else None,
             'response_compressed': 1 if is_response_compressed else 0,
             'provider': self.provider,
             'blocked': 1 if self.blocked else 0,
@@ -312,7 +329,8 @@ class AuditStorageStrategy(ABC):
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
-        sort_order: int = -1
+        sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """
         Query audit records with filters.
@@ -323,6 +341,11 @@ class AuditStorageStrategy(ABC):
             offset: Number of records to skip
             sort_by: Field to sort by (default: 'timestamp')
             sort_order: Sort direction (1=ascending, -1=descending)
+            search: Free-text match across the backend's indexed text columns
+                (provider, model, adapter_name, session_id, user_id, ip, masked
+                api_key, query, response), applied at the datastore layer
+                rather than requiring the caller to oversample and filter in
+                Python.
 
         Returns:
             List of matching audit records as dictionaries

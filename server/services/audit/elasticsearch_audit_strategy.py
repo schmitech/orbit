@@ -151,8 +151,6 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                     mappings={
                         "properties": {
                             "timestamp": {"type": "date"},
-                            "query": {"type": "text", "analyzer": "standard"},
-                            "response": {"type": "text", "analyzer": "standard"},
                             "response_compressed": {"type": "boolean"},
                             "provider": {"type": "keyword"},
                             "blocked": {"type": "boolean"},
@@ -190,16 +188,48 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             logger.error(f"Failed to setup Elasticsearch index: {e}")
             raise
 
-    @staticmethod
-    def _usage_mapping_properties() -> dict[str, Any]:
-        """Explicit mapping for the token-usage/cost fields.
+    # A `text` field's indexed terms are its analyzed tokens, so a wildcard
+    # query against it can only match within a single token — a multi-word
+    # search term (e.g. "refund message") can never match, since no single
+    # token contains a space. The `.raw` keyword multi-field holds the whole
+    # field value verbatim, so a wildcard against `<field>.raw` matches it as
+    # one literal string, including across word boundaries — true substring
+    # search, not per-token. `ignore_above` excludes a value longer than that
+    # from `.raw`'s index entirely (not truncates it) — an audit response
+    # longer than this will not have a raw-substring match outside the
+    # ordinary per-token `<field>` search; this is the standard Elasticsearch
+    # keyword length ceiling, not something this change newly introduces.
+    _RAW_SUBFIELD_IGNORE_ABOVE = 32766
+
+    @classmethod
+    def _searchable_text_mapping(cls) -> dict[str, Any]:
+        """Mapping for an analyzed field that also needs whole-value
+        substring search via `<field>.raw` — see _RAW_SUBFIELD_IGNORE_ABOVE."""
+        return {
+            "type": "text",
+            "analyzer": "standard",
+            "fields": {"raw": {"type": "keyword", "ignore_above": cls._RAW_SUBFIELD_IGNORE_ABOVE}},
+        }
+
+    @classmethod
+    def _usage_mapping_properties(cls) -> dict[str, Any]:
+        """Explicit mapping for the token-usage/cost fields, plus any other
+        field added after the index's original mapping — currently `query`/
+        `response` (moved here to gain the `.raw` multi-field without a
+        reindex) and `response_plain` (Phase 4's searchable-plaintext-of-a-
+        compressed-response field — see _SEARCH_TEXT_FIELDS).
 
         Applied on both index creation and (via put_mapping) on an existing
         index, so cost_usd is never dynamically typed from the first document
         seen — a document with an integer 0 would otherwise map it as "long"
-        and silently truncate every later fractional cost to 0.
+        and silently truncate every later fractional cost to 0. The other
+        fields ride along on the same additive mechanism so a pre-existing
+        index gets them without a reindex.
         """
         return {
+            "query": cls._searchable_text_mapping(),
+            "response": cls._searchable_text_mapping(),
+            "response_plain": cls._searchable_text_mapping(),
             "prompt_tokens": {"type": "integer"},
             "completion_tokens": {"type": "integer"},
             "total_tokens": {"type": "integer"},
@@ -348,13 +378,47 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
         elif "circuit_breaking_exception" in error_str.lower():
             logger.error("Elasticsearch circuit breaker triggered - system under memory pressure")
 
+    # All search fields are matched with the same case-insensitive `wildcard`
+    # query, not `match`/`term`: `term` against a keyword field requires an
+    # exact value, and `match` against an analyzed text field tokenizes the
+    # query (so "refun" would not match "refund", and a multi-word term
+    # matches on ANY word by default — not the literal-substring semantics
+    # the admin panel previously got from Python substring filtering).
+    # query/response/response_plain are matched via their `.raw` keyword
+    # multi-field (see _searchable_text_mapping), not the analyzed field
+    # itself — a wildcard against the analyzed field can only match within a
+    # single indexed token, so a multi-word search term (spanning a token
+    # boundary) could never match it; `.raw` holds the whole value verbatim,
+    # giving true substring semantics across word boundaries, bounded only by
+    # _RAW_SUBFIELD_IGNORE_ABOVE (an ordinary Elasticsearch keyword-length
+    # ceiling, not unique to this feature).
+    # ip is mapped as the Elasticsearch "ip" type (no substring queries), so
+    # ip_metadata's keyword-typed copy is used for text search instead.
+    # response_plain is an always-plaintext copy of a compressed `response`
+    # (see AuditRecord.to_dict), only ever populated when response_compressed
+    # is true — included here so a compressed response's text is still
+    # searchable, with no separate decompress-and-check pass needed.
+    _SEARCH_TEXT_FIELDS = ("query.raw", "response.raw", "response_plain.raw")
+    _SEARCH_KEYWORD_FIELDS = (
+        "provider", "model", "adapter_name", "session_id", "user_id",
+        "api_key.key", "ip_metadata.originalValue",
+    )
+
+    @staticmethod
+    def _escape_wildcard(term: str) -> str:
+        """Escape Lucene wildcard metacharacters so `search` is matched as a
+        literal substring — otherwise a term containing `*`/`?` would be
+        interpreted as a wildcard pattern instead of literal text."""
+        return term.replace("\\", "\\\\").replace("*", "\\*").replace("?", "\\?")
+
     async def query(
         self,
         filters: dict[str, Any],
         limit: int = 100,
         offset: int = 0,
         sort_by: str = 'timestamp',
-        sort_order: int = -1
+        sort_order: int = -1,
+        search: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         """
         Query audit records from Elasticsearch.
@@ -365,6 +429,8 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
             offset: Number of records to skip
             sort_by: Field to sort by (default: 'timestamp')
             sort_order: Sort direction (1=ascending, -1=descending)
+            search: Free-text match across _SEARCH_TEXT_FIELDS/_SEARCH_KEYWORD_FIELDS,
+                applied as a native Elasticsearch query rather than filtered in Python.
 
         Returns:
             List of matching audit records
@@ -382,6 +448,14 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                     must_clauses.append({"term": {key: value}})
                 else:
                     must_clauses.append({"match": {key: value}})
+
+            if search:
+                pattern = f"*{self._escape_wildcard(search)}*"
+                should_clauses = [
+                    {"wildcard": {field: {"value": pattern, "case_insensitive": True}}}
+                    for field in self._SEARCH_TEXT_FIELDS + self._SEARCH_KEYWORD_FIELDS
+                ]
+                must_clauses.append({"bool": {"should": should_clauses, "minimum_should_match": 1}})
 
             query = {"bool": {"must": must_clauses}} if must_clauses else {"match_all": {}}
 
@@ -407,6 +481,11 @@ class ElasticsearchAuditStrategy(AuditStorageStrategy):
                     except Exception as e:  # noqa: BLE001 - best-effort decompression; falls back to compressed value on failure
                         logger.warning(f"Failed to decompress response: {e}")
                         # Keep compressed response if decompression fails
+
+                # response_plain exists only to make a compressed response
+                # searchable (see _SEARCH_TEXT_FIELDS) — never part of the
+                # returned document.
+                doc.pop("response_plain", None)
 
                 results.append(doc)
 

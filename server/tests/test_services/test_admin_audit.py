@@ -189,6 +189,158 @@ class TestSQLiteAdminAuditStrategy:
         assert len(successes) == 1
         assert successes[0]["actor_username"] == "alice"
 
+    async def test_search_pushes_down_to_an_indexed_or_query(self, audit_service_with_admin):
+        """Phase 4: `search` is matched by the SQL layer (FTS5 when available,
+        the generic $or/$contains operator otherwise), not by fetching every
+        row and substring-filtering in Python."""
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        strategy = audit_service._admin_strategy
+
+        await strategy.store(AdminAuditRecord(
+            timestamp=datetime.now(), event_type="admin.api_key.create", action="CREATE",
+            resource_type="api_key", resource_id="key-1", actor_type="user",
+            actor_id="u1", actor_username="alice", method="POST", path="/admin/api-keys",
+            status_code=201, success=True, ip="127.0.0.1",
+        ))
+        await strategy.store(AdminAuditRecord(
+            timestamp=datetime.now(), event_type="auth.login", action="LOGIN",
+            resource_type="session", actor_type="anonymous", method="POST",
+            path="/auth/login", status_code=401, success=False, ip="127.0.0.1",
+        ))
+
+        matches = await strategy.query({}, search="alice")
+        assert len(matches) == 1
+        assert matches[0]["actor_username"] == "alice"
+
+        no_matches = await strategy.query({}, search="nonexistent-actor")
+        assert no_matches == []
+
+        # search combines with an equality filter (AND), not just OR across
+        # search fields.
+        combined = await strategy.query({"success": False}, search="alice")
+        assert combined == []
+
+    async def test_search_treats_term_as_literal_substring(self, audit_service_with_admin):
+        """A search term containing a LIKE wildcard (%, _) must match
+        literally, not as a pattern."""
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        strategy = audit_service._admin_strategy
+
+        await strategy.store(AdminAuditRecord(
+            timestamp=datetime.now(), event_type="admin.job.create", action="CREATE",
+            resource_type="job", resource_id="100% done", actor_type="user",
+            actor_id="u1", method="POST", path="/admin/jobs", status_code=201,
+            success=True, ip="127.0.0.1",
+        ))
+        await strategy.store(AdminAuditRecord(
+            timestamp=datetime.now(), event_type="admin.job.create", action="CREATE",
+            resource_type="job", resource_id="100x done", actor_type="user",
+            actor_id="u1", method="POST", path="/admin/jobs", status_code=201,
+            success=True, ip="127.0.0.1",
+        ))
+
+        matches = await strategy.query({}, search="100%")
+        assert {m["resource_id"] for m in matches} == {"100% done"}
+
+    async def test_search_uses_fts5_index_not_a_full_table_scan(self, audit_service_with_admin):
+        """Phase 4 P1 fix: a `search` long enough for the trigram tokenizer
+        must resolve via the FTS5 index (SCAN ... VIRTUAL TABLE), not an
+        unindexed LIKE scan of the whole audit_admin_logs table."""
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        strategy = audit_service._admin_strategy
+        assert strategy._fts_available is True
+
+        await strategy.store(AdminAuditRecord(
+            timestamp=datetime.now(), event_type="admin.api_key.create", action="CREATE",
+            resource_type="api_key", actor_type="user", actor_id="u1",
+            actor_username="alice", method="POST", path="/admin/api-keys",
+            status_code=201, success=True, ip="127.0.0.1",
+        ))
+
+        fts_results = await strategy._fts_search({}, "alice", limit=100, offset=0, sort_by="timestamp", sort_order=-1)
+        assert fts_results
+
+        connection = strategy._database_service.connection
+        cursor = connection.cursor()
+        cursor.execute(
+            "EXPLAIN QUERY PLAN SELECT t.* FROM audit_admin_logs_fts JOIN audit_admin_logs t "
+            'ON t.rowid = audit_admin_logs_fts.rowid WHERE audit_admin_logs_fts MATCH ? '
+            'ORDER BY t."timestamp" DESC LIMIT ? OFFSET ?',
+            ('"alice"', 100, 0),
+        )
+        plan = " ".join(row[-1] for row in cursor.fetchall())
+        assert "VIRTUAL TABLE" in plan
+        assert "SCAN audit_admin_logs USING" not in plan
+
+    async def test_fts_search_applies_sort_filters_and_pagination_correctly(self, audit_service_with_admin):
+        """Regression test: _fts_search() must apply the caller's filters,
+        sort order, and pagination within the single joined query, not via a
+        separate id-resolution step with its own LIMIT that truncates the
+        candidate set first."""
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        strategy = audit_service._admin_strategy
+        assert strategy._fts_available is True
+
+        await strategy.store(AdminAuditRecord(
+            timestamp=datetime(2026, 1, 1), event_type="admin.job.create", action="CREATE",
+            resource_type="job", resource_id="oldest-alice-job", actor_type="user",
+            actor_id="u1", actor_username="alice", method="POST", path="/admin/jobs",
+            status_code=201, success=True, ip="127.0.0.1",
+        ))
+        await strategy.store(AdminAuditRecord(
+            timestamp=datetime(2026, 1, 2), event_type="admin.job.create", action="CREATE",
+            resource_type="job", resource_id="middle-alice-job", actor_type="user",
+            actor_id="u1", actor_username="alice", method="POST", path="/admin/jobs",
+            status_code=201, success=False, ip="127.0.0.1",
+        ))
+        await strategy.store(AdminAuditRecord(
+            timestamp=datetime(2026, 1, 3), event_type="admin.job.create", action="CREATE",
+            resource_type="job", resource_id="newest-alice-job", actor_type="user",
+            actor_id="u1", actor_username="alice", method="POST", path="/admin/jobs",
+            status_code=201, success=False, ip="127.0.0.1",
+        ))
+
+        page1 = await strategy.query({}, limit=1, offset=0, search="alice")
+        assert len(page1) == 1
+        assert page1[0]["resource_id"] == "newest-alice-job"
+
+        page2 = await strategy.query({}, limit=1, offset=1, search="alice")
+        assert len(page2) == 1
+        assert page2[0]["resource_id"] == "middle-alice-job"
+
+        filtered = await strategy.query({"success": False}, search="alice")
+        assert {r["resource_id"] for r in filtered} == {"middle-alice-job", "newest-alice-job"}
+
+    async def test_contains_fallback_scan_is_bounded_by_cap(self, audit_service_with_admin):
+        """When FTS5 is unavailable, the substring fallback must still bound
+        its own cost: a match older than _FALLBACK_SCAN_CAP rows is not
+        found — the explicit, accepted trade-off that keeps this path's cost
+        from scaling with total ledger size."""
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        strategy = audit_service._admin_strategy
+        strategy._fts_available = False
+        strategy._FALLBACK_SCAN_CAP = 5
+
+        await strategy.store(AdminAuditRecord(
+            timestamp=datetime(2020, 1, 1), event_type="admin.api_key.create", action="CREATE",
+            resource_type="api_key", actor_type="user", actor_id="u1",
+            actor_username="needle-alice", method="POST", path="/admin/api-keys",
+            status_code=201, success=True, ip="127.0.0.1",
+        ))
+        for i in range(10):
+            await strategy.store(AdminAuditRecord(
+                timestamp=datetime(2026, 1, 1 + i), event_type="auth.login", action="LOGIN",
+                resource_type="session", actor_type="anonymous", method="POST",
+                path="/auth/login", status_code=401, success=False, ip="127.0.0.1",
+            ))
+
+        results = await strategy.query({}, search="needle-alice")
+        assert results == []
+
+        strategy._FALLBACK_SCAN_CAP = 1000
+        results = await strategy.query({}, search="needle-alice")
+        assert len(results) == 1
+
 
 # ---------------------------------------------------------------------------
 # AuditService admin plumbing
@@ -583,6 +735,37 @@ class TestAuditEventsEndpoint:
         assert body["returned"] == 3  # the three seeded admin.api_key.create rows by alice
         for e in body["events"]:
             assert e["actor_username"] == "alice"
+
+    async def test_free_text_search_matches_chat_query_and_response_text(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        await audit_service.log_conversation(
+            query="what is the refund policy", response="refunds are processed in 5 days",
+            provider="openai", usage={"call_type": "chat"},
+        )
+        await audit_service.log_conversation(
+            query="hello there", response="hi, how can I help?",
+            provider="openai", usage={"call_type": "chat"},
+        )
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events?source=chat&q=refund")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["returned"] == 1
+
+    async def test_offset_beyond_cap_returns_422(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events?offset=50001")
+        assert resp.status_code == 422
+
+    async def test_offset_at_cap_is_allowed(self, audit_service_with_admin):
+        audit_service, _sqlite, _cfg = audit_service_with_admin
+        app = _build_endpoint_app(audit_service)
+        with TestClient(app) as client:
+            resp = client.get("/admin/audit/events?offset=50000")
+        assert resp.status_code == 200
 
     async def test_pagination(self, audit_service_with_admin):
         audit_service, _sqlite, _cfg = audit_service_with_admin

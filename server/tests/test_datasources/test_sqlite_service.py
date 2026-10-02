@@ -409,6 +409,29 @@ async def test_query_operators(sqlite_service: SQLiteService):
 
 
 @pytest.mark.asyncio
+async def test_or_operator(sqlite_service: SQLiteService):
+    """Phase 4 addition: $or lets a free-text search match across several
+    columns at the SQL layer (e.g. audit log search) instead of requiring
+    a separate query per column or a Python-side filter."""
+    await sqlite_service.insert_one(TEST_COLLECTION, {"name": "Alice", "score": 5})
+    await sqlite_service.insert_one(TEST_COLLECTION, {"name": "Bob", "score": 5})
+    await sqlite_service.insert_one(TEST_COLLECTION, {"name": "Carol", "score": 99})
+
+    results = await sqlite_service.find_many(
+        TEST_COLLECTION,
+        {"$or": [{"name": {"$regex": "alice"}}, {"name": {"$regex": "bob"}}]}
+    )
+    assert {r["name"] for r in results} == {"Alice", "Bob"}
+
+    # $or combines with a sibling top-level key via AND, not OR.
+    results = await sqlite_service.find_many(
+        TEST_COLLECTION,
+        {"score": 99, "$or": [{"name": {"$regex": "alice"}}, {"name": {"$regex": "carol"}}]}
+    )
+    assert {r["name"] for r in results} == {"Carol"}
+
+
+@pytest.mark.asyncio
 async def test_datetime_handling(sqlite_service: SQLiteService):
     """Test datetime serialization and deserialization"""
     now = datetime.now(UTC)
