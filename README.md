@@ -5,11 +5,10 @@
 
   # ORBIT
 
-  Open Retrieval-Based Inference Toolkit
-
   **The self-hosted AI backend for private data and tool-using agents.**
 
-  Connect files, databases, APIs, and MCP tools to local or hosted models behind one OpenAI-compatible API—with authentication, observability, and an admin UI built in.
+  Connect your data and tools to local or hosted models through one OpenAI-compatible API.
+  Configure with YAML. Deploy on your own infrastructure.
 
   <p>
     <a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=hero">
@@ -25,46 +24,33 @@
     <a href="docs/">Documentation</a>
   </p>
 
-  <p>⭐ If ORBIT looks useful, <a href="https://github.com/schmitech/orbit">star the repo</a> — it helps others find it and tells us what to keep building.</p>
+  <p>⭐ Building with private data or AI agents? <strong>Star ORBIT</strong> to bookmark it and help others discover it.</p>
 </div>
 
 <p align="center">
   <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=social" alt="GitHub stars" /></a>
   <a href="https://github.com/schmitech/orbit/releases/latest"><img src="https://img.shields.io/github/v/release/schmitech/orbit?label=release" alt="Latest release" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white" alt="Python 3.11+ (3.12 preferred)" /></a>
-  <a href="https://github.com/schmitech/orbit/commits/main"><img src="https://img.shields.io/github/last-commit/schmitech/orbit" alt="Last commit" /></a>
 </p>
-
-<br />
 
 ## Why ORBIT
 
+Build a chat app over private documents, an agent that calls your tools, or a triage workflow—with the same backend.
+
 | | What you get |
-| :---: | :--- |
-| **Connect anything** | Bring files, SQL, NoSQL, vector stores, APIs, and MCP tools together through YAML-configured adapters. |
-| **Use any model** | Keep one API contract while routing to hundreds of models. |
-| **Make real-time decisions** | Answer typed routing, triage, and moderation questions that return a choice with probabilities in a fraction of a second. |
-| **Keep data under your control** | Deploy on-premises, in a private cloud, or in an air-gapped environment while choosing local, self-hosted, or hosted models. |
-| **Govern AI operations** | RBAC, OIDC/SSO, identity allowlisting, per-key quotas, audit logs, moderation, and file encryption. |
-| **Stay resilient in production** | Use provider fallbacks, retries, circuit breakers, health checks, metrics, hot adapter reloads, and an integrated admin panel for day-to-day operations. |
+| :--- | :--- |
+| **Your data, connected** | Files, SQL, NoSQL, vector stores, APIs, and MCP tools through YAML-configured adapters. |
+| **Your choice of models** | Switch between local and hosted providers behind one OpenAI-compatible API. |
+| **Your infrastructure** | Self-host on-premises or in a private cloud; use local models for air-gapped deployments. |
+| **Operations built in** | Authentication, quotas, audit logs, provider fallbacks, monitoring, and an admin UI. |
 
-ORBIT sits between your applications and the models, data, and tools they need. Move from a local prototype to a governed deployment without replacing the architecture.
-
-For technical and security assessments, see [platform comparison and capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md), and [NIST SP 800-53 and OWASP Top 10 mapping](docs/security/nist-sp800-53-and-ai-security.md).
+Explore the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) for a detailed comparison.
 
 ## Quick start
 
-### Try it without installing
-
-**[Try ORBIT Sandbox →](https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=quick_start)** Choose a demo and ask your first question—no download, Docker, or account required.
-
 ### Run it locally
 
-**Prerequisites:** Python 3.11+ (3.12 preferred) and an internet connection for dependencies. The default configuration uses [Ollama](https://ollama.com/) for inference, so install Ollama as well if you use the default provider. Windows users can follow the [Windows installation guide](install/windows.md).
-
-1. Download the [ORBIT v2.17.17 tarball](https://github.com/schmitech/orbit/releases/download/v2.17.17/orbit-2.17.17.tar.gz).
-2. Extract it and start ORBIT:
+**Prerequisites:** Python 3.11+ (3.12 preferred), an internet connection for downloads, and [Ollama](https://ollama.com/) installed and running. If needed, run `ollama serve` in a separate terminal. On Windows, follow the [installation guide](install/windows.md).
 
 ```bash
 curl -LO https://github.com/schmitech/orbit/releases/download/v2.17.17/orbit-2.17.17.tar.gz
@@ -79,35 +65,9 @@ ollama pull nomic-embed-text
 ./bin/orbit.sh status
 ```
 
-The default setup enables Ollama in `config/inference.yaml`, selects it as the
-global provider in `config/config.yaml`, and uses the `gemma4-e2b-cpu` Ollama
-preset for the initial conversational adapter. Presets are defined in
-`config/ollama.yaml`; this preset resolves to the `gemma4:e2b` model tag.
+Open the [admin dashboard](http://localhost:3000/admin) and sign in with `admin` / `ChangeMe!2026`.
 
-`setup.sh` does not install Ollama; install and start it separately before
-running the model pull command (run `ollama serve` in another terminal if
-Ollama is not already running).
-
-All ORBIT behavior is managed through YAML: use `config/config.yaml` for global
-server settings, `config/inference.yaml` for provider enablement and credentials,
-`config/ollama.yaml` for Ollama presets, and the files under `config/adapters/`
-for adapter behavior.
-
-To use another provider (openai, gemini, anthropic, etc.), enable it in `config/inference.yaml`, set its
-credential in `.env`, and select it globally or on the adapter that should use it.
-
-For the adapter implementations themselves, see [`server/adapters/`](server/adapters/); for
-ready-to-use intent templates (SQL, GraphQL, MongoDB, Elasticsearch, HTTP, and more), see
-[`examples/intent-templates/`](examples/intent-templates/).
-
-Adapters are defined in [`config/adapters.yaml`](config/adapters.yaml). The default installation
-comes with the `simple-chat` and `multimodal` adapters enabled, but you can use the examples above
-to configure your own. See [`docs/adapters/`](docs/adapters/) for technical details on how the
-adapter system works.
-
-ORBIT starts at [http://localhost:3000](http://localhost:3000), and the dashboard at [http://localhost:3000/admin](http://localhost:3000/admin) - default credentials: admin/ChangeMe!2026.
-
-Follow the tutorial to [verify the installation](docs/tutorial/before-you-start.md) and [create your first chat](docs/tutorial/first-chat.md).
+### Send your first message
 
 For a quick smoke test, the release seed includes `default-key` mapped to the
 `simple-chat` adapter:
@@ -125,19 +85,37 @@ curl -X POST http://localhost:3000/v1/chat \
   }'
 ```
 
-Test it from a terminal with [orbit-cli](clients/orbit-cli/):
+Continue with [your first chat](docs/tutorial/first-chat.md) to create an API key, or use the [Docker quick start](docker/README.md#flavor-images-recommended-pull-and-run) for containers.
+
+<details>
+<summary><strong>Configure models and data sources</strong></summary>
+
+The default setup uses Ollama with the `gemma4-e2b-cpu` preset, which resolves to `gemma4:e2b`.
+
+- **Server settings:** [`config/config.yaml`](config/config.yaml).
+- **Providers:** Enable a provider in [`config/inference.yaml`](config/inference.yaml), set its credential in `.env`, and select it globally or per adapter.
+- **Ollama presets:** [`config/ollama.yaml`](config/ollama.yaml).
+- **Data and tools:** Configure adapters in [`config/adapters.yaml`](config/adapters.yaml) and [`config/adapters/`](config/adapters/). Start with the [adapter guide](docs/adapters/adapters.md) or [intent templates](examples/intent-templates/).
+
+See [Before you start](docs/tutorial/before-you-start.md) for installation checks, file retrieval setup, and API-key management.
+
+</details>
+
+<details>
+<summary><strong>Chat from a terminal or browser</strong></summary>
+
+Use [orbit-cli](clients/orbit-cli/) from a terminal (Node.js 20+):
 
 ```bash
 npm install -g @schmitech/orbit-cli@latest
 orbit-chat --url http://localhost:3000 --key default-key
 ```
 
-Or test it from the browser with [orbitchat](clients/orbitchat/):
+Or launch [OrbitChat](clients/orbitchat/) in your browser:
 
 ```bash
 npm install -g orbitchat@latest
 
-# Minimal single-adapter config for a quick test — see orbitchat.yaml.example for all options
 cat > orbitchat.yaml <<'EOF'
 agentMode:
   mode: "single"
@@ -146,27 +124,21 @@ adapters:
   - id: "simple-chat"
 EOF
 
-# Starts the proxy and opens http://localhost:5173 in your browser
 ORBIT_ADAPTER_KEYS='{"simple-chat":"default-key"}' orbitchat --config orbitchat.yaml --open
 ```
 
-See [orbitchat.yaml.example](clients/orbitchat/orbitchat.yaml.example) for the full set of configuration options.
+OrbitChat opens at [http://localhost:5173](http://localhost:5173). See the [example configuration](clients/orbitchat/orbitchat.yaml.example) for more options.
 
-For API-key creation, file uploads, and browser-based testing, continue with
-[Before you start](docs/tutorial/before-you-start.md).
-
-Prefer containers or a bundled chat UI? Use the [Docker quick start](docker/README.md#flavor-images-recommended-pull-and-run), or install and configure [OrbitChat](clients/orbitchat/README.md).
-
+</details>
 
 ## Explore more
 
 | I want to… | Start here |
 | :--- | :--- |
-| **Try ORBIT in my browser** | [Try ORBIT Sandbox →](https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=explore_more) — explore the live demos before setting up your own instance. |
 | **Learn ORBIT** | [Tutorial](docs/tutorial.md) · [First chat](docs/tutorial/first-chat.md) · [HTTP APIs](docs/tutorial/http-apis.md) |
 | **Connect private data** | [Files](docs/adapters/file-adapter-guide.md) · [Vector stores](docs/vector-stores/vector_store_integration_guide.md) · [SQL](docs/sql-retriever-architecture.md) · [Intent templates](examples/intent-templates/) · [Adapter system overview](docs/adapters/adapters.md) |
 | **Build agents** | [MCP tools](docs/tutorial/mcp-tool-calling.md) · [Automatic skill routing](docs/tutorial/auto-skill-routing.md) · [A2A](docs/a2a-protocol.md) · [Adapter creation](docs/adapters/adapter-creation.md) |
-| **Make real-time decisions** | [Decision models](docs/adapters/decision-models.md) · [Triage Rush demo](examples/triage-rush-game/) |
+| **Make real-time decisions** | [Decision models](docs/adapters/decision-models.md) · [Triage Rush demo](examples/triage-rush-game/) · [Sentiment Pulse](examples/sentiment-pulse/) |
 | **Run in production** | [Authentication](docs/authentication.md) · [Cost tracking](docs/token-usage-and-cost-tracking.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
 | **Use a client** | [OrbitChat](clients/orbitchat/) · [Realtime Voice](clients/realtime-voice/) · [Node.js SDK](clients/node-api/) · [Python API example](examples/openai-compatible-api/chat_completions.py) |
 
@@ -180,4 +152,4 @@ Maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
 
 ## License
 
-ORBIT is licensed under the [Apache License 2.0](LICENSE).
+ORBIT (Open Retrieval-Based Inference Toolkit) is licensed under the [Apache License 2.0](LICENSE).
