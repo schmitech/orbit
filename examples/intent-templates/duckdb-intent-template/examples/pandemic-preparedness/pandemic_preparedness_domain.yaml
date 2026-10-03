@@ -1,0 +1,434 @@
+domain_name: Canadian Pandemic Preparedness Demo
+description: Synthetic demo dataset covering biomanufacturing facility capacity and clinical trial readiness for vaccine/therapeutic candidates in Canada. Built as an ORBIT showcase for the Canadian Pandemic Preparedness Hub (CP2H, University of Ottawa / McMaster University). All data is synthetic/illustrative.
+domain_type: analytical
+semantic_types:
+  location_value:
+    description: Geographic location identifiers
+    patterns:
+    - province
+    - city
+    - location
+    - region
+    regex_patterns:
+    - \b(ON|QC|BC|AB|MB|SK|NS|NB|NL|PE|YT|NT|NU)\b
+  facility_type_value:
+    description: Biomanufacturing facility type
+    patterns:
+    - facility type
+    - vaccine
+    - viral vector
+    - cell therapy
+    - antibody
+    - mrna
+  trial_phase_value:
+    description: Clinical trial phase
+    patterns:
+    - phase
+    - preclinical
+    - approved
+    regex_patterns:
+    - \bPhase\s+(I|II|III)\b
+  pathogen_value:
+    description: Pathogen or disease target
+    patterns:
+    - pathogen
+    - target
+    - influenza
+    - coronavirus
+    - rsv
+    - mpox
+    - norovirus
+    - avian influenza
+  identifier:
+    description: Unique identifier
+    patterns:
+    - id
+    - identifier
+    - number
+    regex_patterns:
+    - \b\d+\b
+  capacity_value:
+    description: Production capacity in liters
+    patterns:
+    - capacity
+    - liters
+    - litres
+    regex_patterns:
+    - \d+\s*(liters?|litres?|L)\b
+vocabulary:
+  entity_synonyms:
+    biomanufacturing_facilities:
+    - facility
+    - facilities
+    - biomanufacturing facility
+    - biomanufacturing facilities
+    - plant
+    - plants
+    - bio-manufacturing site
+    - production site
+    - manufacturing capacity
+    clinical_trials:
+    - trial
+    - trials
+    - clinical trial
+    - clinical trials
+    - study
+    - studies
+    - candidate
+    - candidates
+    province:
+    - provinces
+    - region
+    - jurisdiction
+    organization:
+    - sponsor
+    - partner
+    - organization
+    - org
+    gmp_certified:
+    - gmp
+    - gmp certified
+    - good manufacturing practice
+    partner_network:
+    - network
+    - partnership
+    - consortium
+  action_verbs:
+    find:
+    - show
+    - list
+    - get
+    - find
+    - display
+    - retrieve
+    - lookup
+    - search
+    - view
+    - what
+    - which
+    filter:
+    - filter
+    - only
+    - just
+    - where
+    - with
+    - having
+    - containing
+    - in
+    - from
+    count:
+    - count
+    - number of
+    - how many
+    - total
+    - tally
+    sort:
+    - sort
+    - order
+    - arrange
+    - rank
+    - top
+    - highest
+    - lowest
+    - most
+    - least
+    calculate:
+    - calculate
+    - compute
+    - aggregate
+    - sum
+    - average
+    - avg
+    - total
+    - percentage
+    - percent
+    compare:
+    - compare
+    - vs
+    - versus
+    - difference
+    - between
+    - breakdown
+    analyze:
+    - analyze
+    - analysis
+    - trend
+    - trends
+    - growth
+    - distribution
+    - pattern
+entities:
+  biomanufacturing_facilities:
+    name: biomanufacturing_facilities
+    entity_type: primary
+    table_name: biomanufacturing_facilities
+    description: Biomanufacturing facilities producing vaccines and therapeutics
+    primary_key: facility_id
+    display_name_field: facility_name
+    searchable_fields:
+    - facility_name
+    - organization
+    - province
+    - city
+    - facility_type
+    - partner_network
+    fields:
+      facility_id:
+        name: facility_id
+        data_type: integer
+        db_column: facility_id
+        description: Unique facility identifier
+        required: true
+        searchable: false
+        filterable: true
+        sortable: true
+        semantic_type: identifier
+        summary_priority: 2
+      facility_name:
+        name: facility_name
+        data_type: string
+        db_column: facility_name
+        description: Facility name
+        required: true
+        searchable: true
+        filterable: false
+        sortable: true
+        semantic_type: null
+        summary_priority: 10
+      organization:
+        name: organization
+        data_type: string
+        db_column: organization
+        description: Owning organization (academic host or biotech company)
+        required: true
+        searchable: true
+        filterable: true
+        sortable: true
+        semantic_type: null
+        summary_priority: 9
+      province:
+        name: province
+        data_type: string
+        db_column: province
+        description: Canadian province
+        required: true
+        searchable: true
+        filterable: true
+        sortable: true
+        semantic_type: location_value
+        summary_priority: 8
+      city:
+        name: city
+        data_type: string
+        db_column: city
+        description: City
+        required: true
+        searchable: true
+        filterable: true
+        sortable: true
+        semantic_type: location_value
+        summary_priority: 7
+      facility_type:
+        name: facility_type
+        data_type: string
+        db_column: facility_type
+        description: Production type (vaccine, viral_vector, cell_therapy, antibody, mRNA)
+        required: true
+        searchable: true
+        filterable: true
+        sortable: true
+        semantic_type: facility_type_value
+        summary_priority: 9
+      capacity_liters:
+        name: capacity_liters
+        data_type: integer
+        db_column: capacity_liters
+        description: Production capacity in liters
+        required: true
+        searchable: false
+        filterable: true
+        sortable: true
+        semantic_type: capacity_value
+        summary_priority: 8
+      status:
+        name: status
+        data_type: string
+        db_column: status
+        description: Facility status (operational, under_construction, planned)
+        required: true
+        searchable: true
+        filterable: true
+        sortable: false
+        semantic_type: null
+        summary_priority: 8
+      gmp_certified:
+        name: gmp_certified
+        data_type: boolean
+        db_column: gmp_certified
+        description: Whether the facility is GMP certified
+        required: true
+        searchable: false
+        filterable: true
+        sortable: false
+        semantic_type: null
+        summary_priority: 6
+      commissioned_year:
+        name: commissioned_year
+        data_type: integer
+        db_column: commissioned_year
+        description: Year the facility became operational
+        required: false
+        searchable: false
+        filterable: true
+        sortable: true
+        semantic_type: null
+        summary_priority: 5
+      partner_network:
+        name: partner_network
+        data_type: string
+        db_column: partner_network
+        description: Partner network the facility belongs to
+        required: false
+        searchable: true
+        filterable: true
+        sortable: false
+        semantic_type: null
+        summary_priority: 6
+  clinical_trials:
+    name: clinical_trials
+    entity_type: primary
+    table_name: clinical_trials
+    description: Clinical trials for vaccine/therapeutic candidates
+    primary_key: trial_id
+    display_name_field: candidate_name
+    searchable_fields:
+    - candidate_name
+    - pathogen_target
+    - sponsor_organization
+    - trial_phase
+    fields:
+      trial_id:
+        name: trial_id
+        data_type: integer
+        db_column: trial_id
+        description: Unique trial identifier
+        required: true
+        searchable: false
+        filterable: true
+        sortable: true
+        semantic_type: identifier
+        summary_priority: 2
+      candidate_name:
+        name: candidate_name
+        data_type: string
+        db_column: candidate_name
+        description: Vaccine/therapeutic candidate name
+        required: true
+        searchable: true
+        filterable: false
+        sortable: true
+        semantic_type: null
+        summary_priority: 10
+      pathogen_target:
+        name: pathogen_target
+        data_type: string
+        db_column: pathogen_target
+        description: Pathogen or disease target
+        required: true
+        searchable: true
+        filterable: true
+        sortable: true
+        semantic_type: pathogen_value
+        summary_priority: 9
+      trial_phase:
+        name: trial_phase
+        data_type: string
+        db_column: trial_phase
+        description: Clinical trial phase
+        required: true
+        searchable: true
+        filterable: true
+        sortable: true
+        semantic_type: trial_phase_value
+        summary_priority: 9
+      sponsor_organization:
+        name: sponsor_organization
+        data_type: string
+        db_column: sponsor_organization
+        description: Sponsoring organization
+        required: true
+        searchable: true
+        filterable: true
+        sortable: true
+        semantic_type: null
+        summary_priority: 8
+      facility_id:
+        name: facility_id
+        data_type: integer
+        db_column: facility_id
+        description: Facility running the trial (foreign key)
+        required: true
+        searchable: false
+        filterable: true
+        sortable: false
+        semantic_type: identifier
+        summary_priority: 4
+      start_date:
+        name: start_date
+        data_type: date
+        db_column: start_date
+        description: Trial start date
+        required: true
+        searchable: false
+        filterable: true
+        sortable: true
+        semantic_type: null
+        summary_priority: 6
+      status:
+        name: status
+        data_type: string
+        db_column: status
+        description: Trial status (active, completed, paused, terminated)
+        required: true
+        searchable: true
+        filterable: true
+        sortable: false
+        semantic_type: null
+        summary_priority: 8
+      enrollment_count:
+        name: enrollment_count
+        data_type: integer
+        db_column: enrollment_count
+        description: Number of enrolled participants
+        required: true
+        searchable: false
+        filterable: true
+        sortable: true
+        semantic_type: null
+        summary_priority: 7
+      country:
+        name: country
+        data_type: string
+        db_column: country
+        description: Country where the trial is conducted
+        required: true
+        searchable: false
+        filterable: true
+        sortable: false
+        semantic_type: null
+        summary_priority: 2
+relationships:
+- name: trial_facility
+  from_entity: clinical_trials
+  to_entity: biomanufacturing_facilities
+  from_field: facility_id
+  to_field: facility_id
+  relationship_type: many_to_one
+  description: Each clinical trial runs at one biomanufacturing facility
+query_patterns: []
+metadata:
+  generated_at: '2026-10-03T00:00:00.000000'
+  generator_version: 1.0.0
+  auto_generated: false
+  data_source: Synthetic demo data generated for the ORBIT / CP2H showcase
+  data_note: All records are synthetic and for demonstration purposes only

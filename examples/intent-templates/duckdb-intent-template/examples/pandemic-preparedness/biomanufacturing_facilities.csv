@@ -1,0 +1,61 @@
+facility_id,facility_name,organization,province,city,facility_type,capacity_liters,status,gmp_certified,commissioned_year,partner_network
+1,Fowler Biologics Viral Vector Facility,Fowler Biologics,BC,Vancouver,viral_vector,20000,operational,True,2023,CP2H
+2,Johnson Biologics Vaccine Facility,Johnson Biologics,ON,Ottawa,vaccine,10000,operational,True,2023,BioCanRx
+3,Hill Vaccines Antibody Facility,Hill Vaccines,NS,Halifax,antibody,10000,operational,True,2015,BioCanRx
+4,Walker Biosciences Viral Vector Facility,Walker Biosciences,BC,Vancouver,viral_vector,50000,operational,True,2016,independent
+5,Université Laval Mrna Facility,Université Laval,QC,Quebec City,mRNA,500,operational,True,2023,CP2H
+6,Doyle Life Sciences Mrna Facility,Doyle Life Sciences,ON,Hamilton,mRNA,20000,operational,True,2020,BioCanRx
+7,Rhodes Biologics Cell Therapy Facility,Rhodes Biologics,QC,Sherbrooke,cell_therapy,50000,planned,False,,BioCanRx
+8,Mcclain Life Sciences Antibody Facility,Mcclain Life Sciences,BC,Vancouver,antibody,2000,under_construction,False,,BioCanRx
+9,Miller Therapeutics Vaccine Facility,Miller Therapeutics,BC,Vancouver,vaccine,1000,under_construction,False,,BioCanRx
+10,University of Alberta Cell Therapy Facility,University of Alberta,AB,Edmonton,cell_therapy,20000,planned,False,,BioCanRx
+11,Henderson Biologics Vaccine Facility,Henderson Biologics,QC,Sherbrooke,vaccine,5000,under_construction,False,,Canadian Immunization Research Network
+12,Université Laval Viral Vector Facility,Université Laval,QC,Quebec City,viral_vector,5000,under_construction,False,,independent
+13,Dalhousie University Viral Vector Facility,Dalhousie University,NS,Halifax,viral_vector,10000,under_construction,False,,Canadian Immunization Research Network
+14,Johnson Life Sciences Antibody Facility,Johnson Life Sciences,NB,Fredericton,antibody,1000,operational,True,2016,CP2H
+15,Robinson Therapeutics Antibody Facility,Robinson Therapeutics,QC,Quebec City,antibody,5000,operational,True,2022,Canadian Immunization Research Network
+16,Wagner Biologics Mrna Facility,Wagner Biologics,ON,Kingston,mRNA,50000,under_construction,False,,Canadian Immunization Research Network
+17,University of Alberta Viral Vector Facility,University of Alberta,AB,Edmonton,viral_vector,20000,operational,False,2019,BioCanRx
+18,Johnson Biologics Mrna Facility,Johnson Biologics,BC,Burnaby,mRNA,1000,under_construction,False,,Canadian Immunization Research Network
+19,Gonzalez Biomanufacturing Vaccine Facility,Gonzalez Biomanufacturing,SK,Regina,vaccine,5000,operational,True,2020,Canadian Immunization Research Network
+20,University of Toronto Mrna Facility,University of Toronto,ON,Toronto,mRNA,500,planned,False,,independent
+21,Santos Biomanufacturing Viral Vector Facility,Santos Biomanufacturing,QC,Montreal,viral_vector,10000,under_construction,False,,BioCanRx
+22,University of Alberta Viral Vector Facility,University of Alberta,AB,Edmonton,viral_vector,50000,planned,False,,BioCanRx
+23,Gardner Life Sciences Antibody Facility,Gardner Life Sciences,BC,Surrey,antibody,5000,planned,False,,CP2H
+24,McMaster University Cell Therapy Facility,McMaster University,ON,Hamilton,cell_therapy,10000,operational,True,2018,CP2H
+25,University of Ottawa Viral Vector Facility,University of Ottawa,ON,Ottawa,viral_vector,500,operational,False,2016,BioCanRx
+26,University of Manitoba Viral Vector Facility,University of Manitoba,MB,Winnipeg,viral_vector,20000,operational,False,2024,independent
+27,University of Manitoba Antibody Facility,University of Manitoba,MB,Winnipeg,antibody,500,operational,True,2020,independent
+28,Robinson Vaccines Vaccine Facility,Robinson Vaccines,ON,Toronto,vaccine,20000,operational,True,2016,BioCanRx
+29,The Ottawa Hospital Research Institute Antibody Facility,The Ottawa Hospital Research Institute,ON,Ottawa,antibody,1000,operational,True,2018,CP2H
+30,Lawrence Biomanufacturing Vaccine Facility,Lawrence Biomanufacturing,ON,Kingston,vaccine,10000,under_construction,False,,CP2H
+31,Pacheco Therapeutics Antibody Facility,Pacheco Therapeutics,QC,Quebec City,antibody,1000,operational,False,2015,BioCanRx
+32,Smith Life Sciences Antibody Facility,Smith Life Sciences,BC,Vancouver,antibody,20000,operational,False,2023,independent
+33,University of British Columbia Viral Vector Facility,University of British Columbia,BC,Vancouver,viral_vector,10000,planned,False,,CP2H
+34,Shaffer Biologics Mrna Facility,Shaffer Biologics,ON,Toronto,mRNA,50000,operational,True,2015,CP2H
+35,Wolfe Biologics Vaccine Facility,Wolfe Biologics,NL,St. John's,vaccine,1000,under_construction,False,,independent
+36,University of Toronto Mrna Facility,University of Toronto,ON,Toronto,mRNA,10000,operational,True,2025,Canadian Immunization Research Network
+37,Peterson Therapeutics Viral Vector Facility,Peterson Therapeutics,BC,Victoria,viral_vector,1000,operational,True,2019,independent
+38,Moore Biologics Antibody Facility,Moore Biologics,ON,Ottawa,antibody,10000,under_construction,False,,CP2H
+39,University of Toronto Mrna Facility,University of Toronto,ON,Toronto,mRNA,2000,operational,False,2018,Canadian Immunization Research Network
+40,University of Manitoba Mrna Facility,University of Manitoba,MB,Winnipeg,mRNA,10000,under_construction,False,,CP2H
+41,Bernard Biomanufacturing Vaccine Facility,Bernard Biomanufacturing,BC,Burnaby,vaccine,1000,planned,False,,Canadian Immunization Research Network
+42,McMaster University Mrna Facility,McMaster University,ON,Hamilton,mRNA,2000,operational,True,2020,BioCanRx
+43,Rogers Biosciences Antibody Facility,Rogers Biosciences,SK,Regina,antibody,50000,operational,True,2025,independent
+44,Davis Biologics Cell Therapy Facility,Davis Biologics,ON,Ottawa,cell_therapy,20000,under_construction,False,,Canadian Immunization Research Network
+45,University of Manitoba Mrna Facility,University of Manitoba,MB,Winnipeg,mRNA,10000,under_construction,False,,CP2H
+46,Dalhousie University Mrna Facility,Dalhousie University,NS,Halifax,mRNA,2000,operational,True,2017,independent
+47,University of British Columbia Cell Therapy Facility,University of British Columbia,BC,Vancouver,cell_therapy,50000,planned,False,,CP2H
+48,Davis Therapeutics Vaccine Facility,Davis Therapeutics,QC,Sherbrooke,vaccine,10000,operational,False,2021,BioCanRx
+49,Abbott Therapeutics Viral Vector Facility,Abbott Therapeutics,QC,Quebec City,viral_vector,500,planned,False,,BioCanRx
+50,Munoz Biosciences Viral Vector Facility,Munoz Biosciences,AB,Edmonton,viral_vector,50000,operational,True,2021,CP2H
+51,Roman Therapeutics Antibody Facility,Roman Therapeutics,QC,Laval,antibody,50000,operational,True,2018,BioCanRx
+52,University of Toronto Antibody Facility,University of Toronto,ON,Toronto,antibody,50000,operational,True,2019,Canadian Immunization Research Network
+53,Blair Life Sciences Cell Therapy Facility,Blair Life Sciences,NS,Halifax,cell_therapy,500,planned,False,,Canadian Immunization Research Network
+54,University of British Columbia Vaccine Facility,University of British Columbia,BC,Vancouver,vaccine,5000,operational,True,2020,independent
+55,Herrera Biomanufacturing Antibody Facility,Herrera Biomanufacturing,ON,Kingston,antibody,1000,planned,False,,Canadian Immunization Research Network
+56,University of Alberta Vaccine Facility,University of Alberta,AB,Edmonton,vaccine,50000,operational,True,2025,BioCanRx
+57,Dudley Biologics Mrna Facility,Dudley Biologics,BC,Victoria,mRNA,50000,operational,True,2019,Canadian Immunization Research Network
+58,Gray Biosciences Cell Therapy Facility,Gray Biosciences,AB,Calgary,cell_therapy,1000,operational,True,2021,BioCanRx
+59,Arnold Biosciences Mrna Facility,Arnold Biosciences,AB,Calgary,mRNA,2000,under_construction,False,,Canadian Immunization Research Network
+60,Université Laval Antibody Facility,Université Laval,QC,Quebec City,antibody,20000,operational,True,2022,BioCanRx

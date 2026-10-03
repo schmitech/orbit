@@ -1,0 +1,83 @@
+# Canadian Pandemic Preparedness Demo (synthetic data)
+# Biomanufacturing facility capacity & clinical trial readiness tracking.
+# Built as an ORBIT showcase for CP2H (University of Ottawa / McMaster University).
+adapters:
+  - name: "intent-duckdb-pandemic-preparedness"
+    enabled: true
+    type: "retriever"
+    datasource: "duckdb"
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentDuckDBRetriever"
+    database: "examples/intent-templates/duckdb-intent-template/examples/pandemic-preparedness/pandemic_preparedness.duckdb"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    embedding_provider: "ollama"
+    embedding_model: "nomic-embed-text:latest"
+    allowed_models:
+      - name: "xai-grok-4.3"
+        provider: "xai"
+        model: "grok-4.3"
+      - name: "llama-3.1-8b-instruct"
+        provider: "openrouter"
+        model: "meta-llama/llama-3.1-8b-instruct"
+      - name: "ollama-gpt-oss:120b"
+        provider: "ollama_cloud"
+        model: "gpt-oss:20b"
+      - name: "claude-sonnet-4-5"
+        provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+      - name: "gemini-3.1-pro-preview"
+        provider: "gemini"
+        model: "gemini-3.1-pro-preview"
+      - name: "llama-cpp-gemma4"
+        provider: "llama_cpp"
+        model: "gemma4-e2b-direct-cpu"
+      - name: "ollama-gemma4-e2b"
+        provider: "ollama"
+        model: "gemma4-e2b-cpu"
+      - name: "nemotron-3-ultra"
+        provider: "openrouter"
+        model: "nvidia/nemotron-3-ultra-550b-a55b"
+    capabilities:
+      expose_as_skill: true
+      skill_name: "pandemic-preparedness"
+      skill_description: "Canadian pandemic preparedness skill: biomanufacturing facility capacity and clinical trial readiness (synthetic demo data)"
+      retrieval_behavior: "always"
+      available_skills:
+        - "Image"
+        - "PDF"
+        - "Word"
+        - "Excel"
+        - "PowerPoint"
+      formatting_style: "standard"
+      supports_charts: true
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true
+      requires_api_key_validation: true
+      context_format: "toon"
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    config:
+      domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/pandemic-preparedness/pandemic_preparedness_domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/duckdb-intent-template/examples/pandemic-preparedness/pandemic_preparedness_templates.yaml"
+
+      template_collection_name: "duckdb_pandemic_preparedness_templates"
+      store_name: "chroma"
+      confidence_threshold: 0.4
+
+      max_templates: 5
+      return_results: 100
+
+      reload_templates_on_start: false
+      force_reload_templates: false
+
+      read_only: true
+      access_mode: "READ_ONLY"
+      threads: null
+
+      enable_query_monitoring: true
+      query_timeout: 5000

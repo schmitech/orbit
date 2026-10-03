@@ -1,0 +1,221 @@
+trial_id,candidate_name,pathogen_target,trial_phase,sponsor_organization,facility_id,start_date,status,enrollment_count,country
+1,H5N1-VAC-390,H5N1 avian influenza,Phase II,Calderon Life Sciences,53,2022-07-11,completed,501,Canada
+2,H5N1-MAB-330,H5N1 avian influenza,Preclinical,Montgomery Biosciences,40,2024-08-31,active,169,Canada
+3,MPOX-MAB-744,mpox,Preclinical,Hensley Life Sciences,26,2024-10-09,completed,519,Canada
+4,CORONAVIRUS-THX-804,coronavirus,Phase III,Ray Therapeutics,50,2022-08-07,paused,890,Canada
+5,CORONAVIRUS-VAC-923,coronavirus,Phase I,Bush Life Sciences,30,2022-09-06,completed,293,Canada
+6,MPOX-THX-643,mpox,Phase II,Williams Life Sciences,40,2024-06-25,terminated,1053,Canada
+7,MPOX-THX-556,mpox,Phase III,Perez Biosciences,49,2023-06-15,active,526,Canada
+8,H5N1-MAB-884,H5N1 avian influenza,Phase I,Roberts Life Sciences,5,2024-06-19,active,605,Canada
+9,CORONAVIRUS-MAB-443,coronavirus,Phase III,Miller Vaccines Inc.,15,2022-11-05,active,804,Canada
+10,H5N1-VAC-823,H5N1 avian influenza,Preclinical,Hall Biosciences,30,2025-01-16,active,871,Canada
+11,INFLUENZA-VAC-952,influenza,Phase I,Garcia Biopharma,55,2022-02-10,completed,1199,Canada
+12,MPOX-MAB-106,mpox,Phase I,Ramirez Vaccines Inc.,35,2024-05-08,active,1138,Canada
+13,NOROVIRUS-VAC-599,norovirus,Phase I,Reid Biosciences,22,2024-03-07,active,848,Canada
+14,H5N1-VAC-960,H5N1 avian influenza,Approved,Diaz Biopharma,2,2024-12-29,terminated,826,Canada
+15,NOROVIRUS-THX-778,norovirus,Preclinical,Wood Therapeutics,12,2024-08-03,active,122,Canada
+16,RSV-MAB-435,RSV,Phase I,Clark Biosciences,18,2024-02-16,active,883,Canada
+17,RSV-VAC-581,RSV,Phase III,Adams Therapeutics,15,2023-12-18,active,160,Canada
+18,H5N1-VAC-872,H5N1 avian influenza,Approved,Zuniga Therapeutics,40,2022-02-11,active,332,Canada
+19,CORONAVIRUS-VAC-584,coronavirus,Phase II,Wong Therapeutics,50,2023-06-09,active,775,Canada
+20,CORONAVIRUS-THX-721,coronavirus,Phase III,Lynch Therapeutics,7,2023-09-30,active,72,Canada
+21,RSV-THX-793,RSV,Phase I,Jackson Biopharma,38,2022-06-05,completed,517,Canada
+22,INFLUENZA-THX-891,influenza,Phase III,Daniel Vaccines Inc.,51,2022-09-05,completed,1179,Canada
+23,INFLUENZA-MAB-645,influenza,Phase II,Martin Biopharma,1,2023-11-30,active,880,Canada
+24,MPOX-VAC-543,mpox,Phase II,Gray Vaccines Inc.,28,2022-11-10,completed,380,Canada
+25,H5N1-THX-766,H5N1 avian influenza,Phase II,Mayo Vaccines Inc.,30,2024-09-17,paused,912,Canada
+26,H5N1-THX-374,H5N1 avian influenza,Phase III,Bowman Vaccines Inc.,18,2022-06-27,completed,943,Canada
+27,CORONAVIRUS-MAB-683,coronavirus,Phase II,Hawkins Life Sciences,55,2024-10-09,active,685,Canada
+28,CORONAVIRUS-MAB-317,coronavirus,Phase III,Cohen Vaccines Inc.,36,2023-07-20,active,40,Canada
+29,NOROVIRUS-VAC-187,norovirus,Phase III,Cameron Biosciences,45,2023-05-08,active,995,Canada
+30,H5N1-THX-602,H5N1 avian influenza,Phase III,Parsons Biopharma,26,2023-03-30,active,518,Canada
+31,RSV-THX-695,RSV,Phase I,Perez Vaccines Inc.,48,2024-05-21,active,1147,Canada
+32,RSV-MAB-819,RSV,Phase I,Johnson Biopharma,47,2022-09-05,active,414,Canada
+33,RSV-VAC-860,RSV,Approved,Stewart Life Sciences,14,2023-01-28,completed,1011,Canada
+34,RSV-THX-703,RSV,Phase II,Adams Life Sciences,19,2023-02-02,terminated,485,Canada
+35,RSV-VAC-409,RSV,Phase III,Clark Therapeutics,4,2022-04-04,active,1153,Canada
+36,RSV-THX-229,RSV,Preclinical,Hahn Biopharma,31,2023-08-06,active,1000,Canada
+37,MPOX-MAB-288,mpox,Phase I,Walter Therapeutics,53,2022-08-22,paused,153,Canada
+38,MPOX-MAB-175,mpox,Phase II,Edwards Life Sciences,52,2022-11-02,active,1172,Canada
+39,RSV-VAC-354,RSV,Phase II,Rios Therapeutics,50,2023-04-08,active,1090,Canada
+40,MPOX-MAB-553,mpox,Phase III,Foster Vaccines Inc.,37,2023-09-18,terminated,143,Canada
+41,NOROVIRUS-THX-201,norovirus,Phase II,Rocha Biosciences,11,2022-06-16,active,511,Canada
+42,CORONAVIRUS-THX-176,coronavirus,Preclinical,Ellis Biosciences,19,2024-08-20,active,86,Canada
+43,CORONAVIRUS-MAB-823,coronavirus,Phase III,Baker Vaccines Inc.,60,2023-04-24,active,561,Canada
+44,H5N1-THX-777,H5N1 avian influenza,Phase I,Wright Biosciences,59,2022-11-02,active,564,Canada
+45,CORONAVIRUS-VAC-161,coronavirus,Phase III,Hoffman Biosciences,59,2025-03-11,completed,611,Canada
+46,MPOX-VAC-579,mpox,Phase II,Baker Vaccines Inc.,35,2024-10-21,paused,1031,Canada
+47,MPOX-VAC-712,mpox,Phase III,Richards Therapeutics,2,2023-05-28,completed,207,Canada
+48,CORONAVIRUS-THX-956,coronavirus,Phase II,Hurst Life Sciences,37,2023-07-06,active,102,Canada
+49,CORONAVIRUS-MAB-631,coronavirus,Approved,Ross Biopharma,28,2025-04-13,active,1027,Canada
+50,INFLUENZA-MAB-456,influenza,Phase I,Robinson Biopharma,22,2022-11-26,completed,863,Canada
+51,H5N1-MAB-395,H5N1 avian influenza,Phase III,Bright Biopharma,6,2024-07-20,completed,664,Canada
+52,RSV-MAB-218,RSV,Phase III,Hicks Biopharma,43,2022-01-03,completed,1131,Canada
+53,MPOX-MAB-155,mpox,Phase II,Davis Biosciences,41,2024-10-17,completed,925,Canada
+54,INFLUENZA-VAC-373,influenza,Preclinical,Williams Life Sciences,8,2024-09-19,active,79,Canada
+55,H5N1-THX-918,H5N1 avian influenza,Phase III,Rodriguez Biosciences,36,2022-01-29,active,855,Canada
+56,INFLUENZA-VAC-961,influenza,Phase I,Burton Therapeutics,32,2022-11-12,active,617,Canada
+57,NOROVIRUS-THX-379,norovirus,Phase III,Conner Biopharma,30,2023-05-15,terminated,1148,Canada
+58,CORONAVIRUS-MAB-295,coronavirus,Phase II,Henderson Life Sciences,18,2022-05-23,paused,869,Canada
+59,RSV-THX-373,RSV,Phase I,Brown Therapeutics,43,2025-04-02,active,1022,Canada
+60,CORONAVIRUS-MAB-651,coronavirus,Phase I,James Biopharma,25,2025-01-17,completed,952,Canada
+61,RSV-VAC-814,RSV,Phase II,Ferrell Biosciences,3,2024-04-21,active,671,Canada
+62,H5N1-MAB-822,H5N1 avian influenza,Phase I,Rice Biopharma,32,2022-11-08,completed,95,Canada
+63,CORONAVIRUS-THX-704,coronavirus,Phase III,Maddox Vaccines Inc.,7,2024-06-20,paused,1097,Canada
+64,MPOX-VAC-839,mpox,Phase I,Valencia Biosciences,5,2022-11-13,completed,981,Canada
+65,RSV-MAB-738,RSV,Phase II,Smith Biopharma,25,2024-12-28,paused,668,Canada
+66,H5N1-THX-877,H5N1 avian influenza,Phase III,Le Biopharma,16,2022-05-21,active,608,Canada
+67,CORONAVIRUS-THX-192,coronavirus,Approved,Maldonado Biopharma,29,2022-07-25,completed,360,Canada
+68,H5N1-MAB-129,H5N1 avian influenza,Phase I,Herrera Therapeutics,24,2024-01-05,active,902,Canada
+69,CORONAVIRUS-VAC-643,coronavirus,Phase II,Adams Biopharma,12,2022-12-15,completed,181,Canada
+70,NOROVIRUS-MAB-734,norovirus,Phase I,Davidson Biosciences,30,2023-04-21,completed,540,Canada
+71,MPOX-MAB-782,mpox,Phase III,Rodriguez Therapeutics,44,2023-08-13,active,1139,Canada
+72,CORONAVIRUS-VAC-552,coronavirus,Approved,Graham Vaccines Inc.,45,2024-05-18,active,532,Canada
+73,MPOX-MAB-303,mpox,Phase III,Chavez Biopharma,37,2024-02-21,active,755,Canada
+74,NOROVIRUS-MAB-816,norovirus,Preclinical,Mckay Vaccines Inc.,18,2024-03-21,completed,36,Canada
+75,NOROVIRUS-THX-896,norovirus,Approved,Liu Therapeutics,50,2023-08-10,completed,491,Canada
+76,NOROVIRUS-MAB-324,norovirus,Phase II,Baker Biosciences,41,2022-10-08,completed,218,Canada
+77,H5N1-THX-140,H5N1 avian influenza,Phase III,Mason Vaccines Inc.,47,2024-01-18,active,289,Canada
+78,INFLUENZA-MAB-434,influenza,Preclinical,White Biopharma,57,2025-01-09,active,769,Canada
+79,NOROVIRUS-THX-379,norovirus,Phase I,Gaines Biosciences,52,2024-09-13,completed,624,Canada
+80,H5N1-MAB-923,H5N1 avian influenza,Phase I,Harrell Therapeutics,56,2023-04-08,active,833,Canada
+81,NOROVIRUS-MAB-192,norovirus,Preclinical,Evans Biopharma,24,2024-07-20,active,556,Canada
+82,NOROVIRUS-MAB-942,norovirus,Preclinical,Fowler Vaccines Inc.,40,2022-02-21,active,1169,Canada
+83,RSV-THX-326,RSV,Phase II,Lynch Therapeutics,42,2023-09-11,active,856,Canada
+84,INFLUENZA-VAC-146,influenza,Phase I,Hernandez Therapeutics,16,2022-07-19,active,1120,Canada
+85,CORONAVIRUS-MAB-564,coronavirus,Phase II,Farmer Vaccines Inc.,27,2025-01-11,completed,336,Canada
+86,MPOX-THX-201,mpox,Phase II,Ryan Biopharma,3,2023-07-27,paused,778,Canada
+87,CORONAVIRUS-MAB-555,coronavirus,Phase III,Osborne Biosciences,35,2024-01-23,active,754,Canada
+88,INFLUENZA-MAB-382,influenza,Approved,Moreno Biosciences,6,2024-07-20,paused,454,Canada
+89,H5N1-THX-711,H5N1 avian influenza,Preclinical,Smith Therapeutics,51,2022-09-15,active,1176,Canada
+90,CORONAVIRUS-VAC-949,coronavirus,Preclinical,Nguyen Life Sciences,22,2023-04-23,active,322,Canada
+91,NOROVIRUS-VAC-383,norovirus,Approved,Smith Biosciences,8,2022-12-24,active,72,Canada
+92,CORONAVIRUS-VAC-466,coronavirus,Phase II,Hickman Biosciences,4,2023-06-28,active,279,Canada
+93,H5N1-MAB-638,H5N1 avian influenza,Phase III,Koch Therapeutics,33,2024-01-12,active,243,Canada
+94,MPOX-THX-326,mpox,Preclinical,Decker Life Sciences,20,2024-12-03,completed,958,Canada
+95,H5N1-VAC-162,H5N1 avian influenza,Phase III,Parker Biopharma,32,2022-08-10,active,928,Canada
+96,INFLUENZA-VAC-429,influenza,Preclinical,Brown Life Sciences,36,2025-04-13,active,685,Canada
+97,MPOX-THX-643,mpox,Phase I,Humphrey Vaccines Inc.,51,2022-07-23,completed,254,Canada
+98,H5N1-THX-998,H5N1 avian influenza,Phase III,Arroyo Life Sciences,57,2024-07-13,active,487,Canada
+99,MPOX-MAB-947,mpox,Phase I,Miller Biopharma,28,2023-10-03,completed,660,Canada
+100,H5N1-MAB-483,H5N1 avian influenza,Phase II,Tucker Biosciences,54,2022-07-06,active,194,Canada
+101,INFLUENZA-MAB-198,influenza,Phase III,Jones Vaccines Inc.,36,2025-02-24,completed,695,Canada
+102,H5N1-VAC-520,H5N1 avian influenza,Phase III,Hodges Vaccines Inc.,56,2024-05-16,paused,125,Canada
+103,RSV-THX-419,RSV,Preclinical,Cannon Vaccines Inc.,43,2022-11-13,active,1007,Canada
+104,CORONAVIRUS-VAC-458,coronavirus,Phase I,Anderson Life Sciences,15,2025-03-21,completed,898,Canada
+105,NOROVIRUS-THX-728,norovirus,Preclinical,Alvarez Life Sciences,2,2023-07-02,paused,389,Canada
+106,RSV-THX-880,RSV,Approved,Pierce Vaccines Inc.,56,2023-01-07,active,313,Canada
+107,NOROVIRUS-THX-510,norovirus,Preclinical,Baker Therapeutics,6,2022-03-04,completed,1106,Canada
+108,CORONAVIRUS-MAB-529,coronavirus,Phase I,Brennan Biopharma,50,2023-10-27,active,1182,Canada
+109,NOROVIRUS-VAC-153,norovirus,Preclinical,Henderson Biosciences,18,2022-06-17,completed,927,Canada
+110,H5N1-MAB-597,H5N1 avian influenza,Phase I,Lewis Life Sciences,8,2024-11-15,active,726,Canada
+111,MPOX-VAC-390,mpox,Phase I,Ryan Life Sciences,15,2022-04-04,completed,829,Canada
+112,NOROVIRUS-VAC-107,norovirus,Phase I,Blair Biosciences,49,2022-10-09,active,543,Canada
+113,RSV-MAB-222,RSV,Phase I,Harris Therapeutics,25,2022-09-22,active,1110,Canada
+114,H5N1-VAC-612,H5N1 avian influenza,Phase III,Collins Life Sciences,26,2022-05-28,completed,106,Canada
+115,MPOX-VAC-570,mpox,Phase III,Carney Therapeutics,26,2025-03-20,completed,875,Canada
+116,RSV-VAC-514,RSV,Approved,Santos Therapeutics,54,2024-07-31,active,761,Canada
+117,INFLUENZA-MAB-964,influenza,Preclinical,Kim Therapeutics,6,2024-12-09,completed,830,Canada
+118,RSV-THX-447,RSV,Phase I,Holmes Biosciences,41,2024-11-11,active,253,Canada
+119,NOROVIRUS-THX-298,norovirus,Phase I,Martinez Vaccines Inc.,16,2022-10-30,terminated,230,Canada
+120,CORONAVIRUS-MAB-302,coronavirus,Phase II,Walker Biosciences,12,2022-06-04,completed,1031,Canada
+121,MPOX-THX-878,mpox,Phase I,Morgan Life Sciences,42,2025-03-02,paused,681,Canada
+122,H5N1-MAB-254,H5N1 avian influenza,Preclinical,Chapman Biopharma,51,2023-09-13,active,582,Canada
+123,NOROVIRUS-VAC-460,norovirus,Preclinical,Hall Life Sciences,4,2022-03-19,active,775,Canada
+124,RSV-VAC-760,RSV,Phase II,Robinson Therapeutics,38,2024-08-05,active,1155,Canada
+125,H5N1-VAC-560,H5N1 avian influenza,Phase II,Jones Life Sciences,33,2024-09-01,active,328,Canada
+126,INFLUENZA-MAB-205,influenza,Approved,Welch Vaccines Inc.,3,2022-12-20,active,527,Canada
+127,H5N1-MAB-549,H5N1 avian influenza,Phase II,Perez Life Sciences,59,2024-02-03,active,599,Canada
+128,MPOX-MAB-893,mpox,Phase II,Whitehead Vaccines Inc.,5,2023-11-17,active,695,Canada
+129,INFLUENZA-THX-794,influenza,Phase I,Heath Biopharma,22,2022-11-04,completed,186,Canada
+130,NOROVIRUS-THX-244,norovirus,Phase I,Jones Vaccines Inc.,9,2024-03-13,completed,193,Canada
+131,RSV-THX-485,RSV,Phase III,Young Vaccines Inc.,6,2024-12-14,completed,887,Canada
+132,NOROVIRUS-MAB-118,norovirus,Phase I,Caldwell Vaccines Inc.,50,2023-12-01,terminated,1015,Canada
+133,CORONAVIRUS-VAC-240,coronavirus,Preclinical,Lewis Biosciences,33,2022-07-27,completed,1125,Canada
+134,H5N1-THX-138,H5N1 avian influenza,Phase III,Anderson Vaccines Inc.,10,2024-02-11,completed,352,Canada
+135,CORONAVIRUS-THX-889,coronavirus,Phase III,Walls Life Sciences,3,2024-06-15,active,861,Canada
+136,RSV-THX-836,RSV,Approved,Duncan Biosciences,15,2024-07-08,completed,1113,Canada
+137,CORONAVIRUS-MAB-928,coronavirus,Approved,Kennedy Biopharma,29,2025-03-14,active,965,Canada
+138,RSV-MAB-614,RSV,Phase I,Mueller Life Sciences,52,2023-02-13,active,303,Canada
+139,RSV-VAC-756,RSV,Phase III,Aguirre Biopharma,46,2022-07-30,completed,1076,Canada
+140,INFLUENZA-MAB-185,influenza,Phase I,Lee Biosciences,54,2022-10-29,paused,915,Canada
+141,INFLUENZA-VAC-936,influenza,Phase III,Davis Biopharma,4,2024-04-29,paused,831,Canada
+142,NOROVIRUS-MAB-341,norovirus,Approved,Jordan Biopharma,21,2022-02-27,active,222,Canada
+143,H5N1-THX-443,H5N1 avian influenza,Preclinical,Henderson Biosciences,45,2024-08-25,active,304,Canada
+144,H5N1-MAB-559,H5N1 avian influenza,Preclinical,Owens Life Sciences,14,2023-06-09,active,326,Canada
+145,NOROVIRUS-THX-723,norovirus,Phase I,Daniel Life Sciences,20,2023-05-02,completed,269,Canada
+146,INFLUENZA-VAC-529,influenza,Phase I,Nunez Life Sciences,39,2024-10-20,active,1117,Canada
+147,INFLUENZA-THX-627,influenza,Preclinical,Joyce Life Sciences,1,2024-05-29,active,742,Canada
+148,CORONAVIRUS-THX-526,coronavirus,Phase II,Garcia Biosciences,5,2024-01-09,active,1097,Canada
+149,NOROVIRUS-THX-905,norovirus,Phase II,Powell Life Sciences,3,2024-08-20,active,812,Canada
+150,RSV-MAB-865,RSV,Phase I,Morgan Therapeutics,47,2023-05-09,active,232,Canada
+151,NOROVIRUS-THX-874,norovirus,Preclinical,Hensley Vaccines Inc.,53,2023-11-25,active,378,Canada
+152,H5N1-MAB-812,H5N1 avian influenza,Phase II,Wright Biopharma,46,2022-05-10,completed,957,Canada
+153,INFLUENZA-MAB-306,influenza,Phase III,Lee Therapeutics,60,2023-10-09,paused,655,Canada
+154,NOROVIRUS-MAB-934,norovirus,Phase I,West Life Sciences,19,2023-01-27,active,751,Canada
+155,INFLUENZA-THX-439,influenza,Preclinical,Henderson Vaccines Inc.,48,2024-03-30,active,920,Canada
+156,MPOX-MAB-291,mpox,Phase II,Ramirez Biopharma,18,2024-11-29,active,189,Canada
+157,H5N1-MAB-180,H5N1 avian influenza,Phase II,Wright Biopharma,19,2025-01-22,completed,677,Canada
+158,INFLUENZA-VAC-435,influenza,Phase I,Leblanc Vaccines Inc.,11,2024-05-22,completed,929,Canada
+159,RSV-MAB-143,RSV,Phase II,Ramos Vaccines Inc.,5,2022-04-28,active,851,Canada
+160,RSV-THX-920,RSV,Approved,Callahan Biosciences,3,2024-06-16,active,278,Canada
+161,INFLUENZA-VAC-897,influenza,Phase I,Pierce Vaccines Inc.,39,2022-03-08,paused,334,Canada
+162,H5N1-MAB-479,H5N1 avian influenza,Phase I,Williams Vaccines Inc.,34,2022-10-09,active,771,Canada
+163,MPOX-MAB-765,mpox,Preclinical,Kidd Vaccines Inc.,32,2023-01-17,active,1080,Canada
+164,MPOX-THX-220,mpox,Phase III,Huff Vaccines Inc.,40,2023-03-16,completed,604,Canada
+165,H5N1-MAB-304,H5N1 avian influenza,Preclinical,Novak Therapeutics,58,2022-12-20,active,931,Canada
+166,INFLUENZA-THX-965,influenza,Phase II,House Vaccines Inc.,35,2025-01-31,completed,614,Canada
+167,RSV-VAC-828,RSV,Phase III,Allison Biosciences,13,2022-09-06,active,304,Canada
+168,CORONAVIRUS-MAB-126,coronavirus,Phase II,Martin Vaccines Inc.,9,2025-02-03,active,196,Canada
+169,INFLUENZA-MAB-507,influenza,Phase II,Tucker Biopharma,5,2025-03-23,completed,276,Canada
+170,RSV-THX-175,RSV,Phase I,Lewis Biopharma,57,2022-09-20,active,1149,Canada
+171,H5N1-THX-286,H5N1 avian influenza,Phase I,Morales Biosciences,54,2022-04-24,paused,274,Canada
+172,NOROVIRUS-VAC-411,norovirus,Preclinical,Brown Biosciences,23,2023-04-07,paused,1082,Canada
+173,RSV-VAC-356,RSV,Phase II,Gray Biosciences,41,2022-09-14,completed,640,Canada
+174,NOROVIRUS-THX-195,norovirus,Phase II,Galloway Life Sciences,10,2025-04-04,completed,370,Canada
+175,H5N1-THX-837,H5N1 avian influenza,Phase I,Baker Life Sciences,53,2022-03-26,paused,78,Canada
+176,INFLUENZA-VAC-756,influenza,Phase I,Bowers Life Sciences,27,2025-03-17,active,82,Canada
+177,MPOX-THX-658,mpox,Phase II,Gibson Vaccines Inc.,52,2023-05-17,active,851,Canada
+178,RSV-MAB-174,RSV,Preclinical,Henderson Therapeutics,14,2024-08-09,active,716,Canada
+179,NOROVIRUS-VAC-420,norovirus,Phase III,Bernard Vaccines Inc.,9,2024-03-27,paused,778,Canada
+180,NOROVIRUS-THX-208,norovirus,Preclinical,Cowan Vaccines Inc.,16,2024-07-09,active,308,Canada
+181,INFLUENZA-VAC-397,influenza,Phase III,Peters Biopharma,53,2022-11-24,active,690,Canada
+182,NOROVIRUS-THX-420,norovirus,Phase III,Higgins Biosciences,30,2024-11-20,active,1041,Canada
+183,RSV-MAB-123,RSV,Approved,Moore Therapeutics,14,2023-05-09,active,742,Canada
+184,INFLUENZA-VAC-388,influenza,Phase II,Phillips Biopharma,19,2024-08-21,completed,1119,Canada
+185,INFLUENZA-VAC-541,influenza,Phase III,Novak Biosciences,24,2024-04-05,completed,112,Canada
+186,MPOX-VAC-683,mpox,Preclinical,Riley Life Sciences,25,2022-05-31,completed,1052,Canada
+187,MPOX-THX-386,mpox,Phase II,Daniels Life Sciences,26,2022-07-18,active,784,Canada
+188,RSV-THX-474,RSV,Preclinical,Adkins Biosciences,3,2024-10-21,active,112,Canada
+189,INFLUENZA-VAC-830,influenza,Phase III,Brown Vaccines Inc.,39,2022-11-02,active,1075,Canada
+190,CORONAVIRUS-MAB-727,coronavirus,Preclinical,Silva Vaccines Inc.,38,2023-09-05,terminated,708,Canada
+191,NOROVIRUS-THX-645,norovirus,Phase III,Shaw Biopharma,24,2022-02-04,active,698,Canada
+192,H5N1-VAC-526,H5N1 avian influenza,Phase I,Farrell Life Sciences,39,2022-02-24,paused,991,Canada
+193,RSV-THX-901,RSV,Phase II,Moore Life Sciences,31,2025-04-10,completed,369,Canada
+194,NOROVIRUS-THX-838,norovirus,Phase III,Yu Life Sciences,3,2023-05-12,active,1192,Canada
+195,H5N1-VAC-295,H5N1 avian influenza,Phase I,Miller Therapeutics,45,2024-04-25,active,437,Canada
+196,MPOX-THX-893,mpox,Approved,Lopez Life Sciences,46,2022-05-08,paused,302,Canada
+197,NOROVIRUS-VAC-674,norovirus,Approved,Larson Vaccines Inc.,21,2024-02-11,active,374,Canada
+198,MPOX-THX-450,mpox,Phase I,Leonard Life Sciences,40,2023-06-26,completed,1011,Canada
+199,CORONAVIRUS-VAC-385,coronavirus,Phase I,Young Life Sciences,50,2023-09-02,paused,611,Canada
+200,H5N1-VAC-806,H5N1 avian influenza,Phase I,Wilson Biopharma,19,2023-07-15,active,269,Canada
+201,NOROVIRUS-THX-656,norovirus,Phase III,Zamora Biopharma,50,2023-12-08,active,319,Canada
+202,RSV-VAC-394,RSV,Phase I,Sanchez Therapeutics,48,2023-06-10,active,1001,Canada
+203,CORONAVIRUS-VAC-947,coronavirus,Phase I,Wheeler Life Sciences,9,2023-07-11,completed,243,Canada
+204,NOROVIRUS-THX-700,norovirus,Preclinical,Harvey Biosciences,15,2024-12-23,completed,496,Canada
+205,INFLUENZA-VAC-523,influenza,Phase III,Barnes Vaccines Inc.,1,2022-10-09,active,1147,Canada
+206,CORONAVIRUS-MAB-768,coronavirus,Phase I,Silva Biopharma,21,2023-08-12,active,604,Canada
+207,H5N1-VAC-887,H5N1 avian influenza,Phase II,Mills Therapeutics,59,2022-03-18,active,378,Canada
+208,MPOX-VAC-137,mpox,Phase III,Donovan Biopharma,57,2023-08-16,active,96,Canada
+209,INFLUENZA-MAB-681,influenza,Preclinical,Harris Life Sciences,30,2023-08-06,terminated,1132,Canada
+210,NOROVIRUS-MAB-237,norovirus,Phase I,Moran Life Sciences,22,2022-08-19,active,352,Canada
+211,H5N1-MAB-763,H5N1 avian influenza,Phase III,Allen Vaccines Inc.,51,2023-11-22,active,624,Canada
+212,NOROVIRUS-THX-875,norovirus,Preclinical,Foster Biosciences,53,2024-04-10,paused,895,Canada
+213,NOROVIRUS-MAB-188,norovirus,Phase II,Powers Biopharma,31,2022-10-15,active,682,Canada
+214,CORONAVIRUS-VAC-367,coronavirus,Preclinical,Evans Biopharma,20,2023-11-07,completed,1193,Canada
+215,INFLUENZA-MAB-769,influenza,Phase II,Stewart Vaccines Inc.,30,2022-08-31,active,648,Canada
+216,CORONAVIRUS-MAB-802,coronavirus,Approved,Walton Life Sciences,45,2023-09-29,paused,260,Canada
+217,H5N1-MAB-476,H5N1 avian influenza,Preclinical,Jones Life Sciences,10,2024-09-06,terminated,951,Canada
+218,H5N1-THX-482,H5N1 avian influenza,Phase III,Ellis Biopharma,52,2025-01-05,paused,467,Canada
+219,CORONAVIRUS-THX-872,coronavirus,Phase III,Murillo Life Sciences,34,2024-07-03,active,760,Canada
+220,INFLUENZA-THX-214,influenza,Phase III,Ferrell Therapeutics,37,2023-02-19,paused,1119,Canada

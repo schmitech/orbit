@@ -1,0 +1,427 @@
+templates:
+- id: total_facility_count
+  description: Get the total count of biomanufacturing facilities
+  sql: SELECT COUNT(*) AS total_facilities FROM biomanufacturing_facilities
+  parameters: []
+  nl_examples:
+  - How many biomanufacturing facilities do we have?
+  - What's the total number of facilities?
+  - Count all biomanufacturing facilities
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: count
+    primary_entity: biomanufacturing_facilities
+    qualifiers: []
+  tags: [count, overview, summary]
+
+- id: total_active_trials
+  description: Get the total count of active clinical trials
+  sql: SELECT COUNT(*) AS active_trials FROM clinical_trials WHERE status = 'active'
+  parameters: []
+  nl_examples:
+  - How many clinical trials are active right now?
+  - What's the total number of active trials?
+  - Count active clinical trials
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: count
+    primary_entity: clinical_trials
+    qualifiers: [status]
+  tags: [count, overview, summary, active]
+
+- id: facilities_by_province
+  description: Show breakdown of biomanufacturing facilities by province
+  sql: |
+    SELECT
+        province,
+        COUNT(*) AS facility_count,
+        SUM(capacity_liters) AS total_capacity_liters,
+        COUNT(CASE WHEN gmp_certified THEN 1 END) AS gmp_certified_count
+    FROM biomanufacturing_facilities
+    GROUP BY province
+    ORDER BY facility_count DESC
+  parameters: []
+  nl_examples:
+  - Show me facilities by province
+  - Which provinces have the most biomanufacturing facilities?
+  - Breakdown of facilities by province
+  - How is biomanufacturing capacity distributed across Canada?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: biomanufacturing_facilities
+    qualifiers: [province]
+  tags: [breakdown, province, geography]
+
+- id: facilities_by_type
+  description: Show breakdown of biomanufacturing facilities by facility type
+  sql: |
+    SELECT
+        facility_type,
+        COUNT(*) AS facility_count,
+        SUM(capacity_liters) AS total_capacity_liters,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS percentage
+    FROM biomanufacturing_facilities
+    GROUP BY facility_type
+    ORDER BY facility_count DESC
+  parameters: []
+  nl_examples:
+  - Show me the breakdown of facilities by type
+  - How many vaccine facilities vs cell therapy facilities do we have?
+  - What types of biomanufacturing facilities exist?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: biomanufacturing_facilities
+    qualifiers: [facility_type]
+  tags: [breakdown, facility_type]
+
+- id: capacity_by_province
+  description: Total biomanufacturing capacity in liters by province
+  sql: |
+    SELECT
+        province,
+        SUM(capacity_liters) AS total_capacity_liters,
+        COUNT(*) AS facility_count,
+        ROUND(AVG(capacity_liters), 0) AS avg_capacity_liters
+    FROM biomanufacturing_facilities
+    WHERE status = 'operational'
+    GROUP BY province
+    ORDER BY total_capacity_liters DESC
+  parameters: []
+  nl_examples:
+  - What's our total biomanufacturing capacity by province?
+  - Which province has the most production capacity?
+  - Show me capacity in liters by province
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: calculate
+    primary_entity: biomanufacturing_facilities
+    qualifiers: [province, capacity_liters]
+  tags: [capacity, province, aggregation]
+
+- id: operational_gmp_certified_facilities
+  description: List operational, GMP-certified biomanufacturing facilities
+  sql: |
+    SELECT
+        facility_name,
+        organization,
+        province,
+        city,
+        facility_type,
+        capacity_liters,
+        partner_network
+    FROM biomanufacturing_facilities
+    WHERE status = 'operational' AND gmp_certified = true
+    ORDER BY capacity_liters DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of facilities to return
+    required: false
+    default: 20
+  nl_examples:
+  - Show me GMP-certified operational facilities
+  - Which facilities are operational and GMP certified?
+  - List our GMP-certified biomanufacturing sites
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: filter
+    primary_entity: biomanufacturing_facilities
+    qualifiers: [status, gmp_certified]
+  tags: [filter, gmp, operational]
+
+- id: facilities_in_province
+  description: Get biomanufacturing facilities in a specific province
+  sql: |
+    SELECT
+        facility_name,
+        organization,
+        city,
+        facility_type,
+        capacity_liters,
+        status,
+        gmp_certified,
+        partner_network
+    FROM biomanufacturing_facilities
+    WHERE UPPER(province) = UPPER(:province)
+    ORDER BY capacity_liters DESC
+  parameters:
+  - name: province
+    type: string
+    description: Two-letter province code (e.g. ON, QC, BC)
+    required: true
+  nl_examples:
+  - Show me facilities in Ontario
+  - What biomanufacturing facilities are in Quebec?
+  - List facilities located in BC
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: filter
+    primary_entity: biomanufacturing_facilities
+    qualifiers: [province]
+  tags: [filter, province]
+
+- id: trials_by_phase
+  description: Show breakdown of clinical trials by phase
+  sql: |
+    SELECT
+        trial_phase,
+        COUNT(*) AS trial_count,
+        SUM(enrollment_count) AS total_enrollment
+    FROM clinical_trials
+    GROUP BY trial_phase
+    ORDER BY
+        CASE trial_phase
+            WHEN 'Preclinical' THEN 1
+            WHEN 'Phase I' THEN 2
+            WHEN 'Phase II' THEN 3
+            WHEN 'Phase III' THEN 4
+            WHEN 'Approved' THEN 5
+            ELSE 6
+        END
+  parameters: []
+  nl_examples:
+  - Show me trials by phase
+  - How many trials are in each phase?
+  - What's the breakdown of trial phases?
+  - How many candidates have reached Phase III?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: clinical_trials
+    qualifiers: [trial_phase]
+  tags: [breakdown, phase]
+
+- id: trials_by_pathogen
+  description: Show breakdown of clinical trials by pathogen target
+  sql: |
+    SELECT
+        pathogen_target,
+        COUNT(*) AS trial_count,
+        COUNT(CASE WHEN status = 'active' THEN 1 END) AS active_count,
+        COUNT(CASE WHEN trial_phase = 'Phase III' THEN 1 END) AS phase_3_count
+    FROM clinical_trials
+    GROUP BY pathogen_target
+    ORDER BY trial_count DESC
+  parameters: []
+  nl_examples:
+  - Show me trials by pathogen
+  - Which pathogens have the most clinical trials?
+  - Breakdown of trials by disease target
+  - What are we researching for coronavirus vs influenza?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: clinical_trials
+    qualifiers: [pathogen_target]
+  tags: [breakdown, pathogen]
+
+- id: trials_for_pathogen_and_phase
+  description: Find clinical trials for a specific pathogen in a specific phase
+  sql: |
+    SELECT
+        candidate_name,
+        sponsor_organization,
+        trial_phase,
+        status,
+        start_date,
+        enrollment_count,
+        country
+    FROM clinical_trials
+    WHERE LOWER(pathogen_target) LIKE LOWER('%' || :pathogen || '%')
+      AND trial_phase = :phase
+    ORDER BY start_date DESC
+  parameters:
+  - name: pathogen
+    type: string
+    description: Pathogen or disease target to filter by
+    required: true
+  - name: phase
+    type: string
+    description: Trial phase (e.g. 'Phase I', 'Phase II', 'Phase III', 'Approved')
+    required: true
+  nl_examples:
+  - What clinical trials are in Phase III for coronavirus?
+  - Show me Phase II influenza trials
+  - Which RSV candidates have reached Phase III?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: filter
+    primary_entity: clinical_trials
+    qualifiers: [pathogen_target, trial_phase]
+  tags: [filter, pathogen, phase]
+
+- id: active_trials_list
+  description: List active clinical trials
+  sql: |
+    SELECT
+        candidate_name,
+        pathogen_target,
+        trial_phase,
+        sponsor_organization,
+        enrollment_count,
+        start_date
+    FROM clinical_trials
+    WHERE status = 'active'
+    ORDER BY start_date DESC
+    LIMIT :limit
+  parameters:
+  - name: limit
+    type: integer
+    description: Maximum number of trials to return
+    required: false
+    default: 20
+  nl_examples:
+  - Show me active clinical trials
+  - Which trials are currently active?
+  - List all ongoing trials
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: filter
+    primary_entity: clinical_trials
+    qualifiers: [status]
+  tags: [filter, active]
+
+- id: trials_at_facility
+  description: Find clinical trials running at a specific facility
+  sql: |
+    SELECT
+        t.candidate_name,
+        t.pathogen_target,
+        t.trial_phase,
+        t.sponsor_organization,
+        t.status,
+        t.enrollment_count
+    FROM clinical_trials t
+    JOIN biomanufacturing_facilities f ON t.facility_id = f.facility_id
+    WHERE LOWER(f.facility_name) LIKE LOWER('%' || :facility_name || '%')
+    ORDER BY t.start_date DESC
+  parameters:
+  - name: facility_name
+    type: string
+    description: Facility name (or partial name) to filter by
+    required: true
+  nl_examples:
+  - What clinical trials are running at the McMaster facility?
+  - Show me trials happening at the Ottawa vaccine facility
+  - Which trials use the University of Toronto facility?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: clinical_trials
+    secondary_entity: biomanufacturing_facilities
+    qualifiers: [facility_name]
+  tags: [join, facility, trials]
+
+- id: facilities_hosting_pathogen_trials
+  description: Find biomanufacturing facilities hosting trials for a specific pathogen
+  sql: |
+    SELECT DISTINCT
+        f.facility_name,
+        f.organization,
+        f.province,
+        f.city,
+        f.facility_type,
+        f.gmp_certified,
+        COUNT(t.trial_id) OVER (PARTITION BY f.facility_id) AS trial_count
+    FROM biomanufacturing_facilities f
+    JOIN clinical_trials t ON t.facility_id = f.facility_id
+    WHERE LOWER(t.pathogen_target) LIKE LOWER('%' || :pathogen || '%')
+    ORDER BY trial_count DESC
+  parameters:
+  - name: pathogen
+    type: string
+    description: Pathogen or disease target to filter by
+    required: true
+  nl_examples:
+  - Which facilities are hosting mpox vaccine trials?
+  - What facilities support coronavirus research?
+  - Show me facilities working on RSV candidates
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: find
+    primary_entity: biomanufacturing_facilities
+    secondary_entity: clinical_trials
+    qualifiers: [pathogen_target]
+  tags: [join, facility, pathogen]
+
+- id: trials_by_status
+  description: Show breakdown of clinical trials by status
+  sql: |
+    SELECT
+        status,
+        COUNT(*) AS trial_count,
+        SUM(enrollment_count) AS total_enrollment,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS percentage
+    FROM clinical_trials
+    GROUP BY status
+    ORDER BY trial_count DESC
+  parameters: []
+  nl_examples:
+  - Show me trials by status
+  - How many trials are active, completed, paused, or terminated?
+  - What's the breakdown of trial statuses?
+  - How many trials have been terminated?
+  result_format: table
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: compare
+    primary_entity: clinical_trials
+    qualifiers: [status]
+  tags: [breakdown, status]
+
+- id: preparedness_overview
+  description: Comprehensive overview of biomanufacturing and trial readiness
+  sql: |
+    SELECT
+        (SELECT COUNT(*) FROM biomanufacturing_facilities) AS total_facilities,
+        (SELECT COUNT(*) FROM biomanufacturing_facilities WHERE status = 'operational') AS operational_facilities,
+        (SELECT COUNT(*) FROM biomanufacturing_facilities WHERE gmp_certified) AS gmp_certified_facilities,
+        (SELECT SUM(capacity_liters) FROM biomanufacturing_facilities WHERE status = 'operational') AS total_operational_capacity_liters,
+        (SELECT COUNT(*) FROM clinical_trials) AS total_trials,
+        (SELECT COUNT(*) FROM clinical_trials WHERE status = 'active') AS active_trials,
+        (SELECT COUNT(*) FROM clinical_trials WHERE trial_phase = 'Phase III') AS phase_3_trials,
+        (SELECT COUNT(*) FROM clinical_trials WHERE trial_phase = 'Approved') AS approved_candidates
+  parameters: []
+  nl_examples:
+  - Give me an overview of pandemic preparedness readiness
+  - Summarize our biomanufacturing and trial status
+  - What's our overall preparedness posture?
+  result_format: summary
+  version: 1.0.0
+  approved: true
+  semantic_tags:
+    action: analyze
+    primary_entity: biomanufacturing_facilities
+    secondary_entity: clinical_trials
+    qualifiers: []
+  tags: [overview, summary, preparedness]
