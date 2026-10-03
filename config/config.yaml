@@ -18,6 +18,7 @@ import:
   - "ocr.yaml"
   - "image.yaml"
   - "video.yaml"
+  - "decision.yaml"
   - "document.yaml"
   - "tts.yaml"
   - "stt.yaml"
@@ -429,6 +430,10 @@ logging:
       propagate: false
     httpcore:
       level: "WARNING"
+    # Suppress TypeSafe SDK per-request logs ("POST .../v1/systemone <- 200 in 142ms")
+    typesafe_sdk:
+      level: "WARNING"
+      propagate: false
     mcp.client.streamable_http:
       level: "WARNING"
       propagate: false
@@ -1109,6 +1114,58 @@ security:
 
     # Response configuration
     retry_after_seconds: 60          # Retry-After header value when limited
+
+  # Rate limiting for a fixed allowlist of sensitive admin routes (key
+  # creation, audit/log export, MCP connection probes). Unlike
+  # rate_limiting above, this is enabled by default — these actions are
+  # expensive/sensitive enough to always be throttled, even on a fresh
+  # install with rate_limiting.enabled left at its default of false.
+  # Falls back to an in-memory limiter when no cache provider is enabled.
+  admin_rate_limiting:
+    enabled: true # Master switch; independent of rate_limiting.enabled
+
+    # Per-route requests-per-minute overrides, keyed as "METHOD /path".
+    # Any route not listed keeps its built-in default:
+    #   POST /admin/api-keys            -> 20/min
+    #   GET  /admin/audit/events        -> 60/min
+    #   GET  /admin/logs/tail           -> 60/min
+    #   POST /admin/mcp/test-connection -> 60/min
+    # Only these four routes are recognized; other keys are ignored. Example:
+    # route_limits:
+    #   "POST /admin/api-keys": 10
+    #   "GET /admin/audit/events": 120
+    #   "GET /admin/logs/tail": 30
+    #   "POST /admin/mcp/test-connection": 15
+    route_limits: {}
+
+    # Response configuration
+    retry_after_seconds: 60          # Retry-After header value when limited
+
+    # Proxy header trust configuration (used only for the unauthenticated-
+    # request fallback; see rate_limiting.trust_proxy_headers above)
+    trust_proxy_headers: false
+    trusted_proxies: []
+    # Example trusted_proxies configuration:
+    # trusted_proxies:
+    #   - "10.0.0.0/8"        # Private network
+    #   - "172.16.0.0/12"     # Private network
+    #   - "192.168.0.0/16"    # Private network
+    #   - "127.0.0.1"         # Localhost
+
+  # Additional networks the MCP "test connection" probe and saved MCP server
+  # config writes (admin panel create/update) may never target, checked
+  # against both an IP-literal URL and a hostname's resolved address (DNS
+  # rebinding). The cloud-metadata range (169.254.0.0/16) is always blocked
+  # and does not need to be listed here. RFC1918/loopback are NOT blocked by
+  # default since many deployments legitimately point MCP servers at
+  # private-network hosts — add ranges below to opt in.
+  ssrf_denylist: []
+  # Example additions for a locked-down deployment:
+  # ssrf_denylist:
+  #   - "127.0.0.0/8"      # Loopback
+  #   - "10.0.0.0/8"       # Private network
+  #   - "172.16.0.0/12"    # Private network
+  #   - "192.168.0.0/16"   # Private network
 
   # Throttling configuration (executes BEFORE rate limiting)
   # Delays requests progressively instead of rejecting them
