@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.18.0] - 2026-10-04
 
 ### Breaking Changes
 - **Removed automatic database migrations**: ORBIT no longer upgrades an existing SQLite/Postgres database's schema or data in place on startup, including the legacy plaintext-API-key fallback and the auto-expiration assigned to old keys. New installs are unaffected; upgrading an existing database now requires recreating it rather than starting the server against it.
