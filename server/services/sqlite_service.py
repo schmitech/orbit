@@ -214,8 +214,7 @@ class SQLiteService(DatabaseService):
             'api_keys': '''
                 CREATE TABLE IF NOT EXISTS api_keys (
                     id TEXT PRIMARY KEY,
-                    api_key TEXT UNIQUE NOT NULL,
-                    api_key_hash TEXT,
+                    api_key_hash TEXT NOT NULL,
                     key_suffix TEXT,
                     client_name TEXT NOT NULL,
                     notes TEXT,
@@ -428,7 +427,6 @@ class SQLiteService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires)',
             ],
             'api_keys': [
-                'CREATE INDEX IF NOT EXISTS idx_api_keys_api_key ON api_keys(api_key)',
                 'CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_api_key_hash ON api_keys(api_key_hash)',
             ],
             'system_prompts': [
@@ -541,7 +539,7 @@ class SQLiteService(DatabaseService):
         return conn
 
     async def _create_tables(self) -> None:
-        """Create database tables and ensure all columns exist"""
+        """Create database tables"""
         loop = asyncio.get_running_loop()
         for table_name, schema in self._schema.items():
             await loop.run_in_executor(
@@ -551,57 +549,6 @@ class SQLiteService(DatabaseService):
                 ()
             )
             logger.debug(f"Created table: {table_name}")
-            
-            # Check for and add any missing columns in the table
-            await loop.run_in_executor(
-                self.executor,
-                self._migrate_table_schema,
-                table_name,
-                schema
-            )
-
-    def _migrate_table_schema(self, table_name: str, schema_sql: str) -> None:
-        """Check if existing table has all columns from the schema, alter table to add them if missing."""
-        with self._db_lock:
-            cursor = self.connection.cursor()
-            cursor.execute(f"PRAGMA table_info({table_name})")
-            existing_columns = {row[1] for row in cursor.fetchall()}
-
-        if not existing_columns:
-            return
-
-        first_paren = schema_sql.find('(')
-        last_paren = schema_sql.rfind(')')
-        if first_paren == -1 or last_paren == -1:
-            return
-
-        columns_part = schema_sql[first_paren + 1:last_paren]
-        lines = [line.strip() for line in columns_part.split('\n')]
-        for line in lines:
-            if not line or line.startswith('FOREIGN KEY') or line.startswith('PRIMARY KEY') or line.startswith('UNIQUE'):
-                continue
-
-            parts = line.split(None, 2)
-            if not parts:
-                continue
-
-            column_name = parts[0].strip('",`')
-            if not column_name or column_name in existing_columns:
-                continue
-
-            col_def = line[line.find(parts[0]) + len(parts[0]):].strip()
-            if col_def.endswith(','):
-                col_def = col_def[:-1].strip()
-
-            alter_sql = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {col_def}"
-            logger.info(f"Migrating table '{table_name}': adding column '{column_name}' with definition '{col_def}'")
-            try:
-                with self._db_lock:
-                    cursor = self.connection.cursor()
-                    cursor.execute(alter_sql)
-                    self.connection.commit()
-            except Exception as e:  # noqa: BLE001 - sqlite3 driver call with a version-dependent error surface
-                logger.error(f"Failed to add column '{column_name}' to table '{table_name}': {e}")
 
     async def _create_indexes(self) -> None:
         """Create database indexes"""

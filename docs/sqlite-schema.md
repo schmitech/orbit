@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS users (
 **Indexes:**
 - `idx_users_username` on `username`
 
-> **External identity providers.** The `provider`, `external_id`, and `email` columns support just-in-time provisioning of users who authenticate via Microsoft Entra ID or Auth0 (see `docs/authentication.md`). They are nullable and added to pre-existing databases automatically by the additive-column migration on startup (`_migrate_table_schema`). Uniqueness of external users is enforced through the existing `UNIQUE(username)` index using the `provider:external_id` username.
+> **External identity providers.** The `provider`, `external_id`, and `email` columns support just-in-time provisioning of users who authenticate via Microsoft Entra ID or Auth0 (see `docs/authentication.md`). They are nullable. Uniqueness of external users is enforced through the existing `UNIQUE(username)` index using the `provider:external_id` username.
 
 ---
 
@@ -321,8 +321,7 @@ and the Security section below.
 ```sql
 CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY,
-    api_key TEXT UNIQUE NOT NULL,
-    api_key_hash TEXT,
+    api_key_hash TEXT NOT NULL,
     key_suffix TEXT,
     client_name TEXT NOT NULL,
     notes TEXT,
@@ -344,9 +343,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
 
 **Fields:**
 - `id` (TEXT, PK): Unique API key ID (UUID)
-- `api_key` (TEXT, UNIQUE, NOT NULL): Legacy column, kept only for backward compatibility with the `NOT NULL`/`UNIQUE` constraint on SQLite/Postgres. For a key created, renamed, or lazily migrated since `api_key_hash` was introduced, this holds the *same* hash value as `api_key_hash` (never the raw key) — a harmless placeholder that satisfies the constraint. For an older, not-yet-migrated row it still holds the real plaintext key; it is rehashed and this column is overwritten with the hash the first time that key is used (`ApiKeyService._find_by_raw_key`), so no maintenance window or bulk migration is required.
-- `api_key_hash` (TEXT, UNIQUE, nullable): HMAC-SHA256 of the raw key (see `hash_api_key()`), used for every lookup — validation, quota, rename, deactivate/delete. `NULL` only for a not-yet-migrated legacy row (see `api_key` above).
-- `key_suffix` (TEXT, nullable): Last 6 characters of the raw key, kept only so the admin panel can display a masked identifier (`***xxxx`) and so cost/usage labels can be resolved, without ever reading a plaintext key back out of storage. `NULL` for a not-yet-migrated legacy row (backfilled alongside `api_key_hash`).
+- `api_key_hash` (TEXT, UNIQUE, NOT NULL): HMAC-SHA256 of the raw key (see `hash_api_key()`), used for every lookup — validation, quota, rename, deactivate/delete. The raw key itself is never stored.
+- `key_suffix` (TEXT, nullable): Last 6 characters of the raw key, kept only so the admin panel can display a masked identifier (`***xxxx`) and so cost/usage labels can be resolved, without ever reading a plaintext key back out of storage.
 - `client_name` (TEXT): Name of the client/application
 - `notes` (TEXT): Optional notes about the API key
 - `active` (INTEGER): Whether key is active (1=active, 0=inactive)
@@ -359,13 +357,12 @@ CREATE TABLE IF NOT EXISTS api_keys (
 - `quota_throttle_priority` (INTEGER): Optional per-key throttling priority override
 - `allowed_user_ids` (TEXT): JSON-encoded array of ORBIT `users.id` values permitted to use this key. `NULL`/empty = unrestricted (any valid key works, current behavior). Matched against the authenticated caller's internal user id, which for external Entra/Auth0 users is assigned on first JIT-provisioned login (see `users.provider`/`external_id`)
 - `allowed_emails` (TEXT): JSON-encoded array of normalized email addresses permitted to use this key before the user has logged in. A caller matching either this list or `allowed_user_ids` is authorized. Entries are lowercased and retained after login; an IdP email change will no longer match, so use user-ID restrictions for durable sensitive access.
-- `expires_at` (TEXT): ISO format UTC timestamp after which the key is rejected (`now >= expires_at`), checked before adapter resolution, allowlists, and quotas. `NULL` only for a `non_expiring_exception` policy, or a legacy row not yet visited by the startup migration. New keys default to `created_at + api_keys.default_lifetime_days` (90) and may not exceed `api_keys.max_lifetime_days` (365) from creation.
-- `expiration_policy` (TEXT): One of `managed` (normal expiring key), `non_expiring_exception` (explicit admin-approved, requires `expiration_justification`), or `legacy_migration` (assigned automatically on service start to any pre-existing row with no `expires_at`, expiring `api_keys.legacy_migration_lifetime_days` (90) after migration)
+- `expires_at` (TEXT): ISO format UTC timestamp after which the key is rejected (`now >= expires_at`), checked before adapter resolution, allowlists, and quotas. `NULL` only for a `non_expiring_exception` policy. New keys default to `created_at + api_keys.default_lifetime_days` (90) and may not exceed `api_keys.max_lifetime_days` (365) from creation.
+- `expiration_policy` (TEXT): One of `managed` (normal expiring key) or `non_expiring_exception` (explicit admin-approved, requires `expiration_justification`)
 - `expiration_justification` (TEXT): Required, non-empty justification recorded for a `non_expiring_exception`; `NULL` otherwise
 
 **Indexes:**
-- `idx_api_keys_api_key` (UNIQUE) on `api_key`
-- `idx_api_keys_api_key_hash` (UNIQUE, sparse) on `api_key_hash` — sparse so multiple not-yet-migrated legacy rows (`api_key_hash IS NULL`) don't collide on the unique constraint
+- `idx_api_keys_api_key_hash` (UNIQUE) on `api_key_hash`
 
 **Quota/throttle keying:** `QuotaService` and `ThrottleMiddleware` key their Redis/cache counters and their lookups against this table by `api_key_hash` (computed from the raw key at request time), never by the raw key itself — see `services/quota_service.py` and `middleware/throttle_middleware.py`.
 
@@ -1121,6 +1118,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v2.0** (2026-10-04): Runtime schema migrations removed (breaking change; matches Postgres v2.0)
+  - `SQLiteService` no longer runs `_migrate_table_schema` (the startup `PRAGMA table_info` + `ALTER TABLE ADD COLUMN` pass) — `CREATE TABLE IF NOT EXISTS` now defines the full, current schema and is the only startup DDL step
+  - Dropped the legacy `api_keys.api_key` column (and its `idx_api_keys_api_key` index); `api_keys.api_key_hash` is now `NOT NULL` and the sole lookup key. `ApiKeyService` no longer has a plaintext-key fallback path or a legacy-expiration backfill (`_migrate_legacy_expirations`)
+  - **This is a clean-schema release, not an in-place upgrade path**: a database created by a version before this one — which relies on the additive migrations described in the version history below to reach the current schema — must be recreated (or migrated out-of-band) rather than started against this version
 - **v1.24** (2026-10-02): Audit free-text search pushed into the datastore (Phase 4 of Admin/API-Key Hardening; matches Postgres v1.14)
   - Added `audit_logs.response_plain` — an always-plaintext copy of `response`, written only when `response_compressed` is true, used only so a compressed response stays searchable (never returned by `query_audit_logs()`)
   - Added the `audit_logs_fts`/`audit_admin_logs_fts` FTS5 trigram shadow tables and sync triggers, so `GET /admin/audit/events?q=...` resolves via an indexed lookup instead of oversampling rows into Python; see the `audit_logs` Indexes note above and `docs/roadmap/admin-api-security-hardening.md` (Phase 4)

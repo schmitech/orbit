@@ -223,7 +223,7 @@ async def test_list_api_keys(api_key_service):
     # There should be at least 3 keys (plus the one from the previous test)
     assert len(api_keys) >= 3
     for key in api_keys:
-        assert "api_key" in key
+        assert "api_key_hash" in key
         assert "adapter_name" in key
         assert "client_name" in key
         assert "active" in key

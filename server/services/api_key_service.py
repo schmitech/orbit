@@ -64,13 +64,12 @@ def hash_api_key(api_key: str, config: dict[str, Any]) -> str:
 
 
 def _masked_key_display(key_doc: dict[str, Any]) -> str:
-    """Build a masked key string ("***xxxx") without ever reading a plaintext
-    key: from the non-secret `key_suffix` persisted at creation time, falling
-    back to a legacy not-yet-migrated plaintext `api_key` field."""
+    """Build a masked key string ("***xxxx") from the non-secret `key_suffix`
+    persisted at creation time. Never reads a plaintext key."""
     suffix = key_doc.get("key_suffix")
     if suffix:
         return f"***{suffix[-4:]}"
-    return mask_api_key(key_doc.get("api_key"), show_last=True, prefix="***")
+    return "****"
 
 
 def _normalize_allowed_emails(allowed_emails: list | None) -> list | None:
@@ -244,73 +243,15 @@ class ApiKeyService:
         # Set up the API keys collection
         self.api_keys_collection = self.database.get_collection(self.collection_name)
 
-        # Create index on api_key_hash for faster lookups of hashed keys; the
-        # legacy "api_key" index/field is kept only to resolve not-yet-migrated
-        # plaintext records (see _find_by_raw_key).
-        await self.database.create_index(self.collection_name, "api_key_hash", unique=True, sparse=True)
-        await self.database.create_index(self.collection_name, "api_key", unique=True)
+        # Create index on api_key_hash for faster lookups of hashed keys.
+        await self.database.create_index(self.collection_name, "api_key_hash", unique=True)
         logger.info("Created unique index on api_key_hash field")
-
-        await self._migrate_legacy_expirations()
 
         # Set initialized flag
         self._initialized = True
 
         logger.info("API Key Service initialized successfully")
 
-    async def _migrate_legacy_expirations(self) -> None:
-        """
-        Assign a finite expiration to any API-key record predating this feature.
-
-        Idempotent and safe under concurrent workers: only records with no
-        `expiration_policy` at all are touched (a record with an explicit
-        `non_expiring_exception` policy also has `expires_at: None`, but must
-        never be reclassified as legacy), and each is updated independently,
-        so a record already migrated (by this worker or another) is simply
-        skipped.
-        """
-        try:
-            legacy_keys = await self.database.find_many(
-                self.collection_name, {"expiration_policy": None}, limit=100000, skip=0
-            )
-        except Exception as e:  # noqa: BLE001 - database-backend scan call (mongodb/sqlite); best-effort legacy-key migration must not block startup
-            logger.error(f"Error scanning for legacy API keys to migrate: {e!s}")
-            return
-
-        if not legacy_keys:
-            return
-
-        keys_config = self.config.get('api_keys', {})
-        migration_days = keys_config.get('legacy_migration_lifetime_days', 90)
-        now = datetime.now(UTC)
-        new_expiration = now + timedelta(days=migration_days)
-
-        migrated = 0
-        for key_doc in legacy_keys:
-            # Re-check per record: another worker may have migrated it between the
-            # scan above and this update.
-            if key_doc.get("expiration_policy"):
-                continue
-            doc_id = str(key_doc.get("_id")) if key_doc.get("_id") else None
-            if not doc_id:
-                continue
-            updated = await self.database.update_one(
-                self.collection_name,
-                {"_id": doc_id, "expiration_policy": None},
-                {"$set": {
-                    "expires_at": new_expiration,
-                    "expiration_policy": "legacy_migration",
-                }}
-            )
-            if updated:
-                migrated += 1
-
-        if migrated:
-            logger.info(
-                "Migrated %s legacy API key(s) to expiration_policy=legacy_migration, earliest expiration %s",
-                migrated, new_expiration.isoformat(),
-            )
-    
     def _generate_api_key(self, length: int = 32) -> str:
         """
         Generate a random API key
@@ -821,15 +762,10 @@ class ApiKeyService:
 
             # Create the document. Only the HMAC hash is persisted; the raw key
             # is returned to the caller once, in the response below, and never
-            # stored in plaintext. The legacy "api_key" column/field is filled
-            # with the same hash (never the raw key) purely so SQLite's
-            # NOT NULL/UNIQUE constraint on it (unchanged, for backward compat)
-            # is satisfied; nothing reads this field as if it were plaintext
-            # once `key_suffix` is present.
+            # stored in plaintext.
             key_hash = hash_api_key(api_key, self.config)
             key_doc = {
                 "api_key_hash": key_hash,
-                "api_key": key_hash,
                 # Last chars only — enough for admin-panel display/log correlation
                 # (matches the existing mask_api_key(..., num_chars<=6) formats
                 # used elsewhere), never enough to reconstruct the key.
@@ -853,7 +789,9 @@ class ApiKeyService:
                 key_doc["system_prompt_id"] = str(system_prompt_id)
 
             # Insert into database
-            await self.database.insert_one(self.collection_name, key_doc)
+            inserted_id = await self.database.insert_one(self.collection_name, key_doc)
+            if not inserted_id:
+                raise HTTPException(status_code=500, detail="Failed to create API key")
 
             logger.debug(f"Created new API key for adapter: {adapter_name}")
             if system_prompt_id:
@@ -942,7 +880,7 @@ class ApiKeyService:
             )
 
             logger.debug(
-                f"Updated system prompt for API key {mask_api_key(key_doc.get('api_key', api_key_or_id))} to {system_prompt_id_str}"
+                f"Updated system prompt for API key {_masked_key_display(key_doc)} to {system_prompt_id_str}"
             )
                 
             return result
@@ -1081,37 +1019,9 @@ class ApiKeyService:
             raise HTTPException(status_code=500, detail=f"Error updating API key metadata: {e!s}")
     
     async def _find_by_raw_key(self, api_key: str) -> dict | None:
-        """
-        Resolve an API key document from a raw (plaintext) key value.
-
-        Looks up by `api_key_hash` (the only form written for keys created or
-        renamed since this field existed). Falls back to the legacy plaintext
-        `api_key` field for older records and lazily backfills the hash (and
-        clears the plaintext value) on first successful use, so keys migrate
-        off plaintext storage without a maintenance window.
-        """
+        """Resolve an API key document from a raw (plaintext) key value by its HMAC hash."""
         key_hash = hash_api_key(api_key, self.config)
-        doc = await self.database.find_one(self.collection_name, {"api_key_hash": key_hash})
-        if doc:
-            return doc
-
-        doc = await self.database.find_one(self.collection_name, {"api_key": api_key})
-        if not doc:
-            return None
-
-        doc_id = str(doc.get("_id")) if doc.get("_id") else None
-        if doc_id:
-            key_suffix = api_key[-6:]
-            await self.database.update_one(
-                self.collection_name,
-                {"_id": doc_id},
-                {"$set": {"api_key_hash": key_hash, "key_suffix": key_suffix, "api_key": key_hash}},
-            )
-            doc["api_key_hash"] = key_hash
-            doc["key_suffix"] = key_suffix
-            doc["api_key"] = key_hash
-            doc.pop("api_key", None)
-        return doc
+        return await self.database.find_one(self.collection_name, {"api_key_hash": key_hash})
 
     async def _resolve_key_doc(self, api_key_or_id: str) -> dict:
         """
@@ -1212,7 +1122,7 @@ class ApiKeyService:
                 raise HTTPException(status_code=409, detail="New API key already exists")
             result = await self.database.update_one(
                 self.collection_name, {"_id": doc_id},
-                {"$set": {"api_key_hash": hash_api_key(new_api_key, self.config), "key_suffix": new_api_key[-6:], "api_key": hash_api_key(new_api_key, self.config)}}
+                {"$set": {"api_key_hash": hash_api_key(new_api_key, self.config), "key_suffix": new_api_key[-6:]}}
             )
             return result
         except HTTPException:
@@ -1296,7 +1206,7 @@ class ApiKeyService:
             result = await self.database.update_one(
                 self.collection_name,
                 {"_id": str(old_key_doc.get("_id"))},
-                {"$set": {"api_key_hash": hash_api_key(new_api_key, self.config), "key_suffix": new_api_key[-6:], "api_key": hash_api_key(new_api_key, self.config)}}
+                {"$set": {"api_key_hash": hash_api_key(new_api_key, self.config), "key_suffix": new_api_key[-6:]}}
             )
 
             if result:

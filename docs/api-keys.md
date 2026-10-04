@@ -99,10 +99,8 @@ quotas, and an expired explicit key never falls back to `api_keys.allow_default`
 
 A key can instead be created (or renewed) as a `non_expiring_exception`, gated
 by `api_keys.allow_non_expiring_exceptions` and a required, non-empty
-justification. Every API-key record carries an `expiration_policy` of
-`managed`, `non_expiring_exception`, or `legacy_migration` (assigned
-automatically to any pre-existing key with no `expires_at`, on service start,
-per `api_keys.legacy_migration_lifetime_days`).
+justification. Every API-key record carries an `expiration_policy` of either
+`managed` or `non_expiring_exception`.
 
 `GET /admin/api-keys`, `/admin/api-keys/{id}/detail`, and
 `/admin/api-keys/{id}/status` all return `expires_at`, `expiration_policy`,

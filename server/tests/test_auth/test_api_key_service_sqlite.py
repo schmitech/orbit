@@ -193,7 +193,7 @@ async def test_list_api_keys(api_key_service):
     assert len(api_keys) >= 3
     for key in api_keys:
         assert "_id" in key
-        assert "api_key" in key
+        assert "api_key_hash" in key
         assert "adapter_name" in key
         assert "client_name" in key
         assert "active" in key
@@ -1013,47 +1013,6 @@ async def test_renew_api_key_rejects_unjustified_non_expiring(api_key_service):
     with pytest.raises(HTTPException) as exc_info:
         await api_key_service.renew_api_key(str(key_doc["_id"]), non_expiring=True)
     assert exc_info.value.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_legacy_key_migration_assigns_finite_expiration(sqlite_service):
-    """A pre-existing key with no expires_at is migrated to expiration_policy=legacy_migration
-    with expires_at = now + legacy_migration_lifetime_days, on service initialize()."""
-    # Insert a legacy-shaped document directly, bypassing create_api_key (which always
-    # sets an expiration), to simulate a pre-Phase-8 record.
-    legacy_doc = {
-        "api_key": "legacy_test_key",
-        "client_name": "legacy_client",
-        "active": True,
-        "created_at": datetime.now(UTC) - timedelta(days=400),
-        "adapter_name": "qa-sql",
-    }
-    await sqlite_service.insert_one("api_keys", legacy_doc)
-
-    # The service is a process-wide singleton keyed by backend config; clear it so this
-    # test gets a fresh instance bound to `sqlite_service` instead of a cached one from
-    # another test (whose connection may already be closed).
-    ApiKeyService.clear_cache()
-    config = get_test_config()
-    service = ApiKeyService(config, sqlite_service)
-    await service.initialize()
-
-    migrated = await service.database.find_one("api_keys", {"api_key": "legacy_test_key"})
-    assert migrated["expiration_policy"] == "legacy_migration"
-    assert migrated["expires_at"] is not None
-    assert migrated["expires_at"] > datetime.now(UTC) + timedelta(days=89)
-
-
-@pytest.mark.asyncio
-async def test_legacy_key_migration_is_idempotent(api_key_service):
-    """Re-running the migration does not change an already-migrated expiration."""
-    result = await api_key_service.create_api_key(client_name="c", adapter_name="qa-sql")
-    before = (await api_key_service.get_api_key_status(result["api_key"]))["expires_at"]
-
-    await api_key_service._migrate_legacy_expirations()
-
-    after = (await api_key_service.get_api_key_status(result["api_key"]))["expires_at"]
-    assert before == after
 
 
 if __name__ == "__main__":

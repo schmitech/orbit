@@ -10,7 +10,6 @@ from fastapi import APIRouter, Request, HTTPException, Query
 from routes.admin._shared import (
     audit_auth,
 )
-from utils.text_utils import mask_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +20,9 @@ async def _label_api_key_groups(request: Request, groups: list[dict[str, Any]]) 
     """Decorate `api_key`-grouped rows with a `label` field resolved from the
     `api_keys` collection's `client_name`.
 
-    A group's `key` is now either an active key's stable document id (Phase 4
-    — exact, unambiguous, matched directly by `_id`) or, for rows written
-    before that column existed, the masked value (matched by masking each
-    stored plaintext key the same way the audit writer masks it: show_last,
-    6 chars — still subject to suffix collisions, which is exactly the
-    ambiguity Phase 4 fixes going forward).
+    A group's `key` is either an active key's stable document id (exact,
+    unambiguous, matched directly by `_id`) or its masked `key_suffix` value
+    (still subject to suffix collisions across different keys).
 
     Falls back to leaving `label` unset (the caller/frontend fall back to the
     masked `key`) when the api key service is unavailable, on lookup failure,
@@ -63,13 +59,8 @@ async def _label_api_key_groups(request: Request, groups: list[dict[str, Any]]) 
             id_to_name[str(doc_id)] = client_name
         suffix = doc.get("key_suffix")
         if not suffix:
-            # Not-yet-migrated legacy record: still has a plaintext key.
-            legacy_plaintext = doc.get("api_key")
-            if not legacy_plaintext:
-                continue
-            masked = mask_api_key(legacy_plaintext, show_last=True, num_chars=6)
-        else:
-            masked = f"...{suffix}"
+            continue
+        masked = f"...{suffix}"
         masked_to_names.setdefault(masked, []).append(client_name)
 
     for group in groups:

@@ -28,20 +28,19 @@ from utils.id_utils import generate_id, ensure_id, id_to_string
 logger = logging.getLogger(__name__)
 
 # Postgres SQLSTATEs that can only occur when a concurrent session's own
-# identical `IF NOT EXISTS`/`ADD COLUMN IF NOT EXISTS` DDL won a race
-# against ours. `IF NOT EXISTS` isn't atomic across sessions - it checks
-# "doesn't exist yet" and creates in one statement, but two sessions can
-# both pass that check before either commits, and the loser gets a
-# duplicate-name error instead of the no-op it asked for. Under
-# `performance.workers > 1`, every worker runs this same schema-creation
-# code concurrently at startup, so this is an expected, benign race on
-# first boot for any newly-added table/index - not a real failure, since
-# the desired end state (the object exists) is already satisfied by
-# whichever process won.
+# identical `IF NOT EXISTS` DDL won a race against ours. `IF NOT EXISTS`
+# isn't atomic across sessions - it checks "doesn't exist yet" and creates
+# in one statement, but two sessions can both pass that check before either
+# commits, and the loser gets a duplicate-name error instead of the no-op
+# it asked for. Under `performance.workers > 1`, every worker runs this same
+# schema-creation code concurrently at startup, so this is an expected,
+# benign race on first boot for any newly-added table/index - not a real
+# failure, since the desired end state (the object exists) is already
+# satisfied by whichever process won.
 #
-# 42P07/42710/42701 (duplicate_table/duplicate_object/duplicate_column) are
-# exclusively DDL-identity errors - Postgres never raises them for a data
-# problem, so any occurrence here is safely this race.
+# 42P07/42710 (duplicate_table/duplicate_object) are exclusively
+# DDL-identity errors - Postgres never raises them for a data problem, so
+# any occurrence here is safely this race.
 #
 # 23505 (unique_violation) is NOT exclusive to this race, though - it's the
 # same code Postgres raises when CREATE UNIQUE INDEX finds actual duplicate
@@ -58,7 +57,6 @@ logger = logging.getLogger(__name__)
 _DUPLICATE_OBJECT_SQLSTATES = frozenset({
     '42P07',  # duplicate_table
     '42710',  # duplicate_object - e.g. concurrent CREATE INDEX
-    '42701',  # duplicate_column - e.g. concurrent ADD COLUMN
 })
 
 
@@ -231,8 +229,7 @@ class PostgresService(DatabaseService):
             'api_keys': '''
                 CREATE TABLE IF NOT EXISTS api_keys (
                     id TEXT PRIMARY KEY,
-                    api_key TEXT UNIQUE NOT NULL,
-                    api_key_hash TEXT,
+                    api_key_hash TEXT NOT NULL,
                     key_suffix TEXT,
                     client_name TEXT NOT NULL,
                     notes TEXT,
@@ -445,7 +442,6 @@ class PostgresService(DatabaseService):
                 'CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires)',
             ],
             'api_keys': [
-                'CREATE INDEX IF NOT EXISTS idx_api_keys_api_key ON api_keys(api_key)',
                 'CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_api_key_hash ON api_keys(api_key_hash)',
             ],
             'system_prompts': [
@@ -569,7 +565,7 @@ class PostgresService(DatabaseService):
         return conn
 
     async def _create_tables(self) -> None:
-        """Create database tables and ensure all columns exist"""
+        """Create database tables"""
         loop = asyncio.get_running_loop()
         for table_name, schema in self._schema.items():
             try:
@@ -587,58 +583,6 @@ class PostgresService(DatabaseService):
                     f"Table '{table_name}' already created by a concurrent worker "
                     f"(sqlstate {getattr(e, 'sqlstate', None)}) - continuing"
                 )
-                self.connection.rollback()
-
-            await loop.run_in_executor(
-                self.executor,
-                self._migrate_table_schema,
-                table_name,
-                schema
-            )
-
-    def _migrate_table_schema(self, table_name: str, schema_sql: str) -> None:
-        """Ensure any columns added to the schema after initial release exist on the table.
-
-        Postgres supports `ADD COLUMN IF NOT EXISTS`, so unlike SQLite this doesn't need
-        to pre-check existing columns - the statement is naturally idempotent.
-        """
-        first_paren = schema_sql.find('(')
-        last_paren = schema_sql.rfind(')')
-        if first_paren == -1 or last_paren == -1:
-            return
-
-        columns_part = schema_sql[first_paren + 1:last_paren]
-        lines = [line.strip() for line in columns_part.split('\n')]
-        for line in lines:
-            if not line or line.startswith('FOREIGN KEY') or line.startswith('PRIMARY KEY') or line.startswith('UNIQUE'):
-                continue
-
-            parts = line.split(None, 2)
-            if not parts:
-                continue
-
-            column_name = parts[0].strip('",`')
-            if not column_name:
-                continue
-
-            col_def = line[line.find(parts[0]) + len(parts[0]):].strip()
-            if col_def.endswith(','):
-                col_def = col_def[:-1].strip()
-
-            alter_sql = f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {column_name} {col_def}"
-            try:
-                with self._db_lock:
-                    cursor = self.connection.cursor()
-                    cursor.execute(alter_sql)
-                    self.connection.commit()
-            except Exception as e:  # noqa: BLE001 - inspect all psycopg DDL errors for the expected concurrent-schema race
-                if _is_concurrent_ddl_race(e):
-                    logger.debug(
-                        f"Column '{column_name}' on table '{table_name}' already added by a "
-                        f"concurrent worker (sqlstate {getattr(e, 'sqlstate', None)}) - continuing"
-                    )
-                else:
-                    logger.error(f"Failed to ensure column '{column_name}' on table '{table_name}': {e}")
                 self.connection.rollback()
 
     async def _create_indexes(self) -> None:

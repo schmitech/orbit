@@ -437,32 +437,17 @@ async def _resolve_api_key(request: Request, api_key_id: str) -> tuple[str, str 
     """Resolve a record _id to its quota-service identifier and display suffix.
 
     Quota storage is keyed by the same HMAC hash used to look up the key at
-    validation time — never the raw key — so this returns `(api_key_hash,
-    key_suffix)`, computing and backfilling both from a legacy plaintext
-    record if needed. `key_suffix` (the last 6 chars of the *raw* key) is for
-    masked display only — never mask the hash itself, it isn't the key.
+    validation time — never the raw key. `key_suffix` (the last 6 chars of
+    the *raw* key) is for masked display only — never mask the hash itself,
+    it isn't the key.
     """
     api_key_service = getattr(request.app.state, 'api_key_service', None)
     check_service_availability(api_key_service, "API key service")
     doc = await api_key_service._resolve_key_doc(api_key_id)
     key_hash = doc.get("api_key_hash")
-    if key_hash:
-        return key_hash, doc.get("key_suffix")
-    legacy_key = doc.get("api_key")
-    if not legacy_key:
+    if not key_hash:
         raise HTTPException(status_code=500, detail="API key record is missing its hash identifier")
-    from services.api_key_service import hash_api_key
-    key_hash = hash_api_key(legacy_key, api_key_service.config)
-    key_suffix = legacy_key[-6:]
-    # Matches ApiKeyService._find_by_raw_key(): "api_key" is set to the hash
-    # (never $unset — SQL backends only apply $set from a combined update, so
-    # an $unset here would silently leave the real plaintext key in place).
-    await api_key_service.database.update_one(
-        api_key_service.collection_name,
-        {"_id": str(doc["_id"])},
-        {"$set": {"api_key_hash": key_hash, "key_suffix": key_suffix, "api_key": key_hash}},
-    )
-    return key_hash, key_suffix
+    return key_hash, doc.get("key_suffix")
 
 
 @router.get("/api-keys/{api_key_id}/quota", response_model=ApiKeyQuotaResponse, dependencies=[apikeys_auth])
@@ -632,23 +617,11 @@ async def get_quota_usage_report(
         # Build usage report
         report = []
         for key_doc in api_keys:
-            # Quota storage is keyed by the HMAC hash, never the raw key or a
-            # not-yet-hashed legacy plaintext value — resolve/backfill exactly
-            # like _resolve_api_key() does for the single-key endpoints above.
+            # Quota storage is keyed by the HMAC hash, never the raw key.
             key_hash = key_doc.get('api_key_hash')
             key_suffix = key_doc.get('key_suffix')
             if not key_hash:
-                legacy_key = key_doc.get('api_key')
-                if not legacy_key:
-                    continue
-                from services.api_key_service import hash_api_key
-                key_hash = hash_api_key(legacy_key, api_key_service.config)
-                key_suffix = legacy_key[-6:]
-                await api_key_service.database.update_one(
-                    api_key_service.collection_name,
-                    {"_id": str(key_doc["_id"])},
-                    {"$set": {"api_key_hash": key_hash, "key_suffix": key_suffix, "api_key": key_hash}},
-                )
+                continue
 
             # Get usage for this key
             usage_stats = await quota_service.get_usage(key_hash)

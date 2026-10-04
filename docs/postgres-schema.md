@@ -209,8 +209,7 @@ CREATE TABLE IF NOT EXISTS mfa_pending (
 ```sql
 CREATE TABLE IF NOT EXISTS api_keys (
     id TEXT PRIMARY KEY,
-    api_key TEXT UNIQUE NOT NULL,
-    api_key_hash TEXT,
+    api_key_hash TEXT NOT NULL,
     key_suffix TEXT,
     client_name TEXT NOT NULL,
     notes TEXT,
@@ -230,9 +229,9 @@ CREATE TABLE IF NOT EXISTS api_keys (
 )
 ```
 
-**Indexes:** `idx_api_keys_api_key` (UNIQUE) on `api_key`; `idx_api_keys_api_key_hash` (UNIQUE) on `api_key_hash`
+**Indexes:** `idx_api_keys_api_key_hash` (UNIQUE) on `api_key_hash`
 
-`api_key_hash`: HMAC-SHA256 of the raw key (peppered with `ORBIT_API_KEY_PEPPER`/`api_keys.hash_pepper`), used for every lookup. `key_suffix`: last 6 characters of the raw key, for masked admin-panel display only. `allowed_user_ids`, `allowed_emails`: per-user API key restrictions. `expires_at`/`expiration_policy`/`expiration_justification`: key lifetime enforcement (`managed`/`non_expiring_exception`/`legacy_migration`) — see [`docs/sqlite-schema.md#api_keys`](sqlite-schema.md#api_keys) for full field details.
+`api_key_hash`: HMAC-SHA256 of the raw key (peppered with `ORBIT_API_KEY_PEPPER`/`api_keys.hash_pepper`), used for every lookup; the raw key itself is never stored. `key_suffix`: last 6 characters of the raw key, for masked admin-panel display only. `allowed_user_ids`, `allowed_emails`: per-user API key restrictions. `expires_at`/`expiration_policy`/`expiration_justification`: key lifetime enforcement (`managed`/`non_expiring_exception`) — see [`docs/sqlite-schema.md#api_keys`](sqlite-schema.md#api_keys) for full field details.
 
 ---
 
@@ -589,12 +588,7 @@ Field-level type/format conventions (ID format, timestamps, booleans, JSON colum
 
 ## Schema Migration
 
-Both `_schema` (table definitions) and any newly-added columns are applied automatically on every server startup, in `PostgresService._create_tables()`:
-
-1. `CREATE TABLE IF NOT EXISTS ...` runs for every table on every startup — safe to run repeatedly, and this is what creates any *new* table (like `system_state` above) on a database that predates it. No manual migration step is needed when Orbit adds a table.
-2. `_migrate_table_schema()` then runs `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...` for every column in the schema. Unlike SQLite (which has to inspect `PRAGMA table_info` first because it lacks `ADD COLUMN IF NOT EXISTS`), Postgres supports the idempotent form directly, so this step doesn't need a pre-check.
-
-Both steps only ever *add* — nothing here drops or alters existing columns, so it's safe to run against a production database with no separate migration tooling required.
+There is no runtime schema migration. `CREATE TABLE IF NOT EXISTS ...` runs for every table in `_schema` on every server startup, in `PostgresService._create_tables()` — safe to run repeatedly, and this is what creates any table missing from a database that predates it (e.g. on first boot). There is no column-level migration step: the schema defined in code is the only schema supported, and a database created by an older version must be recreated rather than upgraded in place.
 
 ## Maintenance
 
@@ -645,6 +639,10 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling (has
 
 ## Version History
 
+- **v2.0** (2026-10-04): Runtime schema migrations removed (breaking change; matches SQLite v2.0)
+  - `PostgresService` no longer runs `_migrate_table_schema` (the startup `ADD COLUMN IF NOT EXISTS` pass) — `CREATE TABLE IF NOT EXISTS` now defines the full, current schema and is the only startup DDL step
+  - Dropped the legacy `api_keys.api_key` column (and its `idx_api_keys_api_key` index); `api_keys.api_key_hash` is now `NOT NULL` and the sole lookup key. `ApiKeyService` no longer has a plaintext-key fallback path or a legacy-expiration backfill
+  - **This is a clean-schema release, not an in-place upgrade path**: a database created by a version before this one must be recreated (or migrated out-of-band) rather than started against this version
 - **v1.14** (2026-10-02): Audit free-text search pushed into the datastore (Phase 4 of Admin/API-Key Hardening; matches SQLite v1.24)
   - Added `audit_logs.response_plain` — an always-plaintext copy of `response`, written only when `response_compressed` is true, used only so a compressed response stays searchable (never returned by `query_audit_logs()`)
   - `GET /admin/audit/events?q=...` now matches `q` as a literal substring at the storage layer instead of oversampling rows into Python; see the `audit_logs` Indexes note above and `docs/roadmap/admin-api-security-hardening.md` (Phase 4)

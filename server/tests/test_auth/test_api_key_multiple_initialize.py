@@ -65,10 +65,9 @@ async def test_multiple_initialize_calls_only_run_once(mock_config):
         # Database initialize should only be called once
         mock_database.initialize.assert_called_once()
 
-        # Database create_index should only run its (now two) index calls once each
-        assert mock_database.create_index.call_count == 2
-        mock_database.create_index.assert_any_call('api_keys', 'api_key_hash', unique=True, sparse=True)
-        mock_database.create_index.assert_any_call('api_keys', 'api_key', unique=True)
+        # Database create_index should only run its one index call once
+        assert mock_database.create_index.call_count == 1
+        mock_database.create_index.assert_any_call('api_keys', 'api_key_hash', unique=True)
 
         # Service should be marked as initialized
         assert service._initialized is True
@@ -104,8 +103,8 @@ async def test_multiple_api_key_services_same_config_share_initialization(mock_c
         # Database initialize should only be called once
         mock_database.initialize.assert_called_once()
 
-        # Database create_index should only run its (now two) index calls once each
-        assert mock_database.create_index.call_count == 2
+        # Database create_index should only run its one index call once
+        assert mock_database.create_index.call_count == 1
 
         # All instances should be marked as initialized
         assert service1._initialized is True
@@ -166,8 +165,8 @@ async def test_simulated_multiple_adapters_initialization(mock_config):
         # Database initialize should only be called once despite 7 adapters
         mock_database_instance.initialize.assert_called_once()
 
-        # Create index should only run its (now two) index calls once each
-        assert mock_database_instance.create_index.call_count == 2
+        # Create index should only run its one index call once
+        assert mock_database_instance.create_index.call_count == 1
 
 
 if __name__ == "__main__":
