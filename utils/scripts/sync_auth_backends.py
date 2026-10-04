@@ -9,7 +9,7 @@ database after schema changes.
 
 Matching is done on natural unique keys:
   - system_prompts.name
-  - api_keys.api_key
+  - api_keys.api_key_hash
 
 Cross-references (api_keys.system_prompt_id -> system_prompts._id) are
 re-resolved through the prompt name on the destination side so the link
@@ -31,12 +31,6 @@ Loads `.env` from the project root for PostgreSQL credentials:
   INTERNAL_SERVICES_POSTGRES_PASSWORD
   INTERNAL_SERVICES_POSTGRES_DB       (default: orbit)
   INTERNAL_SERVICES_POSTGRES_SSLMODE  (default: prefer)
-
-Also loads `.env` for ORBIT_API_KEY_PEPPER: rows are matched across backends
-by a hash of the raw key (computed locally with the same HMAC-SHA256 scheme
-the server uses), so this must match the pepper both backends were/will be
-hashed with, or an unmigrated key on one side won't match its migrated
-counterpart on the other. See docs/security/api-key-pepper-setup.md.
 
 Usage
 -----
@@ -69,10 +63,7 @@ Only upserts are performed. Records present in the destination but absent
 from the source are left untouched; pass --delete-missing to remove them.
 """
 import argparse
-import hashlib
-import hmac
 import os
-import re
 import sqlite3
 import sys
 import uuid
@@ -80,7 +71,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import yaml
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from bson import ObjectId
@@ -90,100 +80,21 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = PROJECT_ROOT / "orbit.db"
 
 API_KEY_FIELDS = [
-    "api_key", "api_key_hash", "key_suffix", "client_name", "notes", "active", "created_at",
+    "api_key_hash", "key_suffix", "client_name", "notes", "active", "created_at",
     "adapter_name", "system_prompt_id",
     "quota_daily_limit", "quota_monthly_limit",
     "quota_throttle_enabled", "quota_throttle_priority",
 ]
 PROMPT_FIELDS = ["name", "prompt", "version", "created_at", "updated_at"]
 
-# Mirrors services/api_key_service.py's pepper resolution and hashing so a
-# legacy (unmigrated) row and its hashed counterpart on another backend
-# resolve to the same identity below. Keep these in sync with that module.
-_INSECURE_DEFAULT_PEPPER = "orbit-insecure-default-pepper-set-ORBIT_API_KEY_PEPPER"
-
-
-_config_hash_pepper_cache: Dict[str, Optional[str]] = {}
-
-
-def _load_hash_pepper_from_config() -> Optional[str]:
-    """Read api_keys.hash_pepper from config/config.yaml, the same fallback
-    services/api_key_service.py's _get_api_key_pepper() uses when
-    ORBIT_API_KEY_PEPPER is unset. Cached so we don't re-parse the YAML file
-    for every row."""
-    if "value" in _config_hash_pepper_cache:
-        return _config_hash_pepper_cache["value"]
-
-    pepper = None
-    config_path = PROJECT_ROOT / "config" / "config.yaml"
-    try:
-        if config_path.is_file():
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f) or {}
-            raw = (config.get("api_keys") or {}).get("hash_pepper")
-            if raw:
-                # Resolve a simple ${VAR} placeholder like config_manager.py does.
-                match = re.fullmatch(r"\$\{([^}]+)\}", str(raw))
-                pepper = os.environ.get(match.group(1)) if match else raw
-    except Exception:
-        pepper = None
-
-    _config_hash_pepper_cache["value"] = pepper
-    return pepper
-
-
-def _resolve_pepper() -> str:
-    return (
-        os.environ.get("ORBIT_API_KEY_PEPPER")
-        or _load_hash_pepper_from_config()
-        or _INSECURE_DEFAULT_PEPPER
-    )
-
-
-def _compute_key_hash(raw_key: str) -> str:
-    return hmac.new(_resolve_pepper().encode(), raw_key.encode(), hashlib.sha256).hexdigest()
-
-
 def key_identifier(doc: Dict[str, Any]) -> Optional[str]:
-    """Stable identity for an api_keys row, always in hashed form.
-
-    A migrated row already carries api_key_hash. An unmigrated row only has
-    the raw key in api_key; hash it here (with the same pepper the server
-    uses) so it still matches its migrated counterpart on another backend,
-    instead of comparing a raw value against a hash and never matching."""
-    if doc.get("api_key_hash"):
-        return doc["api_key_hash"]
-    raw = doc.get("api_key")
-    if not raw:
-        return None
-    return _compute_key_hash(raw)
-
-
-def normalize_key_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert a legacy (unmigrated) row in place to the same shape the
-    server writes on migration: api_key_hash/key_suffix populated and
-    api_key replaced with the hash placeholder, never the raw key.
-
-    Must run before any upsert. Without this, syncing a legacy row onto a
-    destination that already migrated the same key would overwrite its
-    api_key_hash/key_suffix with the raw plaintext and a blank suffix,
-    even though key_identifier() correctly recognized the two rows as the
-    same key."""
-    if doc.get("api_key_hash"):
-        return doc
-    raw = doc.get("api_key")
-    if not raw:
-        return doc
-    key_hash = _compute_key_hash(raw)
-    doc["api_key_hash"] = key_hash
-    doc["key_suffix"] = raw[-6:]
-    doc["api_key"] = key_hash
-    return doc
+    """Stable identity for an api_keys row: its HMAC hash. The raw key is
+    never stored, so this is always just api_key_hash."""
+    return doc.get("api_key_hash")
 
 
 def key_display(doc: Dict[str, Any]) -> str:
-    v = doc.get("api_key") or doc.get("api_key_hash") or ""
-    return v[:8]
+    return (doc.get("api_key_hash") or "")[:8]
 
 
 def now_iso() -> str:
@@ -383,7 +294,7 @@ def sync_sqlite_to_mongo(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
         key_id = key_identifier(k)
         if not key_id:
             continue
-        doc = normalize_key_doc({f: k.get(f) for f in API_KEY_FIELDS})
+        doc = {f: k.get(f) for f in API_KEY_FIELDS}
         # Re-resolve system_prompt_id through the prompt id map
         if k.get("system_prompt_id"):
             mapped = prompt_id_map.get(k["system_prompt_id"])
@@ -547,7 +458,7 @@ def sync_mongo_to_sqlite(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
             if not translated:
                 print(f"  WARN api_key {key_display(k)}... references unknown system_prompt_id {src_prompt_id}")
 
-        doc = normalize_key_doc(dict(k))
+        doc = dict(k)
         doc["system_prompt_id"] = translated if src_prompt_id else None
 
         existing = sqlite_keys.get(key_id)
@@ -606,8 +517,7 @@ def ensure_postgres_auth_schema(pg_conn) -> None:
     pg_conn.execute("""
         CREATE TABLE IF NOT EXISTS api_keys (
             id TEXT PRIMARY KEY,
-            api_key TEXT UNIQUE NOT NULL,
-            api_key_hash TEXT,
+            api_key_hash TEXT NOT NULL,
             key_suffix TEXT,
             client_name TEXT NOT NULL,
             notes TEXT,
@@ -621,12 +531,7 @@ def ensure_postgres_auth_schema(pg_conn) -> None:
             quota_throttle_priority INTEGER
         )
     """)
-    # ADD COLUMN IF NOT EXISTS also migrates a table created before these
-    # columns existed, since CREATE TABLE IF NOT EXISTS above is a no-op on it.
-    pg_conn.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS api_key_hash TEXT")
-    pg_conn.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS key_suffix TEXT")
     pg_conn.execute("CREATE INDEX IF NOT EXISTS idx_system_prompts_name ON system_prompts(name)")
-    pg_conn.execute("CREATE INDEX IF NOT EXISTS idx_api_keys_api_key ON api_keys(api_key)")
     pg_conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_api_key_hash ON api_keys(api_key_hash)")
 
 
@@ -660,7 +565,7 @@ def read_postgres_api_keys(pg_conn) -> List[Dict[str, Any]]:
         return []
     rows = pg_conn.execute(
         """
-        SELECT id, api_key, api_key_hash, key_suffix, client_name, notes, active, created_at,
+        SELECT id, api_key_hash, key_suffix, client_name, notes, active, created_at,
                adapter_name, system_prompt_id, quota_daily_limit, quota_monthly_limit,
                quota_throttle_enabled, quota_throttle_priority
         FROM api_keys
@@ -725,7 +630,6 @@ def upsert_postgres_api_key(pg_conn, existing: Optional[Dict[str, Any]], doc: Di
 
     new_id = values.get("_postgres_id") or str(uuid.uuid4())
     insert_values = {
-        "api_key": values.get("api_key"),
         "api_key_hash": values.get("api_key_hash"),
         "key_suffix": values.get("key_suffix"),
         "client_name": values.get("client_name"),
@@ -743,15 +647,14 @@ def upsert_postgres_api_key(pg_conn, existing: Optional[Dict[str, Any]], doc: Di
         pg_conn.execute(
             """
             INSERT INTO api_keys (
-                id, api_key, api_key_hash, key_suffix, client_name, notes, active, created_at,
+                id, api_key_hash, key_suffix, client_name, notes, active, created_at,
                 adapter_name, system_prompt_id, quota_daily_limit,
                 quota_monthly_limit, quota_throttle_enabled, quota_throttle_priority
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             [
                 new_id,
-                insert_values["api_key"],
                 insert_values["api_key_hash"],
                 insert_values["key_suffix"],
                 insert_values["client_name"],
@@ -838,7 +741,7 @@ def sync_sqlite_to_postgres(
         if not key_id:
             continue
 
-        doc = normalize_key_doc(dict(k))
+        doc = dict(k)
         source_prompt_id = k.get("system_prompt_id")
         if source_prompt_id:
             translated = prompt_id_map.get(source_prompt_id)
@@ -955,7 +858,7 @@ def sync_postgres_to_sqlite(pg_conn, sqlite_conn: sqlite3.Connection, dry_run: b
         if not key_id:
             continue
 
-        doc = normalize_key_doc(dict(k))
+        doc = dict(k)
         source_prompt_id = k.get("system_prompt_id")
         if source_prompt_id:
             translated = prompt_id_map.get(source_prompt_id)
@@ -1073,7 +976,7 @@ def sync_sqlite_to_sqlite(
         if not key_id:
             continue
 
-        doc = normalize_key_doc(dict(k))
+        doc = dict(k)
         source_prompt_id = k.get("system_prompt_id")
         if source_prompt_id:
             translated = prompt_id_map.get(source_prompt_id)
