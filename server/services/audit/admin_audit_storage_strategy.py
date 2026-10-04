@@ -89,7 +89,12 @@ class AdminAuditRecord:
             "ip_original_value": self.ip_metadata.get("originalValue", ""),
             "user_agent": self.user_agent,
             "error_message": self.error_message,
-            "request_summary": json.dumps(self.request_summary) if self.request_summary else None,
+            # default=str: a stray non-JSON-native value in request_summary (e.g. a
+            # sentinel object slipping past the audit middleware's own handling)
+            # degrades to its string form here rather than failing the whole
+            # audit write — this record is a best-effort compliance log, not a
+            # strict schema, so a less-precise field beats losing the row.
+            "request_summary": json.dumps(self.request_summary, default=str) if self.request_summary else None,
         }
 
 
