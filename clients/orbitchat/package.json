@@ -1,11 +1,11 @@
 {
   "name": "orbitchat",
   "private": false,
-  "version": "3.14.0",
+  "version": "3.14.2",
   "type": "module",
   "bin": {
-    "orbitchat": "./bin/orbitchat.js",
-    "orbitchat-daemon": "./orbitchat.sh"
+    "orbitchat": "bin/orbitchat.js",
+    "orbitchat-daemon": "orbitchat.sh"
   },
   "files": [
     "bin",

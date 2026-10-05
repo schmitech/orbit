@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowUp,
   Check,
   ChevronDown,
   ChevronUp,
+  CornerDownRight,
   Copy,
   Edit2,
-  MessageSquare,
+  MoreHorizontal,
   RotateCcw,
   ThumbsDown,
   ThumbsUp,
@@ -289,6 +291,10 @@ export function Message({
   const [activeThreadSkillIndex, setActiveThreadSkillIndex] = useState(0);
   const [showClearThreadConfirmation, setShowClearThreadConfirmation] = useState(false);
   const [isClearingThread, setIsClearingThread] = useState(false);
+  const [showThreadMenu, setShowThreadMenu] = useState(false);
+  const [threadMenuPosition, setThreadMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const threadMenuRef = useRef<HTMLDivElement>(null);
+  const threadMenuButtonRef = useRef<HTMLButtonElement>(null);
   // Each thread manages its own model independently from the main input.
   // Initialized from the current global selection so it starts consistent.
   const [threadSelectedModel, setThreadSelectedModel] = useState<string | null>(
@@ -582,6 +588,44 @@ export function Message({
     onEdit?.(message.id, trimmed);
     setIsEditing(false);
   }, [editContent, message.content, message.id, onEdit]);
+
+  // The menu is rendered through a portal (see render below) so it can escape
+  // the message wrapper's `content-visibility: auto` paint containment in
+  // MessageList, which otherwise clips anything positioned past the message's
+  // own bounds — including this dropdown when the thread is collapsed.
+  useLayoutEffect(() => {
+    if (!showThreadMenu || !threadMenuButtonRef.current) {
+      setThreadMenuPosition(null);
+      return;
+    }
+    const rect = threadMenuButtonRef.current.getBoundingClientRect();
+    setThreadMenuPosition({ top: rect.bottom + 4, left: rect.left });
+  }, [showThreadMenu]);
+
+  useEffect(() => {
+    if (!showThreadMenu) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        threadMenuButtonRef.current?.contains(target) ||
+        threadMenuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setShowThreadMenu(false);
+    };
+    const handleDismiss = () => setShowThreadMenu(false);
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('scroll', handleDismiss, true);
+    window.addEventListener('resize', handleDismiss);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleDismiss, true);
+      window.removeEventListener('resize', handleDismiss);
+    };
+  }, [showThreadMenu]);
 
   const scrollThreadRepliesToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -1064,8 +1108,8 @@ export function Message({
         <div key={reply.id} className={`min-w-0 flex ${replyIsAssistant ? 'justify-start' : 'justify-end'}`}>
           <div className={replyIsAssistant ? 'min-w-0 w-full max-w-full' : 'min-w-0 max-w-[85%]'}>
             <div className={replyIsAssistant
-              ? 'thread-markdown-wrapper overflow-x-visible text-sm text-[#353740] dark:text-[#ececf1]'
-              : 'thread-markdown-wrapper overflow-x-visible text-sm rounded-[1.75rem] bg-[#f4f4f4] px-4 py-3 text-[#111827] dark:bg-[#2a2a2a] dark:text-[#f5f5f5]'
+              ? 'thread-markdown-wrapper overflow-x-visible text-sm rounded-2xl bg-white px-4 py-3 text-[#353740] shadow-sm dark:bg-[#1c1d21] dark:text-[#ececf1]'
+              : 'thread-markdown-wrapper thread-markdown-wrapper-user overflow-x-visible text-sm rounded-2xl bg-[#3574e0] px-4 py-3 text-white dark:bg-[#1e4fa3]'
             }>
               {replyContent}
               {reply.audio && replyIsAssistant && !reply.isStreaming && (
@@ -1336,7 +1380,7 @@ export function Message({
                 </button>
               )}
 
-              {/* Continue thread */}
+              {/* Reply in thread */}
               {showFullAssistantActions && threadsEnabled && message.supportsThreading && !message.threadInfo && onStartThread && sessionId && (
                 <button
                   type="button"
@@ -1349,39 +1393,72 @@ export function Message({
                   title={t('message.thread.continueDiscussionTitle')}
                   aria-label={t('message.thread.continueDiscussionAriaLabel')}
                 >
-                  <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                  <CornerDownRight className="h-3.5 w-3.5 shrink-0" />
                   <span>{t('message.thread.continueLabel')}</span>
                 </button>
               )}
+          </div>
+        )}
 
-              {/* Thread reply count */}
-              {showFullAssistantActions && threadsEnabled && message.threadInfo && (
-                <>
-                  <div className="w-px h-4 shrink-0 bg-gray-200 dark:bg-[#3c3f4a] mx-1" />
-                  <button
-                    onClick={() => setIsThreadOpen(prev => !prev)}
-                    className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1] transition-colors text-xs"
+        {/* Thread entry point once a thread exists: a single toggle that owns
+            open/closed state, with the rare "clear" action tucked behind an
+            overflow menu so it never competes with the everyday toggle. */}
+        {threadsEnabled && message.threadInfo && (
+          <div className="mt-1.5 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setIsThreadOpen(prev => !prev)}
+              aria-expanded={isThreadOpen}
+              className={`inline-flex min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                isThreadOpen
+                  ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200'
+                  : 'border-gray-200 bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800 dark:border-[#3c3f4a] dark:text-[#bfc2cd] dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]'
+              }`}
+            >
+              <CornerDownRight className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{t('message.thread.replyCount', { count: threadReplyCount })}</span>
+              {isThreadOpen
+                ? <ChevronUp className="h-3 w-3 shrink-0" />
+                : <ChevronDown className="h-3 w-3 shrink-0" />
+              }
+            </button>
+            {canClearThread && (
+              <>
+                <button
+                  type="button"
+                  ref={threadMenuButtonRef}
+                  onClick={() => setShowThreadMenu(prev => !prev)}
+                  className="inline-flex items-center rounded-full p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-[#8e8ea0] dark:hover:bg-[#3c3f4a] dark:hover:text-[#ececf1]"
+                  title={t('message.thread.optionsTitle')}
+                  aria-label={t('message.thread.optionsTitle')}
+                  aria-haspopup="menu"
+                  aria-expanded={showThreadMenu}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+                {showThreadMenu && threadMenuPosition && typeof document !== 'undefined' && createPortal(
+                  <div
+                    ref={threadMenuRef}
+                    role="menu"
+                    style={{ top: threadMenuPosition.top, left: threadMenuPosition.left }}
+                    className="fixed z-50 w-40 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-[#3b3c49] dark:bg-[#202123]"
                   >
-                    <MessageSquare className="h-4 w-4" />
-                    <span className="truncate">{t('message.thread.replyCount', { count: threadReplyCount })}</span>
-                    {isThreadOpen
-                      ? <ChevronUp className="h-3 w-3" />
-                      : <ChevronDown className="h-3 w-3" />
-                    }
-                  </button>
-                  {canClearThread && (
                     <button
                       type="button"
-                      onClick={() => setShowClearThreadConfirmation(true)}
-                      className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
-                      title={t('message.thread.clearTitle')}
-                      aria-label={t('message.thread.clearAriaLabel')}
+                      role="menuitem"
+                      onClick={() => {
+                        setShowThreadMenu(false);
+                        setShowClearThreadConfirmation(true);
+                      }}
+                      className="block w-full px-3 py-1.5 text-left text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
                     >
-                      {t('common.clear')}
+                      {t('message.thread.clearTitle')}
                     </button>
-                  )}
-                </>
-              )}
+                  </div>,
+                  document.body
+                )}
+              </>
+            )}
           </div>
         )}
 
@@ -1396,10 +1473,29 @@ export function Message({
         )}
 
         {threadsEnabled && message.threadInfo && isThreadOpen && (
-          <div className="thread-panel mt-3 md:mt-3 border-l-2 border-gray-200 pl-3 sm:pl-4 dark:border-[#3b3c49]">
+          <div className="thread-panel mt-2 rounded-2xl border border-gray-200/80 bg-gray-50/70 p-3 sm:p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                {/* A self-contained floating chip, pinned to the top of the
+                    viewport while scrolling through a long thread, so
+                    collapsing it never requires scrolling back up to the
+                    parent message's own toggle. Kept as an inset pill (its
+                    own background/border/shadow) rather than a flush header
+                    bar, so it reads clearly over the card in both themes
+                    instead of clipping into the card's rounded corners. */}
+                <div className="sticky top-2 z-10 mb-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsThreadOpen(false)}
+                    className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-md transition-colors hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:border-white/10 dark:bg-[#2a2a2a] dark:text-[#d4d4dc] dark:hover:bg-[#333438] dark:hover:text-white"
+                    aria-label={t('message.thread.collapseAriaLabel')}
+                    title={t('message.thread.collapseAriaLabel')}
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                    <span>{t('message.thread.collapseLabel')}</span>
+                  </button>
+                </div>
                 <div
                   ref={threadRepliesRef}
-                  className="thread-replies-scroll mt-2 space-y-2 pb-3"
+                  className="thread-replies-scroll space-y-3 pb-1"
                   onScroll={() => {
                     if (!threadRepliesRef.current) return;
                     const { scrollTop, scrollHeight, clientHeight } = threadRepliesRef.current;
@@ -1430,7 +1526,7 @@ export function Message({
                   ref={threadComposerRef}
                   className="mt-1 w-full max-w-[64rem] bg-transparent pt-1"
                 >
-                  <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 dark:border-[#242424] dark:bg-[#101010]">
+                  <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm dark:border-[#242424] dark:bg-[#141414]">
                     {selectedSkill && (
                       <div className="flex h-8 shrink-0 items-center gap-1.5 self-center rounded-full border border-gray-300 bg-white px-2.5 text-xs text-gray-700 shadow-sm dark:border-[#3a3a3a] dark:bg-[#1a1a1a] dark:text-gray-200">
                         <span className="min-w-0 truncate font-medium capitalize">
@@ -1610,19 +1706,6 @@ export function Message({
                   )}
                 </div>
 
-                {threadReplyCount > 0 && (
-                  <div className="mt-2 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setIsThreadOpen(false)}
-                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-[#bfc2cd] dark:hover:bg-[#2f313a] dark:hover:text-white"
-                      aria-label={t('message.thread.hideRepliesAriaLabel')}
-                    >
-                      <ChevronUp className="h-3 w-3" />
-                      <span>{t('message.thread.hideRepliesLabel')}</span>
-                    </button>
-                  </div>
-                )}
           </div>
         )}
       </div>

@@ -217,6 +217,57 @@
   line-height: 1.65;
 }
 
+/* The thread reply bubble background is always the blue accent, in both
+   themes, so markdown text inside it must stay white regardless of the app
+   theme — overriding the global .prose rules that otherwise hardcode #353740
+   (same override applied to the main conversation's user bubble). */
+.thread-markdown-wrapper-user .message-markdown p,
+.thread-markdown-wrapper-user .message-markdown li,
+.thread-markdown-wrapper-user .message-markdown h1,
+.thread-markdown-wrapper-user .message-markdown h2,
+.thread-markdown-wrapper-user .message-markdown h3,
+.thread-markdown-wrapper-user .message-markdown h4,
+.thread-markdown-wrapper-user .message-markdown h5,
+.thread-markdown-wrapper-user .message-markdown h6,
+.thread-markdown-wrapper-user .message-markdown strong,
+.thread-markdown-wrapper-user .message-markdown em,
+.thread-markdown-wrapper-user .message-markdown blockquote,
+.thread-markdown-wrapper-user .message-markdown th,
+.thread-markdown-wrapper-user .message-markdown td {
+  color: #ffffff;
+}
+
+.thread-markdown-wrapper-user .message-markdown a {
+  color: #eef3ff;
+  text-decoration-color: rgba(238, 243, 255, 0.5);
+}
+
+.thread-markdown-wrapper-user .message-markdown pre,
+.thread-markdown-wrapper-user .message-markdown code {
+  background-color: rgba(0, 0, 0, 0.18);
+  color: #ffffff;
+}
+
+.thread-markdown-wrapper-user .message-markdown blockquote {
+  background-color: rgba(0, 0, 0, 0.12);
+  border-left-color: rgba(255, 255, 255, 0.35);
+}
+
+.thread-markdown-wrapper-user .message-markdown th,
+.thread-markdown-wrapper-user .message-markdown td {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.thread-markdown-wrapper-user .message-markdown thead,
+.thread-markdown-wrapper-user .message-markdown tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.thread-markdown-wrapper-user .message-markdown tbody tr:hover,
+.thread-markdown-wrapper-user .message-markdown tbody tr:active {
+  background-color: rgba(0, 0, 0, 0.18);
+}
+
 /* Ensure tables in threads have proper styling */
 .thread-markdown-wrapper th,
 .thread-markdown-wrapper td {
