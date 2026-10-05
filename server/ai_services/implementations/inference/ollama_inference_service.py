@@ -191,6 +191,18 @@ class OllamaInferenceService(UsageReportingMixin, InferenceService, OllamaBaseSe
         content = msg_data.get("content") or None
         raw_tool_calls = msg_data.get("tool_calls") or []
 
+        if not content and not raw_tool_calls and msg_data.get("thinking"):
+            # Newer Ollama versions return reasoning in a separate "thinking"
+            # field (think=true) and leave "content" empty until the model
+            # commits to a final answer. A model that never does so produces
+            # no content and no tool calls here — surfaced so it's diagnosable
+            # instead of silently returning an empty response to the caller.
+            logger.warning(
+                "Ollama model '%s' returned only 'thinking' content with no "
+                "final answer or tool call",
+                self.model,
+            )
+
         # Ollama returns arguments as dicts and omits call ids — normalise to
         # OpenAI format so the MCPAgentStep loop works unchanged.
         tool_calls_result = None

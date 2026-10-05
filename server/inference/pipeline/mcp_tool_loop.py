@@ -248,8 +248,17 @@ async def run_tool_calling_loop(
             last_text = result.text
 
         if not result.tool_calls:
-            # Model produced a final answer
-            return result.text, sources, messages
+            if result.text:
+                # Model produced a final answer
+                return result.text, sources, messages
+            # No tool calls and no text: the model stalled (e.g. a provider
+            # that returned only internal reasoning with nothing usable as a
+            # final answer). Don't silently return an empty response — fall
+            # through to the iteration-exhausted path below, which forces a
+            # no-tools synthesis call and has a fallback message if that also
+            # comes back empty.
+            stop_reason = f"model returned no answer and no tool calls at iteration {iteration + 1}"
+            break
 
         # Append the assistant's tool-call turn
         messages.append(result.assistant_message)
