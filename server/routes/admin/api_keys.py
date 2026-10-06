@@ -278,7 +278,7 @@ async def get_api_key_detail(
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001 - route handler must not crash; convert to 500
-        logger.error(f"Error retrieving API key detail for {api_key_id}: {e!s}")
+        logger.error(f"Error retrieving API key detail for {mask_api_key(api_key_id, show_last=True, prefix='***')}: {e!s}")
         raise HTTPException(status_code=500, detail="Failed to retrieve API key detail")
 
 
@@ -571,7 +571,7 @@ async def update_api_key_quota(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update quota configuration")
 
-    logger.info(f"Updated quota for API key id: {api_key_id}")
+    logger.info(f"Updated quota for API key id: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
     return {"status": "success", "message": "Quota configuration updated successfully"}
 
 
@@ -595,7 +595,7 @@ async def reset_api_key_quota(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to reset quota usage")
 
-    logger.info(f"Reset {period} quota for API key id: {api_key_id}")
+    logger.info(f"Reset {period} quota for API key id: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
     return {"status": "success", "message": f"Quota usage ({period}) reset successfully"}
 
 

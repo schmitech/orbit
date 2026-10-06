@@ -53,7 +53,7 @@ def _get_api_key_pepper(config: dict[str, Any]) -> str:
     return pepper
 
 
-def hash_api_key(api_key: str, config: dict[str, Any]) -> str:
+def hash_api_key_for_storage(api_key: str, config: dict[str, Any]) -> str:
     """Deterministically hash a raw API key with HMAC-SHA256 for storage/lookup.
 
     Deterministic (not a slow password hash) by design: API keys are
@@ -843,7 +843,7 @@ class ApiKeyService:
             # Create the document. Only the HMAC hash is persisted; the raw key
             # is returned to the caller once, in the response below, and never
             # stored in plaintext.
-            key_hash = hash_api_key(api_key, self.config)
+            key_hash = hash_api_key_for_storage(api_key, self.config)
             key_doc = {
                 "api_key_hash": key_hash,
                 # Last chars only — enough for admin-panel display/log correlation
@@ -1100,7 +1100,7 @@ class ApiKeyService:
     
     async def _find_by_raw_key(self, api_key: str) -> dict | None:
         """Resolve an API key document from a raw (plaintext) key value by its HMAC hash."""
-        key_hash = hash_api_key(api_key, self.config)
+        key_hash = hash_api_key_for_storage(api_key, self.config)
         return await self.database.find_one(self.collection_name, {"api_key_hash": key_hash})
 
     async def _resolve_key_doc(self, api_key_or_id: str) -> dict:
@@ -1202,7 +1202,7 @@ class ApiKeyService:
                 raise HTTPException(status_code=409, detail="New API key already exists")
             result = await self.database.update_one(
                 self.collection_name, {"_id": doc_id},
-                {"$set": {"api_key_hash": hash_api_key(new_api_key, self.config), "key_suffix": new_api_key[-6:]}}
+                {"$set": {"api_key_hash": hash_api_key_for_storage(new_api_key, self.config), "key_suffix": new_api_key[-6:]}}
             )
             return result
         except HTTPException:
@@ -1286,7 +1286,7 @@ class ApiKeyService:
             result = await self.database.update_one(
                 self.collection_name,
                 {"_id": str(old_key_doc.get("_id"))},
-                {"$set": {"api_key_hash": hash_api_key(new_api_key, self.config), "key_suffix": new_api_key[-6:]}}
+                {"$set": {"api_key_hash": hash_api_key_for_storage(new_api_key, self.config), "key_suffix": new_api_key[-6:]}}
             )
 
             if result:

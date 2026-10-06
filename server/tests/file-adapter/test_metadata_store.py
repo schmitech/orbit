@@ -541,7 +541,7 @@ async def test_list_files_ordering(metadata_store):
 @pytest.mark.asyncio
 async def test_record_file_upload_writes_api_key_hash(metadata_store):
     """New uploads write api_key_hash, matching ApiKeyService's hashing."""
-    from services.api_key_service import hash_api_key
+    from services.api_key_service import hash_api_key_for_storage
 
     await metadata_store.record_file_upload(
         file_id="hashed_file",
@@ -554,7 +554,7 @@ async def test_record_file_upload_writes_api_key_hash(metadata_store):
     )
 
     raw_row = await metadata_store._db_service.find_one('uploaded_files', {'_id': 'hashed_file'})
-    assert raw_row["api_key_hash"] == hash_api_key("test_api_key", metadata_store.config)
+    assert raw_row["api_key_hash"] == hash_api_key_for_storage("test_api_key", metadata_store.config)
     # Legacy raw column is still written alongside the hash in this phase.
     assert raw_row["api_key"] == "test_api_key"
 

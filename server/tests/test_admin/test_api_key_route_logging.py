@@ -20,6 +20,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import HTTPException
 
 from routes.admin import api_keys as admin_routes
 from models.schema import ApiKeyRename
@@ -81,6 +82,39 @@ class TestDeactivateApiKeyLogging:
 
         for record in caplog.records:
             assert RAW_KEY_LOOKING_ID not in record.message
+
+
+@pytest.mark.asyncio
+async def test_activate_log_masks_raw_identifier(caplog):
+    service = SimpleNamespace(activate_api_key_by_id=AsyncMock(return_value=True))
+
+    with caplog.at_level(logging.INFO, logger="routes.admin.api_keys"):
+        await admin_routes.activate_api_key(RAW_KEY_LOOKING_ID, api_key_service=service)
+
+    assert any("Activated API key" in record.message for record in caplog.records)
+    assert all(RAW_KEY_LOOKING_ID not in record.message for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_renew_log_masks_raw_identifier(caplog):
+    result = {
+        "id": "record-id",
+        "previous_expires_at": None,
+        "previous_expiration_policy": "non_expiring",
+        "expires_at": None,
+        "expiration_policy": "non_expiring",
+        "expiration_justification": "approved",
+    }
+    service = SimpleNamespace(renew_api_key=AsyncMock(return_value=result))
+    request = make_request(api_key_service=service)
+    request.state = SimpleNamespace()
+    data = SimpleNamespace(expires_at=None, non_expiring=True, expiration_justification="approved")
+
+    with caplog.at_level(logging.INFO, logger="routes.admin.api_keys"):
+        await admin_routes.renew_api_key(RAW_KEY_LOOKING_ID, data, request)
+
+    assert any("Renewed API key" in record.message for record in caplog.records)
+    assert all(RAW_KEY_LOOKING_ID not in record.message for record in caplog.records)
 
 
 class TestRenameApiKeyLogging:
@@ -167,3 +201,44 @@ class TestCreateApiKeyLogging:
         assert any(
             r.levelno == logging.INFO and "***1111" in r.message for r in caplog.records
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route_name", ["update_api_key_quota", "reset_api_key_quota"])
+async def test_quota_mutation_logs_mask_raw_identifier(route_name, caplog):
+    key_service = SimpleNamespace(_resolve_key_doc=AsyncMock(return_value={
+        "api_key_hash": "hash-for-quota", "key_suffix": "uvwxyz",
+    }))
+    quota_service = SimpleNamespace(
+        enabled=True,
+        update_quota_config=AsyncMock(return_value=True),
+        reset_usage=AsyncMock(return_value=True),
+    )
+    request = make_request(api_key_service=key_service, quota_service=quota_service)
+
+    with caplog.at_level(logging.INFO, logger="routes.admin.api_keys"):
+        if route_name == "update_api_key_quota":
+            quota_data = SimpleNamespace(
+                daily_limit=10, monthly_limit=100, throttle_enabled=True, throttle_priority=5,
+            )
+            await admin_routes.update_api_key_quota(RAW_KEY_LOOKING_ID, quota_data, request)
+        else:
+            await admin_routes.reset_api_key_quota(RAW_KEY_LOOKING_ID, request, period="daily")
+
+    assert caplog.records
+    assert all(RAW_KEY_LOOKING_ID not in record.message for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_detail_error_log_masks_untrusted_identifier(caplog):
+    database = SimpleNamespace(find_one=AsyncMock(side_effect=RuntimeError("database unavailable")))
+    key_service = SimpleNamespace(_initialized=True, database=database, collection_name="api_keys")
+    request = make_request(api_key_service=key_service, prompt_service=None, quota_service=None)
+
+    with caplog.at_level(logging.ERROR, logger="routes.admin.api_keys"):
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_routes.get_api_key_detail(RAW_KEY_LOOKING_ID, request)
+
+    assert exc_info.value.status_code == 500
+    assert caplog.records
+    assert all(RAW_KEY_LOOKING_ID not in record.message for record in caplog.records)

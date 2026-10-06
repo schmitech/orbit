@@ -12,7 +12,7 @@ import json
 from typing import Any, Optional
 from datetime import datetime, UTC
 
-from services.api_key_service import hash_api_key
+from services.api_key_service import hash_api_key_for_storage
 from services.database_service import create_database_service, DatabaseService
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ class FileMetadataStore:
             document = {
                 '_id': file_id,
                 'api_key': api_key,
-                'api_key_hash': hash_api_key(api_key, self.config),
+                'api_key_hash': hash_api_key_for_storage(api_key, self.config),
                 'filename': filename,
                 'mime_type': mime_type,
                 'file_size': file_size,
@@ -297,7 +297,7 @@ class FileMetadataStore:
         try:
             results = await self._db_service.find_many(
                 'uploaded_files',
-                {'api_key_hash': hash_api_key(api_key, self.config)},
+                {'api_key_hash': hash_api_key_for_storage(api_key, self.config)},
                 limit=1000,
                 sort=[('upload_timestamp', -1)]
             )
@@ -316,7 +316,7 @@ class FileMetadataStore:
         try:
             rows = await self._db_service.find_many(
                 'uploaded_files',
-                {'api_key_hash': hash_api_key(api_key, self.config)},
+                {'api_key_hash': hash_api_key_for_storage(api_key, self.config)},
                 limit=10000
             )
             result = []

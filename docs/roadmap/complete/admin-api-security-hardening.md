@@ -533,7 +533,7 @@ message on a count failure), `server/tests/test_admin/test_api_key_count_route.p
 counts, no mutating calls, `--dry-run` required, and the CLI's own rejection
 of a missing/invalid `count` in the response). 17/17 pass.
 
-## Phase 6 — Housekeeping
+## Phase 6 — Housekeeping ✅ DONE
 
 Low-risk, low-value-individually items bundled together since none justify
 their own phase:
@@ -559,6 +559,38 @@ symbol is updated at every call site).
 
 **Exit gate:** `grep -rn "hash_api_key" server/` shows exactly one
 definition per module with no ambiguity; `ruff check` clean.
+
+**Status: shipped.** The first two items are done:
+
+- `services/api_key_service.py`'s `hash_api_key()` is renamed to
+  `hash_api_key_for_storage()`, with every call site updated
+  (`api_key_service.py` itself, `middleware/throttle_middleware.py`,
+  `services/file_metadata/metadata_store.py`, and their tests).
+  `utils/text_utils.py:hash_api_key()` is untouched and still used by its
+  own call sites (`chat_history_service.py`, `pipeline_chat_service.py`,
+  `routes_configurator.py`) — the two are no longer ambiguous by name.
+- `routes/admin/api_keys.py`'s status/rename/update/renew/deactivate/
+  activate/delete/quota-update/quota-reset routes accept `api_key_id` as
+  either a record `_id` or a raw API key value
+  (`ApiKeyService._resolve_key_doc()`/`_find_by_raw_key()` fall back to a
+  raw-key lookup), so these routes keep masking it — an earlier pass here
+  dropped that masking on the mistaken assumption the value was always a
+  non-secret id, which would have logged a real key in full when an admin
+  passed one in the path. `get_api_key_detail`'s success path queries
+  strictly by `_id` with no raw-key fallback and logs the identifier
+  unmasked, but its error-path log still masks it, since a raw key an
+  admin passed in the URL can reach that log too. Covered by
+  `server/tests/test_admin/test_api_key_route_logging.py` (13 cases:
+  lifecycle routes, quota update/reset, and the detail route's error
+  path).
+
+The third item (splitting `system.manage` into `system.read`/
+`system.control`) is left for whenever finer-grained admin roles become an
+actual goal, per its own conditional wording — `docs/authentication.md`
+tracks that broader RBAC story. No behavior change otherwise; existing
+test suites pass unmodified, plus the renamed-call-site test in
+`server/tests/file-adapter/test_metadata_store.py` updated to import
+`hash_api_key_for_storage`.
 
 ## Out of scope for this plan
 

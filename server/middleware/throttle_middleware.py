@@ -281,8 +281,8 @@ class ThrottleMiddleware(BaseHTTPMiddleware):
         try:
             # Quota storage/cache is keyed by a deterministic hash of the raw key,
             # never the raw value itself (matches ApiKeyService's at-rest hashing).
-            from services.api_key_service import hash_api_key
-            key_identifier = hash_api_key(api_key, self.config)
+            from services.api_key_service import hash_api_key_for_storage
+            key_identifier = hash_api_key_for_storage(api_key, self.config)
 
             # Get quota config for this API key
             quota_config = await quota_service.get_quota_config(key_identifier)
