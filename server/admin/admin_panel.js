@@ -988,18 +988,18 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
   var ICON_SEARCH = ["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z", "M21 21l-4.35-4.35"];
 
   var TABS = [
-    { id: "overview", label: "Dashboard", group: "observe", icon: ICON_NAV_OVERVIEW },
-    { id: "feedback", label: "Feedback", permission: "feedback.read", group: "observe", icon: ICON_NAV_FEEDBACK },
-    { id: "costs", label: "Costs", permission: "audit.read", group: "observe", icon: ICON_NAV_COSTS },
-    { id: "users", label: "Users", permission: "users.manage", group: "access", icon: ICON_NAV_USERS },
-    { id: "keys", label: "API Keys", permission: "apikeys.manage", group: "access", icon: ICON_NAV_KEYS },
-    { id: "prompts", label: "Personas", permission: "prompts.manage", group: "configure", icon: ICON_NAV_PERSONAS },
-    { id: "adapters", label: "Adapters", permission: "adapters.manage", group: "configure", icon: ICON_NAV_ADAPTERS },
-    { id: "settings", label: "Settings", permission: "config.manage", group: "configure", icon: ICON_NAV_SETTINGS },
-    { id: "mcp", label: "Servers", permission: "config.manage", group: "mcp", icon: ICON_NAV_MCP },
-    { id: "skills", label: "Skills", permission: "config.manage", group: "mcp", icon: ICON_NAV_SKILLS },
-    { id: "ops", label: "Ops", permission: "system.manage", group: "system", icon: ICON_NAV_OPS },
-    { id: "audit", label: "Audit", permission: "audit.read", group: "system", icon: ICON_NAV_AUDIT },
+    { id: "overview", description: "Monitor service health, traffic, and performance at a glance.", label: "Dashboard", group: "observe", icon: ICON_NAV_OVERVIEW },
+    { id: "feedback", description: "Understand response quality and investigate customer feedback.", label: "Feedback", permission: "feedback.read", group: "observe", icon: ICON_NAV_FEEDBACK },
+    { id: "costs", description: "Track AI spend and understand where usage is growing.", label: "Costs", permission: "audit.read", group: "observe", icon: ICON_NAV_COSTS },
+    { id: "users", description: "Manage team access, roles, and account security.", label: "Users", permission: "users.manage", group: "access", icon: ICON_NAV_USERS },
+    { id: "keys", description: "Control application access, usage limits, and key expiration.", label: "API Keys", permission: "apikeys.manage", group: "access", icon: ICON_NAV_KEYS },
+    { id: "prompts", description: "Shape assistant behavior with reusable personas and instructions.", label: "Personas", permission: "prompts.manage", group: "configure", icon: ICON_NAV_PERSONAS },
+    { id: "adapters", description: "Configure the models and services behind your assistants.", label: "Adapters", permission: "adapters.manage", group: "configure", icon: ICON_NAV_ADAPTERS },
+    { id: "settings", description: "Manage server configuration and operational preferences.", label: "Settings", permission: "config.manage", group: "configure", icon: ICON_NAV_SETTINGS },
+    { id: "mcp", description: "Connect tool servers and manage the capabilities available to assistants.", label: "Servers", permission: "config.manage", group: "mcp", icon: ICON_NAV_MCP },
+    { id: "skills", description: "Organize reusable guidance for consistent tool use.", label: "Skills", permission: "config.manage", group: "mcp", icon: ICON_NAV_SKILLS },
+    { id: "ops", description: "Inspect runtime information, review logs, and manage server operations.", label: "Ops", permission: "system.manage", group: "system", icon: ICON_NAV_OPS },
+    { id: "audit", description: "Investigate request history and trace activity across your services.", label: "Audit", permission: "audit.read", group: "system", icon: ICON_NAV_AUDIT },
   ];
 
   // Groups describe what each section lets you do, and label the current
@@ -1021,6 +1021,12 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
   // because the icon changes with the title.
   function fillWorkbarTitle(heading, tab) {
     clear(heading);
+    var group = tab && NAV_GROUPS.find(function (item) { return item.id === tab.group; });
+    var context = document.getElementById("workbar-context");
+    if (context) context.textContent = "Workspace / " + (group ? group.label : "Admin");
+    var description = document.getElementById("page-description");
+    if (description) description.textContent = tab ? tab.description : "";
+    document.title = (tab ? tab.label + " · " : "") + "ORBIT Admin Portal";
     if (tab && tab.icon) {
       heading.appendChild(el("span", { className: "workbar-title-icon", "aria-hidden": "true" }, svgIcon(tab.icon)));
     }
@@ -1073,7 +1079,8 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     }
 
     // Side rail: grouped vertical nav
-    var nav = el("nav", { id: "admin-sidebar-nav", className: "rail-nav", role: "tablist", "aria-label": "Admin sections" });
+    var nav = el("nav", { id: "admin-sidebar-nav", className: "rail-nav", role: "tablist", "aria-orientation": "vertical", "aria-label": "Admin sections" });
+    var navigationTabs = [];
     NAV_GROUPS.forEach(function (group) {
       var tabsInGroup = visibleTabs.filter(function (t) { return t.group === group.id; });
       if (!tabsInGroup.length) return;
@@ -1083,6 +1090,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
         el("p", { className: "rail-group-label", "aria-hidden": "true" }, group.label)
       );
       tabsInGroup.forEach(function (t) {
+        navigationTabs.push(t);
         var isSelected = t.id === activeTab;
         var link = el("a", {
           id: "tab-" + t.id,
@@ -1100,13 +1108,16 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
         );
         link.addEventListener("click", function (e) { e.preventDefault(); switchTab(t.id); });
         link.addEventListener("keydown", function (e) {
-          var currentIndex = visibleTabs.findIndex(function (tab) { return tab.id === t.id; });
+          var currentIndex = navigationTabs.findIndex(function (tab) { return tab.id === t.id; });
           if (e.key === "ArrowDown") {
             e.preventDefault();
-            switchTab(visibleTabs[(currentIndex + 1) % visibleTabs.length].id);
+            switchTab(navigationTabs[(currentIndex + 1) % navigationTabs.length].id);
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            switchTab(visibleTabs[(currentIndex - 1 + visibleTabs.length) % visibleTabs.length].id);
+            switchTab(navigationTabs[(currentIndex - 1 + navigationTabs.length) % navigationTabs.length].id);
+          } else if (e.key === "Home" || e.key === "End") {
+            e.preventDefault();
+            switchTab(navigationTabs[e.key === "Home" ? 0 : navigationTabs.length - 1].id);
           }
         });
         section.appendChild(link);
@@ -1168,9 +1179,9 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
 
     var current = tabById(activeTab);
     var workbarTitle = el("h1", { className: "workbar-title", id: "workbar-title" });
-    fillWorkbarTitle(workbarTitle, current);
     var workbar = el("div", { className: "workbar" },
       el("div", { className: "workbar-heading" },
+        el("p", { className: "workbar-context", id: "workbar-context" }),
         workbarTitle
       ),
       el("div", { className: "workbar-actions" },
@@ -1197,8 +1208,10 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
 
     var shell = el("div", {
       className: "app-shell" + (railCollapsed ? " rail-collapsed" : ""),
-    }, rail, el("div", { className: "app-body" }, workbar, toastRegion, content));
+    }, rail, el("div", { className: "app-body" }, workbar, toastRegion,
+      el("p", { className: "page-description", id: "page-description" }), content));
     app.appendChild(shell);
+    fillWorkbarTitle(workbarTitle, current);
 
     renderTab();
   }

@@ -1,3 +1,5 @@
+import { revealDetails } from "../core/dom.js";
+
 // Tool Skills admin tab (docs/roadmap/mcp-tool-skills.md Phase 3).
 //
 // Master-detail like prompts.js: a list on the left, frontmatter fields +
@@ -247,6 +249,7 @@ export function createSkillsTab({
         selectedSkill = s;
         renderSkillTable(wrap, skills, detailPanel, refreshSkills);
         renderSkillDetail(detailPanel, s, function (nextId) { refreshSkills(nextId || s.id); });
+        revealDetails(detailPanel);
       });
       tr.addEventListener("keydown", function (e) {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tr.click(); }

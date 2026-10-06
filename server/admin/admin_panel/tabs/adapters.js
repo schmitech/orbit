@@ -1,4 +1,4 @@
-import { wrapTable, aceThemeName } from "../core/dom.js";
+import { wrapTable, aceThemeName, revealDetails } from "../core/dom.js";
 
 export function createAdaptersTab({
   api, endpoints, el, clear, skeleton, svgIcon, iconPlus, iconSave, iconRefresh,
@@ -947,6 +947,7 @@ export function createAdaptersTab({
             onConfirm: function () {
               selectedAdapterEntry = a;
               renderDetail(a);
+              revealDetails(detailPanel);
             }
           });
           return;
@@ -954,6 +955,7 @@ export function createAdaptersTab({
       }
       selectedAdapterEntry = a;
       renderDetail(a);
+      revealDetails(detailPanel);
     }
 
     function renderDetail(a) {

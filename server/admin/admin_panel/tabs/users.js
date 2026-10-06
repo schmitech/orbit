@@ -1,3 +1,5 @@
+import { revealDetails } from "../core/dom.js";
+
 export function createUsersTab({
   api, endpoints, el, clear, wrapTable, skeleton, refreshButton, field, passwordField,
   svgIcon, iconPlus, iconPencil, iconSave, iconX, iconCopy, iconCheck, roleDetails, usernameMaxLength, passwordMaxLength,
@@ -334,6 +336,7 @@ export function createUsersTab({
       renderUserDetail(detailPanel, user, function (options) {
         loadUsers(options || {});
       });
+      revealDetails(detailPanel);
     }
 
     searchInput.addEventListener("input", function (e) {

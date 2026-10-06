@@ -1,3 +1,5 @@
+import { revealDetails } from "../core/dom.js";
+
 // Return safe display names for every key assigned to a persona. Raw or
 // masked key values are intentionally ignored even if present in the payload.
 export function associatedApiKeyNames(promptId, keys) {
@@ -317,6 +319,7 @@ export function createPromptsTab({
         renderPromptDetail(rightPanel, p, function (nextSelectedPromptId, nextPreferredPrompt) {
           refreshPrompts(nextSelectedPromptId || promptIdentifier(p), nextPreferredPrompt || null);
         });
+        revealDetails(rightPanel);
       });
       tr.addEventListener("keydown", function (e) {
         if (e.key === "Enter" || e.key === " ") {

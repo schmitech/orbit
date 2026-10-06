@@ -1,3 +1,5 @@
+import { revealDetails } from "../core/dom.js";
+
 // Fallback used only when a server response omits `expiration_warning_days`
 // (e.g. an older server). The real threshold always comes from the server.
 var DEFAULT_EXPIRATION_WARNING_DAYS = 14;
@@ -748,13 +750,6 @@ export function createApiKeysTab({
         clear(rightPanel);
         rightPanel.style.display = "";
         rightPanel.appendChild(el("p", { className: "muted" }, "Loading key details..."));
-        // On narrow layouts the detail panel stacks below the table, so
-        // selecting a row leaves it out of view; scroll it in once the real
-        // content is in place, but skip the jump on wide screens where the
-        // split layout already shows it.
-        function scrollDetailIntoView() {
-          rightPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }
         try {
           var detail = await loadKeyDetail(k._id);
           selectedKey = detail;
@@ -762,7 +757,7 @@ export function createApiKeysTab({
             selectedKey = null;
             reloadKeys();
           });
-          scrollDetailIntoView();
+          revealDetails(rightPanel);
         } catch (err) {
           selectedKey = null;
           clear(rightPanel);
@@ -771,7 +766,7 @@ export function createApiKeysTab({
             el("p", { className: "muted" }, err.message || "Unknown error")
           ));
           showError(err.message);
-          scrollDetailIntoView();
+          revealDetails(rightPanel);
         }
       });
       tr.addEventListener("keydown", function (e) {

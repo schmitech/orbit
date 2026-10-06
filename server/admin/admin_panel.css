@@ -130,7 +130,7 @@
   --rail-icon:        rgba(222, 234, 252, 0.94);
   --rail-label:       rgba(203, 221, 245, 0.92);
   --rail-line:        rgba(255, 255, 255, 0.09);
-  --workbar-h:        68px;
+  --workbar-h:        80px;
 
   /* Shared table column roles. Fluid columns divide the remaining width. */
   --table-col-selection: 42px;
@@ -605,6 +605,15 @@ textarea {
   min-height: var(--workbar-h);
   padding: var(--sp-3) var(--sp-6);
   background: var(--canvas);
+  border-bottom: 1px solid var(--border-light);
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .workbar {
+    background: var(--surface-translucent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
 }
 
 .workbar-heading {
@@ -616,7 +625,7 @@ textarea {
   align-items: center;
   gap: var(--sp-2);
   margin: 0;
-  font-size: 1.0625rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink);
@@ -633,6 +642,25 @@ textarea {
 .workbar-title-icon svg {
   width: 17px;
   height: 17px;
+}
+
+.workbar-context {
+  margin: 0 0 var(--sp-1);
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.page-description {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-6) 0;
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .workbar-actions {
@@ -1791,6 +1819,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Explicit colgroups reserve short-value columns; prose absorbs extra space.
@@ -1811,6 +1840,8 @@ table.sized-table,
 
 .table-wrap {
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
   max-width: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -3411,6 +3442,10 @@ code.plain-code {
 
   .workbar {
     padding: var(--sp-3) var(--sp-4);
+  }
+
+  .page-description {
+    padding: var(--sp-4) var(--sp-4) 0;
   }
 
   .workbar-user {
@@ -6033,5 +6068,30 @@ button.mcp-kv-btn:active:not(:disabled) {
 @media (max-width: 980px) {
   .audit-view__filters {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .workbar {
+    gap: var(--sp-2);
+    padding-inline: var(--sp-3);
+  }
+
+  .workbar-actions {
+    gap: var(--sp-1);
+    flex-shrink: 0;
+  }
+
+  .workbar-title {
+    font-size: var(--text-base);
+  }
+
+  .workbar-title-icon {
+    display: none;
+  }
+
+  .workbar-context {
+    font-size: 0.625rem;
+    letter-spacing: 0;
   }
 }

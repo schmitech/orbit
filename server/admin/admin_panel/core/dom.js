@@ -28,6 +28,15 @@ export function el(tag, attrs, ...children) {
   return node;
 }
 
+/** Bring explicitly selected record details into view, below the sticky workbar. */
+export function revealDetails(panel) {
+  if (!panel || !panel.isConnected) return;
+  panel.setAttribute("tabindex", "-1");
+  panel.focus({ preventScroll: true });
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  panel.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+}
+
 export function clear(node) {
   node.querySelectorAll?.(".styled-select").forEach((select) => select.destroy?.());
   node.querySelectorAll?.(".flatpickr-input").forEach((input) => input._flatpickr?.destroy());
