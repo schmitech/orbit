@@ -406,6 +406,22 @@ class ApiService:
 
         return keys
 
+    @handle_api_errors(operation_name="Count API keys")
+    def count_api_keys(self, active_only: bool = False) -> int:
+        """Return the exact count of API keys, optionally filtered to active ones.
+
+        Unlike list_api_keys(), not subject to the server's 1000-row pagination
+        cap - used by `orbit key rotate-pepper --dry-run`.
+        """
+        headers = self._get_auth_headers()
+        params = {'active_only': 'true'} if active_only else {}
+        response = self.api_client.get("/admin/api-keys/count", headers=headers, params=params)
+        response.raise_for_status()
+        count = response.json()['count']
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise ValueError("API key count response is not a non-negative integer")
+        return count
+
     @handle_api_errors(operation_name="Renew API key")
     def renew_api_key(self, api_key_id: str, expires_in_days: int | None = None,
                        non_expiring: bool = False, expiration_justification: str | None = None) -> dict[str, Any]:

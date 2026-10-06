@@ -293,6 +293,30 @@ class DatabaseService(ABC):
         return len(results)
 
     @abstractmethod
+    async def count_strict(
+        self,
+        collection_name: str,
+        query: dict[str, Any]
+    ) -> int:
+        """
+        Like count(), but raises DatabaseOperationError on a query failure
+        instead of swallowing it to 0. Every backend's count() catches its
+        driver's exceptions and returns 0 on failure (consistent with the rest
+        of this class's best-effort read methods), which is indistinguishable
+        from "zero matching records" - unsafe for a caller that reports a
+        count as a safety/blast-radius figure (e.g. how many API keys a pepper
+        rotation would invalidate) and must not silently tell an operator
+        "zero" when the real answer is "unknown".
+
+        Backends must implement this without delegating to a count method that
+        turns database failures into zero.
+
+        Raises:
+            DatabaseOperationError: if the query itself failed
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def find_user_session_summaries(
         self,
         collection_name: str,

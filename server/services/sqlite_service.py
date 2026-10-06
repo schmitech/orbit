@@ -1387,6 +1387,34 @@ class SQLiteService(DatabaseService):
             logger.error(f"Error counting records in {collection_name}: {e!s}")
             return 0
 
+    async def count_strict(self, collection_name: str, query: dict[str, Any]) -> int:
+        """Like count(), but raises DatabaseOperationError on a query failure
+        instead of swallowing it to 0 - see DatabaseService.count_strict()."""
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            where_clause, params = self._convert_query_to_sql(collection_name, query)
+
+            sql = f"SELECT COUNT(*) as cnt FROM {collection_name}"
+            if where_clause:
+                sql += f" WHERE {where_clause}"
+
+            loop = asyncio.get_running_loop()
+            row = await loop.run_in_executor(
+                self.executor,
+                self._execute_sql_fetchone,
+                sql,
+                params
+            )
+            if row is None:
+                raise DatabaseOperationError("COUNT query returned no row")
+            return row["cnt"]
+
+        except Exception as e:
+            logger.error(f"Error counting records in {collection_name}: {e!s}")
+            raise DatabaseOperationError(str(e)) from e
+
     async def find_user_session_summaries(
         self,
         collection_name: str,

@@ -61,6 +61,37 @@ pepper rotation like a full API key rotation: after changing `ORBIT_API_KEY_PEPP
 existing key stops authenticating and must be recreated (`orbit key create`) and redistributed
 to clients.
 
+Before rotating, find out the blast radius:
+
+```bash
+orbit key rotate-pepper --dry-run
+```
+
+This reports how many active (and total) keys exist today — i.e. how many would stop
+authenticating — so you know the blast radius before you act.
+
+There is no way to avoid a break window with the current design: `ApiKeyService` looks up a key by
+hashing it with whatever pepper is *currently* configured, so the moment `ORBIT_API_KEY_PEPPER`
+changes, every existing key stops matching — including one created seconds beforehand under the
+old pepper. A "generate new keys first, confirm they're in use, then rotate" sequence does not
+work here; it would just add a second batch of keys that *also* break the instant you rotate.
+Minimize the window instead:
+
+1. Prepare in advance: have the full client list and your key-creation/redistribution tooling
+   ready to run immediately after the rotation (e.g. scripted `orbit key create` calls per
+   client), ideally during a maintenance window.
+2. Change `ORBIT_API_KEY_PEPPER` and restart the server.
+3. Immediately recreate and redistribute keys to every affected client.
+
+Treat this like a full API key rotation across your whole client base, timed to minimize — not
+eliminate — the outage.
+
+If the pepper does change between restarts without this step having been run deliberately — for
+example a misconfigured deployment losing track of the configured secret — `ApiKeyService` logs a
+warning naming how many active keys will fail to validate, rather than each key failing silently
+one at a time in production traffic. This detection is based on a non-reversible fingerprint of
+the pepper persisted alongside the API key store; the pepper itself is never stored.
+
 ## Upgrading an existing installation
 
 Rows created before this feature shipped have the real plaintext key in the legacy `api_key`

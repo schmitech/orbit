@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Security
+- **Pepper Rotation Tooling (Phase 5 of Admin/API-Key Hardening)**: Rotating `ORBIT_API_KEY_PEPPER` was previously an unguided, all-at-once break with no way to know its impact beforehand. `orbit key rotate-pepper --dry-run` now reports how many active (and total) API keys exist via a new `GET /admin/api-keys/count` route, without changing anything; a startup check in `ApiKeyService` detects when the pepper has changed since the last restart (via a non-reversible fingerprint, never the pepper itself) and logs a warning naming the number of active keys that will fail to validate, instead of each key failing silently one at a time in production traffic. A database failure during either count now fails loudly (503 / a count-pending warning) rather than reporting a misleading "0 keys affected." See `docs/security/api-key-pepper-setup.md` for the corrected rotation runbook and `docs/roadmap/admin-api-security-hardening.md` (Phase 5).
+
 ## [2.18.0] - 2026-10-04
 
 ### Breaking Changes

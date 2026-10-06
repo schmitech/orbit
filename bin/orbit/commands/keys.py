@@ -460,3 +460,50 @@ class KeyListAdaptersCommand(BaseCommand):
                 console.print("No adapters configured")
                 console.print("Check config/adapters.yaml for adapter configuration")
         return 0
+
+
+class KeyRotatePepperCommand(BaseCommand):
+    """Command to report the blast radius of rotating ORBIT_API_KEY_PEPPER."""
+
+    def __init__(self, api_service: ApiService, formatter: OutputFormatter):
+        self.api_service = api_service
+        self.formatter = formatter
+
+    @property
+    def name(self) -> str:
+        return "key rotate-pepper"
+
+    @property
+    def description(self) -> str:
+        return "Report the blast radius of rotating ORBIT_API_KEY_PEPPER"
+
+    def add_arguments(self, parser: argparse.ArgumentParser) -> None:
+        parser.add_argument(
+            '--dry-run', action='store_true',
+            help='Report how many active keys would need reissuing without changing anything'
+        )
+
+    def execute(self, args: argparse.Namespace) -> int:
+        if not args.dry_run:
+            self.formatter.error(
+                "orbit key rotate-pepper only supports --dry-run. Rotate ORBIT_API_KEY_PEPPER "
+                "itself by changing the server's environment/config and restarting - see "
+                "docs/security/api-key-pepper-setup.md for the rotation runbook."
+            )
+            return 1
+
+        active_count = self.api_service.count_api_keys(active_only=True)
+        total_count = self.api_service.count_api_keys(active_only=False)
+
+        if getattr(args, 'output', None) == 'json':
+            self.formatter.format_json({'active_keys': active_count, 'total_keys': total_count})
+        else:
+            console.print(
+                f"[bold]{active_count}[/bold] active API key(s) out of {total_count} total "
+                "would stop authenticating if ORBIT_API_KEY_PEPPER is rotated."
+            )
+            console.print(
+                "No changes made (dry run). See docs/security/api-key-pepper-setup.md for the "
+                "recommended rotation runbook."
+            )
+        return 0

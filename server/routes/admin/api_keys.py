@@ -18,7 +18,8 @@ from routes.auth_helpers import check_service_availability
 from routes.admin._shared import (
     _serialize_created_at, get_api_key_service, apikeys_auth,
 )
-from services.api_key_service import _masked_key_display
+from services.api_key_service import _masked_key_display, count_active_or_total_api_keys
+from services.database_service import DatabaseOperationError
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,34 @@ async def create_api_key(
         logger.info(f"Created API key: {masked_api_key}")
     
     return api_key_response
+
+
+@router.get("/api-keys/count", dependencies=[apikeys_auth])
+async def count_api_keys(
+    request: Request,
+    active_only: bool = False,
+):
+    """
+    Return an exact count of API keys, optionally filtered to active ones.
+
+    Unlike GET /api-keys, this is not subject to the 1000-row pagination cap -
+    used by `orbit key rotate-pepper --dry-run` to report the exact blast
+    radius of a pepper rotation.
+    """
+    api_key_service = getattr(request.app.state, 'api_key_service', None)
+    check_service_availability(api_key_service, "API key service")
+
+    if not api_key_service._initialized:
+        await api_key_service.initialize()
+
+    try:
+        count = await count_active_or_total_api_keys(
+            api_key_service.database, api_key_service.collection_name, active_only=active_only
+        )
+    except DatabaseOperationError as exc:
+        raise HTTPException(status_code=503, detail="Unable to count API keys: database error") from exc
+
+    return {"count": count, "active_only": active_only}
 
 
 @router.get("/api-keys", dependencies=[apikeys_auth])

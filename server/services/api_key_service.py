@@ -23,13 +23,14 @@ import hashlib
 
 from utils.text_utils import mask_api_key
 from utils.generation_model_resolver import resolve_generation_model
-from services.database_service import DatabaseService
+from services.database_service import DatabaseService, DatabaseOperationError
 from adapters.capabilities import AdapterCapabilities
 
 logger = logging.getLogger(__name__)
 
 _INSECURE_DEFAULT_PEPPER = "orbit-insecure-default-pepper-set-ORBIT_API_KEY_PEPPER"
 _pepper_warning_logged = False
+_PEPPER_STATE_COLLECTION = "system_state"
 
 
 def _get_api_key_pepper(config: dict[str, Any]) -> str:
@@ -61,6 +62,41 @@ def hash_api_key(api_key: str, config: dict[str, Any]) -> str:
     """
     pepper = _get_api_key_pepper(config)
     return hmac.new(pepper.encode(), api_key.encode(), hashlib.sha256).hexdigest()
+
+
+def _pepper_fingerprint(pepper: str) -> str:
+    """Non-reversible fingerprint of the active pepper, safe to persist/log.
+
+    Never store or log the pepper itself - only enough of a hash to detect
+    that it changed between restarts.
+    """
+    return hashlib.sha256(pepper.encode()).hexdigest()[:16]
+
+
+async def count_active_or_total_api_keys(
+    database: DatabaseService, collection_name: str, active_only: bool
+) -> int:
+    """Count API keys, matching the "active" semantics the rest of this module
+    uses: a key is active unless its `active` field is explicitly False (see
+    e.g. validate_api_key()/revoke_api_key() above) - NOT "active == True",
+    which would wrongly exclude legacy/Mongo documents with no `active` field
+    at all. Computed as total minus explicitly-inactive, since the datastore
+    query layer's $ne doesn't match NULL/missing fields in SQL backends.
+
+    Uses count_strict() so a database failure raises DatabaseOperationError
+    rather than reporting a confident-looking zero - this count is used for a
+    safety/blast-radius figure (dry-run pepper rotation, startup pepper-change
+    warning) where silently reporting "0 affected" on an outage would be
+    actively misleading.
+
+    Raises:
+        DatabaseOperationError: if either underlying count query fails.
+    """
+    total = await database.count_strict(collection_name, {})
+    if not active_only:
+        return total
+    inactive = await database.count_strict(collection_name, {"active": False})
+    return total - inactive
 
 
 def _masked_key_display(key_doc: dict[str, Any]) -> str:
@@ -247,10 +283,54 @@ class ApiKeyService:
         await self.database.create_index(self.collection_name, "api_key_hash", unique=True)
         logger.info("Created unique index on api_key_hash field")
 
+        await self._check_pepper_rotation()
+
         # Set initialized flag
         self._initialized = True
 
         logger.info("API Key Service initialized successfully")
+
+    async def _check_pepper_rotation(self) -> None:
+        """Warn loudly if ORBIT_API_KEY_PEPPER changed since the last restart.
+
+        Persists a fingerprint of the active pepper (never the pepper itself) in
+        the `system_state` collection, the same durable cross-restart store used
+        by pause_state.py. Best-effort: a failure here must never block startup -
+        this is advisory tooling, not a security gate.
+        """
+        fingerprint = _pepper_fingerprint(_get_api_key_pepper(self.config))
+        doc_id = f"api_key_pepper_fingerprint:{self.collection_name}"
+
+        try:
+            existing = await self.database.find_one(_PEPPER_STATE_COLLECTION, {"_id": doc_id})
+            if existing is not None and existing.get("value") != fingerprint:
+                try:
+                    stale_count = await count_active_or_total_api_keys(
+                        self.database, self.collection_name, active_only=True
+                    )
+                    logger.warning(
+                        "ORBIT_API_KEY_PEPPER appears to have changed since the last restart: "
+                        "%d active API key(s) will fail to validate until reissued.",
+                        stale_count,
+                    )
+                except DatabaseOperationError:
+                    # Count itself is unreliable right now - don't claim a number (see
+                    # count_active_or_total_api_keys docstring); still warn that a
+                    # rotation happened.
+                    logger.warning(
+                        "ORBIT_API_KEY_PEPPER appears to have changed since the last restart: "
+                        "existing API keys will fail to validate until reissued "
+                        "(could not determine exact count due to a database error)."
+                    )
+
+            if existing is None:
+                await self.database.insert_one(_PEPPER_STATE_COLLECTION, {"_id": doc_id, "value": fingerprint})
+            elif existing.get("value") != fingerprint:
+                await self.database.update_one(
+                    _PEPPER_STATE_COLLECTION, {"_id": doc_id}, {"$set": {"value": fingerprint}}
+                )
+        except Exception:
+            logger.debug("Could not check ORBIT_API_KEY_PEPPER fingerprint", exc_info=True)
 
     def _generate_api_key(self, length: int = 32) -> str:
         """

@@ -581,6 +581,20 @@ class MongoDBService(DatabaseService):
             logger.error(f"Error counting documents in {collection_name}: {e!s}")
             return 0
 
+    async def count_strict(self, collection_name: str, query: dict[str, Any]) -> int:
+        """Like count(), but raises DatabaseOperationError on a query failure
+        instead of swallowing it to 0 - see DatabaseService.count_strict()."""
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            collection = self.get_collection(collection_name)
+            converted_query = self._convert_string_ids_to_objectid(query)
+            return await collection.count_documents(converted_query)
+        except Exception as e:
+            logger.error(f"Error counting documents in {collection_name}: {e!s}")
+            raise DatabaseOperationError(str(e)) from e
+
     async def find_user_session_summaries(
         self,
         collection_name: str,

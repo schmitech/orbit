@@ -457,7 +457,7 @@ Postgres trigram indexing, the bounded-fallback SQL, and the
 Postgres or Elasticsearch in this sandbox (AST/import checks and mocked
 clients only, same limitation as elsewhere in this plan).
 
-## Phase 5 — Pepper rotation tooling
+## Phase 5 — Pepper rotation tooling ✅ DONE
 
 **Why:** rotating `ORBIT_API_KEY_PEPPER` (recommended periodically, per
 `docs/security/api-key-pepper-setup.md`) is currently an unguided,
@@ -488,6 +488,50 @@ warning, count, or dry-run.
 **Exit gate:** an operator can find out the blast radius of a pepper
 rotation before performing it; existing `test_api_key_service*.py` suites
 pass unmodified.
+
+**Status: shipped.** `orbit key rotate-pepper --dry-run` (CLI:
+`bin/orbit/commands/keys.py`'s `KeyRotatePepperCommand`, wired in
+`bin/orbit/cli.py`) reports active/total key counts via a new
+`GET /admin/api-keys/count` route (`server/routes/admin/api_keys.py`), backed
+by a new `DatabaseService.count_strict()` (added to the abstract base and all
+three backends — SQLite, Postgres, MongoDB — alongside the existing `count()`)
+that raises `DatabaseOperationError` instead of swallowing a failed query to a
+confident-looking `0`. The route returns 503 on that failure rather than
+reporting a fabricated zero-key blast radius; the CLI (`ApiService.count_api_keys()`)
+separately rejects a missing/invalid `count` in the response.
+
+The active-key count is computed as total minus explicitly-inactive
+(`count_active_or_total_api_keys()` in `services/api_key_service.py`), not a
+naive `{"active": True}` filter — `ApiKeyService` elsewhere treats a key as
+active unless its `active` field is explicitly `False`, so a naive filter
+would undercount legacy/Mongo documents with no `active` field at all.
+
+The startup check lives in `ApiKeyService._check_pepper_rotation()`, called
+from `initialize()`: it persists a non-reversible fingerprint
+(`_pepper_fingerprint()`, SHA-256 truncated to 16 hex chars — never the pepper
+itself) in the `system_state` collection, the same durable cross-restart store
+`pause_state.py` uses. A fingerprint mismatch logs a warning naming the active
+key count (or, if the count query itself fails, a warning that still fires but
+says the count is unknown rather than guessing). The check is best-effort and
+never blocks startup.
+
+The documented rotation runbook was corrected during review: an initial draft
+described a "generate new keys first, confirm they're in use, then rotate"
+no-break-window path, which doesn't work with a single global pepper — a key
+created seconds before rotation is hashed under the pepper active at creation
+time and breaks the instant the pepper changes, same as every older key. The
+runbook (`docs/security/api-key-pepper-setup.md`) now describes minimizing,
+not eliminating, the break window: prepare client lists and redistribution
+tooling in advance, then rotate and redistribute immediately.
+
+Tests: `server/tests/test_auth/test_api_key_pepper_rotation.py` (8 cases —
+first-run/unchanged/changed fingerprint behavior, legacy-key-without-`active`-field
+counting, `count_strict` failure propagation, and the warning's fallback
+message on a count failure), `server/tests/test_admin/test_api_key_count_route.py`
+(3 cases — active-only, total, and 503-on-database-error), and
+`server/tests/test_cli/test_key_rotate_pepper_command.py` (6 cases — reported
+counts, no mutating calls, `--dry-run` required, and the CLI's own rejection
+of a missing/invalid `count` in the response). 17/17 pass.
 
 ## Phase 6 — Housekeeping
 

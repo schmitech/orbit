@@ -35,7 +35,8 @@ from bin.orbit.commands.auth import (
 )
 from bin.orbit.commands.keys import (
     KeyCreateCommand, KeyListCommand, KeyTestCommand, KeyStatusCommand,
-    KeyRenameCommand, KeyRenewCommand, KeyDeactivateCommand, KeyDeleteCommand, KeyListAdaptersCommand
+    KeyRenameCommand, KeyRenewCommand, KeyDeactivateCommand, KeyDeleteCommand, KeyListAdaptersCommand,
+    KeyRotatePepperCommand
 )
 from bin.orbit.commands.prompts import (
     PromptCreateCommand, PromptListCommand, PromptGetCommand,
@@ -402,6 +403,12 @@ Report issues at: https://github.com/schmitech/orbit/issues
         list_adapters_cmd = KeyListAdaptersCommand(self.config_service, self.formatter)
         list_adapters_cmd.add_arguments(list_adapters_parser)
         list_adapters_parser.set_defaults(func=lambda args, cmd=list_adapters_cmd: cmd.execute(args))
+
+        # Rotate-pepper command
+        rotate_pepper_parser = key_subparsers.add_parser('rotate-pepper', help='Report the blast radius of rotating ORBIT_API_KEY_PEPPER')
+        rotate_pepper_cmd = KeyRotatePepperCommand(self._get_api_service(), self.formatter)
+        rotate_pepper_cmd.add_arguments(rotate_pepper_parser)
+        rotate_pepper_parser.set_defaults(func=lambda args, cmd=rotate_pepper_cmd, cli=self: cli._update_command_services(cmd, args) or cmd.execute(args))
     
     def _add_prompt_commands(self, subparsers):
         """Add system prompt management commands."""
