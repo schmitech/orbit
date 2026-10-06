@@ -53,8 +53,8 @@ Explore the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) for a detailed 
 **Prerequisites:** Python 3.11+ (3.12 preferred), an internet connection for downloads, and [Ollama](https://ollama.com/) installed and running. If needed, run `ollama serve` in a separate terminal. On Windows, follow the [installation guide](install/windows.md).
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.18.0/orbit-2.18.0.tar.gz
-tar -xzf orbit-2.18.0.tar.gz && cd orbit-2.18.0
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.18.1/orbit-2.18.1.tar.gz
+tar -xzf orbit-2.18.1.tar.gz && cd orbit-2.18.1
 ./install/setup.sh --profile default
 
 ollama pull gemma4:e2b
