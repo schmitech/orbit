@@ -24,7 +24,7 @@ Orbit uses SQLite as an alternative backend to MongoDB for data persistence. The
 - `audit_logs` - Audit trail records for conversation logging and compliance
 - `audit_admin_logs` - Audit trail records for admin/auth mutations (user CRUD, API-key management, config changes, login/logout, etc.)
 - `feedback` - User feedback (thumbs up/down) on chat responses
-- `system_state` - Small durable key/value store for cross-process server coordination state (e.g. the server pause flag)
+- `system_state` - Small durable key/value store for cross-process server coordination state (e.g. the server pause flag, the API-key pepper fingerprint)
 - `adapter_reload_state` - Durable generation counters propagating adapter/template reloads across `performance.workers` processes
 
 ## Database File Location
@@ -907,18 +907,20 @@ CREATE TABLE IF NOT EXISTS feedback (
 
 ### system_state
 
-Small durable key/value store for cross-process coordination state that must survive cache flushes and worker restarts — currently just the server pause flag set via `POST /admin/pause` / `POST /admin/resume`. Not a cache: rows here are never cleared on startup or by any cache-invalidation path.
+Small durable key/value store for cross-process coordination state that must survive cache flushes and worker restarts — the server pause flag set via `POST /admin/pause` / `POST /admin/resume`, and the `ORBIT_API_KEY_PEPPER` rotation fingerprint tracked by `api_key_service.py`. Not a cache: rows here are never cleared on startup or by any cache-invalidation path.
 
 ```sql
 CREATE TABLE IF NOT EXISTS system_state (
     id TEXT PRIMARY KEY,
-    value INTEGER
+    value INTEGER,
+    value_text TEXT
 )
 ```
 
 **Fields:**
-- `id` (TEXT, PK): Row key. Currently one row: `server_paused`
-- `value` (INTEGER): Boolean value for the row (1=true, 0=false)
+- `id` (TEXT, PK): Row key. Rows: `server_paused` (pause_state.py), `api_key_pepper_fingerprint:<collection>` (api_key_service.py)
+- `value` (INTEGER): Boolean value for `server_paused` (1=true, 0=false). `NULL` for other rows.
+- `value_text` (TEXT): String value for rows that aren't a boolean flag — currently the pepper fingerprint (first 16 hex chars of its SHA-256), used to detect pepper rotation across restarts; never the raw pepper itself. `NULL` for `server_paused`. Separate from `value` because the Postgres backend's `value` column is a strict `INTEGER` and rejects a hex string — see `docs/postgres-schema.md#system_state`.
 
 **Indexes:** none — the single-row PK lookup by `id` doesn't need one.
 
@@ -1118,6 +1120,9 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v2.1** (2026-10-06): `system_state.value_text` column (breaking change; matches Postgres v2.1)
+  - Added `system_state.value_text` (TEXT) so `api_key_service.py` can persist the `ORBIT_API_KEY_PEPPER` fingerprint without colliding with `value`'s `INTEGER` type — harmless on SQLite's dynamic typing, but the Postgres backend rejected the hex string with `invalid input syntax for type integer` on every reload/restart
+  - No startup migration — per the v2.0 clean-schema policy, a database created before this version must be recreated
 - **v2.0** (2026-10-04): Runtime schema migrations removed (breaking change; matches Postgres v2.0)
   - `SQLiteService` no longer runs `_migrate_table_schema` (the startup `PRAGMA table_info` + `ALTER TABLE ADD COLUMN` pass) — `CREATE TABLE IF NOT EXISTS` now defines the full, current schema and is the only startup DDL step
   - Dropped the legacy `api_keys.api_key` column (and its `idx_api_keys_api_key` index); `api_keys.api_key_hash` is now `NOT NULL` and the sole lookup key. `ApiKeyService` no longer has a plaintext-key fallback path or a legacy-expiration backfill (`_migrate_legacy_expirations`)

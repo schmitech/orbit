@@ -202,5 +202,5 @@ async def test_persisted_fingerprint_never_stores_raw_pepper(db_path):
     stored = await service.database.find_one("system_state", {"_id": doc_id})
 
     assert stored is not None
-    assert stored["value"] == _pepper_fingerprint("super-secret-pepper-value")
-    assert "super-secret-pepper-value" not in stored["value"]
+    assert stored["value_text"] == _pepper_fingerprint("super-secret-pepper-value")
+    assert "super-secret-pepper-value" not in stored["value_text"]

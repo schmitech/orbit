@@ -303,7 +303,13 @@ class ApiKeyService:
 
         try:
             existing = await self.database.find_one(_PEPPER_STATE_COLLECTION, {"_id": doc_id})
-            if existing is not None and existing.get("value") != fingerprint:
+            # Mongo/legacy rows from before the dedicated value_text column stored the
+            # fingerprint in 'value' - fall back to it so upgrading doesn't look like a
+            # pepper rotation that never happened.
+            stored_fingerprint = existing.get("value_text") if existing is not None else None
+            if stored_fingerprint is None and existing is not None:
+                stored_fingerprint = existing.get("value")
+            if existing is not None and stored_fingerprint != fingerprint:
                 try:
                     stale_count = await count_active_or_total_api_keys(
                         self.database, self.collection_name, active_only=True
@@ -324,10 +330,12 @@ class ApiKeyService:
                     )
 
             if existing is None:
-                await self.database.insert_one(_PEPPER_STATE_COLLECTION, {"_id": doc_id, "value": fingerprint})
-            elif existing.get("value") != fingerprint:
+                await self.database.insert_one(_PEPPER_STATE_COLLECTION, {"_id": doc_id, "value_text": fingerprint})
+            elif existing.get("value_text") != fingerprint:
+                # Also covers migrating a legacy row (fingerprint only in 'value') onto
+                # value_text even when the pepper itself hasn't changed.
                 await self.database.update_one(
-                    _PEPPER_STATE_COLLECTION, {"_id": doc_id}, {"$set": {"value": fingerprint}}
+                    _PEPPER_STATE_COLLECTION, {"_id": doc_id}, {"$set": {"value_text": fingerprint}}
                 )
         except Exception:
             logger.debug("Could not check ORBIT_API_KEY_PEPPER fingerprint", exc_info=True)

@@ -406,7 +406,8 @@ class SQLiteService(DatabaseService):
             'system_state': '''
                 CREATE TABLE IF NOT EXISTS system_state (
                     id TEXT PRIMARY KEY,
-                    value INTEGER
+                    value INTEGER,
+                    value_text TEXT
                 )
             ''',
             'adapter_reload_state': '''

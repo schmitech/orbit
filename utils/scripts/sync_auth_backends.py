@@ -246,6 +246,7 @@ def sync_sqlite_to_mongo(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
     sqlite_prompts = read_sqlite_prompts(conn)
     mongo_prompts = list(prompts_coll.find({}))
     mongo_by_name = {p["name"]: p for p in mongo_prompts}
+    existing_prompt_ids = {mongo_id_str(p["_id"]) for p in mongo_prompts}
 
     # Map SQLite prompt id -> MongoDB _id (string) for cross-ref resolution
     prompt_id_map: Dict[str, str] = {}
@@ -266,7 +267,7 @@ def sync_sqlite_to_mongo(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
                 prompts_coll.update_one({"_id": existing["_id"]}, {"$set": changes})
             updated += 1
         else:
-            new_id = p["id"] or str(uuid.uuid4())
+            new_id = resolve_new_id(p["id"], existing_prompt_ids)
             doc["_id"] = new_id
             prompt_id_map[p["id"]] = new_id
             print(f"  INSERT prompt '{name}' (_id={new_id})")
@@ -288,6 +289,7 @@ def sync_sqlite_to_mongo(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
     sqlite_keys = read_sqlite_api_keys(conn)
     mongo_keys = list(keys_coll.find({}))
     mongo_by_id = {key_identifier(k): k for k in mongo_keys if key_identifier(k)}
+    existing_key_ids = {mongo_id_str(k["_id"]) for k in mongo_keys}
 
     inserted = updated = unchanged = 0
     for k in sqlite_keys:
@@ -315,7 +317,7 @@ def sync_sqlite_to_mongo(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
                 keys_coll.update_one({"_id": existing["_id"]}, {"$set": changes})
             updated += 1
         else:
-            new_id = k["id"] or str(uuid.uuid4())
+            new_id = resolve_new_id(k["id"], existing_key_ids)
             doc["_id"] = new_id
             print(f"  INSERT api_key {key_display(k)}... (_id={new_id})")
             if not dry_run:
@@ -389,6 +391,7 @@ def sync_mongo_to_sqlite(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
     print("== Syncing system_prompts: MongoDB -> SQLite ==")
     mongo_prompts = list(mdb["system_prompts"].find({}))
     sqlite_prompts = {r["name"]: r for r in conn.execute("SELECT * FROM system_prompts").fetchall()}
+    existing_prompt_ids = {r["id"] for r in sqlite_prompts.values()}
 
     # Map MongoDB prompt _id -> SQLite id (for api_keys.system_prompt_id rewrite)
     prompt_id_map: Dict[str, str] = {}
@@ -400,9 +403,10 @@ def sync_mongo_to_sqlite(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
             continue
         existing = sqlite_prompts.get(name)
         # Carry the Mongo _id forward as the SQLite id when inserting new rows
-        # (uses string form; if it's an ObjectId we'd rather mint a UUID for portability).
+        # (uses string form; if it's an ObjectId we'd rather mint a UUID for portability),
+        # unless that id is already taken by an unrelated row in the destination.
         mongo_id = mongo_id_str(p.get("_id"))
-        sqlite_new_id = mongo_id if (mongo_id and _looks_like_uuid(mongo_id)) else str(uuid.uuid4())
+        sqlite_new_id = resolve_new_id(mongo_id, existing_prompt_ids)
 
         if existing:
             prompt_id_map[mongo_id] = existing["id"]
@@ -432,11 +436,15 @@ def sync_mongo_to_sqlite(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
                 if not dry_run:
                     conn.execute("DELETE FROM system_prompts WHERE id = ?", (row["id"],))
     print(f"  prompts: inserted={inserted} updated={updated} unchanged={unchanged}")
+    if not dry_run:
+        # Commit prompts now so a later api_keys failure doesn't roll back this progress too.
+        conn.commit()
 
     print("== Syncing api_keys: MongoDB -> SQLite ==")
     mongo_keys = list(mdb["api_keys"].find({}))
     sqlite_rows = conn.execute("SELECT * FROM api_keys").fetchall()
     sqlite_keys = {key_identifier(dict(r)): r for r in sqlite_rows if key_identifier(dict(r))}
+    existing_key_ids = {r["id"] for r in sqlite_rows}
 
     inserted = updated = unchanged = 0
     for k in mongo_keys:
@@ -463,7 +471,7 @@ def sync_mongo_to_sqlite(conn: sqlite3.Connection, mdb, dry_run: bool, delete_mi
 
         existing = sqlite_keys.get(key_id)
         mongo_id = mongo_id_str(k.get("_id"))
-        doc["_sqlite_id"] = mongo_id if (mongo_id and _looks_like_uuid(mongo_id)) else str(uuid.uuid4())
+        doc["_sqlite_id"] = resolve_new_id(mongo_id, existing_key_ids)
 
         if existing:
             # Compare normalized values
@@ -687,6 +695,7 @@ def sync_sqlite_to_postgres(
     sqlite_prompts = read_sqlite_prompts(sqlite_conn)
     postgres_prompts = read_postgres_prompts(pg_conn)
     postgres_by_name = {p["name"]: p for p in postgres_prompts if p.get("name")}
+    existing_prompt_ids = {p["id"] for p in postgres_prompts if p.get("id")}
 
     prompt_id_map: Dict[str, str] = {}
     inserted = updated = unchanged = 0
@@ -712,7 +721,7 @@ def sync_sqlite_to_postgres(
             upsert_postgres_prompt(pg_conn, existing, p, dry_run)
             updated += 1
         else:
-            new_id = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+            new_id = resolve_new_id(source_id, existing_prompt_ids)
             print(f"  INSERT prompt '{name}' (id={new_id})")
             doc = dict(p)
             doc["_postgres_id"] = new_id
@@ -729,11 +738,15 @@ def sync_sqlite_to_postgres(
                 if not dry_run:
                     pg_conn.execute("DELETE FROM system_prompts WHERE id = %s", (p["id"],))
     print(f"  prompts: inserted={inserted} updated={updated} unchanged={unchanged}")
+    if not dry_run:
+        # Commit prompts now so a later api_keys failure doesn't roll back this progress too.
+        pg_conn.commit()
 
     print("== Syncing api_keys: SQLite -> PostgreSQL ==")
     sqlite_keys = read_sqlite_api_keys(sqlite_conn)
     postgres_keys = read_postgres_api_keys(pg_conn)
     postgres_by_id = {key_identifier(k): k for k in postgres_keys if key_identifier(k)}
+    existing_key_ids = {k["id"] for k in postgres_keys if k.get("id")}
 
     inserted = updated = unchanged = 0
     for k in sqlite_keys:
@@ -753,7 +766,7 @@ def sync_sqlite_to_postgres(
 
         existing = postgres_by_id.get(key_id)
         source_id = k.get("id")
-        doc["_postgres_id"] = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+        doc["_postgres_id"] = resolve_new_id(source_id, existing_key_ids)
 
         if existing:
             changed = False
@@ -804,6 +817,7 @@ def sync_postgres_to_sqlite(pg_conn, sqlite_conn: sqlite3.Connection, dry_run: b
         for r in sqlite_conn.execute("SELECT * FROM system_prompts").fetchall()
         if r["name"]
     }
+    existing_prompt_ids = {r["id"] for r in sqlite_prompts.values()}
 
     # Map PostgreSQL prompt id -> SQLite prompt id for api_keys.system_prompt_id rewrite.
     prompt_id_map: Dict[str, str] = {}
@@ -829,7 +843,7 @@ def sync_postgres_to_sqlite(pg_conn, sqlite_conn: sqlite3.Connection, dry_run: b
             upsert_sqlite_prompt(sqlite_conn, existing, p, dry_run)
             updated += 1
         else:
-            new_id = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+            new_id = resolve_new_id(source_id, existing_prompt_ids)
             print(f"  INSERT prompt '{name}' (id={new_id})")
             doc = dict(p)
             doc["_sqlite_id"] = new_id
@@ -846,11 +860,15 @@ def sync_postgres_to_sqlite(pg_conn, sqlite_conn: sqlite3.Connection, dry_run: b
                 if not dry_run:
                     sqlite_conn.execute("DELETE FROM system_prompts WHERE id = ?", (row["id"],))
     print(f"  prompts: inserted={inserted} updated={updated} unchanged={unchanged}")
+    if not dry_run:
+        # Commit prompts now so a later api_keys failure doesn't roll back this progress too.
+        sqlite_conn.commit()
 
     print("== Syncing api_keys: PostgreSQL -> SQLite ==")
     postgres_keys = read_postgres_api_keys(pg_conn)
     sqlite_rows = sqlite_conn.execute("SELECT * FROM api_keys").fetchall()
     sqlite_keys = {key_identifier(dict(r)): r for r in sqlite_rows if key_identifier(dict(r))}
+    existing_key_ids = {r["id"] for r in sqlite_rows}
 
     inserted = updated = unchanged = 0
     for k in postgres_keys:
@@ -870,7 +888,7 @@ def sync_postgres_to_sqlite(pg_conn, sqlite_conn: sqlite3.Connection, dry_run: b
 
         existing = sqlite_keys.get(key_id)
         source_id = k.get("id")
-        doc["_sqlite_id"] = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+        doc["_sqlite_id"] = resolve_new_id(source_id, existing_key_ids)
 
         if existing:
             changed = False
@@ -922,6 +940,7 @@ def sync_sqlite_to_sqlite(
         for r in dest_conn.execute("SELECT * FROM system_prompts").fetchall()
         if r["name"]
     }
+    existing_prompt_ids = {r["id"] for r in dest_prompts.values()}
 
     # Map source prompt id -> destination prompt id for api_keys.system_prompt_id.
     prompt_id_map: Dict[str, str] = {}
@@ -947,7 +966,7 @@ def sync_sqlite_to_sqlite(
             upsert_sqlite_prompt(dest_conn, existing, p, dry_run)
             updated += 1
         else:
-            new_id = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+            new_id = resolve_new_id(source_id, existing_prompt_ids)
             print(f"  INSERT prompt '{name}' (id={new_id})")
             doc = dict(p)
             doc["_sqlite_id"] = new_id
@@ -964,11 +983,15 @@ def sync_sqlite_to_sqlite(
                 if not dry_run:
                     dest_conn.execute("DELETE FROM system_prompts WHERE id = ?", (row["id"],))
     print(f"  prompts: inserted={inserted} updated={updated} unchanged={unchanged}")
+    if not dry_run:
+        # Commit prompts now so a later api_keys failure doesn't roll back this progress too.
+        dest_conn.commit()
 
     print("== Syncing api_keys: SQLite -> SQLite ==")
     source_keys = read_sqlite_api_keys(source_conn)
     dest_rows = dest_conn.execute("SELECT * FROM api_keys").fetchall()
     dest_keys = {key_identifier(dict(r)): r for r in dest_rows if key_identifier(dict(r))}
+    existing_key_ids = {r["id"] for r in dest_rows}
 
     inserted = updated = unchanged = 0
     for k in source_keys:
@@ -988,7 +1011,7 @@ def sync_sqlite_to_sqlite(
 
         existing = dest_keys.get(key_id)
         source_id = k.get("id")
-        doc["_sqlite_id"] = source_id if (source_id and _looks_like_uuid(source_id)) else str(uuid.uuid4())
+        doc["_sqlite_id"] = resolve_new_id(source_id, existing_key_ids)
 
         if existing:
             changed = False
@@ -1031,6 +1054,21 @@ def _looks_like_uuid(value: str) -> bool:
         return True
     except (ValueError, AttributeError, TypeError):
         return False
+
+
+def resolve_new_id(source_id: Optional[str], existing_ids: set) -> str:
+    """Pick an id for a brand-new row in the destination.
+
+    Reuses the source row's id when it's a UUID and not already taken by some
+    *other* row in the destination (two databases seeded from the same
+    orbit.db.default template can carry the same example-prompt/API-key UUID
+    under different natural keys, which would otherwise collide on insert).
+    Mutates existing_ids with the chosen id so later rows in the same sync
+    pass don't collide with each other either.
+    """
+    new_id = source_id if (source_id and _looks_like_uuid(source_id) and source_id not in existing_ids) else str(uuid.uuid4())
+    existing_ids.add(new_id)
+    return new_id
 
 
 def main() -> int:
