@@ -230,7 +230,7 @@ def finalize_usage_components(container, context) -> None:
     last_items = last.get("line_items") or [last]
     provider = last.get("provider") or last_items[-1].get("provider")
     model = last.get("model") or last_items[-1].get("model")
-    record_usage(container, context, {}, provider, model)
+    record_usage(container, context, {}, provider, model, has_generation=False)
 
 
 def get_adapter_type(container, adapter_name: str) -> Optional[str]:
@@ -336,6 +336,7 @@ def record_usage(
     provider: Optional[str],
     model: Optional[str],
     extra: Optional[dict[str, Any]] = None,
+    has_generation: bool = True,
 ) -> None:
     """
     Turn a raw usage_sink (filled by generate_tracked/generate_stream_tracked/
@@ -350,6 +351,16 @@ def record_usage(
     extra: additional keys merged into the usage dict as-is (e.g. `calls`,
     `source`) — set AFTER pricing so callers can't accidentally clobber the
     priced fields.
+
+    has_generation: False only when no chat/generation call was attempted at
+    all for this request (see finalize_usage_components) — then it's correct
+    to fall back to a bare embedding/reranking usage record below. When a
+    generation call WAS attempted (the normal LLMInferenceStep/MCPAgentStep
+    path) but its provider simply didn't report token usage (e.g. a provider
+    that silently ignores stream_options.include_usage), that must still be
+    recorded as an unreported "chat" call_type — not misreported as
+    "embedding"/"reranking" just because a routing/RAG embedding call
+    happened to run earlier in the same request.
     """
     embedding_usage = extract_embedding_usage(container, context)
     reranking_usage = extract_reranking_usage(container, context)
@@ -397,7 +408,7 @@ def record_usage(
         line_items.extend(items)
 
     reported = bool(line_items)
-    if not reported and (embedding_usage or reranking_usage):
+    if not reported and not has_generation and (embedding_usage or reranking_usage):
         context.metadata["usage"] = embedding_usage or reranking_usage
         return
 

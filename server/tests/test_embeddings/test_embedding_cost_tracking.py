@@ -350,7 +350,8 @@ def test_missing_embedding_token_fields_are_priced_as_zero():
     )
 
     record_usage(
-        _container(pricing_service), context, {}, "openai", "gpt-test"
+        _container(pricing_service), context, {}, "openai", "gpt-test",
+        has_generation=False,
     )
 
     assert context.metadata["usage"]["call_type"] == "embedding"
