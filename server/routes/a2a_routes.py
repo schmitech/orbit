@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from routes.auth_helpers import resolve_authenticated_user, is_authenticated_user_required
 from services.chat_handlers.streaming_events import DoneEvent, ErrorEvent, ResponseEvent
+from utils.text_utils import hash_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -102,9 +103,9 @@ def create_a2a_router() -> APIRouter:
         if method == "tasks/sendSubscribe":
             return await _tasks_send_subscribe(request, rpc_id, params, adapter_name, api_key)
         if method == "tasks/get":
-            return _tasks_get(rpc_id, params)
+            return _tasks_get(rpc_id, params, api_key)
         if method == "tasks/cancel":
-            return _tasks_cancel(rpc_id, params)
+            return _tasks_cancel(rpc_id, params, api_key)
 
         return JSONResponse(content=_err(rpc_id, -32601, f"Method not found: {method}"))
 
@@ -248,13 +249,33 @@ def _extract_text(message: dict) -> str:
     return " ".join(p.get("text", "") for p in parts if p.get("type") == "text").strip()
 
 
-def _make_task(task_id: str, message: dict, state: str = "submitted") -> dict:
+def _make_task(
+    task_id: str, message: dict, state: str = "submitted", api_key: Optional[str] = None
+) -> dict:
     return {
         "id": task_id,
         "status": {"state": state},
         "history": [message],
         "artifacts": [],
+        "_owner_api_key_hash": hash_api_key(api_key) if api_key else None,
     }
+
+
+def _owned_by(task: dict, api_key: Optional[str]) -> bool:
+    """Whether the caller's key may read or mutate this task.
+
+    A task created with no key (key enforcement disabled) has no owner and is
+    accessible to any caller. Otherwise the caller must present the same key
+    that created the task.
+    """
+    owner_hash = task.get("_owner_api_key_hash")
+    if owner_hash is None:
+        return True
+    return bool(api_key) and hash_api_key(api_key) == owner_hash
+
+
+def _public_task(task: dict) -> dict:
+    return {k: v for k, v in task.items() if k != "_owner_api_key_hash"}
 
 
 def _ok(rpc_id, result) -> dict:
@@ -296,7 +317,7 @@ async def _tasks_send(
     # response body.
     await chat_service.authorize_session_access(session_id=task_id, api_key=api_key)
 
-    task = _make_task(task_id, message, "working")
+    task = _make_task(task_id, message, "working", api_key)
     _tasks[task_id] = task
 
     try:
@@ -330,7 +351,7 @@ async def _tasks_send(
             task["artifacts"][0]["metadata"] = {"sources": result["sources"]}
         _tasks[task_id] = task
 
-        return JSONResponse(content=_ok(rpc_id, task))
+        return JSONResponse(content=_ok(rpc_id, _public_task(task)))
 
     except Exception as e:  # noqa: BLE001 - route handler boundary; must convert to a JSON-RPC error response
         logger.error("A2A tasks/send failed: %s", e)
@@ -356,7 +377,7 @@ async def _tasks_send_subscribe(
         session_id=task_id, api_key=api_key
     )
 
-    task = _make_task(task_id, message, "submitted")
+    task = _make_task(task_id, message, "submitted", api_key)
     _tasks[task_id] = task
 
     async def sse_generator():
@@ -436,19 +457,21 @@ async def _tasks_send_subscribe(
     )
 
 
-def _tasks_get(rpc_id, params: dict) -> JSONResponse:
+def _tasks_get(rpc_id, params: dict, api_key: Optional[str]) -> JSONResponse:
     task_id = params.get("id")
     task = _tasks.get(task_id) if task_id else None
-    if task is None:
+    # Same "not found" response for a missing task and one owned by another
+    # caller, so this endpoint can't be used to probe which task IDs exist.
+    if task is None or not _owned_by(task, api_key):
         return JSONResponse(content=_err(rpc_id, -32001, "Task not found"))
-    return JSONResponse(content=_ok(rpc_id, task))
+    return JSONResponse(content=_ok(rpc_id, _public_task(task)))
 
 
-def _tasks_cancel(rpc_id, params: dict) -> JSONResponse:
+def _tasks_cancel(rpc_id, params: dict, api_key: Optional[str]) -> JSONResponse:
     task_id = params.get("id")
     task = _tasks.get(task_id) if task_id else None
-    if task is None:
+    if task is None or not _owned_by(task, api_key):
         return JSONResponse(content=_err(rpc_id, -32001, "Task not found"))
     task["status"] = {"state": "canceled"}
     _tasks[task_id] = task
-    return JSONResponse(content=_ok(rpc_id, task))
+    return JSONResponse(content=_ok(rpc_id, _public_task(task)))

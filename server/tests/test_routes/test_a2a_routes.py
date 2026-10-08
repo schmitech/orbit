@@ -182,6 +182,82 @@ class TestTasksGetCancel:
         assert resp.json()["error"]["code"] == -32001
 
 
+class TestTaskOwnership:
+    """GHSA-w9xh-99x5-vrw5: tasks/get and tasks/cancel must enforce ownership."""
+
+    def _key_service(self, adapter="hr"):
+        svc = MagicMock()
+        svc.get_adapter_for_api_key = AsyncMock(return_value=(adapter, None))
+        return svc
+
+    def _send(self, client, task_id, bearer):
+        body = {
+            "jsonrpc": "2.0", "id": 1, "method": "tasks/send",
+            "params": {"id": task_id, "message": {"role": "user", "parts": [{"type": "text", "text": "hi"}]}},
+        }
+        return client.post("/a2a", json=body, headers={"Authorization": f"Bearer {bearer}"})
+
+    def _get(self, client, task_id, bearer=None):
+        headers = {"Authorization": f"Bearer {bearer}"} if bearer else {}
+        body = {"jsonrpc": "2.0", "id": 1, "method": "tasks/get", "params": {"id": task_id}}
+        return client.post("/a2a", json=body, headers=headers)
+
+    def _cancel(self, client, task_id, bearer=None):
+        headers = {"Authorization": f"Bearer {bearer}"} if bearer else {}
+        body = {"jsonrpc": "2.0", "id": 1, "method": "tasks/cancel", "params": {"id": task_id}}
+        return client.post("/a2a", json=body, headers=headers)
+
+    def test_other_key_cannot_read_task(self):
+        svc = MagicMock()
+        svc.process_chat = AsyncMock(return_value={"response": "secret answer"})
+        client = TestClient(make_app(chat_service=svc, api_key_service=self._key_service()))
+
+        self._send(client, "audit-task-001", "KEY_A")
+        resp = self._get(client, "audit-task-001", "KEY_B")
+        assert resp.json()["error"]["code"] == -32001
+
+    def test_owning_key_can_read_task(self):
+        svc = MagicMock()
+        svc.process_chat = AsyncMock(return_value={"response": "secret answer"})
+        client = TestClient(make_app(chat_service=svc, api_key_service=self._key_service()))
+
+        self._send(client, "audit-task-001", "KEY_A")
+        resp = self._get(client, "audit-task-001", "KEY_A")
+        assert resp.json()["result"]["id"] == "audit-task-001"
+
+    def test_other_key_cannot_cancel_task(self):
+        svc = MagicMock()
+        svc.process_chat = AsyncMock(return_value={"response": "ok"})
+        client = TestClient(make_app(chat_service=svc, api_key_service=self._key_service()))
+
+        self._send(client, "audit-task-002", "KEY_A")
+        resp = self._cancel(client, "audit-task-002", "KEY_B")
+        assert resp.json()["error"]["code"] == -32001
+        assert _tasks["audit-task-002"]["status"]["state"] != "canceled"
+
+    def test_no_key_enforcement_treats_tasks_as_ownerless(self):
+        """Auth disabled (no api_key_service) — preserves prior unauthenticated behavior."""
+        svc = MagicMock()
+        svc.process_chat = AsyncMock(return_value={"response": "ok"})
+        client = TestClient(make_app(chat_service=svc))
+
+        client.post("/a2a", json={
+            "jsonrpc": "2.0", "id": 1, "method": "tasks/send",
+            "params": {"id": "no-auth-task", "message": {"role": "user", "parts": [{"type": "text", "text": "hi"}]}},
+        })
+        resp = self._get(client, "no-auth-task")
+        assert resp.json()["result"]["id"] == "no-auth-task"
+
+    def test_task_response_does_not_leak_owner_hash(self):
+        svc = MagicMock()
+        svc.process_chat = AsyncMock(return_value={"response": "ok"})
+        client = TestClient(make_app(chat_service=svc, api_key_service=self._key_service()))
+
+        self._send(client, "audit-task-003", "KEY_A")
+        resp = self._get(client, "audit-task-003", "KEY_A")
+        assert "_owner_api_key_hash" not in resp.json()["result"]
+
+
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
