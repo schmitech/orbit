@@ -725,12 +725,12 @@ extracted content.
 - [x] Per-adapter file encryption at rest (file bytes + metadata sidecar)
 - [x] Encrypt vector-store chunk text and chunk-level extracted content
 - [ ] Cloud KMS / envelope encryption and key rotation — see [File Encryption Roadmap](file-encryption-roadmap.md)
-- [ ] Advanced chunking (structure-aware, table-aware)
+- [ ] Advanced chunking (structure-aware, table-aware) — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
 - [ ] Multi-document analysis
 - [ ] Streaming processing for large files
 - [ ] Document versioning and history
-- [ ] Table extraction from PDFs
-- [ ] Citation and source tracking
+- [ ] Table extraction from PDFs — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
+- [ ] Citation and source tracking — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
 - [ ] Chart understanding (bar charts, line plots, etc.)
 - [ ] Chemistry structure understanding
 
