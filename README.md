@@ -70,8 +70,8 @@ Explore what you can build with ORBIT, from conversations over private data to v
 **Prerequisites:** Python 3.12+, an internet connection for downloads, and [Ollama](https://ollama.com/) installed and running. If needed, run `ollama serve` in a separate terminal. On Windows, follow the [installation guide](install/windows.md).
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.18.1/orbit-2.18.1.tar.gz
-tar -xzf orbit-2.18.1.tar.gz && cd orbit-2.18.1
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.18.2/orbit-2.18.2.tar.gz
+tar -xzf orbit-2.18.2.tar.gz && cd orbit-2.18.2
 ./install/setup.sh --profile default
 
 ollama pull gemma4:e2b

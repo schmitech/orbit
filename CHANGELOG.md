@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.18.2] - 2026-10-10
 
 ### Core Features
 - **Docling Table Extraction, Wired Up and Persisted (Phases 1.1–1.2 of Document Understanding Enhancements)**: `do_table_structure` was built but never passed to `DocumentConverter()`, so Docling's table structure was silently discarded and a table's cells were only ever retrievable as flattened prose. `DocumentConverter` now enables `do_table_structure`, and extracted tables (cells, row/column counts, page attribution) are persisted as their own chunks — stripped out of the flattened prose text so a table is never indexed twice — with a vector-store-safe scalar payload (`content_type`, `table_index`, row/column counts, page number/range) kept separate from a DB-only payload holding the full cell grid, each encrypted independently when encryption is enabled. Query-time table rendering (Phase 1.3) remains outstanding.
