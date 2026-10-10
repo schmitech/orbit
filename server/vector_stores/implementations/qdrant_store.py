@@ -603,7 +603,7 @@ class QdrantStore(BaseVectorStore):
             self._collections_cache = None
             self._cache_timestamp = None
 
-            logger.info(f"Created Qdrant collection {collection_name}")
+            logger.debug(f"Created Qdrant collection {collection_name}")
             return True
 
         except Exception as e:  # noqa: BLE001 - qdrant-client driver call, unstable third-party exception surface
@@ -630,7 +630,7 @@ class QdrantStore(BaseVectorStore):
                 self._collections_cache = None
                 self._cache_timestamp = None
 
-                logger.info(f"Deleted Qdrant collection {collection_name}")
+                logger.debug(f"Deleted Qdrant collection {collection_name}")
                 return True
             else:
                 logger.warning(f"Qdrant collection {collection_name} does not exist")
