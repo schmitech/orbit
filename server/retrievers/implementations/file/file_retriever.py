@@ -563,12 +563,56 @@ class FileVectorRetriever(AbstractVectorRetriever):
                             'token_count_estimated': piece_count.estimated,
                             'estimated': piece_count.estimated,
                         })
+                        # Carry db_metadata (e.g. a table's full cell grid, see
+                        # FileProcessingService._extract_tables_as_chunks) onto
+                        # each split piece. The whole grid is duplicated verbatim
+                        # across pieces rather than split by row — acceptable for
+                        # now (Phase 1.2) since recording it at all, under the
+                        # split piece's own id, is strictly better than losing it
+                        # entirely; true row-aware splitting is Phase 3 work.
+                        orig_db_metadata = getattr(chunk, 'db_metadata', None)
+                        sub_db_metadata = None
+                        if orig_db_metadata is not None:
+                            if isinstance(orig_db_metadata, dict) and orig_db_metadata.get('encrypted') and sub_id != orig_id:
+                                # _encrypt_chunk_metadata() encrypted this envelope
+                                # AAD-bound to orig_id, before index_file_chunks()
+                                # ever ran. _format_results() later decrypts a
+                                # stored chunk's metadata using that *stored*
+                                # chunk's own id as AAD, so a verbatim copy under
+                                # a new split id would fail authentication at
+                                # query time. Decrypt under the original id and
+                                # re-encrypt under this piece's final id instead.
+                                if encryptor is None:
+                                    raise ValueError(
+                                        "Cannot split an encrypted table chunk without its encryptor "
+                                        "to re-key the metadata envelope under the new split chunk id."
+                                    )
+                                decrypted = json.loads(encryptor.decrypt(
+                                    bytes.fromhex(orig_db_metadata['payload']), orig_id.encode('utf-8')
+                                ).decode('utf-8'))
+                                decrypted.update({
+                                    'parent_chunk_id': orig_id,
+                                    'split_index': sub_i,
+                                    'split_count': len(pieces),
+                                })
+                                new_payload = encryptor.encrypt(
+                                    json.dumps(decrypted).encode('utf-8'), sub_id.encode('utf-8')
+                                )
+                                sub_db_metadata = {'encrypted': True, 'payload': new_payload.hex()}
+                            else:
+                                sub_db_metadata = dict(orig_db_metadata)
+                                sub_db_metadata.update({
+                                    'parent_chunk_id': orig_id,
+                                    'split_index': sub_i,
+                                    'split_count': len(pieces),
+                                })
                         sub_chunk = Chunk(
                             chunk_id=sub_id,
                             file_id=getattr(chunk, 'file_id', file_id),
                             text=piece,
                             chunk_index=0,  # will be sequentially assigned below
                             metadata=sub_metadata,
+                            db_metadata=sub_db_metadata,
                         )
                         raw_validated_chunks.append(sub_chunk)
 
@@ -586,6 +630,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
                             chunk_index=idx,
                             metadata=dict(chunk.metadata),
                             embedding=chunk.embedding,
+                            db_metadata=dict(chunk.db_metadata) if chunk.db_metadata is not None else None,
                         ))
                     else:
                         validated_chunks.append(Chunk(
@@ -594,6 +639,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
                             text=getattr(chunk, 'text', str(chunk)),
                             chunk_index=idx,
                             metadata=dict(getattr(chunk, 'metadata', {})),
+                            db_metadata=getattr(chunk, 'db_metadata', None),
                         ))
 
             # Generate embeddings for chunks (always from plaintext)
@@ -669,7 +715,29 @@ class FileVectorRetriever(AbstractVectorRetriever):
             # Note: Chunks are already recorded in FileProcessingService.process_file()
             # before indexing, so we don't need to record them again here.
             # This method only handles the vector store indexing.
-            
+            #
+            # Exception: a chunk split above (budget overflow) mints a new
+            # chunk_id the caller's pre-split `chunks` list never sees, so its
+            # record_chunk() loop can't persist it. Record any split piece
+            # carrying db_metadata (e.g. a table's cell grid) here instead, so
+            # metadata_store.get_chunk_info(chunk_id) can still resolve it.
+            # An encrypted db_metadata envelope was already re-keyed under
+            # this piece's own id above, so _format_results()'s query-time
+            # decryption (AAD = the stored chunk's own id) succeeds.
+            if success:
+                original_ids = {getattr(c, 'chunk_id', None) for c in chunks}
+                for chunk in validated_chunks:
+                    if chunk.chunk_id in original_ids or chunk.db_metadata is None:
+                        continue
+                    await self.metadata_store.record_chunk(
+                        chunk_id=chunk.chunk_id,
+                        file_id=file_id,
+                        chunk_index=chunk.chunk_index,
+                        vector_store_id=chunk.chunk_id,
+                        collection_name=collection_name,
+                        metadata=chunk.db_metadata,
+                    )
+
             return success
         
         except Exception as e:  # noqa: BLE001 - vector-store client boundary, must fail safe

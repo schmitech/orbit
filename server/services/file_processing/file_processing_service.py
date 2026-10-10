@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import uuid
 import weakref
 from datetime import UTC, datetime
@@ -794,6 +795,9 @@ class FileProcessingService:
             aad = chunk.chunk_id.encode('utf-8')
             payload = self._file_encryptor.encrypt(json.dumps(chunk.metadata).encode('utf-8'), aad)
             chunk.metadata = {'encrypted': True, 'payload': payload.hex()}
+            if chunk.db_metadata is not None:
+                db_payload = self._file_encryptor.encrypt(json.dumps(chunk.db_metadata).encode('utf-8'), aad)
+                chunk.db_metadata = {'encrypted': True, 'payload': db_payload.hex()}
 
     async def quick_upload(
         self,
@@ -900,14 +904,20 @@ class FileProcessingService:
 
         try:
             async with asyncio.timeout(processing_timeout_seconds):
-                # Extract text and metadata
-                extracted_text, file_metadata = await self._extract_content(
+                # Extract text, metadata, and any structured tables
+                extracted_text, file_metadata, tables = await self._extract_content(
                     file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt,
                     current_user_id=current_user_id, current_user_email=current_user_email
                 )
 
+                if tables:
+                    extracted_text = self._strip_markdown_tables(extracted_text, tables)
+
                 # Chunk content
                 chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
+
+                if tables:
+                    chunks.extend(self._extract_tables_as_chunks(tables, file_id, len(chunks)))
 
                 # A user can cancel while an async processor is extracting content.
                 # Serialize persistence with deletion so we either observe the missing
@@ -946,7 +956,7 @@ class FileProcessingService:
                             chunk_index=chunk.chunk_index,
                             vector_store_id=chunk.chunk_id,
                             collection_name=collection_name,
-                            metadata=chunk.metadata
+                            metadata=chunk.db_metadata if chunk.db_metadata is not None else chunk.metadata
                         )
 
                     await self.metadata_store.update_processing_status(
@@ -1168,13 +1178,20 @@ class FileProcessingService:
             # 4. Update status to processing
             await self.metadata_store.update_processing_status(file_id, 'processing')
 
-            # 5. Extract text and metadata
-            extracted_text, file_metadata = await self._extract_content(
+            # 5. Extract text, metadata, and any structured tables
+            extracted_text, file_metadata, tables = await self._extract_content(
                 file_data, filename, mime_type, api_key=api_key, current_user_id=current_user_id
             )
 
+            if tables:
+                extracted_text = self._strip_markdown_tables(extracted_text, tables)
+
             # 6. Chunk content
             chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
+
+            if tables:
+                chunks.extend(self._extract_tables_as_chunks(tables, file_id, len(chunks)))
+
             self._encrypt_chunk_metadata(chunks, requires_encryption)
 
             # 7. Index chunks into vector store
@@ -1201,7 +1218,7 @@ class FileProcessingService:
                     chunk_index=chunk.chunk_index,
                     vector_store_id=chunk.chunk_id,  # Use chunk_id as vector_store_id
                     collection_name=collection_name,
-                    metadata=chunk.metadata
+                    metadata=chunk.db_metadata if chunk.db_metadata is not None else chunk.metadata
                 )
 
             # 9. Update metadata store with chunk count, collection name, and provider info
@@ -1262,23 +1279,25 @@ class FileProcessingService:
         vision_prompt: str | None = None,
         current_user_id: str | None = None,
         current_user_email: str | None = None
-    ) -> tuple[str, dict[str, Any]]:
-        """Extract text and metadata from file."""
+    ) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
+        """Extract text, metadata, and any structured tables (Docling only) from file."""
         # Check if this is an image file. When the AI OCR processor is the active
         # priority processor, let images fall through to it (via the registry)
         # instead of the generic vision path.
         if self.enable_vision and mime_type.startswith('image/') and not self._ai_ocr_is_priority():
-            return await self._extract_image_content(
+            text, metadata = await self._extract_image_content(
                 file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt,
                 current_user_id=current_user_id, current_user_email=current_user_email
             )
+            return text, metadata, []
 
         # Check if this is an audio file
         if self.enable_audio and mime_type.startswith('audio/'):
-            return await self._extract_audio_content(
+            text, metadata = await self._extract_audio_content(
                 file_data, filename, mime_type, api_key=api_key, current_user_id=current_user_id,
                 current_user_email=current_user_email
             )
+            return text, metadata, []
 
         processors = self.processor_registry.get_processors(mime_type)
 
@@ -1295,6 +1314,7 @@ class FileProcessingService:
 
                 text = await processor.extract_text(file_data, filename)
                 metadata = await processor.extract_metadata(file_data, filename)
+                tables = getattr(processor, "_last_tables", None) or []
 
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug(f"Extraction complete for '{filename}': {len(text)} chars extracted by {processor_name}")
@@ -1311,7 +1331,7 @@ class FileProcessingService:
                         call_type="document",
                     )
 
-                return text, metadata
+                return text, metadata, tables
             except Exception as e:
                 last_error = e
                 if len(processors) > 1:
@@ -1460,7 +1480,157 @@ class FileProcessingService:
                 logger.debug(f"  Average chunk size: {avg_chunk_size:.0f} characters")
         
         return chunks
-    
+
+    # Matches a markdown table block: a header row, a `---`/`:--`-style separator
+    # row, then zero or more data rows. Only applied when Docling already reported
+    # structured tables for the document, so it never touches hand-written markdown
+    # tables in documents Docling didn't parse tables from.
+    _MARKDOWN_TABLE_BLOCK_RE = re.compile(
+        r'^\|.*\|[ \t]*\n\|[ \t:|-]+\|[ \t]*\n(?:\|.*\|[ \t]*\n?)*',
+        re.MULTILINE,
+    )
+    # Fenced code blocks (``` ... ```) are never touched by table-stripping: a
+    # table-shaped block inside a code fence is example/sample text, not a
+    # table Docling actually parsed, even when the document also contains a
+    # real table elsewhere.
+    _FENCED_CODE_BLOCK_RE = re.compile(r'```.*?```', re.DOTALL)
+
+    @staticmethod
+    def _parse_markdown_table_row(line: str) -> list[str]:
+        # '| Name | Age |' -> ['Name', 'Age']; drop the leading/trailing
+        # empty strings produced by the outer pipes.
+        return [cell.strip() for cell in line.strip().strip('|').split('|')]
+
+    def _table_grid_for_matching(self, table: dict[str, Any]) -> list[list[str]] | None:
+        """Build a table's full header+data cell grid (row-major, stripped text)
+        for exact comparison against a candidate markdown block's parsed rows."""
+        num_rows, num_cols = table.get('num_rows'), table.get('num_cols')
+        if not num_rows or not num_cols:
+            return None
+        grid = [['' for _ in range(num_cols)] for _ in range(num_rows)]
+        for cell in table.get('cells', []):
+            row, col = cell.get('row'), cell.get('col')
+            if row is None or col is None or not (0 <= row < num_rows and 0 <= col < num_cols):
+                continue
+            grid[row][col] = (cell.get('text') or '').strip()
+        return grid
+
+    def _strip_markdown_tables(self, text: str, tables: list[dict[str, Any]]) -> str:
+        """Remove only the markdown table blocks that correspond to Docling's
+        extracted `tables`, from text already captured as structured tables.
+
+        Prevents a table's content from being indexed twice: once as a flattened
+        prose chunk and once as the structured table chunk from
+        `_extract_tables_as_chunks()`. A table-shaped block is only removed when
+        its full header+data cell grid exactly matches one of `tables`' cell
+        grids — a table-shaped block Docling didn't report as a real table (e.g.
+        a hand-written example, or an unrelated table sharing the same headers
+        but different rows) is left in place. Each extracted table is matched at
+        most once, so two look-alike blocks aren't both stripped when only one
+        table was actually extracted. Content inside fenced code blocks is
+        never touched.
+        """
+        available_grids = [
+            grid for table in tables if (grid := self._table_grid_for_matching(table)) is not None
+        ]
+        if not available_grids:
+            return text
+
+        def _consume_matching_table(block: str) -> bool:
+            # A block's header row plus every data row, in order, must exactly
+            # equal one extracted table's full grid.
+            rows = [self._parse_markdown_table_row(line) for i, line in enumerate(block.splitlines()) if line.strip() and i != 1]
+            for i, grid in enumerate(available_grids):
+                if rows == grid:
+                    del available_grids[i]
+                    return True
+            return False
+
+        def _strip_segment(segment: str) -> str:
+            return self._MARKDOWN_TABLE_BLOCK_RE.sub(
+                lambda m: '' if _consume_matching_table(m.group(0)) else m.group(0),
+                segment,
+            )
+
+        segments = self._FENCED_CODE_BLOCK_RE.split(text)
+        fences = self._FENCED_CODE_BLOCK_RE.findall(text)
+
+        result = _strip_segment(segments[0])
+        for fence, segment in zip(fences, segments[1:]):
+            result += fence + _strip_segment(segment)
+        return result
+
+    def _render_table_as_markdown(self, cells: list[dict[str, Any]], num_rows: int | None, num_cols: int | None) -> str:
+        """Render a Docling table's flattened cell list back into a markdown table."""
+        if not num_rows or not num_cols:
+            return ''
+
+        grid = [['' for _ in range(num_cols)] for _ in range(num_rows)]
+        for cell in cells:
+            row, col = cell.get('row'), cell.get('col')
+            if row is None or col is None or not (0 <= row < num_rows and 0 <= col < num_cols):
+                continue
+            grid[row][col] = cell.get('text') or ''
+
+        lines = [
+            '| ' + ' | '.join(grid[0]) + ' |',
+            '| ' + ' | '.join(['---'] * num_cols) + ' |',
+        ]
+        lines.extend('| ' + ' | '.join(row) + ' |' for row in grid[1:])
+        return '\n'.join(lines)
+
+    def _extract_tables_as_chunks(self, tables: list[dict[str, Any]], file_id: str, start_index: int) -> list[Chunk]:
+        """
+        Build one Chunk per Docling-extracted table (Phase 1.2 of
+        docs/roadmap/document-understanding-enhancements.md).
+
+        Each chunk carries a vector-store-safe `metadata` and a separate
+        DB-only `db_metadata` with the full cell grid, so the cell data is
+        never spread into vector-store metadata. `metadata` omits any field
+        Docling didn't report (never `None`) and flattens `page_range` into
+        two scalar ints, because not every configured vector store backend
+        accepts null values or lists of integers as metadata (e.g. Pinecone
+        only accepts scalars or lists of strings) — `db_metadata` keeps the
+        full, un-flattened page attribution (including explicit `None`s).
+        """
+        chunks = []
+        for offset, table in enumerate(tables):
+            cells = table.get('cells', [])
+            text = self._render_table_as_markdown(cells, table.get('num_rows'), table.get('num_cols'))
+
+            page_number = table.get('page_number')
+            page_range = table.get('page_range')
+
+            vector_metadata: dict[str, Any] = {'content_type': 'table'}
+            if table.get('table_index') is not None:
+                vector_metadata['table_index'] = table['table_index']
+            if table.get('num_rows') is not None:
+                vector_metadata['row_count'] = table['num_rows']
+            if table.get('num_cols') is not None:
+                vector_metadata['column_count'] = table['num_cols']
+            if page_number is not None:
+                vector_metadata['page_number'] = page_number
+            if page_range is not None:
+                vector_metadata['page_range_start'] = page_range[0]
+                vector_metadata['page_range_end'] = page_range[-1]
+
+            db_metadata = {
+                **vector_metadata,
+                'page_number': page_number,
+                'page_range': page_range,
+                'cells': cells,
+            }
+
+            chunks.append(Chunk(
+                chunk_id=str(uuid.uuid4()),
+                file_id=file_id,
+                text=text,
+                chunk_index=start_index + offset,
+                metadata=vector_metadata,
+                db_metadata=db_metadata,
+            ))
+        return chunks
+
     async def _get_adapter_config_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> dict[str, Any]:
         """
         Get the adapter configuration for a given API key.

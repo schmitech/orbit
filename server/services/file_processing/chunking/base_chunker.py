@@ -24,8 +24,13 @@ class Chunk:
         file_id: ID of the source file
         text: Chunk text content
         chunk_index: Position of chunk in file
-        metadata: Additional chunk metadata
+        metadata: Additional chunk metadata. Must stay vector-store-safe
+            (flat scalars only) since it is spread verbatim into vector
+            store metadata payloads.
         embedding: Optional pre-computed embedding
+        db_metadata: Optional DB-only metadata (e.g. full table cell grids)
+            persisted via metadata_store.record_chunk() but never sent to
+            the vector store. Falls back to `metadata` when None.
     """
     chunk_id: str
     file_id: str
@@ -33,6 +38,7 @@ class Chunk:
     chunk_index: int
     metadata: dict[str, Any] = field(default_factory=dict)
     embedding: list[float] = field(default_factory=list)
+    db_metadata: dict[str, Any] | None = None
     
     def __repr__(self) -> str:
         return f"Chunk(chunk_id={self.chunk_id[:8]}..., chunk_index={self.chunk_index}, len={len(self.text)})"

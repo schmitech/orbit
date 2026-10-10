@@ -1939,3 +1939,275 @@ async def test_log_extraction_usage_noop_without_app_state(tmp_path):
     )
 
     cleanup_metadata_store(test_db_path)
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.2 (docs/roadmap/document-understanding-enhancements.md):
+# persisting Docling table structure into chunk metadata.
+# ---------------------------------------------------------------------------
+
+def test_render_table_as_markdown_reconstructs_grid(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_render_table.db")
+    service = FileProcessingService(config)
+
+    cells = [
+        {"row": 0, "col": 0, "text": "Name"},
+        {"row": 0, "col": 1, "text": "Age"},
+        {"row": 1, "col": 0, "text": "Alice"},
+        {"row": 1, "col": 1, "text": "30"},
+    ]
+    markdown = service._render_table_as_markdown(cells, num_rows=2, num_cols=2)
+
+    assert markdown == "| Name | Age |\n| --- | --- |\n| Alice | 30 |"
+    cleanup_metadata_store(test_db_path)
+
+
+def test_render_table_as_markdown_handles_missing_dimensions(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_render_table_empty.db")
+    service = FileProcessingService(config)
+
+    assert service._render_table_as_markdown([], num_rows=None, num_cols=None) == ''
+    cleanup_metadata_store(test_db_path)
+
+
+_NAME_AGE_TABLE = [{
+    "table_index": 0,
+    "num_rows": 3,
+    "num_cols": 2,
+    "cells": [
+        {"row": 0, "col": 0, "text": "Name"},
+        {"row": 0, "col": 1, "text": "Age"},
+        {"row": 1, "col": 0, "text": "Alice"},
+        {"row": 1, "col": 1, "text": "30"},
+        {"row": 2, "col": 0, "text": "Bob"},
+        {"row": 2, "col": 1, "text": "25"},
+    ],
+}]
+
+_NAME_AGE_SINGLE_ROW_TABLE = [{
+    "table_index": 0,
+    "num_rows": 2,
+    "num_cols": 2,
+    "cells": [
+        {"row": 0, "col": 0, "text": "Name"},
+        {"row": 0, "col": 1, "text": "Age"},
+        {"row": 1, "col": 0, "text": "Alice"},
+        {"row": 1, "col": 1, "text": "30"},
+    ],
+}]
+
+
+def test_strip_markdown_tables_removes_table_block_only(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_strip_table.db")
+    service = FileProcessingService(config)
+
+    text = (
+        "# Report\n\n"
+        "Some prose before the table.\n\n"
+        "| Name | Age |\n| --- | --- |\n| Alice | 30 |\n| Bob | 25 |\n\n"
+        "Some prose after the table.\n"
+    )
+    stripped = service._strip_markdown_tables(text, _NAME_AGE_TABLE)
+
+    assert "| Name | Age |" not in stripped
+    assert "Alice" not in stripped
+    assert "Some prose before the table." in stripped
+    assert "Some prose after the table." in stripped
+    cleanup_metadata_store(test_db_path)
+
+
+def test_strip_markdown_tables_leaves_fenced_code_block_tables_alone(tmp_path):
+    """A table-shaped block inside a fenced code block is example/sample text,
+    not something Docling parsed as a real table — stripping must not touch it,
+    even when the document also has a real table outside the fence."""
+    config, test_db_path = create_test_config(tmp_path, db_name="test_strip_table_fenced.db")
+    service = FileProcessingService(config)
+
+    text = (
+        "# Report\n\n"
+        "Here is an example of markdown table syntax:\n\n"
+        "```\n| Example | Col |\n| --- | --- |\n| x | y |\n```\n\n"
+        "The real extracted table:\n\n"
+        "| Name | Age |\n| --- | --- |\n| Alice | 30 |\n"
+    )
+    stripped = service._strip_markdown_tables(text, _NAME_AGE_SINGLE_ROW_TABLE)
+
+    # Fenced example table survives untouched.
+    assert "| Example | Col |" in stripped
+    assert "| x | y |" in stripped
+    # The real table outside the fence is still stripped.
+    assert "| Name | Age |" not in stripped
+    assert "Alice" not in stripped
+    cleanup_metadata_store(test_db_path)
+
+
+def test_strip_markdown_tables_does_not_substring_match_similar_headers(tmp_path):
+    """A header that merely *contains* an extracted table's header cells as
+    substrings (e.g. 'UserName'/'AgeGroup' vs 'Name'/'Age') must not be treated
+    as a match — matching requires the header cells to be exactly equal."""
+    config, test_db_path = create_test_config(tmp_path, db_name="test_strip_table_similar_headers.db")
+    service = FileProcessingService(config)
+
+    text = (
+        "# Report\n\n"
+        "An unrelated table with superficially similar header text:\n\n"
+        "| UserName | AgeGroup |\n| --- | --- |\n| alice123 | 30-40 |\n\n"
+        "The real extracted table:\n\n"
+        "| Name | Age |\n| --- | --- |\n| Alice | 30 |\n"
+    )
+    stripped = service._strip_markdown_tables(text, _NAME_AGE_SINGLE_ROW_TABLE)
+
+    # Unrelated table with similar-but-not-equal headers survives.
+    assert "| UserName | AgeGroup |" in stripped
+    assert "alice123" in stripped
+    # The real extracted table is stripped.
+    assert "| Name | Age |" not in stripped
+    assert "Alice" not in stripped
+    cleanup_metadata_store(test_db_path)
+
+
+def test_strip_markdown_tables_leaves_unrelated_unfenced_table_alone(tmp_path):
+    """A table-shaped block outside any code fence that Docling did NOT report
+    as an extracted table (header doesn't match any table's header cells) must
+    survive stripping — only blocks matching an actual extracted table go."""
+    config, test_db_path = create_test_config(tmp_path, db_name="test_strip_table_unrelated.db")
+    service = FileProcessingService(config)
+
+    text = (
+        "# Report\n\n"
+        "An unrelated markdown table Docling never parsed as a structured table:\n\n"
+        "| Color | Code |\n| --- | --- |\n| Red | FF0000 |\n\n"
+        "The real extracted table:\n\n"
+        "| Name | Age |\n| --- | --- |\n| Alice | 30 |\n"
+    )
+    stripped = service._strip_markdown_tables(text, _NAME_AGE_SINGLE_ROW_TABLE)
+
+    # Unrelated table-shaped block survives.
+    assert "| Color | Code |" in stripped
+    assert "Red" in stripped
+    # The real extracted table is stripped.
+    assert "| Name | Age |" not in stripped
+    assert "Alice" not in stripped
+    cleanup_metadata_store(test_db_path)
+
+
+def test_strip_markdown_tables_matches_by_full_content_not_just_header(tmp_path):
+    """Two unfenced tables sharing identical headers but different rows must
+    not both be stripped when only one of them was actually extracted by
+    Docling — matching must compare the full header+data grid, not just the
+    header row, and each extracted table is consumed by at most one match."""
+    config, test_db_path = create_test_config(tmp_path, db_name="test_strip_table_same_headers.db")
+    service = FileProcessingService(config)
+
+    text = (
+        "# Report\n\n"
+        "An unrelated table Docling never parsed, with the same headers:\n\n"
+        "| Name | Age |\n| --- | --- |\n| Carol | 40 |\n\n"
+        "The real extracted table:\n\n"
+        "| Name | Age |\n| --- | --- |\n| Alice | 30 |\n"
+    )
+    stripped = service._strip_markdown_tables(text, _NAME_AGE_SINGLE_ROW_TABLE)
+
+    # Unrelated table with the same headers but different rows survives.
+    assert "Carol" in stripped
+    assert "| Name | Age |\n| --- | --- |\n| Carol | 40 |" in stripped
+    # Only the row-matching extracted table is stripped.
+    assert "Alice" not in stripped
+    cleanup_metadata_store(test_db_path)
+
+
+def test_extract_tables_as_chunks_splits_vector_and_db_metadata(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_tables_as_chunks.db")
+    service = FileProcessingService(config)
+
+    tables = [
+        {
+            "table_index": 0,
+            "page_number": 2,
+            "page_range": None,
+            "num_rows": 2,
+            "num_cols": 2,
+            "cells": [
+                {"row": 0, "col": 0, "text": "Name"},
+                {"row": 0, "col": 1, "text": "Age"},
+                {"row": 1, "col": 0, "text": "Alice"},
+                {"row": 1, "col": 1, "text": "30"},
+            ],
+        }
+    ]
+
+    chunks = service._extract_tables_as_chunks(tables, file_id="f1", start_index=3)
+
+    assert len(chunks) == 1
+    chunk = chunks[0]
+    assert chunk.file_id == "f1"
+    assert chunk.chunk_index == 3
+    assert "Alice" in chunk.text
+
+    # Vector-store-safe metadata: flat scalars only, no cell grid, and no
+    # None values / integer lists (not every vector store backend accepts
+    # them, e.g. Pinecone), so unknown/None fields are simply omitted.
+    assert chunk.metadata == {
+        "content_type": "table",
+        "table_index": 0,
+        "row_count": 2,
+        "column_count": 2,
+        "page_number": 2,
+    }
+    assert "cells" not in chunk.metadata
+    assert "page_range" not in chunk.metadata
+
+    # DB-only metadata carries the full cell grid and un-flattened page
+    # attribution (including explicit None) alongside the same scalars.
+    assert chunk.db_metadata["content_type"] == "table"
+    assert chunk.db_metadata["page_number"] == 2
+    assert chunk.db_metadata["page_range"] is None
+    assert chunk.db_metadata["cells"] == tables[0]["cells"]
+
+    cleanup_metadata_store(test_db_path)
+
+
+def test_extract_tables_as_chunks_flattens_page_range_for_vector_metadata(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_tables_page_range.db")
+    service = FileProcessingService(config)
+
+    tables = [
+        {
+            "table_index": 0,
+            "page_number": None,
+            "page_range": [3, 5],
+            "num_rows": 1,
+            "num_cols": 1,
+            "cells": [],
+        }
+    ]
+
+    chunk = service._extract_tables_as_chunks(tables, file_id="f1", start_index=0)[0]
+
+    # page_range (a list of ints) is never sent to the vector store as-is;
+    # it's flattened into two scalar ints instead.
+    assert "page_range" not in chunk.metadata
+    assert "page_number" not in chunk.metadata
+    assert chunk.metadata["page_range_start"] == 3
+    assert chunk.metadata["page_range_end"] == 5
+
+    assert chunk.db_metadata["page_range"] == [3, 5]
+    assert chunk.db_metadata["page_number"] is None
+
+    cleanup_metadata_store(test_db_path)
+
+
+def test_extract_tables_as_chunks_indexes_sequentially_from_start_index(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_tables_as_chunks_multi.db")
+    service = FileProcessingService(config)
+
+    tables = [
+        {"table_index": 0, "page_number": 1, "page_range": None, "num_rows": 1, "num_cols": 1, "cells": []},
+        {"table_index": 1, "page_number": 2, "page_range": None, "num_rows": 1, "num_cols": 1, "cells": []},
+    ]
+
+    chunks = service._extract_tables_as_chunks(tables, file_id="f1", start_index=5)
+
+    assert [c.chunk_index for c in chunks] == [5, 6]
+    assert [c.metadata["table_index"] for c in chunks] == [0, 1]
+    cleanup_metadata_store(test_db_path)

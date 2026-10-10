@@ -499,6 +499,161 @@ def test_token_chunker_rejects_missing_decode():
         TokenChunker(chunk_size=100, tokenizer=MissingDecode())
 
 
+@pytest.mark.asyncio
+async def test_index_file_chunks_persists_db_metadata_for_split_table_chunk(tmp_path):
+    """A table chunk (Phase 1.2 of docs/roadmap/document-understanding-enhancements.md)
+    that exceeds the embedding budget gets split and minted new chunk_ids the
+    caller's pre-split chunk list never sees. index_file_chunks() must record
+    those split pieces' db_metadata itself so metadata_store.get_chunk_info()
+    can still resolve them, instead of silently losing the table's cell grid."""
+    from services.file_metadata.metadata_store import FileMetadataStore
+
+    budget = resolve_embedding_budget(max_embedding_tokens=20, safety_margin=1.0)
+    fake_embeddings = StrictBudgetFakeEmbeddingService(budget=budget)
+    fake_store = FakeVectorStore()
+
+    test_db_path = str(tmp_path / "test_orbit.db")
+    FileMetadataStore.reset_instance()
+    metadata_config = {
+        'internal_services': {'backend': {'type': 'sqlite', 'sqlite': {'database_path': test_db_path}}}
+    }
+
+    retriever = FileVectorRetriever(config={'files': {'max_embedding_tokens': 20}})
+    retriever.embeddings = fake_embeddings
+    retriever._default_store = fake_store
+    retriever.initialized = True
+    retriever.metadata_store = FileMetadataStore(config=metadata_config)
+    await retriever.metadata_store._ensure_initialized()
+    await retriever.metadata_store.record_file_upload(
+        file_id="file_table", api_key="key1", filename="table.pdf", mime_type="application/pdf",
+        file_size=1, storage_key="key1/file_table/table.pdf", storage_type="vector", metadata={},
+    )
+
+    oversized_table_text = (
+        "| Name | Age | City |\n| --- | --- | --- |\n"
+        "| Alice | 30 | Springfield |\n| Bob | 25 | Shelbyville |\n"
+        "| Carol | 40 | Ogdenville |\n| Dan | 22 | North Haverbrook |\n"
+    )
+    table_chunk = Chunk(
+        chunk_id="table_chunk_0",
+        file_id="file_table",
+        text=oversized_table_text,
+        chunk_index=0,
+        metadata={"content_type": "table", "table_index": 0},
+        db_metadata={"content_type": "table", "table_index": 0, "cells": [{"row": 0, "col": 0, "text": "Name"}]},
+    )
+
+    try:
+        success = await retriever.index_file_chunks(
+            file_id="file_table",
+            chunks=[table_chunk],
+            collection_name="test_collection",
+            budget=budget,
+        )
+        assert success is True
+
+        # Split pieces got new ids distinct from the original chunk_id.
+        split_ids = [chunk_id for chunk_id in fake_store.calls[0]["ids"] if chunk_id != "table_chunk_0"]
+        assert len(split_ids) >= 1, "expected the oversized table chunk to be split"
+
+        for split_id in split_ids:
+            chunk_info = await retriever.metadata_store.get_chunk_info(split_id)
+            assert chunk_info is not None, f"split piece {split_id} was never persisted to the DB"
+            assert chunk_info["chunk_metadata"]["content_type"] == "table"
+            assert chunk_info["chunk_metadata"]["cells"] == [{"row": 0, "col": 0, "text": "Name"}]
+    finally:
+        retriever.metadata_store.close()
+        FileMetadataStore.reset_instance()
+
+
+@pytest.mark.asyncio
+async def test_index_file_chunks_rekeys_encrypted_db_metadata_for_split_pieces(tmp_path):
+    """When an encrypted table chunk's db_metadata envelope (AAD-bound to the
+    pre-split chunk id by FileProcessingService._encrypt_chunk_metadata) gets
+    split, each split piece's envelope must be re-keyed under its own final id
+    — otherwise _format_results()'s query-time decryption (which uses the
+    stored chunk's own id as AAD) raises an authentication error."""
+    from services.file_metadata.metadata_store import FileMetadataStore
+    from services.file_storage.encryption import FileEncryptor
+    import base64
+    import json as json_module
+
+    encryptor = FileEncryptor(base64.b64decode("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="))
+
+    budget = resolve_embedding_budget(max_embedding_tokens=20, safety_margin=1.0)
+    fake_embeddings = StrictBudgetFakeEmbeddingService(budget=budget)
+    fake_store = FakeVectorStore()
+
+    test_db_path = str(tmp_path / "test_orbit.db")
+    FileMetadataStore.reset_instance()
+    metadata_config = {
+        'internal_services': {'backend': {'type': 'sqlite', 'sqlite': {'database_path': test_db_path}}}
+    }
+
+    retriever = FileVectorRetriever(config={'files': {'max_embedding_tokens': 20}})
+    retriever.embeddings = fake_embeddings
+    retriever._default_store = fake_store
+    retriever.initialized = True
+    retriever.metadata_store = FileMetadataStore(config=metadata_config)
+    await retriever.metadata_store._ensure_initialized()
+    await retriever.metadata_store.record_file_upload(
+        file_id="file_table", api_key="key1", filename="table.pdf", mime_type="application/pdf",
+        file_size=1, storage_key="key1/file_table/table.pdf", storage_type="vector", metadata={},
+    )
+
+    plaintext_db_metadata = {"content_type": "table", "cells": [{"row": 0, "col": 0, "text": "Name"}]}
+    orig_id = "table_chunk_0"
+    envelope = encryptor.encrypt(json_module.dumps(plaintext_db_metadata).encode('utf-8'), orig_id.encode('utf-8'))
+    encrypted_db_metadata = {"encrypted": True, "payload": envelope.hex()}
+
+    oversized_table_text = (
+        "| Name | Age | City |\n| --- | --- | --- |\n"
+        "| Alice | 30 | Springfield |\n| Bob | 25 | Shelbyville |\n"
+        "| Carol | 40 | Ogdenville |\n| Dan | 22 | North Haverbrook |\n"
+    )
+    table_chunk = Chunk(
+        chunk_id=orig_id,
+        file_id="file_table",
+        text=oversized_table_text,
+        chunk_index=0,
+        metadata={"content_type": "table", "encrypted": True, "payload": "ignored"},
+        db_metadata=encrypted_db_metadata,
+    )
+
+    try:
+        success = await retriever.index_file_chunks(
+            file_id="file_table",
+            chunks=[table_chunk],
+            collection_name="test_collection",
+            encryptor=encryptor,
+            budget=budget,
+        )
+        assert success is True
+
+        split_ids = [chunk_id for chunk_id in fake_store.calls[0]["ids"] if chunk_id != orig_id]
+        assert len(split_ids) >= 1, "expected the oversized table chunk to be split"
+
+        for split_id in split_ids:
+            chunk_info = await retriever.metadata_store.get_chunk_info(split_id)
+            assert chunk_info is not None
+            stored_envelope = chunk_info["chunk_metadata"]
+            assert stored_envelope["encrypted"] is True
+
+            # Decrypting under the split piece's OWN id (as _format_results() does
+            # at query time) must succeed, and the original cell data survives.
+            decrypted = encryptor.decrypt(bytes.fromhex(stored_envelope["payload"]), split_id.encode('utf-8'))
+            decrypted_data = json_module.loads(decrypted.decode('utf-8'))
+            assert decrypted_data["content_type"] == "table"
+            assert decrypted_data["cells"] == [{"row": 0, "col": 0, "text": "Name"}]
+
+            # Decrypting under the stale, pre-split id must now fail.
+            with pytest.raises(Exception):  # noqa: B017 - FileEncryptionError on AAD mismatch
+                encryptor.decrypt(bytes.fromhex(stored_envelope["payload"]), orig_id.encode('utf-8'))
+    finally:
+        retriever.metadata_store.close()
+        FileMetadataStore.reset_instance()
+
+
 def test_token_chunker_character_mode_slices_via_budget_instead_of_character_slicing():
     """In character default mode, TokenChunker slices via split_text_to_budget."""
     chunker = TokenChunker(chunk_size=20, overlap=0, tokenizer="character")

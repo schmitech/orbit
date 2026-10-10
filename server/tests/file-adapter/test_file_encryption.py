@@ -461,6 +461,38 @@ def test_encrypt_chunk_metadata_fails_loudly_without_encryptor(tmp_path, monkeyp
         service._encrypt_chunk_metadata(chunks, requires_encryption=True)
 
 
+def test_encrypt_chunk_metadata_also_encrypts_db_metadata_separately(tmp_path, monkeypatch):
+    """A table chunk's vector-safe metadata and DB-only db_metadata (Phase 1.2
+    of docs/roadmap/document-understanding-enhancements.md) are each
+    encrypted into their own envelope, bound to the same chunk id."""
+    service, _ = _build_service(tmp_path, encryption_enabled=True, monkeypatch=monkeypatch)
+    chunks = [
+        Chunk(
+            chunk_id="c1", file_id="f1", text="| A | B |\n| --- | --- |\n| 1 | 2 |", chunk_index=0,
+            metadata={"content_type": "table", "table_index": 0, "row_count": 2, "column_count": 2},
+            db_metadata={"content_type": "table", "table_index": 0, "cells": [{"row": 0, "col": 0, "text": "A"}]},
+        ),
+    ]
+    service._encrypt_chunk_metadata(chunks, requires_encryption=True)
+
+    chunk = chunks[0]
+    assert chunk.metadata["encrypted"] is True
+    assert chunk.db_metadata["encrypted"] is True
+    assert chunk.metadata["payload"] != chunk.db_metadata["payload"]
+
+    decrypted_metadata = json.loads(service._file_encryptor.decrypt(bytes.fromhex(chunk.metadata["payload"]), b"c1"))
+    decrypted_db_metadata = json.loads(service._file_encryptor.decrypt(bytes.fromhex(chunk.db_metadata["payload"]), b"c1"))
+    assert decrypted_metadata == {"content_type": "table", "table_index": 0, "row_count": 2, "column_count": 2}
+    assert decrypted_db_metadata == {"content_type": "table", "table_index": 0, "cells": [{"row": 0, "col": 0, "text": "A"}]}
+
+
+def test_encrypt_chunk_metadata_leaves_db_metadata_none_when_absent(tmp_path, monkeypatch):
+    service, _ = _build_service(tmp_path, encryption_enabled=True, monkeypatch=monkeypatch)
+    chunks = [Chunk(chunk_id="c1", file_id="f1", text="hello", chunk_index=0, metadata={"a": 1})]
+    service._encrypt_chunk_metadata(chunks, requires_encryption=True)
+    assert chunks[0].db_metadata is None
+
+
 def _make_retriever(encryption_enabled, monkeypatch):
     if encryption_enabled:
         monkeypatch.setenv("ORBIT_FILE_ENCRYPTION_KEY", TEST_KEY_B64)

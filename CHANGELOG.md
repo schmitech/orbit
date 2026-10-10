@@ -3,7 +3,7 @@
 ## [UNRELEASED]
 
 ### Core Features
-- **Docling Table-Structure Extraction Wired Up (Phase 1.1 of Document Understanding Enhancements)**: `do_table_structure` was built into `DoclingProcessor.get_converter_config()` but never passed to `DocumentConverter()`, so table structure was silently discarded. `DocumentConverter` is now constructed with `PdfPipelineOptions(do_table_structure=True)`, and `extract_text()` captures each table's cells, row/column counts, and page attribution (`page_number` for a single-page table, `page_range: [start, end]` when a table's provenance spans multiple pages, both `None` when unknown) into `DoclingProcessor._last_tables`. This is extraction only — persisting table data into chunk metadata and surfacing it in query responses are tracked as later phases in `docs/roadmap/document-understanding-enhancements.md`.
+- **Docling Table Extraction, Wired Up and Persisted (Phases 1.1–1.2 of Document Understanding Enhancements)**: `do_table_structure` was built but never passed to `DocumentConverter()`, so Docling's table structure was silently discarded and a table's cells were only ever retrievable as flattened prose. `DocumentConverter` now enables `do_table_structure`, and extracted tables (cells, row/column counts, page attribution) are persisted as their own chunks — stripped out of the flattened prose text so a table is never indexed twice — with a vector-store-safe scalar payload (`content_type`, `table_index`, row/column counts, page number/range) kept separate from a DB-only payload holding the full cell grid, each encrypted independently when encryption is enabled. Query-time table rendering (Phase 1.3) remains outstanding.
 
 ## [2.18.1] - 2026-10-06
 
