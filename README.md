@@ -46,6 +46,23 @@ Build a chat app over private documents, an agent that calls your tools, or a tr
 
 Explore the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) for a detailed comparison.
 
+<details>
+<summary><strong>See ORBIT in action — 9 video demos</strong></summary>
+
+Explore what you can build with ORBIT, from conversations over private data to voice assistants and tool-using agents.
+
+- [Chat with files using a multimodal agent](https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c)
+- [Talk to a municipal assistant in real time](https://github.com/user-attachments/assets/9c6530be-1116-4a14-aa82-321448ea5a8d)
+- [Choose AI models and configure model availability per agent](https://github.com/user-attachments/assets/17b2521c-b65a-4717-a842-074bfea9ffb7)
+- [Call MCP tools from an agent](https://github.com/user-attachments/assets/b177b234-e64f-491a-8c3e-8294774c548c)
+- [Render music and play MIDI](https://github.com/user-attachments/assets/084024e7-5123-4943-8aa4-38d750332cfa)
+- [Query SQL data through a real-time voice conversation](https://github.com/user-attachments/assets/d1214904-267e-4295-8a0c-246dd37b7e56)
+- [Render Mermaid diagrams in OrbitChat](https://github.com/user-attachments/assets/b7eaf342-bfa5-40cd-8fe4-006a26693ef7)
+- [Chat with Elasticsearch data using an intent retriever](https://github.com/user-attachments/assets/e7fd2834-e438-4ac1-9173-0c0d56ca562b)
+- [Render charts in OrbitChat](https://github.com/user-attachments/assets/66a358b6-6e38-4b8c-8195-022b75f3eea5)
+
+</details>
+
 ## Quick start
 
 ### Run it locally
