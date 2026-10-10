@@ -33,8 +33,9 @@ try:
     import tempfile
     from io import BytesIO  # noqa: F401
 
-    from docling.datamodel.base_models import InputFormat  # noqa: F401
-    from docling.document_converter import DocumentConverter
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import DocumentConverter, PdfFormatOption
     DOCLING_AVAILABLE = True
 except ImportError:
     DOCLING_AVAILABLE = False
@@ -67,6 +68,7 @@ class DoclingProcessor(FileProcessor):
         self._converter = None
         self._enabled = enabled
         self._initialized = False
+        self._last_tables: list[dict[str, Any]] = []
         # Don't initialize converter at startup - use lazy initialization
         # This prevents outbound connections to HuggingFace during server startup
     
@@ -85,7 +87,12 @@ class DoclingProcessor(FileProcessor):
         
         try:
             logger.debug("Lazy initializing Docling DocumentConverter (this may connect to HuggingFace)")
-            self._converter = DocumentConverter()
+            pipeline_options = PdfPipelineOptions(do_table_structure=True)
+            self._converter = DocumentConverter(
+                format_options={
+                    InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+                }
+            )
             self._initialized = True
             logger.debug("Docling DocumentConverter initialized successfully")
         except Exception as e:  # noqa: BLE001 - docling library init boundary, must not crash the app
@@ -148,6 +155,7 @@ class DoclingProcessor(FileProcessor):
             raise RuntimeError("Docling converter failed to initialize")
 
         text_parts = []
+        self._last_tables = []
 
         # Get file extension from filename for Docling format detection
         suffix = ''
@@ -178,6 +186,8 @@ class DoclingProcessor(FileProcessor):
                     if markdown_text:
                         text_parts.append(markdown_text)
 
+                    self._last_tables = self._extract_tables(doc)
+
             finally:
                 # Clean up temp file
                 if os.path.exists(temp_path):
@@ -191,6 +201,50 @@ class DoclingProcessor(FileProcessor):
             logger.error(f"[Docling] Error processing document '{filename or 'unknown'}': {e}")
             raise
     
+    def _extract_tables(self, doc: Any) -> list[dict[str, Any]]:
+        """Extract structured table data (cells, dimensions, page number) from a converted Docling document."""
+        tables: list[dict[str, Any]] = []
+
+        for table_index, table_item in enumerate(getattr(doc, 'tables', []) or []):
+            data = getattr(table_item, 'data', None)
+            if data is None:
+                continue
+
+            prov = getattr(table_item, 'prov', None) or []
+            page_numbers = sorted({
+                getattr(item, 'page_no', None) for item in prov
+                if getattr(item, 'page_no', None) is not None
+            })
+
+            page_no = None
+            page_range = None
+            if len(page_numbers) == 1:
+                page_no = page_numbers[0]
+            elif len(page_numbers) > 1:
+                page_range = [page_numbers[0], page_numbers[-1]]
+
+            cells = [
+                {
+                    'row': cell.start_row_offset_idx,
+                    'col': cell.start_col_offset_idx,
+                    'row_span': cell.row_span,
+                    'col_span': cell.col_span,
+                    'text': cell.text,
+                }
+                for cell in getattr(data, 'table_cells', []) or []
+            ]
+
+            tables.append({
+                'table_index': table_index,
+                'page_number': page_no,
+                'page_range': page_range,
+                'num_rows': getattr(data, 'num_rows', None),
+                'num_cols': getattr(data, 'num_cols', None),
+                'cells': cells,
+            })
+
+        return tables
+
     async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict[str, Any]:
         """Extract metadata from document."""
         metadata = await super().extract_metadata(file_data, filename)

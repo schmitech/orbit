@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **Docling Table-Structure Extraction Wired Up (Phase 1.1 of Document Understanding Enhancements)**: `do_table_structure` was built into `DoclingProcessor.get_converter_config()` but never passed to `DocumentConverter()`, so table structure was silently discarded. `DocumentConverter` is now constructed with `PdfPipelineOptions(do_table_structure=True)`, and `extract_text()` captures each table's cells, row/column counts, and page attribution (`page_number` for a single-page table, `page_range: [start, end]` when a table's provenance spans multiple pages, both `None` when unknown) into `DoclingProcessor._last_tables`. This is extraction only — persisting table data into chunk metadata and surfacing it in query responses are tracked as later phases in `docs/roadmap/document-understanding-enhancements.md`.
+
 ## [2.18.1] - 2026-10-06
 
 ### Security

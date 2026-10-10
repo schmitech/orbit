@@ -729,7 +729,7 @@ extracted content.
 - [ ] Multi-document analysis
 - [ ] Streaming processing for large files
 - [ ] Document versioning and history
-- [ ] Table extraction from PDFs — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
+- [ ] Table extraction from PDFs (Docling wiring done; not yet surfaced in chunk metadata or query responses) — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
 - [ ] Citation and source tracking — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
 - [ ] Chart understanding (bar charts, line plots, etc.)
 - [ ] Chemistry structure understanding
