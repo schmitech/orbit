@@ -65,8 +65,10 @@ Explore what you can build with ORBIT, from conversations over private data to v
 
 ## Quick start
 
+**[Try the ORBIT Sandbox →](https://orbit.schmitech.ca/)** The quickest way to see what ORBIT can do: explore interactive demos in your browser, with no installation or account required.
+
 <details>
-<summary><strong>Try with Docker — choose Ollama, OpenAI, or Gemini</strong></summary>
+<summary><strong>Try with Docker</strong></summary>
 
 With Docker installed and running, use a prebuilt flavor image to try ORBIT without downloading a tarball or cloning the repo. Each image bundles the ORBIT server, OrbitChat web UI, and document chat for PDFs, Word, Excel, images, and Markdown.
 
@@ -116,7 +118,8 @@ See the [Docker guide](docker/README.md#flavor-images-recommended-pull-and-run) 
 
 </details>
 
-### Run it locally
+<details>
+<summary><strong>Run it locally</strong></summary>
 
 **Prerequisites:** Python 3.12+, an internet connection for downloads, and [Ollama](https://ollama.com/) installed and running. If needed, run `ollama serve` in a separate terminal. On Windows, follow the [installation guide](install/windows.md).
 
@@ -154,6 +157,8 @@ curl -X POST http://localhost:3000/v1/chat \
 ```
 
 Continue with [your first chat](docs/tutorial/first-chat.md) to create an API key, or use the [Docker quick start](docker/README.md#flavor-images-recommended-pull-and-run) for containers.
+
+</details>
 
 <details>
 <summary><strong>Configure models and data sources</strong></summary>
