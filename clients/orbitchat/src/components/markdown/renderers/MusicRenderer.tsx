@@ -1,11 +1,13 @@
-import React, { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import React, { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import 'abcjs/abcjs-audio.css';
 import type { MusicRendererProps } from '../types';
 import { normalizeAbcForRendering } from './abcNotation';
+import { clearHighlights, createCursorControl } from './musicPlaybackCursor';
 import { copyCodeToClipboard, exportSvgAsPng } from './graphExportUtils';
 
 type AbcTune = {
+  lines?: { staff?: { title?: string[] }[] }[];
   metaText?: {
     title?: string;
   };
@@ -62,40 +64,6 @@ const setSecondaryControlsDisabled = (target: HTMLElement, disabled: boolean) =>
     control.disabled = disabled;
   });
 };
-
-const HIGHLIGHT_CLASS = 'abcjs-note-highlight';
-
-type CursorEvent = { elements?: Element[][] };
-
-const clearHighlights = (scoreTarget: HTMLElement) => {
-  scoreTarget.querySelectorAll(`.${HIGHLIGHT_CLASS}`).forEach(el => el.classList.remove(HIGHLIGHT_CLASS));
-};
-
-// Only nudge the scroll position when the playing note is getting close to
-// the viewport edge, so we don't fight a smooth-scroll animation on every
-// cursor event (these fire multiple times per second).
-const SCROLL_MARGIN_PX = 96;
-
-const keepNoteInView = (el: Element) => {
-  const rect = el.getBoundingClientRect();
-  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-  if (rect.top < SCROLL_MARGIN_PX || rect.bottom > viewportHeight - SCROLL_MARGIN_PX) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-};
-
-const createCursorControl = (scoreTarget: HTMLElement) => ({
-  onStart: () => {
-    scoreTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  },
-  onEvent: (event: CursorEvent) => {
-    clearHighlights(scoreTarget);
-    const elements = event.elements?.flat() ?? [];
-    elements.forEach(el => el.classList.add(HIGHLIGHT_CLASS));
-    if (elements[0]) keepNoteInView(elements[0]);
-  },
-  onFinished: () => clearHighlights(scoreTarget),
-});
 
 const prepareSynthController = (
   synth: AbcSynthLike,
@@ -347,6 +315,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
         }
 
         const abcjsLib = await loadAbcjs();
+        if (cancelled) return;
 
         // Clear previous content
         containerRef.current.innerHTML = '';
@@ -354,12 +323,22 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
         // Render ABC notation
         const renderedTunes = abcjsLib.renderAbc(containerRef.current, normalizeAbcForRendering(code), {
           responsive: 'resize',
-          staffwidth: 740,
+          // A wider layout makes notation smaller when fitted to the viewport.
+          // abcjs ignores `scale` when responsive resizing is enabled.
+          staffwidth: 1000,
+          wrap: { minSpacing: 1.8, maxSpacing: 2.7, preferredMeasuresPerLine: 6 },
+          afterParsing: (tune: AbcTune) => {
+            tune.lines?.forEach(line => line.staff?.forEach(staff => {
+              // Remove hand labels before layout so they reserve no space.
+              staff.title = staff.title?.map(title =>
+                /^(?:(?:right|left)\s+hand(?:\s*\((?:RH|LH)\))?|[RL]\.?H\.?)$/i.test(title.trim()) ? '' : title,
+              );
+            }));
+          },
           paddingleft: 0,
           paddingright: 0,
           paddingtop: 15,
           paddingbottom: 15,
-          scale: 1.0,
         });
 
         if (cancelled) return;
@@ -535,6 +514,21 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
     }
   };
 
+  const handlePlaybackKeyDownCapture = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== ' ' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const target = event.target as HTMLElement;
+    if (target.isContentEditable || target.closest('input, textarea, select')) return;
+
+    const audioTarget = audioControlsRef.current;
+    const playButton = audioTarget?.querySelector<HTMLButtonElement>('.abcjs-midi-start');
+    if (!audioTarget || audioTarget.hidden || !playButton || playButton.disabled) return;
+
+    // Prevent Space from clicking a focused Restart/Seek button on keyup.
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.repeat && !playButton.classList.contains('abcjs-loading')) playButton.click();
+  };
+
   const handleAudioControlClickCapture = (event: ReactMouseEvent<HTMLDivElement>) => {
     const target = event.target as Element;
     const playButton = target.closest<HTMLButtonElement>('.abcjs-midi-start');
@@ -581,11 +575,12 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
 
         const synth = abcjs?.synth;
         const tune = renderedTuneRef.current;
-        if (synth && tune) {
+        if (synth && tune && containerRef.current) {
           synthControllerRef.current = prepareSynthController(
             synth,
             tune,
             audioTarget,
+            containerRef.current,
             playerId,
             {
               playPause: t('markdown.music.playPauseTitle'),
@@ -602,131 +597,128 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
   // Render ABC notation - always render container so ref is available
   if (isAbc) {
     return (
-      <div
-        className="graph-container music-container abc-container"
-        style={{
-          padding: '16px',
-          position: 'relative',
-          flexDirection: 'column',
-          alignItems: 'stretch',
-        }}
-      >
-        {!isLoading && !isStreaming && (
-          <div className="graph-action-bar">
-            <button
-              className="graph-action-button"
-              type="button"
-              onClick={() => copyCodeToClipboard(code, setCopiedCode)}
-              title={copiedCode ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyTitle')}
-              aria-label={t('markdown.music.copyNotationAriaLabel')}
-            >
-              {copiedCode ? (
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              ) : (
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M5.5 4.5H3.5C2.94772 4.5 2.5 4.94772 2.5 5.5V12.5C2.5 13.0523 2.94772 13.5 3.5 13.5H10.5C11.0523 13.5 11.5 13.0523 11.5 12.5V10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M13.5 9.5V3.5C13.5 2.94772 13.0523 2.5 12.5 2.5H6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              )}
-              <span>{copiedCode ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyLabel')}</span>
-            </button>
-            <button
-              className="graph-action-button"
-              type="button"
-              onClick={handleExportPng}
-              title={t('markdown.music.exportPngTitle')}
-              aria-label={t('markdown.music.exportPngAriaLabel')}
-              disabled={exportingPng}
-            >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              <span>{exportingPng ? 'Exporting…' : 'PNG'}</span>
-            </button>
-            <button
-              className="graph-action-button"
-              type="button"
-              onClick={handleExportMidi}
-              title={t('markdown.music.exportMidiTitle')}
-              aria-label={t('markdown.music.exportMidiAriaLabel')}
-              disabled={exportingMidi || !hasRenderedTune}
-            >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              <span>{exportingMidi ? t('markdown.music.exporting') : 'MIDI'}</span>
-            </button>
-          </div>
-        )}
-        {isStreaming && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '8px',
-              right: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '4px 8px',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              borderRadius: '4px',
-              fontSize: '12px',
-              color: '#3b82f6',
-              zIndex: 10,
-            }}
-          >
-            <svg
-              style={{
-                animation: 'spin 1s linear infinite',
-                marginRight: '4px',
-                width: '12px',
-                height: '12px'
-              }}
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
-            </svg>
-            Updating...
-            <style>{`
-              @keyframes spin {
-                from { transform: rotate(0deg); }
-                to { transform: rotate(360deg); }
-              }
-            `}</style>
-          </div>
-        )}
-        {isLoading && !isStreaming && (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-            color: 'var(--md-text-secondary, #6b7280)',
-            minHeight: '80px',
-          }}>
-            <svg
-              style={{
-                animation: 'spin 1s linear infinite',
-                marginBottom: '8px',
-                width: '24px',
-                height: '24px',
-              }}
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
-            </svg>
-            <span style={{ fontSize: '13px' }}>{t('markdown.music.rendering')}</span>
-            <style>{`
-              @keyframes spin {
-                from { transform: rotate(0deg); }
-                to { transform: rotate(360deg); }
-              }
-            `}</style>
-          </div>
-        )}
+      <div className="music-renderer" onKeyDownCapture={handlePlaybackKeyDownCapture}>
         <div
-          ref={containerRef}
+          className="graph-container music-container abc-container"
           style={{
-            display: 'flex',
-            justifyContent: 'center',
-            overflow: 'auto',
+            padding: '16px',
+            position: 'relative',
+            flexDirection: 'column',
+            alignItems: 'stretch',
           }}
-        />
+        >
+          {!isLoading && !isStreaming && (
+            <div className="graph-action-bar">
+              <button
+                className="graph-action-button"
+                type="button"
+                onClick={() => copyCodeToClipboard(code, setCopiedCode)}
+                title={copiedCode ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyTitle')}
+                aria-label={t('markdown.music.copyNotationAriaLabel')}
+              >
+                {copiedCode ? (
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M5.5 4.5H3.5C2.94772 4.5 2.5 4.94772 2.5 5.5V12.5C2.5 13.0523 2.94772 13.5 3.5 13.5H10.5C11.0523 13.5 11.5 13.0523 11.5 12.5V10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M13.5 9.5V3.5C13.5 2.94772 13.0523 2.5 12.5 2.5H6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+                <span>{copiedCode ? t('markdown.codeBlock.copied') : t('markdown.codeBlock.copyLabel')}</span>
+              </button>
+              <button
+                className="graph-action-button"
+                type="button"
+                onClick={handleExportPng}
+                title={t('markdown.music.exportPngTitle')}
+                aria-label={t('markdown.music.exportPngAriaLabel')}
+                disabled={exportingPng}
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <span>{exportingPng ? 'Exporting…' : 'PNG'}</span>
+              </button>
+              <button
+                className="graph-action-button"
+                type="button"
+                onClick={handleExportMidi}
+                title={t('markdown.music.exportMidiTitle')}
+                aria-label={t('markdown.music.exportMidiAriaLabel')}
+                disabled={exportingMidi || !hasRenderedTune}
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2v8M5 7l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 11v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <span>{exportingMidi ? t('markdown.music.exporting') : 'MIDI'}</span>
+              </button>
+            </div>
+          )}
+          {isStreaming && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '8px',
+                right: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '4px 8px',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: '#3b82f6',
+                zIndex: 10,
+              }}
+            >
+              <svg
+                style={{
+                  animation: 'spin 1s linear infinite',
+                  marginRight: '4px',
+                  width: '12px',
+                  height: '12px'
+                }}
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
+              </svg>
+              Updating...
+              <style>{`
+                @keyframes spin {
+                  from { transform: rotate(0deg); }
+                  to { transform: rotate(360deg); }
+                }
+              `}</style>
+            </div>
+          )}
+          {isLoading && !isStreaming && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+              color: 'var(--md-text-secondary, #6b7280)',
+              minHeight: '80px',
+            }}>
+              <svg
+                style={{
+                  animation: 'spin 1s linear infinite',
+                  marginBottom: '8px',
+                  width: '24px',
+                  height: '24px',
+                }}
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="32" strokeLinecap="round" />
+              </svg>
+              <span style={{ fontSize: '13px' }}>{t('markdown.music.rendering')}</span>
+              <style>{`
+                @keyframes spin {
+                  from { transform: rotate(0deg); }
+                  to { transform: rotate(360deg); }
+                }
+              `}</style>
+            </div>
+          )}
+          <div className="music-score-area">
+            <div ref={containerRef} />
+          </div>
+        </div>
         <div
           ref={audioControlsRef}
           className="music-playback-controls"

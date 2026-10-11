@@ -151,6 +151,16 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   }
 
   const components: Partial<Components> = {
+    pre: ({ node, children, ...props }) => {
+      const isMusicBlock = enableMusic && node?.children.some(child => {
+        if (child.type !== 'element' || child.tagName !== 'code') return false;
+        const classes = child.properties?.className;
+        return Array.isArray(classes) && classes.some(name => name === 'language-abc' || name === 'language-music');
+      });
+
+      // Music owns its score viewport; a scrolling pre would hide its player.
+      return isMusicBlock ? <>{children}</> : <pre {...props}>{children}</pre>;
+    },
     table: ({ children, ...props }) => (
       <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <table {...props}>{children}</table>

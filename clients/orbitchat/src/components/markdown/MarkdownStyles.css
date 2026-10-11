@@ -667,10 +667,27 @@
   height: auto;
 }
 
+/* Scroll the score independently so playback controls stay below it. */
+.markdown-content .music-renderer {
+  margin: 16px 0;
+}
+
+.markdown-content .music-renderer > .music-container {
+  margin: 0;
+}
+
+.markdown-content .music-score-area {
+  width: 100%;
+  max-height: min(480px, 50dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
 /* ABC music playback controls */
 .markdown-content .music-playback-controls {
   width: 100%;
   margin-top: 12px;
+  flex-shrink: 0;
 }
 
 .markdown-content .music-playback-controls[hidden] {
