@@ -22,6 +22,7 @@ from services.file_processing.chunking import (
     MarkdownHeaderChunker,
     RecursiveChunker,
     SemanticChunker,
+    TableAwareChunker,
     TokenChunker,
 )
 from services.file_processing.magika_detector import (
@@ -341,6 +342,16 @@ class FileProcessingService:
                 tokenizer=tokenizer
             )
             logger.debug(f"  Markdown header chunker configured: min_characters_per_chunk={min_characters}")
+            return chunker
+        elif strategy == 'table_aware':
+            # Table-aware recursive chunking: keeps markdown tables intact
+            min_characters = chunking_options.get('min_characters_per_chunk', 24)
+            chunker = TableAwareChunker(
+                chunk_size=chunk_size,
+                min_characters_per_chunk=min_characters,
+                tokenizer=tokenizer
+            )
+            logger.debug(f"  Table-aware chunker configured: min_characters_per_chunk={min_characters}")
             return chunker
         else:
             # Fixed-size chunking (default)
@@ -1511,30 +1522,63 @@ class FileProcessingService:
         mis-attributed to an identical-looking passage inside a table that was
         pulled out onto its own page.
 
-        Table chunks (`metadata['content_type'] == 'table'`) already carry their
-        own page attribution from `_extract_tables_as_chunks()` and are skipped.
-        A chunk whose text can't be located in `text_for_pages` (e.g. a chunker
-        normalized whitespace) is left with no page fields at all — "page
-        unknown" — rather than a guessed value. `page_range` is intentionally
-        not stored as a two-item list (unlike `None`-filtered omission, which
-        mirrors the Pinecone-safety reasoning in `_extract_tables_as_chunks()`:
-        scalars only, no explicit nulls, in vector-store-safe `metadata`).
+        This only ever runs against `chunks` from `_chunk_content()` - Docling-
+        extracted table chunks from `_extract_tables_as_chunks()` already carry
+        their own page attribution and are appended to the chunk list after
+        this runs, so they're never seen here. A markdown table a chunker
+        (e.g. `TableAwareChunker`) detected in the text itself - one Docling
+        did *not* extract as a structured table, so it was never stripped out
+        of `text_for_pages` - still needs attribution like any prose chunk. A
+        table split into row-group pieces repeats its header/separator
+        synthetically in every piece, so only the piece's own data rows (after
+        that header/separator) are guaranteed to appear verbatim in the source
+        text; matching is done on that suffix for such a piece.
+
+        A table piece that fell back to a plain word-level budget split (e.g.
+        when even its header+separator alone exceed `chunk_size`) has its
+        original newlines collapsed to single spaces by that split, so an
+        exact substring search against `text_for_pages` (which still has the
+        real newlines) never finds it; `_find_whitespace_insensitive()`
+        handles that case.
+
+        A chunk whose text still can't be located in `text_for_pages` (e.g. a
+        chunker normalized whitespace in some other way) is left with no page
+        fields at all — "page unknown" — rather than a guessed value.
+        `page_range` is intentionally not stored as a two-item list (unlike
+        `None`-filtered omission, which mirrors the Pinecone-safety reasoning
+        in `_extract_tables_as_chunks()`: scalars only, no explicit nulls, in
+        vector-store-safe `metadata`).
         """
         search_start = 0
         for chunk in chunks:
-            if chunk.metadata.get('content_type') == 'table':
-                continue
             text = chunk.text
             if not text:
                 continue
 
-            idx = text_for_pages.find(text, search_start)
-            if idx == -1:
-                idx = text_for_pages.find(text)
-            if idx == -1:
-                continue
+            if chunk.metadata.get('content_type') == 'table' and 'row_group_index' in chunk.metadata:
+                lines = text.split('\n', 2)
+                match_text = lines[2] if len(lines) == 3 else text
+            else:
+                match_text = text
 
-            end_idx = idx + len(text)
+            if chunk.metadata.get('table_structure_preserved') is False:
+                # An exact search would find a later, coincidentally identical
+                # occurrence first and misattribute the chunk to that page -
+                # go straight to the whitespace-tolerant match from the
+                # cursor, since exact matching never succeeds for these
+                # pieces anyway (their newlines are collapsed to spaces).
+                match = self._find_whitespace_insensitive(text_for_pages, match_text, search_start)
+                if match is None:
+                    continue
+                idx, end_idx = match
+            else:
+                idx = text_for_pages.find(match_text, search_start)
+                if idx == -1:
+                    idx = text_for_pages.find(match_text)
+                if idx == -1:
+                    continue
+                end_idx = idx + len(match_text)
+
             search_start = idx + 1
 
             pages = sorted({
@@ -1550,6 +1594,27 @@ class FileProcessingService:
             else:
                 chunk.metadata['page_range_start'] = pages[0]
                 chunk.metadata['page_range_end'] = pages[-1]
+
+    _WORD_RE = re.compile(r'\S+')
+
+    @staticmethod
+    def _find_whitespace_insensitive(haystack: str, needle: str, start: int) -> tuple[int, int] | None:
+        """Locate `needle` in `haystack` tolerating whitespace differences.
+
+        `TableAwareChunker`'s word-level budget fallback (`_split_text_to_budget()`)
+        joins a table's own words with a single space, collapsing any original
+        newlines between header/separator/row lines - so an exact substring
+        search against the source text (which still has real newlines) can
+        miss a piece that is otherwise an exact match. Rebuilds `needle` as a
+        regex with `\\s+` between its words and searches with that instead.
+        Returns (start, end) of the match in `haystack`, or `None`.
+        """
+        tokens = FileProcessingService._WORD_RE.findall(needle)
+        if not tokens:
+            return None
+        pattern = re.compile(r'\s+'.join(re.escape(token) for token in tokens))
+        match = pattern.search(haystack, start) or pattern.search(haystack)
+        return (match.start(), match.end()) if match else None
 
     # Matches a markdown table block: a header row, a `---`/`:--`-style separator
     # row, then zero or more data rows. Only applied when Docling already reported
@@ -1680,9 +1745,19 @@ class FileProcessingService:
         accepts null values or lists of integers as metadata (e.g. Pinecone
         only accepts scalars or lists of strings) — `db_metadata` keeps the
         full, un-flattened page attribution (including explicit `None`s).
+
+        When `table_aware` chunking is selected, a table too large for
+        `chunk_size` is split by `TableAwareChunker.split_table_text()` into
+        row-group pieces here, so it never reaches the generic,
+        row-unaware budget split at indexing time. `db_metadata`'s `cells`
+        (the full grid) is duplicated verbatim across a table's pieces rather
+        than split by row - true per-piece cell subsets are out of scope for
+        now, matching the same tradeoff `index_file_chunks()` already makes
+        for a chunk split at indexing time.
         """
         chunks = []
-        for offset, table in enumerate(tables):
+        chunk_index = start_index
+        for table in tables:
             cells = table.get('cells', [])
             text = self._render_table_as_markdown(cells, table.get('num_rows'), table.get('num_cols'))
 
@@ -1709,14 +1784,21 @@ class FileProcessingService:
                 'cells': cells,
             }
 
-            chunks.append(Chunk(
-                chunk_id=str(uuid.uuid4()),
-                file_id=file_id,
-                text=text,
-                chunk_index=start_index + offset,
-                metadata=vector_metadata,
-                db_metadata=db_metadata,
-            ))
+            pieces = (
+                self.chunker.split_table_text(text)
+                if isinstance(self.chunker, TableAwareChunker) and text
+                else [(text, {})]
+            )
+            for piece_text, extra_metadata in pieces:
+                chunks.append(Chunk(
+                    chunk_id=str(uuid.uuid4()),
+                    file_id=file_id,
+                    text=piece_text,
+                    chunk_index=chunk_index,
+                    metadata={**vector_metadata, **extra_metadata},
+                    db_metadata={**db_metadata, **extra_metadata},
+                ))
+                chunk_index += 1
         return chunks
 
     async def _get_adapter_config_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> dict[str, Any]:

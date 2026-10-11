@@ -304,6 +304,39 @@ class TableAwareChunker(RecursiveChunker):
             for row_group_index, (group_text, row_fragmented) in enumerate(row_groups)
         ]
 
+    def split_table_text(self, table_text: str) -> list[tuple[str, dict[str, Any]]]:
+        """
+        Split already-known table markdown into budget-fitting pieces, using
+        the same row-group logic `chunk_text()` applies to a table block it
+        detects itself. For callers that already have table text in hand
+        (e.g. a Docling-extracted table rendered back to markdown) and don't
+        need `detect_table_blocks()` to find it.
+
+        Returns a list of (piece_text, extra_metadata) pairs. `extra_metadata`
+        is empty when the table fit in a single piece, otherwise holds
+        `row_group_index`/`row_group_count` and, when a row had to be
+        fragmented to fit the budget, `table_structure_preserved: False`.
+        """
+        pieces = self._table_chunks(table_text, file_id="_", table_index=0)
+        if len(pieces) == 1:
+            return [(pieces[0].text, {})]
+
+        return [
+            (
+                piece.text,
+                {
+                    'row_group_index': piece.metadata['row_group_index'],
+                    'row_group_count': piece.metadata['row_group_count'],
+                    **(
+                        {'table_structure_preserved': False}
+                        if piece.metadata.get('table_structure_preserved') is False
+                        else {}
+                    ),
+                },
+            )
+            for piece in pieces
+        ]
+
     def chunk_text(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text, keeping any detected markdown table block as one atomic

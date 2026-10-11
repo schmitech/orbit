@@ -366,6 +366,18 @@ chunk_size: 10  # sentences
 chunk_overlap: 2
 ```
 
+### Table-Aware Chunking
+
+- Detects markdown table blocks and keeps each table as its own chunk, never splitting a row
+- Oversized tables are split by row group (header/separator repeated in each piece) instead of mid-row
+- Surrounding prose falls back to standard recursive (paragraph/sentence/word) chunking
+
+Configuration:
+```yaml
+chunking_strategy: "table_aware"
+chunk_size: 1000
+```
+
 ## Query Examples
 
 ### Querying a PDF Document
@@ -729,12 +741,12 @@ extracted content.
 - [x] Per-adapter file encryption at rest (file bytes + metadata sidecar)
 - [x] Encrypt vector-store chunk text and chunk-level extracted content
 - [ ] Cloud KMS / envelope encryption and key rotation — see [File Encryption Roadmap](file-encryption-roadmap.md)
-- [ ] Advanced chunking (structure-aware, table-aware) — `TableAwareChunker` detects table boundaries and row-splits oversized tables, not yet wired into `chunking_strategy` — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
+- [x] Advanced chunking (structure-aware, table-aware) — `TableAwareChunker` detects table boundaries and row-splits oversized tables; available via `chunking_strategy: "table_aware"` — see [Document Understanding Enhancements](../roadmap/complete/document-understanding-enhancements.md)
 - [ ] Multi-document analysis
 - [ ] Streaming processing for large files
 - [ ] Document versioning and history
-- [x] Table extraction from PDFs, structured cell persistence, and query-time Markdown rendering — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
-- [x] Citation and source tracking — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
+- [x] Table extraction from PDFs, structured cell persistence, and query-time Markdown rendering — see [Document Understanding Enhancements](../roadmap/complete/document-understanding-enhancements.md)
+- [x] Citation and source tracking — see [Document Understanding Enhancements](../roadmap/complete/document-understanding-enhancements.md)
 - [ ] Chart understanding (bar charts, line plots, etc.)
 - [ ] Chemistry structure understanding
 

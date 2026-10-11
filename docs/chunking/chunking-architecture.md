@@ -18,7 +18,7 @@ Chunks user-uploaded files for the File Adapter to store in vector databases.
 
 ### Strategies
 
-ORBIT now supports **four chunking strategies**, each optimized for different use cases:
+ORBIT now supports **six chunking strategies**, each optimized for different use cases:
 
 #### FixedSizeChunker (Default: Character-based)
 ```python
@@ -177,6 +177,63 @@ chunks = chunker.chunk_text(markdown_text, file_id, metadata)
 - Adds `section_header` and `header_level` to chunk metadata when a chunk
   begins with a header line
 - No required dependencies (same fallback chain as `RecursiveChunker`)
+
+#### TableAwareChunker
+```python
+from services.file_processing.chunking import TableAwareChunker
+
+chunker = TableAwareChunker(chunk_size=2048, min_characters_per_chunk=24)
+chunks = chunker.chunk_text(markdown_text, file_id, metadata)
+```
+
+**Best for:**
+- Content containing markdown tables (financial reports, data sheets, spec docs) where a table should stay intact rather than fall into the generic text-based split
+- Documents where downstream table rendering/retrieval relies on `content_type: "table"` metadata
+- Mixed markdown content where tables and surrounding prose both need sensible chunking
+
+**Characteristics:**
+- Subclass of `RecursiveChunker` — detects markdown table blocks (via
+  `detect_table_blocks()`) and emits each one as its own chunk, falling back
+  to the same paragraph/sentence/word recursion for surrounding prose
+- A table that fits `chunk_size` becomes one chunk (`content_type: "table"`,
+  `table_index`); surrounding prose and non-table chunks carry no such
+  marker
+- An oversized table is split by whole row-group instead of the generic
+  text-based budget split: a piece repeats the header/separator row and no
+  row is divided across two *row-group* pieces (`row_group_index`/
+  `row_group_count` on each piece) — see the next bullet for the one case
+  where a row itself still has to be divided
+- A single row (or a header+separator pair with no rows) that still doesn't
+  fit `chunk_size` on its own is fragmented at the word level as a last
+  resort, marked `table_structure_preserved: False` so a consumer can tell
+  the piece is no longer a well-formed markdown table
+- Ignores table-shaped content inside fenced code blocks, and a bare `---`
+  heading rule under `key | value` text (not a real two-column separator)
+- No required dependencies (same fallback chain as `RecursiveChunker`)
+
+**Docling-extracted tables (upload path):** when a PDF/DOCX's tables are
+extracted by Docling rather than detected in markdown text, the upload
+pipeline builds their chunks via `_extract_tables_as_chunks()` in
+`file_processing_service.py`, not via `TableAwareChunker.chunk_text()`
+directly. With `chunking_strategy: "table_aware"` selected, that method
+routes each extracted table's rendered markdown through
+`TableAwareChunker.split_table_text()` — the same row-group/fragmentation
+logic described above — so an oversized Docling table is still split by
+row-group rather than reaching the generic indexing-time budget splitter.
+With any other strategy selected, Docling-extracted tables are not
+row-split.
+
+**Page attribution:** `_assign_page_attribution()` stamps `page_number` (or
+`page_range_start`/`page_range_end`) onto chunks using Docling's
+page-segment data. A markdown table `TableAwareChunker` detects in the text
+itself (one Docling did *not* extract as a structured table) is attributed
+like any prose chunk. A row-group piece's synthetic header/separator doesn't
+appear verbatim at that position in the source, so matching is done on the
+piece's own data-row text; a `table_structure_preserved: False` piece has
+its whitespace normalized by the word-level fallback, so it's matched with a
+whitespace-tolerant search from the current scan position instead of an
+exact substring search (which could otherwise match a coincidentally
+identical, later occurrence of the same table and misattribute the page).
 
 ### Dependencies and Fallback Behavior
 
@@ -349,24 +406,26 @@ chunks = chunker.chunk_markdown(markdown_content, metadata)
 | **TokenChunker** | All text types, LLM context | Tokens | None | Fast | Optional (tokenizers) | ✅ |
 | **RecursiveChunker** ⭐ | **All file types (default)** | Tokens/Characters | Hierarchical (paragraphs→sentences→words) | Medium | None | ✅ |
 | **MarkdownHeaderChunker** | Markdown-converted docs (MarkItDown/Docling output) | Tokens/Characters | Hierarchical (headers→paragraphs→sentences→words) | Medium | None | ✅ |
+| **TableAwareChunker** | Markdown content with tables that should stay intact (row-groups for oversized tables; only an oversized single row falls back to a word-level split) | Tokens/Characters | Table-block-aware + paragraphs→sentences→words for prose | Medium | None | ✅ |
 
 ⭐ **Recommended default** - Works best across all file types (PDF, DOCX, CSV, TXT, HTML, JSON, images, audio)
 
 ### Detailed Strategy Comparison
 
-| Feature | FixedSize | Semantic | Token | Recursive | MarkdownHeader |
-|---------|-----------|----------|-------|-----------|----------------|
-| **Works for CSV/JSON** | ✅ | ⚠️ | ✅ | ✅ | ✅ |
-| **Works for PDF/DOCX** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Respects sentences** | ❌ | ✅ | ❌ | ✅ | ✅ |
-| **Respects paragraphs** | ❌ | ⚠️ | ❌ | ✅ | ✅ |
-| **Respects headers** | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Token-aware** | Optional | Optional | ✅ | ✅ | ✅ |
-| **LLM context accuracy** | ⚠️/✅ | ✅ | ✅ | ✅ | ✅ |
-| **Complexity** | Low | Medium/High | Low | Medium | Medium |
-| **Speed** | Fast | Medium | Fast | Medium | Medium |
-| **Required deps** | None | Optional | Optional | None | None |
-| **Default recommended** | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Feature | FixedSize | Semantic | Token | Recursive | MarkdownHeader | TableAware |
+|---------|-----------|----------|-------|-----------|----------------|------------|
+| **Works for CSV/JSON** | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| **Works for PDF/DOCX** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Respects sentences** | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| **Respects paragraphs** | ❌ | ⚠️ | ❌ | ✅ | ✅ | ✅ |
+| **Respects headers** | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| **Keeps tables intact** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **Token-aware** | Optional | Optional | ✅ | ✅ | ✅ | ✅ |
+| **LLM context accuracy** | ⚠️/✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Complexity** | Low | Medium/High | Low | Medium | Medium | Medium |
+| **Speed** | Fast | Medium | Fast | Medium | Medium | Medium |
+| **Required deps** | None | Optional | Optional | None | None | None |
+| **Default recommended** | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
 
 ## System Comparison Table
 
@@ -374,10 +433,10 @@ chunks = chunker.chunk_markdown(markdown_content, metadata)
 |---------|---------------|---------------------|
 | **Unit** | Characters/Sentences/Tokens | Tokens |
 | **Structure** | Flat/Hierarchical | Hierarchical (tree) |
-| **Awareness** | Sentence/paragraph/words/headers | Markdown headers |
+| **Awareness** | Sentence/paragraph/words/headers/tables | Markdown headers |
 | **Output** | `Chunk` dataclass | Dictionary |
 | **Use Case** | Uploaded files | Scraped web pages |
-| **Strategies** | Fixed, Semantic, Token, Recursive, MarkdownHeader | Markdown structure |
+| **Strategies** | Fixed, Semantic, Token, Recursive, MarkdownHeader, TableAware | Markdown structure |
 | **Size Trigger** | Always chunks | Only if > max_tokens |
 | **Hierarchy** | Optional (Recursive, MarkdownHeader) | H1 > H2 > H3... |
 | **Adapter** | File Adapter | Firecrawl Adapter |
@@ -420,6 +479,12 @@ chunks = chunker.chunk_markdown(markdown_content, metadata)
 - ✅ Sections should stay attached to their header (avoid a header ending up in a different chunk than its content)
 - ✅ Want the same paragraph/sentence/word fallback behavior as RecursiveChunker for oversized sections or header-less text
 - ❌ Not useful for content without markdown headers (behaves identically to RecursiveChunker in that case)
+
+#### Use TableAwareChunker When:
+- ✅ Documents contain markdown tables that should stay intact when possible — split by whole row-group rather than mid-row, with only an oversized single row falling back to a word-level split (financial reports, spec sheets, data tables)
+- ✅ Downstream retrieval/rendering relies on `content_type: "table"` metadata to render or reason about tabular data
+- ✅ Want the same paragraph/sentence/word fallback behavior as RecursiveChunker for surrounding prose
+- ❌ Not useful for content without tables (behaves identically to RecursiveChunker in that case)
 
 ### Use Web Content Chunking When:
 - ✅ Scraping web pages with Firecrawl
@@ -526,6 +591,11 @@ See [`docs/roadmap/complete/chunking-safeguards.md`](../roadmap/complete/chunkin
 │ - Header-aware      │                                   │
 │ - Extends Recursive │                                   │
 │                     │                                   │
+│ TableAwareChunker   │                                   │
+│ - 2048 (chars/tokens)│                                  │
+│ - Table-aware       │                                   │
+│ - Extends Recursive │                                   │
+│                     │                                   │
 ├─────────────────────┴───────────────────────────────────┤
 │                                                          │
 │              ChunkManager (Shared)                      │
@@ -610,6 +680,21 @@ chunker = TokenChunker(chunk_size=2048, overlap=200, tokenizer="gpt2")
 chunks = chunker.chunk_text(text, file_id, metadata)
 ```
 
+#### Document with Tables (TableAwareChunker)
+```python
+# User uploads a report containing markdown tables
+from services.file_processing.chunking import TableAwareChunker
+
+chunker = TableAwareChunker(chunk_size=2048, min_characters_per_chunk=24)
+chunks = chunker.chunk_text(markdown_text, file_id, metadata)
+
+# Table chunks carry content_type: "table" and table_index; an oversized
+# table arrives as row-group pieces (never splitting a row across two
+# pieces), except a single row too large to fit even alongside the
+# header/separator, which falls back to a word-level split
+table_chunks = [c for c in chunks if c.metadata.get("content_type") == "table"]
+```
+
 ### Firecrawl Adapter (Wikipedia Scrape)
 ```python
 # User asks "What is web scraping?"
@@ -662,8 +747,8 @@ No benchmark numbers are published here -- the previous figures in this section 
 
 ```yaml
 files:
-  default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive" (recommended), "markdown_header"
-  default_chunk_size: 2048  # Tokens (for recursive/token/markdown_header), characters (for fixed/semantic)
+  default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive" (recommended), "markdown_header", "table_aware"
+  default_chunk_size: 2048  # Tokens for recursive/token/markdown_header/table_aware when `tokenizer` is set, characters otherwise (fixed/semantic are always characters unless use_tokens/chunk_size_tokens is set)
   default_chunk_overlap: 200
 
   # Optional tokenizer configuration
@@ -672,7 +757,7 @@ files:
 
   # Strategy-specific options
   chunking_options:
-    # Recursive / markdown_header chunking options
+    # Recursive / markdown_header / table_aware chunking options
     min_characters_per_chunk: 24
 
     # Semantic chunking options
@@ -730,6 +815,7 @@ adapters:
 - SemanticChunker: `chunk_size` (number of sentences) or `chunk_size_tokens` (token limit)
 - TokenChunker: `chunk_size` (number of tokens)
 - RecursiveChunker: `chunk_size` and `min_characters_per_chunk`
+- TableAwareChunker: `chunk_size` and `min_characters_per_chunk` (a table too large for `chunk_size` is split by row-group, never mid-row, except a single row too large to fit even alongside the header/separator, which falls back to a word-level split)
 
 ### RecursiveChunker creates uneven chunks
 **Expected behavior:** Respects document structure (paragraphs, sentences)
@@ -780,7 +866,7 @@ See `CHUNKING_REVIEW_REPORT.md` for full details on:
 
 Keep these systems **separate** because they serve different purposes:
 
-1. **File Chunking** - General-purpose, multiple strategies (fixed, semantic, token, recursive), for uploaded files
+1. **File Chunking** - General-purpose, multiple strategies (fixed, semantic, token, recursive, markdown_header, table_aware), for uploaded files
 2. **Web Content Chunking** - Specialized, token/structure-based, for web scraping
 
 ### Recommended Default Strategy

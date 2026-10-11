@@ -2270,6 +2270,85 @@ def test_assign_page_attribution_leaves_table_chunks_untouched(tmp_path):
     cleanup_metadata_store(test_db_path)
 
 
+def test_assign_page_attribution_matches_whitespace_collapsed_table_fallback_pieces(tmp_path):
+    # Regression: when a table's header+separator alone already exceed
+    # chunk_size, TableAwareChunker's word-level budget fallback joins the
+    # table's own words with single spaces, collapsing the original newlines
+    # between header/separator/row - an exact substring search against the
+    # source text (which still has real newlines) then can't find the piece,
+    # leaving it with no page attribution at all.
+    from services.file_processing.chunking.table_aware_chunker import TableAwareChunker
+
+    config, test_db_path = create_test_config(tmp_path, db_name="test_page_attr_table_fallback.db")
+    service = FileProcessingService(config)
+
+    header = "| " + " | ".join(f"Column{i}" for i in range(15)) + " |"
+    separator = "| " + " | ".join(["---"] * 15) + " |"
+    row = "| " + " | ".join(f"value{i}" for i in range(15)) + " |"
+    table_text = f"{header}\n{separator}\n{row}"
+
+    chunker = TableAwareChunker(chunk_size=30, min_characters_per_chunk=5)
+    chunks = chunker.chunk_text(table_text, file_id="f1", metadata={})
+    assert len(chunks) > 1
+    assert all(c.metadata["table_structure_preserved"] is False for c in chunks)
+
+    text_for_pages = f"Intro text on page 3.\n\n{table_text}\n\nMore text on page 5."
+    table_start = text_for_pages.index(table_text)
+    page_segments = [
+        {"start": 0, "end": table_start, "page_numbers": [3]},
+        {"start": table_start, "end": table_start + len(table_text), "page_numbers": [4]},
+        {"start": table_start + len(table_text), "end": len(text_for_pages), "page_numbers": [5]},
+    ]
+
+    service._assign_page_attribution(chunks, text_for_pages, page_segments)
+
+    assert all(c.metadata.get("page_number") == 4 for c in chunks)
+    cleanup_metadata_store(test_db_path)
+
+
+def test_assign_page_attribution_prefers_cursor_over_later_exact_duplicate(tmp_path):
+    # Regression: an exact match against the whole document (the second
+    # fallback step for ordinary chunks) could find a later, coincidentally
+    # identical occurrence of a collapsed table piece before the
+    # whitespace-tolerant match ever ran, misattributing the chunk to that
+    # later page even though the real occurrence was right at the cursor.
+    from services.file_processing.chunking.table_aware_chunker import TableAwareChunker
+
+    config, test_db_path = create_test_config(tmp_path, db_name="test_page_attr_table_duplicate.db")
+    service = FileProcessingService(config)
+
+    header = "| " + " | ".join(f"Column{i}" for i in range(15)) + " |"
+    separator = "| " + " | ".join(["---"] * 15) + " |"
+    row = "| " + " | ".join(f"value{i}" for i in range(15)) + " |"
+    table_text = f"{header}\n{separator}\n{row}"
+
+    chunker = TableAwareChunker(chunk_size=30, min_characters_per_chunk=5)
+    chunks = chunker.chunk_text(table_text, file_id="f1", metadata={})
+    assert len(chunks) > 1
+    assert all(c.metadata["table_structure_preserved"] is False for c in chunks)
+
+    # The same table text appears twice: once on page 4 (where the chunks
+    # actually came from) and again, verbatim, on page 5.
+    text_for_pages = (
+        f"Intro text on page 3.\n\n{table_text}\n\n"
+        f"Separator text.\n\n{table_text}\n\nMore text on page 6."
+    )
+    first_start = text_for_pages.index(table_text)
+    second_start = text_for_pages.index(table_text, first_start + len(table_text))
+    page_segments = [
+        {"start": 0, "end": first_start, "page_numbers": [3]},
+        {"start": first_start, "end": first_start + len(table_text), "page_numbers": [4]},
+        {"start": first_start + len(table_text), "end": second_start, "page_numbers": [4]},
+        {"start": second_start, "end": second_start + len(table_text), "page_numbers": [5]},
+        {"start": second_start + len(table_text), "end": len(text_for_pages), "page_numbers": [6]},
+    ]
+
+    service._assign_page_attribution(chunks, text_for_pages, page_segments)
+
+    assert all(c.metadata.get("page_number") == 4 for c in chunks)
+    cleanup_metadata_store(test_db_path)
+
+
 def test_assign_page_attribution_leaves_unmatched_chunk_with_no_page_fields(tmp_path):
     config, test_db_path = create_test_config(tmp_path, db_name="test_page_attr_unmatched.db")
     service = FileProcessingService(config)
