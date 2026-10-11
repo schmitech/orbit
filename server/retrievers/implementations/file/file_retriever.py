@@ -7,7 +7,7 @@ Supports semantic search over chunked document content.
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from services.file_metadata.metadata_store import FileMetadataStore
 from services.file_processing.chunking.base_chunker import Chunk
@@ -34,7 +34,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
     for semantic search and Q&A over uploaded documents.
     """
     
-    def __init__(self, config: dict[str, Any] = None, datasource=None, domain_adapter=None, **kwargs):
+    def __init__(self, config: dict[str, Any] | None = None, datasource=None, domain_adapter=None, **kwargs):
         """
         Initialize file retriever.
 
@@ -149,9 +149,9 @@ class FileVectorRetriever(AbstractVectorRetriever):
         self.initialized = True
         logger.debug("FileVectorRetriever initialized")
     
-    async def get_relevant_context(self, query: str, api_key: Optional[str] = None,
-                                  file_ids: Optional[list[str]] = None,
-                                  collection_name: Optional[str] = None,
+    async def get_relevant_context(self, query: str, api_key: str | None = None,
+                                  file_ids: list[str] | None = None,
+                                  collection_name: str | None = None,
                                   **kwargs) -> list[dict[str, Any]]:
         """
         Retrieve relevant context from uploaded files.
@@ -239,8 +239,8 @@ class FileVectorRetriever(AbstractVectorRetriever):
         return formatted_results
     
     
-    async def _get_collections_multiple(self, file_ids: Optional[list[str]], api_key: Optional[str],
-                                       collection_name: Optional[str]) -> list[str]:
+    async def _get_collections_multiple(self, file_ids: list[str] | None, api_key: str | None,
+                                       collection_name: str | None) -> list[str]:
         """
         Get list of collections to search for multiple file IDs.
 
@@ -381,8 +381,8 @@ class FileVectorRetriever(AbstractVectorRetriever):
         return []
     
     async def _search_collection(self, collection_name: str, query_embedding: list[float],
-                                 file_ids: Optional[list[str]] = None,
-                                 limit: Optional[int] = None) -> list[dict[str, Any]]:
+                                 file_ids: list[str] | None = None,
+                                 limit: int | None = None) -> list[dict[str, Any]]:
         """Search a specific collection for relevant chunks.
 
         Args:
@@ -400,13 +400,12 @@ class FileVectorRetriever(AbstractVectorRetriever):
         try:
             # Build metadata filter
             filter_metadata = None
-            if file_ids:
-                # If multiple file_ids, we need to filter by any of them
-                # Note: Some vector stores support OR filters, others may need multiple queries
-                # For now, filter by the first file_id if multiple (we'll search all collections anyway)
-                if len(file_ids) == 1:
-                    filter_metadata = {'file_id': file_ids[0]}
-                # TODO: Support proper OR filtering for multiple file_ids in vector store queries
+            # If multiple file_ids, we need to filter by any of them
+            # Note: Some vector stores support OR filters, others may need multiple queries
+            # For now, filter by the first file_id if multiple (we'll search all collections anyway)
+            if file_ids and len(file_ids) == 1:
+                filter_metadata = {'file_id': file_ids[0]}
+            # TODO: Support proper OR filtering for multiple file_ids in vector store queries
 
             # Search vector store
             results = await self._default_store.search_vectors(
@@ -554,9 +553,9 @@ class FileVectorRetriever(AbstractVectorRetriever):
         file_id: str,
         chunks: list,
         collection_name: str,
-        encryptor: Optional[FileEncryptor] = None,
+        encryptor: FileEncryptor | None = None,
         usage_sink=None,
-        budget: Optional[EmbeddingBudget] = None,
+        budget: EmbeddingBudget | None = None,
     ) -> bool:
         """
         Index file chunks into vector store.
@@ -797,7 +796,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
             logger.error(f"Error indexing file chunks: {e}")
             return False
     
-    async def get_chunk(self, chunk_id: str) -> Optional[dict[str, Any]]:
+    async def get_chunk(self, chunk_id: str) -> dict[str, Any] | None:
         """Retrieve a specific chunk by ID."""
         # This would query the vector store for a specific chunk
         # For now, return None as this requires vector store ID lookup
@@ -952,17 +951,14 @@ class FileVectorRetriever(AbstractVectorRetriever):
         """
         # FileVectorRetriever handles collections dynamically in _get_collections
         # No need to set a single collection
-        pass
     
     async def initialize_client(self) -> None:
         """Initialize the vector database client/connection."""
         # FileVectorRetriever uses StoreManager which is initialized in initialize()
         # This is called from parent but we handle it differently
         # Don't call initialize() here to avoid double initialization
-        pass
     
     async def close_client(self) -> None:
         """Close the vector database client/connection."""
         # FileVectorRetriever doesn't maintain a persistent client connection
         # The store manager handles its own lifecycle
-        pass

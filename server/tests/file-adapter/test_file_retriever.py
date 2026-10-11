@@ -1651,9 +1651,7 @@ async def test_delete_file_chunks_partial_vector_store_failure(mock_retriever):
     def mock_delete_side_effect(*args, **kwargs):
         delete_call_count[0] += 1
         vector_id = kwargs.get('vector_id')
-        if vector_id == 'chunk_2':
-            return False  # Simulate failure
-        return True
+        return vector_id != 'chunk_2'  # Simulate failure for chunk_2
     
     mock_store.delete_vector = AsyncMock(side_effect=mock_delete_side_effect)
     mock_retriever._default_store = mock_store
