@@ -729,7 +729,7 @@ extracted content.
 - [x] Per-adapter file encryption at rest (file bytes + metadata sidecar)
 - [x] Encrypt vector-store chunk text and chunk-level extracted content
 - [ ] Cloud KMS / envelope encryption and key rotation — see [File Encryption Roadmap](file-encryption-roadmap.md)
-- [ ] Advanced chunking (structure-aware, table-aware) — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
+- [ ] Advanced chunking (structure-aware, table-aware) — table-boundary detection landed (`TableAwareChunker`), not yet wired into `chunking_strategy` — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
 - [ ] Multi-document analysis
 - [ ] Streaming processing for large files
 - [ ] Document versioning and history

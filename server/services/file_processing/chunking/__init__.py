@@ -9,6 +9,7 @@ from .fixed_chunker import FixedSizeChunker
 from .markdown_header_chunker import MarkdownHeaderChunker
 from .recursive_chunker import RecursiveChunker, RecursiveLevel, RecursiveRules
 from .semantic_chunker import SemanticChunker
+from .table_aware_chunker import TableAwareChunker, detect_table_blocks
 from .token_chunker import TokenChunker
 
 __all__ = [
@@ -19,6 +20,8 @@ __all__ = [
     'RecursiveLevel',
     'RecursiveRules',
     'SemanticChunker',
+    'TableAwareChunker',
     'TextChunker',
     'TokenChunker',
+    'detect_table_blocks',
 ]

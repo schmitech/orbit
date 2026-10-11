@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **Table-Boundary Detection for Chunking (Phase 3.1 of Document Understanding Enhancements)**: No chunker was aware of table boundaries, so a table could be split mid-row by the standard paragraph/sentence/word recursion. Added `detect_table_blocks()` (`server/services/file_processing/chunking/table_aware_chunker.py`), which locates markdown table blocks via regex — independent of Docling's table-structure data — while skipping fenced code blocks and requiring a separator row's column count to match its header row. A new `TableAwareChunker` emits each detected table as a single, unsplit chunk regardless of `chunk_size`, falling back to normal recursive chunking for surrounding prose. Not yet wired into `chunking_strategy` dispatch (Phase 3.3) or stamped with `content_type: "table"` (Phase 3.2).
+
 ## [2.18.3] - 2026-10-10
 
 ### Core Features
