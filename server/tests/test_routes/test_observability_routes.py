@@ -159,6 +159,21 @@ def test_observability_usage_filters_and_groups_by_call_type():
     assert audit_service.last_call_kwargs["filters"] == {"call_type": "embedding"}
 
 
+def test_observability_usage_filters_by_decision_call_type():
+    """Decision-model calls are a distinct call_type from 'chat' (see
+    DecisionModelStep) and must be filterable/groupable like any other."""
+    audit_service = FakeAuditService()
+    app = _build_app(["admin"], audit_service=audit_service)
+    with TestClient(app) as client:
+        resp = client.get(
+            "/admin/observability/usage?group_by=call_type&call_type=decision"
+        )
+
+    assert resp.status_code == 200
+    assert audit_service.last_call_kwargs["group_by"] == "call_type"
+    assert audit_service.last_call_kwargs["filters"] == {"call_type": "decision"}
+
+
 def test_observability_usage_filters_by_api_key():
     audit_service = FakeAuditService()
     app = _build_app(["admin"], audit_service=audit_service)
@@ -206,8 +221,8 @@ def test_observability_usage_api_key_groups_get_client_name_label():
     }
     audit_service = FakeAuditService(aggregate_result=aggregate_result)
     api_key_service = FakeApiKeyService(docs=[
-        {"api_key": "sk-live-aaa111", "client_name": "Acme Corp", "active": True},
-        {"api_key": "sk-live-bbb222", "client_name": "Globex", "active": True},
+        {"api_key": "sk-live-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
+        {"api_key": "sk-live-bbb222", "key_suffix": "bbb222", "client_name": "Globex", "active": True},
     ])
     app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
     with TestClient(app) as client:
@@ -307,8 +322,8 @@ def test_observability_usage_api_key_label_ambiguous_on_suffix_collision():
     audit_service = FakeAuditService(aggregate_result=aggregate_result)
     # Two distinct active keys share the same last-6-character suffix.
     api_key_service = FakeApiKeyService(docs=[
-        {"api_key": "sk-live-1-aaa111", "client_name": "Acme Corp", "active": True},
-        {"api_key": "sk-live-2-aaa111", "client_name": "Globex", "active": True},
+        {"api_key": "sk-live-1-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
+        {"api_key": "sk-live-2-aaa111", "key_suffix": "aaa111", "client_name": "Globex", "active": True},
     ])
     app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
     with TestClient(app) as client:
@@ -333,8 +348,8 @@ def test_observability_usage_api_key_label_ambiguous_even_with_same_client_name(
     }
     audit_service = FakeAuditService(aggregate_result=aggregate_result)
     api_key_service = FakeApiKeyService(docs=[
-        {"api_key": "sk-live-1-aaa111", "client_name": "Acme Corp", "active": True},
-        {"api_key": "sk-live-2-aaa111", "client_name": "Acme Corp", "active": True},
+        {"api_key": "sk-live-1-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
+        {"api_key": "sk-live-2-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
     ])
     app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
     with TestClient(app) as client:
@@ -358,10 +373,10 @@ def test_observability_usage_api_key_label_paginates_past_first_page():
     }
     audit_service = FakeAuditService(aggregate_result=aggregate_result)
     filler_docs = [
-        {"api_key": f"sk-live-filler-{i:06d}", "client_name": f"Filler {i}", "active": True}
+        {"api_key": f"sk-live-filler-{i:06d}", "key_suffix": f"r{i:05d}", "client_name": f"Filler {i}", "active": True}
         for i in range(600)
     ]
-    target_doc = {"api_key": "sk-live-target-zzz999", "client_name": "Last Page Corp", "active": True}
+    target_doc = {"api_key": "sk-live-target-zzz999", "key_suffix": "zzz999", "client_name": "Last Page Corp", "active": True}
     api_key_service = FakeApiKeyService(docs=filler_docs + [target_doc])
     app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
     with TestClient(app) as client:

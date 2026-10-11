@@ -20,6 +20,7 @@ const AUDIT_DOMAINS = [
 
 const CALL_TYPE_LABELS = {
   chat: "Chat",
+  decision: "Decision",
   embedding: "Embedding",
   reranking: "Reranking",
   image: "Image",
@@ -31,6 +32,7 @@ const CALL_TYPE_LABELS = {
 const AUDIT_CALL_TYPES = [
   { value: "all",       label: "All" },
   { value: "chat", label: "Chat" },
+  { value: "decision", label: "Decision" },
   { value: "embedding", label: "Embedding" },
   { value: "reranking", label: "Reranking" },
   { value: "image",     label: "Image" },

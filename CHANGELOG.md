@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **Decision Model Calls Surfaced as Their Own `call_type` in the Admin Panel**: Decision-model adapter requests were already recorded with `call_type: "decision"` at the audit layer (`DecisionModelStep`), but the admin panel's Audit Ledger and Costs tabs had no filter or label for it, and `GET /admin/observability/usage?call_type=decision` was rejected with a 422. Added `decision` to the observability route's accepted call types, the Audit Ledger's stream/type filters and source badge (with its own color token), and the Costs tab's call-type filter — so decision-model usage and cost can be isolated from chat traffic end-to-end instead of only existing in raw audit records.
+
 ## [2.18.2] - 2026-10-10
 
 ### Core Features

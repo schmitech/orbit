@@ -214,7 +214,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
     const callTypeSelect = createSelect({
       className: "select-input",
       ariaLabel: "Call type",
-      options: [["all", "All call types"], ["chat", "Chat"], ["embedding", "Embedding"], ["reranking", "Reranking"], ["image", "Image"], ["video", "Video"], ["audio", "Audio"], ["document", "Document"]]
+      options: [["all", "All call types"], ["chat", "Chat"], ["decision", "Decision"], ["embedding", "Embedding"], ["reranking", "Reranking"], ["image", "Image"], ["video", "Video"], ["audio", "Audio"], ["document", "Document"]]
         .map(([value, label]) => ({ value, label })),
       value: selectedCallType
     });

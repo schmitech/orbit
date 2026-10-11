@@ -61,6 +61,9 @@
   --audit-chat-bg-strong: #3a2a17;
   --audit-chat-text:    #f3ac6d;
   --audit-chat-border:  #7a5327;
+  --audit-decision-bg:     #132a28;
+  --audit-decision-text:   #5fd9cb;
+  --audit-decision-border: #275c54;
   --audit-embedding-bg:    #201a30;
   --audit-embedding-text:  #c4a9f7;
   --audit-embedding-border:#4d3d75;
@@ -198,6 +201,9 @@
   --audit-chat-bg-strong: #ffedd5;
   --audit-chat-text:    #9a3412;
   --audit-chat-border:  #fdba74;
+  --audit-decision-bg:     #ecfdf5;
+  --audit-decision-text:   #0f766e;
+  --audit-decision-border: #5eead4;
   --audit-embedding-bg:    #f5f3ff;
   --audit-embedding-text:  #6d28d9;
   --audit-embedding-border:#c4b5fd;
@@ -5807,6 +5813,12 @@ button.mcp-kv-btn:active:not(:disabled) {
   color: var(--audit-chat-text);
   background: var(--audit-chat-bg);
   border-color: var(--audit-chat-border);
+}
+
+.audit-source-badge--decision {
+  color: var(--audit-decision-text);
+  background: var(--audit-decision-bg);
+  border-color: var(--audit-decision-border);
 }
 
 .audit-source-badge--embedding {
