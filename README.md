@@ -65,6 +65,57 @@ Explore what you can build with ORBIT, from conversations over private data to v
 
 ## Quick start
 
+<details>
+<summary><strong>Try with Docker — choose Ollama, OpenAI, or Gemini</strong></summary>
+
+With Docker installed and running, use a prebuilt flavor image to try ORBIT without downloading a tarball or cloning the repo. Each image bundles the ORBIT server, OrbitChat web UI, and document chat for PDFs, Word, Excel, images, and Markdown.
+
+Choose **one** flavor:
+
+| Flavor | Image | What you need |
+| :--- | :--- | :--- |
+| **Ollama** | `schmitech/orbit-ollama:latest` | Local inference; no API key. Ollama is bundled. |
+| **OpenAI** | `schmitech/orbit-openai:latest` | `OPENAI_API_KEY` exported in your shell. |
+| **Gemini** | `schmitech/orbit-gemini:latest` | `GOOGLE_API_KEY` exported in your shell. |
+
+**Ollama**
+
+```bash
+docker run -d --name orbit \
+  -p 127.0.0.1:5173:5173 -p 127.0.0.1:3000:3000 \
+  -v orbit-data:/orbit/data \
+  -v orbit-models:/orbit/models \
+  schmitech/orbit-ollama:latest
+```
+
+**OpenAI**
+
+```bash
+docker run -d --name orbit \
+  -p 127.0.0.1:5173:5173 -p 127.0.0.1:3000:3000 \
+  -e OPENAI_API_KEY \
+  -v orbit-data:/orbit/data \
+  schmitech/orbit-openai:latest
+```
+
+**Gemini**
+
+```bash
+docker run -d --name orbit \
+  -p 127.0.0.1:5173:5173 -p 127.0.0.1:3000:3000 \
+  -e GOOGLE_API_KEY \
+  -v orbit-data:/orbit/data \
+  schmitech/orbit-gemini:latest
+```
+
+Once startup completes, open [OrbitChat](http://localhost:5173) to chat or upload a document. The API is available at [http://localhost:3000](http://localhost:3000), with the bundled `multimodal` API key for the document-chat adapter.
+
+View startup progress with `docker logs -f orbit`. Data persists in `orbit-data`; the Ollama flavor also stores downloaded models in `orbit-models`.
+
+See the [Docker guide](docker/README.md#flavor-images-recommended-pull-and-run) for more details.
+
+</details>
+
 ### Run it locally
 
 **Prerequisites:** Python 3.12+, an internet connection for downloads, and [Ollama](https://ollama.com/) installed and running. If needed, run `ollama serve` in a separate terminal. On Windows, follow the [installation guide](install/windows.md).
