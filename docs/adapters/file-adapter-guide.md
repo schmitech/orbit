@@ -152,13 +152,17 @@ Response:
       "content": "chunk text...",
       "metadata": {
         "chunk_id": "...",
+        "file_id": "uuid",
         "chunk_index": 0,
+        "page_number": 2,
         "confidence": 0.95
       }
     }
   ]
 }
 ```
+
+When Docling extracts a table from a vector-backed file, the query result's `content` is a Markdown table rendered from the stored cells (for example, `| Name | Age |\n| --- | --- |\n| Alice | 30 |\n`). The complete cell grid is available at `results[].file_metadata.chunk_metadata.cells`; it is not copied into vector-store metadata. Rendering also works for encrypted files after their chunk metadata is decrypted. If a table exceeds the embedding budget and is split, each result keeps its indexed text until Phase 3 adds row-aware splitting. Page citations appear as `metadata.page_number` or `metadata.page_range_start`/`metadata.page_range_end` when Docling reports provenance; page fields are absent when unknown. CSV and Parquet files on the DuckDB path retain their existing structured-query behavior.
 
 ### Delete File
 
@@ -729,7 +733,7 @@ extracted content.
 - [ ] Multi-document analysis
 - [ ] Streaming processing for large files
 - [ ] Document versioning and history
-- [ ] Table extraction from PDFs (Docling wiring and chunk-metadata persistence done; query-time table rendering not yet implemented) — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
+- [x] Table extraction from PDFs, structured cell persistence, and query-time Markdown rendering — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
 - [x] Citation and source tracking — see [Document Understanding Enhancements](../roadmap/document-understanding-enhancements.md)
 - [ ] Chart understanding (bar charts, line plots, etc.)
 - [ ] Chemistry structure understanding

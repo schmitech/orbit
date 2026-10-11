@@ -4,11 +4,13 @@ Tests for File Vector Retriever
 Tests the FileVectorRetriever class for querying uploaded files via vector stores.
 """
 
-import pytest
-import pytest_asyncio
+import json
 import sys
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+import pytest_asyncio
 
 # Add server directory to Python path
 SCRIPT_DIR = Path(__file__).parent.absolute()
@@ -17,6 +19,7 @@ sys.path.append(str(SERVER_DIR))
 
 from retrievers.implementations.file.file_retriever import FileVectorRetriever
 from services.file_metadata.metadata_store import FileMetadataStore
+from services.file_storage.encryption import FileEncryptor
 
 
 def create_test_config(db_path: str) -> dict:
@@ -333,6 +336,143 @@ async def test_format_results():
     assert formatted[0]['metadata']['chunk_id'] == 'chunk_1'
     assert formatted[0]['metadata']['file_id'] == 'file_123'
     assert formatted[0]['metadata']['confidence'] == 0.9
+
+
+def test_format_results_renders_stored_table_cells():
+    retriever = FileVectorRetriever(config={'files': {}})
+    table_metadata = {
+        'content_type': 'table', 'row_count': 2, 'column_count': 2,
+        'cells': [
+            {'row': 0, 'col': 0, 'text': 'Name'},
+            {'row': 0, 'col': 1, 'text': 'Age'},
+            {'row': 1, 'col': 0, 'text': 'Alice'},
+            {'row': 1, 'col': 1, 'text': '30'},
+        ],
+    }
+    result = {
+        'id': 'table-1', 'text': 'stale indexed table text',
+        'metadata': {'file_id': 'file-1', 'chunk_index': 0},
+        'chunk_metadata': {'chunk_id': 'table-1', 'chunk_metadata': table_metadata},
+    }
+
+    formatted = retriever._format_results([result])[0]
+
+    assert formatted['content'] == '| Name | Age |\n| --- | --- |\n| Alice | 30 |\n'
+    assert formatted['file_metadata']['chunk_metadata'] == table_metadata
+
+    split_result = {
+        **result,
+        'id': 'table-1_split_0',
+        'text': 'partial table text',
+        'metadata': {**result['metadata'], 'split_count': 2, 'split_index': 0},
+    }
+    assert retriever._format_results([split_result])[0]['content'] == 'partial table text'
+
+
+def test_format_results_treats_single_piece_budget_split_as_incomplete():
+    """A budget split that emits one piece keeps the original ID and has
+    split_count=1, but still carries split_index and may lack table rows."""
+    retriever = FileVectorRetriever(config={'files': {}})
+    table_metadata = {
+        'content_type': 'table', 'row_count': 2, 'column_count': 1,
+        'cells': [
+            {'row': 0, 'col': 0, 'text': 'Item'},
+            {'row': 1, 'col': 0, 'text': 'Book'},
+        ],
+    }
+    result = {
+        'id': 'table-1',  # no "_split_" in the id
+        'text': 'partial table text',
+        'metadata': {'file_id': 'file-1', 'chunk_index': 0, 'split_count': 1, 'split_index': 0},
+        'chunk_metadata': {'chunk_id': 'table-1', 'chunk_metadata': table_metadata},
+    }
+
+    formatted = retriever._format_results([result])[0]
+
+    assert formatted['content'] == 'partial table text'
+
+
+def test_format_results_keeps_indexed_text_for_empty_cell_grid():
+    retriever = FileVectorRetriever(config={'files': {}})
+    result = {
+        'id': 'table-1', 'text': 'indexed table text',
+        'metadata': {'file_id': 'file-1', 'chunk_index': 0},
+        'chunk_metadata': {
+            'chunk_id': 'table-1',
+            'chunk_metadata': {'content_type': 'table', 'row_count': 2, 'column_count': 2, 'cells': []},
+        },
+    }
+
+    assert retriever._format_results([result])[0]['content'] == 'indexed table text'
+
+
+def test_format_results_keeps_indexed_text_for_incomplete_cell_grid():
+    retriever = FileVectorRetriever(config={'files': {}})
+    result = {
+        'id': 'table-1', 'text': 'indexed table text',
+        'metadata': {'file_id': 'file-1', 'chunk_index': 0},
+        'chunk_metadata': {
+            'chunk_id': 'table-1',
+            'chunk_metadata': {
+                'content_type': 'table', 'row_count': 2, 'column_count': 2,
+                'cells': [{'row': 0, 'col': 0, 'text': 'Only cell'}],
+            },
+        },
+    }
+
+    assert retriever._format_results([result])[0]['content'] == 'indexed table text'
+
+
+def test_format_results_accepts_merged_cells_covering_grid():
+    retriever = FileVectorRetriever(config={'files': {}})
+    result = {
+        'id': 'table-1', 'text': 'indexed table text',
+        'metadata': {'file_id': 'file-1', 'chunk_index': 0},
+        'chunk_metadata': {
+            'chunk_id': 'table-1',
+            'chunk_metadata': {
+                'content_type': 'table', 'row_count': 2, 'column_count': 2,
+                'cells': [
+                    {'row': 0, 'col': 0, 'row_span': 1, 'col_span': 2, 'text': 'Heading'},
+                    {'row': 1, 'col': 0, 'text': 'Alice'},
+                    {'row': 1, 'col': 1, 'text': '30'},
+                ],
+            },
+        },
+    }
+
+    assert retriever._format_results([result])[0]['content'] == '| Heading |  |\n| --- | --- |\n| Alice | 30 |\n'
+
+
+def test_format_results_renders_encrypted_table_cells():
+    retriever = FileVectorRetriever(config={'files': {}})
+    encryptor = FileEncryptor(b'0' * 32)
+    retriever._encryptor = encryptor
+    chunk_id = 'encrypted-table-1'
+    table_metadata = {
+        'content_type': 'table', 'row_count': 2, 'column_count': 1,
+        'cells': [
+            {'row': 0, 'col': 0, 'text': 'Item'},
+            {'row': 1, 'col': 0, 'text': 'Book'},
+        ],
+    }
+    result = {
+        'id': chunk_id,
+        'text': encryptor.encrypt(b'indexed text', chunk_id.encode()).hex(),
+        'metadata': {'file_id': 'file-1', 'chunk_index': 0, 'encrypted': True},
+        'chunk_metadata': {
+            'chunk_id': chunk_id,
+            'chunk_metadata': {
+                'encrypted': True,
+                'payload': encryptor.encrypt(json.dumps(table_metadata).encode(), chunk_id.encode()).hex(),
+            },
+        },
+    }
+
+    formatted = retriever._format_results([result])[0]
+
+    assert formatted['content'] == '| Item |\n| --- |\n| Book |\n'
+    assert formatted['file_metadata']['chunk_metadata'] == table_metadata
 
 
 @pytest.mark.asyncio

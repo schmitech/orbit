@@ -9,7 +9,6 @@ import json
 import logging
 from typing import Any, Optional
 
-from retrievers.base.abstract_vector_retriever import AbstractVectorRetriever
 from services.file_metadata.metadata_store import FileMetadataStore
 from services.file_processing.chunking.base_chunker import Chunk
 from services.file_processing.chunking.utils import TokenInt
@@ -20,6 +19,9 @@ from utils.embedding_budget import (
     split_text_to_budget,
 )
 from vector_stores.base.store_manager import StoreManager
+
+from retrievers.base.abstract_vector_retriever import AbstractVectorRetriever
+from retrievers.implementations.intent.domain.response.table_renderer import TableRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -448,6 +450,38 @@ class FileVectorRetriever(AbstractVectorRetriever):
         decrypted = self._encryptor.decrypt(bytes.fromhex(envelope['payload']), aad)
         return json.loads(decrypted.decode('utf-8'))
 
+    @staticmethod
+    def _render_table_chunk(table_metadata: dict[str, Any]) -> str | None:
+        """Render a stored Docling cell grid for the file query response."""
+        if table_metadata.get('content_type') != 'table':
+            return None
+        row_count = table_metadata.get('row_count')
+        column_count = table_metadata.get('column_count')
+        cells = table_metadata.get('cells')
+        if not isinstance(row_count, int) or not isinstance(column_count, int) or row_count < 1 or column_count < 1 or not isinstance(cells, list) or not cells:
+            return None
+
+        grid = [['' for _ in range(column_count)] for _ in range(row_count)]
+        covered = [[False for _ in range(column_count)] for _ in range(row_count)]
+        for cell in cells:
+            if not isinstance(cell, dict):
+                return None
+            row, col = cell.get('row'), cell.get('col')
+            row_span, col_span = cell.get('row_span', 1), cell.get('col_span', 1)
+            if not all(isinstance(value, int) and not isinstance(value, bool) for value in (row, col, row_span, col_span)):
+                return None
+            if row < 0 or col < 0 or row_span < 1 or col_span < 1 or row + row_span > row_count or col + col_span > column_count:
+                return None
+            for covered_row in range(row, row + row_span):
+                for covered_col in range(col, col + col_span):
+                    if covered[covered_row][covered_col]:
+                        return None
+                    covered[covered_row][covered_col] = True
+            grid[row][col] = cell.get('text') or ''
+        if not all(all(row) for row in covered):
+            return None
+        return TableRenderer.render(grid[0], grid[1:], output_format='markdown_table')
+
     def _format_results(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Format search results with file metadata."""
         formatted = []
@@ -500,6 +534,16 @@ class FileVectorRetriever(AbstractVectorRetriever):
                             file_metadata['chunk_metadata'], chunk_id.encode('utf-8')
                         )
                     formatted_item['file_metadata'] = file_metadata
+                    table_metadata = file_metadata.get('chunk_metadata')
+                    # Budget-split pieces do not own a complete row group yet;
+                    # their DB rows currently point to the original full grid.
+                    # The budget split path sets split_index even if it emits
+                    # only one piece and keeps the original chunk_id.
+                    is_split_piece = 'split_index' in vector_metadata
+                    if not is_split_piece and isinstance(table_metadata, dict):
+                        rendered_table = self._render_table_chunk(table_metadata)
+                        if rendered_table is not None:
+                            formatted_item['content'] = rendered_table
 
                 formatted.append(formatted_item)
 
