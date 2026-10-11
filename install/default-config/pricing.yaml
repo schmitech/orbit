@@ -16,7 +16,7 @@
 
 pricing:
   currency: "USD"
-  updated: "2026-07-30"
+  updated: "2026-10-11"
   stale_after_days: 120
 
   providers:
@@ -122,6 +122,14 @@ pricing:
 
     groq:
       "*": { input_per_1m: 0.05, output_per_1m: 0.08 }
+
+    # TypeSafe System One decision models (server/ai_services/implementations/
+    # decision/typesafe_decision_service.py) — resolves to a versioned model
+    # name like "jev-1.13.0" at call time. No separate output rate is
+    # published; decision answers are a handful of typed tokens, so output is
+    # priced at the same per-token rate as input rather than left unpriced.
+    typesafe:
+      "jev*": { input_per_1m: 0.042, output_per_1m: 0.042 }
 
     openrouter:
       "*": { input_per_1m: null, output_per_1m: null }
