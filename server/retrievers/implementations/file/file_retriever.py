@@ -483,6 +483,15 @@ class FileVectorRetriever(AbstractVectorRetriever):
                     }
                 }
 
+                # Surface page citation when Docling reported it (Phase 2.3 of
+                # docs/roadmap/document-understanding-enhancements.md). Omitted
+                # entirely (not null) when unknown, matching how it was stored.
+                if vector_metadata.get('page_number') is not None:
+                    formatted_item['metadata']['page_number'] = vector_metadata['page_number']
+                elif vector_metadata.get('page_range_start') is not None:
+                    formatted_item['metadata']['page_range_start'] = vector_metadata['page_range_start']
+                    formatted_item['metadata']['page_range_end'] = vector_metadata.get('page_range_end')
+
                 # Add file metadata, decrypting the per-chunk metadata envelope if present
                 if 'chunk_metadata' in result:
                     file_metadata = dict(result['chunk_metadata'])

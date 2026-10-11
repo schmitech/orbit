@@ -3,6 +3,7 @@
 ## [UNRELEASED]
 
 ### Core Features
+- **Page Citations for File Query Results (Phase 2 of Document Understanding Enhancements)**: File chunks had no page attribution, so query results couldn't tell a user which page an answer came from. Docling's page-break markers are now used to split extracted text into exact page-attributed ranges (a hard signal, never a proportional guess), each chunk is matched back against those ranges, and `page_number` (or `page_range_start`/`page_range_end` for a chunk spanning pages) is stamped onto its metadata and surfaced in query results — omitted entirely, not as a null, when provenance can't be established for a chunk.
 - **Decision Model Calls Surfaced as Their Own `call_type` in the Admin Panel**: Decision-model adapter requests were already recorded with `call_type: "decision"` at the audit layer (`DecisionModelStep`), but the admin panel's Audit Ledger and Costs tabs had no filter or label for it, and `GET /admin/observability/usage?call_type=decision` was rejected with a 422. Added `decision` to the observability route's accepted call types, the Audit Ledger's stream/type filters and source badge (with its own color token), and the Costs tab's call-type filter — so decision-model usage and cost can be isolated from chat traffic end-to-end instead of only existing in raw audit records.
 
 ## [2.18.2] - 2026-10-10

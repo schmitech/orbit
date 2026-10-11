@@ -56,7 +56,7 @@ class DoclingProcessor(FileProcessor):
     
     Requires: docling
     """
-    
+
     def __init__(self, enabled: bool = True):
         """
         Initialize Docling processor.
@@ -69,6 +69,7 @@ class DoclingProcessor(FileProcessor):
         self._enabled = enabled
         self._initialized = False
         self._last_tables: list[dict[str, Any]] = []
+        self._last_page_segments: list[dict[str, Any]] = []
         # Don't initialize converter at startup - use lazy initialization
         # This prevents outbound connections to HuggingFace during server startup
     
@@ -156,6 +157,7 @@ class DoclingProcessor(FileProcessor):
 
         text_parts = []
         self._last_tables = []
+        self._last_page_segments = []
 
         # Get file extension from filename for Docling format detection
         suffix = ''
@@ -182,7 +184,7 @@ class DoclingProcessor(FileProcessor):
                     doc = result.document
 
                     # Export to markdown for clean text extraction
-                    markdown_text = doc.export_to_markdown()
+                    markdown_text, self._last_page_segments = self._extract_page_segments(doc)
                     if markdown_text:
                         text_parts.append(markdown_text)
 
@@ -201,6 +203,55 @@ class DoclingProcessor(FileProcessor):
             logger.error(f"[Docling] Error processing document '{filename or 'unknown'}': {e}")
             raise
     
+    def _extract_page_segments(self, doc: Any) -> tuple[str, list[dict[str, Any]]]:
+        """Export `doc` to markdown and record which character range of that
+        text came from which page(s), using each document item's own
+        provenance (`item.prov[].page_no` — the same field
+        `_extract_tables()` already reads for tables) rather than guessing.
+
+        Never fabricates a page number: a format with no physical pages (e.g.
+        Markdown/HTML source, where every item's `prov` is empty) produces no
+        segments at all, and an item Docling didn't report provenance for is
+        simply skipped — both leave "page unknown" for any chunk that only
+        overlaps unattributed text, per Phase 2.1 of
+        docs/roadmap/document-understanding-enhancements.md.
+
+        Returns the exported text (a plain `export_to_markdown()` call — no
+        placeholder/marker games) and a list of
+        `{'start', 'end', 'page_numbers'}` segments (`page_numbers` is always
+        a list, since a single item can itself span more than one page) in
+        terms of that text's character offsets.
+        """
+        text = doc.export_to_markdown()
+        if not text:
+            return text, []
+
+        segments = []
+        search_start = 0
+        for item, _level in doc.iterate_items():
+            item_text = getattr(item, 'text', None)
+            if not item_text:
+                continue
+
+            prov = getattr(item, 'prov', None) or []
+            page_numbers = sorted({
+                getattr(p, 'page_no', None) for p in prov
+                if getattr(p, 'page_no', None) is not None
+            })
+            if not page_numbers:
+                continue
+
+            idx = text.find(item_text, search_start)
+            if idx == -1:
+                idx = text.find(item_text)
+            if idx == -1:
+                continue
+
+            search_start = idx + 1
+            segments.append({'start': idx, 'end': idx + len(item_text), 'page_numbers': page_numbers})
+
+        return text, segments
+
     def _extract_tables(self, doc: Any) -> list[dict[str, Any]]:
         """Extract structured table data (cells, dimensions, page number) from a converted Docling document."""
         tables: list[dict[str, Any]] = []

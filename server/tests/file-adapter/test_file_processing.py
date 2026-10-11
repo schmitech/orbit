@@ -2210,4 +2210,141 @@ def test_extract_tables_as_chunks_indexes_sequentially_from_start_index(tmp_path
 
     assert [c.chunk_index for c in chunks] == [5, 6]
     assert [c.metadata["table_index"] for c in chunks] == [0, 1]
+
+
+def _make_chunk(text, content_type=None):
+    from services.file_processing.chunking import Chunk
+    metadata = {"content_type": content_type} if content_type else {}
+    return Chunk(file_id="f1", text=text, chunk_index=0, chunk_id="c", metadata=metadata)
+
+
+def test_assign_page_attribution_stamps_single_page_number(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_page_attr_single.db")
+    service = FileProcessingService(config)
+
+    text_for_pages = "Page one content. Page two content."
+    page_segments = [
+        {"start": 0, "end": 18, "page_numbers": [1]},
+        {"start": 18, "end": 35, "page_numbers": [2]},
+    ]
+    chunk = _make_chunk("Page two content.")
+
+    service._assign_page_attribution([chunk], text_for_pages, page_segments)
+
+    assert chunk.metadata["page_number"] == 2
+    assert "page_range_start" not in chunk.metadata
+    cleanup_metadata_store(test_db_path)
+
+
+def test_assign_page_attribution_stamps_page_range_for_spanning_chunk(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_page_attr_range.db")
+    service = FileProcessingService(config)
+
+    text_for_pages = "Page one content. Page two content."
+    page_segments = [
+        {"start": 0, "end": 18, "page_numbers": [1]},
+        {"start": 18, "end": 35, "page_numbers": [2]},
+    ]
+    chunk = _make_chunk(text_for_pages)
+
+    service._assign_page_attribution([chunk], text_for_pages, page_segments)
+
+    assert chunk.metadata["page_range_start"] == 1
+    assert chunk.metadata["page_range_end"] == 2
+    assert "page_number" not in chunk.metadata
+    cleanup_metadata_store(test_db_path)
+
+
+def test_assign_page_attribution_leaves_table_chunks_untouched(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_page_attr_table.db")
+    service = FileProcessingService(config)
+
+    text_for_pages = "Some prose."
+    page_segments = [{"start": 0, "end": len(text_for_pages), "page_numbers": [1]}]
+    chunk = _make_chunk("| Name |\n| --- |\n", content_type="table")
+    chunk.metadata["page_number"] = 7
+
+    service._assign_page_attribution([chunk], text_for_pages, page_segments)
+
+    assert chunk.metadata["page_number"] == 7
+    cleanup_metadata_store(test_db_path)
+
+
+def test_assign_page_attribution_leaves_unmatched_chunk_with_no_page_fields(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_page_attr_unmatched.db")
+    service = FileProcessingService(config)
+
+    text_for_pages = "Original document text."
+    page_segments = [{"start": 0, "end": len(text_for_pages), "page_numbers": [1]}]
+    chunk = _make_chunk("This text was never in the source document.")
+
+    service._assign_page_attribution([chunk], text_for_pages, page_segments)
+
+    assert "page_number" not in chunk.metadata
+    assert "page_range_start" not in chunk.metadata
+    cleanup_metadata_store(test_db_path)
+
+
+def test_assign_page_attribution_advances_search_cursor_for_repeated_text(tmp_path):
+    """Two chunks with identical text (e.g. a repeated header) must each be
+    matched to their own occurrence in document order, not both to the first."""
+    config, test_db_path = create_test_config(tmp_path, db_name="test_page_attr_repeat.db")
+    service = FileProcessingService(config)
+
+    text_for_pages = "Repeat.Page one middle.Repeat.Page two middle."
+    page_segments = [
+        {"start": 0, "end": 23, "page_numbers": [1]},
+        {"start": 23, "end": len(text_for_pages), "page_numbers": [2]},
+    ]
+    first_chunk = _make_chunk("Repeat.")
+    second_chunk = _make_chunk("Repeat.")
+
+    service._assign_page_attribution([first_chunk, second_chunk], text_for_pages, page_segments)
+
+    assert first_chunk.metadata["page_number"] == 1
+    assert second_chunk.metadata["page_number"] == 2
+    cleanup_metadata_store(test_db_path)
+
+
+def test_mask_markdown_tables_preserves_offsets_and_blocks_matching(tmp_path):
+    config, test_db_path = create_test_config(tmp_path, db_name="test_mask_tables.db")
+    service = FileProcessingService(config)
+
+    text = (
+        "Before.\n\n"
+        "| Name | Age |\n| --- | --- |\n| Alice | 30 |\n| Bob | 25 |\n\n"
+        "After."
+    )
+    masked = service._mask_markdown_tables_for_page_matching(text, _NAME_AGE_TABLE)
+
+    assert len(masked) == len(text)
+    assert "Alice" not in masked
+    assert "Name" not in masked
+    assert masked.startswith("Before.\n\n")
+    assert masked.endswith("\nAfter.")
+    cleanup_metadata_store(test_db_path)
+
+
+def test_assign_page_attribution_does_not_match_prose_to_masked_table_text(tmp_path):
+    """A table pulled from an earlier page must not let an identical-looking
+    prose chunk on a later page inherit the table's page via text matching."""
+    config, test_db_path = create_test_config(tmp_path, db_name="test_page_attr_masked_table.db")
+    service = FileProcessingService(config)
+
+    table_block = "| Name | Age |\n| --- | --- |\n| Alice | 30 |\n| Bob | 25 |\n"
+    raw_text = f"Page one has a table.\n\n{table_block}\n\nAlice later became the manager."
+    tables = _NAME_AGE_TABLE
+
+    masked_text_for_pages = service._mask_markdown_tables_for_page_matching(raw_text, tables)
+    page_one_end = raw_text.index(table_block) + len(table_block)
+    page_segments = [
+        {"start": 0, "end": page_one_end, "page_numbers": [1]},
+        {"start": page_one_end, "end": len(raw_text), "page_numbers": [2]},
+    ]
+
+    prose_chunk = _make_chunk("Alice later became the manager.")
+
+    service._assign_page_attribution([prose_chunk], masked_text_for_pages, page_segments)
+
+    assert prose_chunk.metadata["page_number"] == 2
     cleanup_metadata_store(test_db_path)

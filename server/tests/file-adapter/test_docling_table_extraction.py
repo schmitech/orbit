@@ -98,3 +98,99 @@ def test_extract_tables_reports_unknown_page_when_no_provenance():
 
     assert tables[0]["page_number"] is None
     assert tables[0]["page_range"] is None
+
+
+def _fake_item(text, page_numbers):
+    return SimpleNamespace(
+        text=text,
+        prov=[SimpleNamespace(page_no=p) for p in page_numbers],
+    )
+
+
+def _fake_doc_with_items(markdown_text, items):
+    return SimpleNamespace(
+        export_to_markdown=lambda **kwargs: markdown_text,
+        iterate_items=lambda: [(item, 0) for item in items],
+    )
+
+
+def test_extract_page_segments_uses_item_provenance_not_enumeration():
+    """Page numbers must come from Docling's own provenance, never from
+    counting marker-delimited parts — a document whose first content is on
+    page 2 (e.g. an earlier page was skipped/blank) must report page 2."""
+    processor = DoclingProcessor(enabled=True)
+    doc = _fake_doc_with_items(
+        "Page two text.Page four text.",
+        [
+            _fake_item("Page two text.", [2]),
+            _fake_item("Page four text.", [4]),
+        ],
+    )
+
+    text, segments = processor._extract_page_segments(doc)
+
+    assert text == "Page two text.Page four text."
+    assert segments == [
+        {"start": 0, "end": len("Page two text."), "page_numbers": [2]},
+        {"start": len("Page two text."), "end": len(text), "page_numbers": [4]},
+    ]
+
+
+def test_extract_page_segments_item_spanning_multiple_pages():
+    processor = DoclingProcessor(enabled=True)
+    doc = _fake_doc_with_items("Spanning text.", [_fake_item("Spanning text.", [3, 4])])
+
+    text, segments = processor._extract_page_segments(doc)
+
+    assert segments == [{"start": 0, "end": len(text), "page_numbers": [3, 4]}]
+
+
+def test_extract_page_segments_returns_empty_when_no_provenance():
+    """A format with no physical pages (e.g. Markdown/HTML source) must never
+    fabricate a page-1 citation — no provenance means no segments at all."""
+    processor = DoclingProcessor(enabled=True)
+    doc = _fake_doc_with_items(
+        "Some prose with no page info.",
+        [_fake_item("Some prose with no page info.", [])],
+    )
+
+    text, segments = processor._extract_page_segments(doc)
+
+    assert text == "Some prose with no page info."
+    assert segments == []
+
+
+def test_extract_page_segments_skips_items_with_no_provenance_but_keeps_others():
+    processor = DoclingProcessor(enabled=True)
+    doc = _fake_doc_with_items(
+        "No page info.Known page.",
+        [
+            _fake_item("No page info.", []),
+            _fake_item("Known page.", [5]),
+        ],
+    )
+
+    text, segments = processor._extract_page_segments(doc)
+
+    assert segments == [{"start": len("No page info."), "end": len(text), "page_numbers": [5]}]
+
+
+def test_extract_page_segments_empty_text_returns_no_segments():
+    processor = DoclingProcessor(enabled=True)
+    doc = _fake_doc_with_items("", [])
+
+    text, segments = processor._extract_page_segments(doc)
+
+    assert text == ""
+    assert segments == []
+
+
+@pytest.mark.asyncio
+async def test_extract_text_reports_no_page_segments_for_markdown_source():
+    """Markdown-sourced documents carry no physical-page provenance in
+    Docling, so page citation must stay unknown rather than defaulting to 1."""
+    processor = DoclingProcessor(enabled=True)
+
+    await processor.extract_text(b"# Report\n\nJust prose, no tables here.\n", filename="prose.md")
+
+    assert processor._last_page_segments == []

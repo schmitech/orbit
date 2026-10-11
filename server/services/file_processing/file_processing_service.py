@@ -11,6 +11,7 @@ import logging
 import re
 import uuid
 import weakref
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -904,17 +905,22 @@ class FileProcessingService:
 
         try:
             async with asyncio.timeout(processing_timeout_seconds):
-                # Extract text, metadata, and any structured tables
-                extracted_text, file_metadata, tables = await self._extract_content(
+                # Extract text, metadata, any structured tables, and any page segments
+                extracted_text, file_metadata, tables, page_segments = await self._extract_content(
                     file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt,
                     current_user_id=current_user_id, current_user_email=current_user_email
                 )
+                text_for_pages = extracted_text
 
                 if tables:
                     extracted_text = self._strip_markdown_tables(extracted_text, tables)
+                    text_for_pages = self._mask_markdown_tables_for_page_matching(text_for_pages, tables)
 
                 # Chunk content
                 chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
+
+                if page_segments:
+                    self._assign_page_attribution(chunks, text_for_pages, page_segments)
 
                 if tables:
                     chunks.extend(self._extract_tables_as_chunks(tables, file_id, len(chunks)))
@@ -1178,16 +1184,21 @@ class FileProcessingService:
             # 4. Update status to processing
             await self.metadata_store.update_processing_status(file_id, 'processing')
 
-            # 5. Extract text, metadata, and any structured tables
-            extracted_text, file_metadata, tables = await self._extract_content(
+            # 5. Extract text, metadata, any structured tables, and any page segments
+            extracted_text, file_metadata, tables, page_segments = await self._extract_content(
                 file_data, filename, mime_type, api_key=api_key, current_user_id=current_user_id
             )
+            text_for_pages = extracted_text
 
             if tables:
                 extracted_text = self._strip_markdown_tables(extracted_text, tables)
+                text_for_pages = self._mask_markdown_tables_for_page_matching(text_for_pages, tables)
 
             # 6. Chunk content
             chunks = await self._chunk_content(extracted_text, file_id, file_metadata)
+
+            if page_segments:
+                self._assign_page_attribution(chunks, text_for_pages, page_segments)
 
             if tables:
                 chunks.extend(self._extract_tables_as_chunks(tables, file_id, len(chunks)))
@@ -1279,8 +1290,9 @@ class FileProcessingService:
         vision_prompt: str | None = None,
         current_user_id: str | None = None,
         current_user_email: str | None = None
-    ) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
-        """Extract text, metadata, and any structured tables (Docling only) from file."""
+    ) -> tuple[str, dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+        """Extract text, metadata, any structured tables, and any page segments
+        (Docling only) from file."""
         # Check if this is an image file. When the AI OCR processor is the active
         # priority processor, let images fall through to it (via the registry)
         # instead of the generic vision path.
@@ -1289,7 +1301,7 @@ class FileProcessingService:
                 file_data, filename, mime_type, api_key=api_key, vision_prompt=vision_prompt,
                 current_user_id=current_user_id, current_user_email=current_user_email
             )
-            return text, metadata, []
+            return text, metadata, [], []
 
         # Check if this is an audio file
         if self.enable_audio and mime_type.startswith('audio/'):
@@ -1297,7 +1309,7 @@ class FileProcessingService:
                 file_data, filename, mime_type, api_key=api_key, current_user_id=current_user_id,
                 current_user_email=current_user_email
             )
-            return text, metadata, []
+            return text, metadata, [], []
 
         processors = self.processor_registry.get_processors(mime_type)
 
@@ -1315,6 +1327,7 @@ class FileProcessingService:
                 text = await processor.extract_text(file_data, filename)
                 metadata = await processor.extract_metadata(file_data, filename)
                 tables = getattr(processor, "_last_tables", None) or []
+                page_segments = getattr(processor, "_last_page_segments", None) or []
 
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug(f"Extraction complete for '{filename}': {len(text)} chars extracted by {processor_name}")
@@ -1331,7 +1344,7 @@ class FileProcessingService:
                         call_type="document",
                     )
 
-                return text, metadata, tables
+                return text, metadata, tables, page_segments
             except Exception as e:
                 last_error = e
                 if len(processors) > 1:
@@ -1481,6 +1494,63 @@ class FileProcessingService:
         
         return chunks
 
+    def _assign_page_attribution(
+        self, chunks: list[Chunk], text_for_pages: str, page_segments: list[dict[str, Any]]
+    ) -> None:
+        """Stamp `page_number` (single page) or `page_range_start`/`page_range_end`
+        (chunk spans pages) onto each prose chunk's `metadata`, using the
+        page-attributed character ranges Docling reported for `text_for_pages`
+        (Phase 2.2 of docs/roadmap/document-understanding-enhancements.md).
+
+        `text_for_pages` must have any already-extracted table's markdown block
+        masked out (see `_mask_markdown_tables_for_page_matching()`) rather than
+        simply stripped: stripping would shift character offsets out of sync
+        with `page_segments` (computed against the original, unstripped text),
+        while masking replaces each block with same-length filler that can
+        never match real chunk text — so a prose chunk's text can never be
+        mis-attributed to an identical-looking passage inside a table that was
+        pulled out onto its own page.
+
+        Table chunks (`metadata['content_type'] == 'table'`) already carry their
+        own page attribution from `_extract_tables_as_chunks()` and are skipped.
+        A chunk whose text can't be located in `text_for_pages` (e.g. a chunker
+        normalized whitespace) is left with no page fields at all — "page
+        unknown" — rather than a guessed value. `page_range` is intentionally
+        not stored as a two-item list (unlike `None`-filtered omission, which
+        mirrors the Pinecone-safety reasoning in `_extract_tables_as_chunks()`:
+        scalars only, no explicit nulls, in vector-store-safe `metadata`).
+        """
+        search_start = 0
+        for chunk in chunks:
+            if chunk.metadata.get('content_type') == 'table':
+                continue
+            text = chunk.text
+            if not text:
+                continue
+
+            idx = text_for_pages.find(text, search_start)
+            if idx == -1:
+                idx = text_for_pages.find(text)
+            if idx == -1:
+                continue
+
+            end_idx = idx + len(text)
+            search_start = idx + 1
+
+            pages = sorted({
+                page_no
+                for seg in page_segments
+                if seg['start'] < end_idx and seg['end'] > idx
+                for page_no in seg['page_numbers']
+            })
+            if not pages:
+                continue
+            if len(pages) == 1:
+                chunk.metadata['page_number'] = pages[0]
+            else:
+                chunk.metadata['page_range_start'] = pages[0]
+                chunk.metadata['page_range_end'] = pages[-1]
+
     # Matches a markdown table block: a header row, a `---`/`:--`-style separator
     # row, then zero or more data rows. Only applied when Docling already reported
     # structured tables for the document, so it never touches hand-written markdown
@@ -1530,6 +1600,24 @@ class FileProcessingService:
         table was actually extracted. Content inside fenced code blocks is
         never touched.
         """
+        return self._transform_matched_markdown_tables(text, tables, lambda block: '')
+
+    def _mask_markdown_tables_for_page_matching(self, text: str, tables: list[dict[str, Any]]) -> str:
+        """Same table-matching rules as `_strip_markdown_tables()`, but replaces
+        each matched block with same-length filler instead of deleting it.
+
+        Used only to build the search haystack for `_assign_page_attribution()`:
+        replacing (not removing) preserves every other character's offset, so
+        `page_segments` — computed against the original, unstripped text —
+        still line up; the filler itself can never match any chunk's real text,
+        so a prose chunk can't be mis-attributed to an identical-looking
+        passage that lived inside a table pulled onto its own chunk.
+        """
+        return self._transform_matched_markdown_tables(text, tables, lambda block: '\x00' * len(block))
+
+    def _transform_matched_markdown_tables(
+        self, text: str, tables: list[dict[str, Any]], replace: Callable[[str], str]
+    ) -> str:
         available_grids = [
             grid for table in tables if (grid := self._table_grid_for_matching(table)) is not None
         ]
@@ -1546,18 +1634,18 @@ class FileProcessingService:
                     return True
             return False
 
-        def _strip_segment(segment: str) -> str:
+        def _transform_segment(segment: str) -> str:
             return self._MARKDOWN_TABLE_BLOCK_RE.sub(
-                lambda m: '' if _consume_matching_table(m.group(0)) else m.group(0),
+                lambda m: replace(m.group(0)) if _consume_matching_table(m.group(0)) else m.group(0),
                 segment,
             )
 
         segments = self._FENCED_CODE_BLOCK_RE.split(text)
         fences = self._FENCED_CODE_BLOCK_RE.findall(text)
 
-        result = _strip_segment(segments[0])
+        result = _transform_segment(segments[0])
         for fence, segment in zip(fences, segments[1:]):
-            result += fence + _strip_segment(segment)
+            result += fence + _transform_segment(segment)
         return result
 
     def _render_table_as_markdown(self, cells: list[dict[str, Any]], num_rows: int | None, num_cols: int | None) -> str:

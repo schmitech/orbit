@@ -336,6 +336,80 @@ async def test_format_results():
 
 
 @pytest.mark.asyncio
+async def test_format_results_surfaces_page_number():
+    """Phase 2.3: a chunk with a known single page surfaces metadata.page_number."""
+    retriever = FileVectorRetriever(config={'files': {}})
+
+    results = [
+        {
+            'id': 'chunk_1',
+            'text': 'Content here',
+            'score': 0.9,
+            'metadata': {
+                'file_id': 'file_123',
+                'chunk_index': 0,
+                'page_number': 3,
+            },
+        }
+    ]
+
+    formatted = retriever._format_results(results)
+
+    assert formatted[0]['metadata']['page_number'] == 3
+    assert 'page_range_start' not in formatted[0]['metadata']
+
+
+@pytest.mark.asyncio
+async def test_format_results_surfaces_page_range():
+    """Phase 2.3: a chunk spanning pages surfaces page_range_start/end, not page_number."""
+    retriever = FileVectorRetriever(config={'files': {}})
+
+    results = [
+        {
+            'id': 'chunk_1',
+            'text': 'Content here',
+            'score': 0.9,
+            'metadata': {
+                'file_id': 'file_123',
+                'chunk_index': 0,
+                'page_range_start': 3,
+                'page_range_end': 4,
+            },
+        }
+    ]
+
+    formatted = retriever._format_results(results)
+
+    assert formatted[0]['metadata']['page_range_start'] == 3
+    assert formatted[0]['metadata']['page_range_end'] == 4
+    assert 'page_number' not in formatted[0]['metadata']
+
+
+@pytest.mark.asyncio
+async def test_format_results_omits_page_fields_when_unknown():
+    """Phase 2.3: no page_number/page_range fields stored means "page unknown" —
+    omitted entirely, not surfaced as null."""
+    retriever = FileVectorRetriever(config={'files': {}})
+
+    results = [
+        {
+            'id': 'chunk_1',
+            'text': 'Content here',
+            'score': 0.9,
+            'metadata': {
+                'file_id': 'file_123',
+                'chunk_index': 0,
+            },
+        }
+    ]
+
+    formatted = retriever._format_results(results)
+
+    assert 'page_number' not in formatted[0]['metadata']
+    assert 'page_range_start' not in formatted[0]['metadata']
+
+
+@pytest.mark.asyncio
 async def test_format_results_no_file_id():
     """Test formatting results without file_id in metadata"""
     retriever = FileVectorRetriever(config={'files': {}})
