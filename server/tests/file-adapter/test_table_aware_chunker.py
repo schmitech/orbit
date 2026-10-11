@@ -121,6 +121,8 @@ def test_table_aware_chunker_emits_table_as_single_unsplit_chunk():
     assert len(table_chunks) == 1
     assert table_chunks[0].text == TABLE_MD
     assert table_chunks[0].metadata["strategy"] == "table_aware"
+    assert table_chunks[0].metadata["content_type"] == "table"
+    assert table_chunks[0].metadata["table_index"] == 0
 
     # No row of the table is split across chunks, and the table text is not
     # duplicated into any prose chunk.
@@ -129,15 +131,46 @@ def test_table_aware_chunker_emits_table_as_single_unsplit_chunk():
             assert TABLE_MD not in chunk.text
 
 
-def test_table_aware_chunker_small_chunk_size_does_not_split_table_rows():
-    # chunk_size far smaller than the table's token count - the table must
-    # still arrive as one atomic chunk rather than being split mid-row.
-    chunker = TableAwareChunker(chunk_size=5, min_characters_per_chunk=5)
+def test_table_aware_chunker_small_chunk_size_splits_by_row_group_not_mid_row():
+    # chunk_size smaller than the table's token count, but large enough to
+    # hold the header/separator plus one full row - the table must be split
+    # into row-group pieces (header+separator repeated in each), never
+    # mid-row, instead of the generic text-based budget split.
+    chunker = TableAwareChunker(chunk_size=45, min_characters_per_chunk=5)
+    chunks = chunker.chunk_text(TABLE_MD, file_id="file1", metadata={})
+
+    header, separator = TABLE_MD.splitlines()[:2]
+    data_rows = TABLE_MD.splitlines()[2:]
+
+    assert len(chunks) > 1
+    seen_rows: list[str] = []
+    for i, chunk in enumerate(chunks):
+        assert chunk.metadata["is_table_block"] is True
+        assert chunk.metadata["content_type"] == "table"
+        assert chunk.metadata["table_index"] == 0
+        assert chunk.metadata["row_group_index"] == i
+        assert chunk.metadata["row_group_count"] == len(chunks)
+        lines = chunk.text.splitlines()
+        assert lines[0] == header
+        assert lines[1] == separator
+        seen_rows.extend(lines[2:])
+
+    # Every original data row appears exactly once, in order, across pieces -
+    # no row dropped, duplicated, or split across two pieces.
+    assert seen_rows == data_rows
+
+
+def test_table_aware_chunker_small_table_gets_single_chunk_with_table_metadata():
+    chunker = TableAwareChunker(chunk_size=2048, min_characters_per_chunk=10)
     chunks = chunker.chunk_text(TABLE_MD, file_id="file1", metadata={})
 
     assert len(chunks) == 1
     assert chunks[0].text == TABLE_MD
     assert chunks[0].metadata["is_table_block"] is True
+    assert chunks[0].metadata["content_type"] == "table"
+    assert chunks[0].metadata["table_index"] == 0
+    assert "row_group_index" not in chunks[0].metadata
+    assert "row_group_count" not in chunks[0].metadata
 
 
 def test_table_aware_chunker_no_table_falls_back_to_prose_chunking():
@@ -158,6 +191,82 @@ def test_table_aware_chunker_multiple_tables_each_own_chunk():
     assert len(table_chunks) == 2
     for tc in table_chunks:
         assert tc.text == TABLE_MD
+        assert tc.metadata["content_type"] == "table"
+    assert [tc.metadata["table_index"] for tc in table_chunks] == [0, 1]
+
+
+def test_table_aware_chunker_oversized_row_is_fragmented_within_budget():
+    # A single data row (with header+separator) that alone exceeds chunk_size
+    # must still be split into budget-fitting pieces, rather than being
+    # emitted as one oversized chunk for the generic indexing-time splitter
+    # to break unpredictably.
+    header = "| Name | Notes |"
+    separator = "| --- | --- |"
+    row = "| Alice | " + " ".join(f"note{i}" for i in range(40)) + " |"
+    table_text = f"{header}\n{separator}\n{row}"
+
+    chunk_size = 60
+    chunker = TableAwareChunker(chunk_size=chunk_size, min_characters_per_chunk=5)
+    chunks = chunker.chunk_text(table_text, file_id="file1", metadata={})
+
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert chunk.metadata["content_type"] == "table"
+        assert chunk.metadata["table_structure_preserved"] is False
+        # The critical guarantee: every emitted piece fits the budget, so
+        # nothing oversized reaches the generic, row-unaware budget splitter.
+        assert chunker.count_tokens(chunk.text) <= chunk_size
+        assert chunk.text.startswith(f"{header}\n{separator}\n")
+
+
+def test_table_aware_chunker_oversized_row_with_oversized_header_falls_back_to_budget():
+    # Regression: when the header+separator pair alone already meets or
+    # exceeds chunk_size, repeating them alongside a row fragment is not
+    # budget-safe either - _split_oversized_row() must fall back to a plain
+    # word-level split of the whole header+separator+row text rather than
+    # emitting one oversized chunk that reaches the generic, row-unaware
+    # indexing-time splitter.
+    header = "| " + " | ".join(f"Column{i}" for i in range(15)) + " |"
+    separator = "| " + " | ".join(["---"] * 15) + " |"
+    row = "| " + " | ".join(f"value{i}" for i in range(15)) + " |"
+    table_text = f"{header}\n{separator}\n{row}"
+
+    chunk_size = 30
+    chunker = TableAwareChunker(chunk_size=chunk_size, min_characters_per_chunk=5)
+
+    # Sanity-check this reproduces the reported shape: header+separator alone
+    # already exceeds chunk_size, and the whole table is far larger still.
+    assert chunker.count_tokens(f"{header}\n{separator}\n") > chunk_size
+    assert chunker.count_tokens(table_text) > chunk_size
+
+    chunks = chunker.chunk_text(table_text, file_id="file1", metadata={})
+
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert chunk.metadata["content_type"] == "table"
+        assert chunk.metadata["table_structure_preserved"] is False
+        # The critical guarantee: no piece reaches the generic indexing-time
+        # splitter oversized, even when header+separator alone don't fit.
+        assert chunker.count_tokens(chunk.text) <= chunk_size
+
+
+def test_table_aware_chunker_header_separator_only_oversized_table_falls_back():
+    # A table with no data rows (just header+separator) that is itself
+    # oversized has no row to preserve - it must fall back to a plain,
+    # budget-safe split instead of being left as one oversized chunk.
+    header = "| " + " | ".join(f"Column{i}" for i in range(20)) + " |"
+    separator = "| " + " | ".join(["---"] * 20) + " |"
+    table_text = f"{header}\n{separator}"
+
+    chunk_size = 20
+    chunker = TableAwareChunker(chunk_size=chunk_size, min_characters_per_chunk=5)
+    chunks = chunker.chunk_text(table_text, file_id="file1", metadata={})
+
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert chunk.metadata["content_type"] == "table"
+        assert chunk.metadata["table_structure_preserved"] is False
+        assert chunker.count_tokens(chunk.text) <= chunk_size
 
 
 def test_table_aware_chunker_preserves_file_metadata():
