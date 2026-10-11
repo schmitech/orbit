@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.18.3] - 2026-10-10
 
 ### Core Features
 - **Query-Time Table Rendering (Phase 1.3 of Document Understanding Enhancements)**: File query results now render Docling's stored cell grid as a Markdown table, including encrypted files. Budget-split pieces retain their indexed text until row-aware splitting lands in Phase 3; incomplete cell grids also fall back to indexed text. This completes Phases 1 and 2 of the document-understanding roadmap.
