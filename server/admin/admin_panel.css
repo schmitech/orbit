@@ -5,26 +5,31 @@
 :root {
   /* Palette — dark is the default theme; :root[data-theme="light"] below
      overrides these tokens for the light variant. */
-  --ink:           #e8edf6;
-  --ink-secondary: #c1cbdf;
-  --ink-muted:     #9aa8c0;
-  --surface:       #131d2e;
-  --surface-raised:#182437;
-  --surface-sunken:#0d1421;
-  --surface-subtle:#16202f;
-  --surface-translucent: rgba(19, 29, 46, 0.88);
-  --border:        #2a3750;
-  --border-light:  #212c40;
+  --ink:           #e9e9ea;
+  --ink-secondary: #b8b8bd;
+  --ink-muted:     #8a8a90;
+  --surface:       #000000;
+  --surface-raised:#0a0a0b;
+  --surface-sunken:#000000;
+  --surface-subtle:#0d0d0e;
+  --surface-translucent: rgba(0, 0, 0, 0.88);
+  --border:        #202023;
+  --border-light:  #19191b;
 
   /* Quiet surfaces keep the emphasis on content and active controls. */
-  --canvas:        #0b1220;
-  --panel:         #131d2e;
-  --panel-hover:   #182437;
-  --panel-active:  #182437;
+  --canvas:        #000000;
+  --panel:         #000000;
+  --panel-hover:   #0d0d0e;
+  --panel-active:  #0d0d0e;
   --panel-border-active: #3c5c8c;
   --panel-accent:  #5b9bdc;
-  --row-alt:       #101928;
-  --th-bg:         #17222f;
+  --row-alt:       #09090a;
+  --th-bg:         #0a0a0b;
+
+  /* Side rail surface — kept separate from --panel so light theme can give
+     the rail a faint tint while the canvas itself stays pure white. */
+  --rail-bg:       #000000;
+  --rail-border:   #1a1a1c;
 
   /* Brand */
   --brand-200:     #3a5f8c;
@@ -128,11 +133,14 @@
   /* Side rail */
   --rail-w:           244px;
   --rail-w-collapsed: 68px;
-  --rail-ink:         rgba(206, 221, 243, 0.80);
-  --rail-ink-dim:     rgba(180, 200, 228, 0.62);
-  --rail-icon:        rgba(222, 234, 252, 0.94);
-  --rail-label:       rgba(203, 221, 245, 0.92);
-  --rail-line:        rgba(255, 255, 255, 0.09);
+  --rail-ink:         rgba(233, 233, 234, 0.78);
+  --rail-ink-dim:     rgba(233, 233, 234, 0.56);
+  --rail-icon:        rgba(233, 233, 234, 0.92);
+  --rail-label:       rgba(233, 233, 234, 0.90);
+  --rail-line:        rgba(255, 255, 255, 0.08);
+  --rail-active-bg:   rgba(91, 155, 220, 0.20);
+  --rail-active-glow: rgba(141, 192, 238, 0.14);
+  --rail-hover-bg:    rgba(255, 255, 255, 0.05);
   --workbar-h:        80px;
 
   /* Shared table column roles. Fluid columns divide the remaining width. */
@@ -156,21 +164,32 @@
   --ink-secondary: #3d4f6f;
   --ink-muted:     #637189;
   --surface:       #ffffff;
-  --surface-raised:#f7f9fc;
-  --surface-sunken:#eef1f7;
-  --surface-subtle:#f4f7fb;
+  --surface-raised:#ffffff;
+  --surface-sunken:#f5f6f8;
+  --surface-subtle:#f7f8fa;
   --surface-translucent: rgba(255, 255, 255, 0.88);
-  --border:        #dfe5ee;
-  --border-light:  #edf0f5;
+  --border:        #e4e7ec;
+  --border-light:  #eef0f3;
 
-  --canvas:        #f3f5f9;
+  --canvas:        #ffffff;
   --panel:         #ffffff;
-  --panel-hover:   #f8fafc;
+  --panel-hover:   #f7f8fa;
   --panel-active:  #ffffff;
   --panel-border-active: #b9cce5;
   --panel-accent:  #3b82c4;
-  --row-alt:       #fafbfd;
-  --th-bg:         #f6f8fb;
+  --row-alt:       #fafbfc;
+  --th-bg:         #f7f8fa;
+
+  --rail-bg:       #ffffff;
+  --rail-border:   #e4e7ec;
+  --rail-ink:         rgba(15, 29, 51, 0.68);
+  --rail-ink-dim:     rgba(15, 29, 51, 0.48);
+  --rail-icon:        rgba(15, 29, 51, 0.82);
+  --rail-label:       rgba(15, 29, 51, 0.90);
+  --rail-line:        rgba(15, 29, 51, 0.08);
+  --rail-active-bg:   rgba(59, 130, 196, 0.12);
+  --rail-active-glow: rgba(59, 130, 196, 0.10);
+  --rail-hover-bg:    rgba(15, 29, 51, 0.045);
 
   --brand-200:     #b7d5f2;
   --brand-300:     #8dbdec;
@@ -342,9 +361,10 @@ textarea {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: linear-gradient(180deg, #0f2343 0%, #0b1a30 42%, #091528 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--rail-bg);
+  border-right: 1px solid var(--rail-border);
   color: var(--rail-ink);
+  transition: background var(--transition-base), border-color var(--transition-base);
 }
 
 .rail-brand {
@@ -408,7 +428,7 @@ textarea {
   line-height: 1.35;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(225, 236, 251, 0.95);
+  color: var(--rail-label);
 }
 
 .rail-link {
@@ -452,18 +472,18 @@ textarea {
 }
 
 .rail-link:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.055);
-  color: #e8f0fb;
+  background: var(--rail-hover-bg);
+  color: var(--rail-label);
 }
 
 .rail-link.active {
-  background: rgba(77, 148, 221, 0.24);
-  color: #fff;
+  background: var(--rail-active-bg);
+  color: var(--rail-label);
   font-weight: 600;
 }
 
 .rail-link.active .rail-link-icon {
-  color: #e3f0ff;
+  color: var(--rail-label);
 }
 
 /* The lit node, centred on the trace. */
@@ -476,8 +496,8 @@ textarea {
   height: 20px;
   margin-top: -10px;
   border-radius: var(--radius-pill);
-  background: rgba(77, 148, 221, 0.44);
-  box-shadow: 0 0 0 4px rgba(141, 192, 238, 0.16);
+  background: var(--rail-active-bg);
+  box-shadow: 0 0 0 4px var(--rail-active-glow);
 }
 
 /* The default focus ring is a mid blue — too close to the rail to read. */
@@ -515,13 +535,13 @@ textarea {
 }
 
 .rail-collapse-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.055);
+  background: var(--rail-hover-bg);
   color: var(--rail-ink);
   box-shadow: none;
 }
 
 .rail-collapse-btn:active:not(:disabled) {
-  background: rgba(255, 255, 255, 0.055);
+  background: var(--rail-hover-bg);
   transform: none;
   box-shadow: none;
 }
@@ -1641,7 +1661,8 @@ button.help-button:focus-visible {
   min-width: 140px;
 }
 
-.user-create-form-actions {
+.user-create-form-actions,
+.api-key-create-form-actions {
   justify-content: flex-start;
 }
 
@@ -5663,6 +5684,41 @@ button.mcp-kv-btn:active:not(:disabled) {
 .styled-select-option[aria-selected="true"] {
   font-weight: 600;
   color: var(--brand-600);
+}
+
+/* Sticky filter box at the top of a searchable listbox — stays visible while
+   the options below it scroll, so it reads as the way into the list rather
+   than one more row inside it. */
+.styled-select-search-row {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0 0 var(--sp-1);
+  background: var(--surface);
+  cursor: default;
+}
+
+.styled-select-search {
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  color: var(--ink);
+  font: inherit;
+}
+
+.styled-select-search:focus {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--brand-50);
+  outline: none;
+}
+
+.styled-select-empty {
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  cursor: default;
 }
 
 .audit-view__search {

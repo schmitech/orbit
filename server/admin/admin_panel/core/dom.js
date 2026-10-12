@@ -162,12 +162,18 @@ export function formSection(title, description, content) {
  *
  * options: [{ value, label }]
  */
-export function createSelect({ options = [], value, ariaLabel, className = "" } = {}) {
+/**
+ * `searchable: true` adds a type-to-filter box at the top of the open
+ * listbox — for option lists that can run into the hundreds (e.g. adapters,
+ * personas), scrolling to find one entry isn't practical.
+ */
+export function createSelect({ options = [], value, ariaLabel, className = "", searchable = false, searchPlaceholder = "Search" } = {}) {
   let opts = options;
   // Mirrors a native <select>: with no explicit value, the first option is
   // the implicit selection rather than a blank trigger.
   let selected = value !== undefined ? value : (opts.length ? opts[0].value : null);
   let activeIndex = -1;
+  let query = "";
 
   const valueLabel = el("span", { className: "styled-select-value" });
   const trigger = el("button", {
@@ -181,73 +187,129 @@ export function createSelect({ options = [], value, ariaLabel, className = "" } 
     el("svg", { className: "styled-select-chevron", viewBox: "0 0 14 9", fill: "none", "aria-hidden": "true" },
       el("path", { d: "M1.5 1.5 7 7l5.5-5.5", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round" }))
   );
-  const listbox = el("ul", { className: "styled-select-listbox", role: "listbox", tabindex: "-1" });
-  const root = el("div", { className: "styled-select" }, trigger, listbox);
+  const listbox = el("ul", { className: "styled-select-listbox", role: "listbox", tabindex: searchable ? "-1" : "-1" });
+  const searchInput = searchable ? el("input", {
+    type: "text",
+    className: "styled-select-search",
+    placeholder: searchPlaceholder,
+    "aria-label": searchPlaceholder,
+    autocomplete: "off",
+  }) : null;
+  const root = el("div", { className: `styled-select${searchable ? " has-search" : ""}` }, trigger, listbox);
+  const searchRow = searchInput ? el("li", { className: "styled-select-search-row", role: "presentation" }, searchInput) : null;
+
+  function filteredOptions() {
+    if (!query) return opts;
+    const lc = query.toLowerCase();
+    return opts.filter((o) => o.label.toLowerCase().indexOf(lc) !== -1);
+  }
 
   function close() {
     root.classList.remove("is-open");
     trigger.setAttribute("aria-expanded", "false");
     listbox.hidden = true;
+    if (searchInput) { query = ""; searchInput.value = ""; }
   }
 
   function open() {
     if (trigger.disabled) return;
-    activeIndex = Math.max(0, opts.findIndex((o) => o.value === selected));
+    query = "";
     root.classList.add("is-open");
     trigger.setAttribute("aria-expanded", "true");
     listbox.hidden = false;
-    highlight();
-    listbox.focus();
+    activeIndex = Math.max(0, filteredOptions().findIndex((o) => o.value === selected));
+    renderListOptions();
+    if (searchInput) searchInput.focus();
+    else listbox.focus();
   }
 
   function highlight() {
-    Array.from(listbox.children).forEach((node, idx) => {
+    listbox.querySelectorAll(".styled-select-option").forEach((node, idx) => {
       node.classList.toggle("is-active", idx === activeIndex);
       node.setAttribute("aria-selected", node.dataset.value === selected ? "true" : "false");
     });
   }
 
+  function scrollActiveIntoView() {
+    const activeEl = listbox.querySelector(".styled-select-option.is-active");
+    if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
+  }
+
   function commit(newValue) {
     const changed = newValue !== selected;
     selected = newValue;
-    renderOptions();
+    updateValueLabel();
     close();
     trigger.focus();
     if (changed) root.dispatchEvent(new Event("change"));
   }
 
-  function renderOptions() {
-    clear(listbox);
+  function updateValueLabel() {
     const current = opts.find((o) => o.value === selected);
     valueLabel.textContent = current ? current.label : "";
-    opts.forEach((opt) => {
-      const item = el("li", {
-        className: "styled-select-option",
-        role: "option",
-        "data-value": opt.value,
-        "aria-selected": opt.value === selected ? "true" : "false",
-        onMousedown: (e) => e.preventDefault(),
-        // A wrapping <label> (as used for form fields) forwards any click
-        // outside the labeled control's own subtree as a synthetic click on
-        // that control — and an option <li> is a sibling of the trigger
-        // button, not its descendant, so it qualifies. Without preventDefault
-        // here, that synthetic click lands right after commit()'s close()
-        // and immediately reopens the dropdown.
-        onClick: (e) => { e.preventDefault(); commit(opt.value); },
-      }, opt.label);
-      listbox.appendChild(item);
-    });
+  }
+
+  function optionItem(opt, idx) {
+    return el("li", {
+      className: "styled-select-option" + (idx === activeIndex ? " is-active" : ""),
+      role: "option",
+      "data-value": opt.value,
+      "aria-selected": opt.value === selected ? "true" : "false",
+      onMousedown: (e) => e.preventDefault(),
+      // A wrapping <label> (as used for form fields) forwards any click
+      // outside the labeled control's own subtree as a synthetic click on
+      // that control — and an option <li> is a sibling of the trigger
+      // button, not its descendant, so it qualifies. Without preventDefault
+      // here, that synthetic click lands right after commit()'s close()
+      // and immediately reopens the dropdown.
+      onClick: (e) => { e.preventDefault(); commit(opt.value); },
+    }, opt.label);
+  }
+
+  function renderListOptions() {
+    // The search row holds the live, focused <input> — rebuilding it on every
+    // keystroke (as clear(listbox) would) detaches that input from the DOM
+    // and the browser drops its focus, so only the first keystroke ever
+    // lands. Keep that row in place and only replace the option rows below it.
+    if (searchRow) {
+      Array.from(listbox.children).forEach((child) => { if (child !== searchRow) child.remove(); });
+      if (!searchRow.isConnected) listbox.appendChild(searchRow);
+    } else {
+      clear(listbox);
+    }
+    const list = filteredOptions();
+    if (searchable && !list.length) {
+      listbox.appendChild(el("li", { className: "styled-select-empty", role: "presentation" }, "No matches"));
+    }
+    list.forEach((opt, idx) => listbox.appendChild(optionItem(opt, idx)));
+  }
+
+  function renderOptions() {
+    updateValueLabel();
+    if (!listbox.hidden) renderListOptions();
   }
 
   trigger.addEventListener("click", () => (root.classList.contains("is-open") ? close() : open()));
 
-  listbox.addEventListener("keydown", (e) => {
+  function handleNavKey(e) {
+    const list = filteredOptions();
     if (e.key === "Escape") { e.preventDefault(); close(); trigger.focus(); return; }
-    if (e.key === "ArrowDown") { e.preventDefault(); activeIndex = Math.min(opts.length - 1, activeIndex + 1); highlight(); return; }
-    if (e.key === "ArrowUp") { e.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); highlight(); return; }
-    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (opts[activeIndex]) commit(opts[activeIndex].value); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); activeIndex = Math.min(list.length - 1, activeIndex + 1); highlight(); scrollActiveIntoView(); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); highlight(); scrollActiveIntoView(); return; }
+    if (e.key === "Enter" || (e.key === " " && !searchInput)) { e.preventDefault(); if (list[activeIndex]) commit(list[activeIndex].value); return; }
     if (e.key === "Tab") close();
-  });
+  }
+
+  listbox.addEventListener("keydown", (e) => { if (!searchInput) handleNavKey(e); });
+
+  if (searchInput) {
+    searchInput.addEventListener("keydown", handleNavKey);
+    searchInput.addEventListener("input", () => {
+      query = searchInput.value.trim();
+      activeIndex = query ? 0 : Math.max(0, filteredOptions().findIndex((o) => o.value === selected));
+      renderListOptions();
+    });
+  }
 
   function onDocumentClick(e) {
     if (!root.contains(e.target)) close();
@@ -284,7 +346,7 @@ export function createSelect({ options = [], value, ariaLabel, className = "" } 
     renderOptions();
   };
 
-  renderOptions();
+  updateValueLabel();
   close();
   return root;
 }

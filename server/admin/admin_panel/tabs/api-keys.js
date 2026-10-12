@@ -308,7 +308,7 @@ export function createApiKeysTab({
 
     // Create key form
     var clientInput = el("input", { type: "text", required: "true", maxlength: "100" });
-    var adapterSelect = createSelect({ ariaLabel: "Adapter" });
+    var adapterSelect = createSelect({ ariaLabel: "Adapter", searchable: true, searchPlaceholder: "Search adapters" });
     var availableAdapterNames = [];
     var cachedAdapters = getCachedAdapters();
     if (cachedAdapters) {
@@ -323,7 +323,7 @@ export function createApiKeysTab({
       adapterSelect.setOptions([{ value: "", label: "No adapters available" }], "");
       adapterSelect.disabled = true;
     }
-    var promptSelect = createSelect({ ariaLabel: "Persona", options: [{ value: "", label: "No persona" }], value: "" });
+    var promptSelect = createSelect({ ariaLabel: "Persona", options: [{ value: "", label: "No persona" }], value: "", searchable: true, searchPlaceholder: "Search personas" });
     var cachedPrompts = getCachedPrompts();
     if (cachedPrompts) {
       var promptOptions = [{ value: "", label: "No persona" }].concat(cachedPrompts.map(function (p) {
@@ -339,6 +339,7 @@ export function createApiKeysTab({
     var createAllowedEmailsCounter = characterCount(createAllowedEmailsInput, 2000);
     var createExpiration = createExpirationControls({ includeDefault: true });
     var createBtn = el("button", { type: "button" }, "Create Key");
+    var createCancelBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
     function openCreatePanel() {
       createPanel.style.display = "";
       createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -372,11 +373,13 @@ export function createApiKeysTab({
         "Comma-separated emails for people who have not logged in yet."
       ), createAllowedEmailsCounter),
       createExpiration.el,
-      el("div", { className: "admin-create-form-actions" },
-        createBtn
+      el("div", { className: "admin-create-form-actions api-key-create-form-actions" },
+        createBtn,
+        createCancelBtn
       )
     );
     createPanel.appendChild(form);
+    createCancelBtn.addEventListener("click", closeCreatePanel);
     bindValidationClear(clientInput, adapterSelect, promptSelect, notesInput);
 
     var keySearchInput = el("input", {
@@ -1039,7 +1042,7 @@ export function createApiKeysTab({
       notesPreview
     ));
     var clientInput = el("input", { type: "text", maxlength: "100", value: key.client_name || "" });
-    var adapterSelect = createSelect({ ariaLabel: "Adapter" });
+    var adapterSelect = createSelect({ ariaLabel: "Adapter", searchable: true, searchPlaceholder: "Search adapters" });
     var availableAdapterNames = [];
     var cachedAdapters = getCachedAdapters();
     if (cachedAdapters) {
@@ -1057,7 +1060,7 @@ export function createApiKeysTab({
       adapterSelect.setOptions([{ value: key.adapter_name || "", label: key.adapter_name || "No adapters available" }], key.adapter_name || "");
       adapterSelect.disabled = true;
     }
-    var promptSelect = createSelect({ ariaLabel: "Persona", options: [{ value: "", label: "No persona" }], value: "" });
+    var promptSelect = createSelect({ ariaLabel: "Persona", options: [{ value: "", label: "No persona" }], value: "", searchable: true, searchPlaceholder: "Search personas" });
     fillPromptSelect(promptSelect, getCachedPrompts(), key.system_prompt_id);
     var editAllowedUsersSelect = allowedUsersSelect(key.allowed_user_ids || []);
     var editClearAllowedUsersBtn = clearAllowedUsersButton(editAllowedUsersSelect);

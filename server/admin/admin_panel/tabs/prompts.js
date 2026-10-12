@@ -52,7 +52,7 @@ export function createPromptsTab({
     var versionInput = el("input", { type: "text", value: "1.0", maxlength: "25" });
     var textArea = el("textarea", { rows: "5", required: "true", maxlength: "25000" });
     var textCounter = characterCount(textArea, 25000);
-    var createKeySelect = createSelect({ ariaLabel: "API Key", options: [{ value: "", label: "Loading API keys..." }], value: "" });
+    var createKeySelect = createSelect({ ariaLabel: "API Key", options: [{ value: "", label: "Loading API keys..." }], value: "", searchable: true, searchPlaceholder: "Search API keys" });
     var createBtn = el("button", { type: "button" }, "Create Persona");
 
     function fillCreatePersonaKeySelect(keys) {
@@ -440,7 +440,7 @@ export function createPromptsTab({
 
     // Associate to API key
     panel.appendChild(el("h3", null, "Associate to API Key"));
-    var keySelect = createSelect({ ariaLabel: "API Key", options: [{ value: "", label: "Loading API keys..." }], value: "" });
+    var keySelect = createSelect({ ariaLabel: "API Key", options: [{ value: "", label: "Loading API keys..." }], value: "", searchable: true, searchPlaceholder: "Search API keys" });
     var assocBtn = el("button", { type: "button" }, "Associate");
     var selectedPromptKeyId = null;
     var cachedKeys = getCachedKeys();

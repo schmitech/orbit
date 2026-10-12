@@ -1149,7 +1149,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
       el("div", { className: "rail-brand" },
         el("a", { className: "rail-logo", href: "/admin", title: "ORBIT home" },
           el("img", {
-            src: "/static/orbit-logo-dark.png",
+            src: brandLogoSrc(theme),
             alt: "ORBIT home",
             className: "brand-logo",
           }),
@@ -1232,6 +1232,10 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     }
   }
 
+  function brandLogoSrc(currentTheme) {
+    return currentTheme === "light" ? "/static/orbit-logo-light.png" : "/static/orbit-logo-dark.png";
+  }
+
   function toggleTheme() {
     theme = theme === "light" ? "dark" : "light";
     writeStoredTheme(theme);
@@ -1243,6 +1247,8 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
       clear(btn);
       btn.appendChild(svgIcon(theme === "light" ? ICON_MOON : ICON_SUN));
     }
+    var logoImg = document.querySelector(".brand-logo");
+    if (logoImg) logoImg.src = brandLogoSrc(theme);
     // Chart.js bakes colors into each chart instance at creation time, so a
     // CSS variable flip alone won't recolor an already-rendered chart —
     // rebuild the active tab so any charts on it are recreated against the
