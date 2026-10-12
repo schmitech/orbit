@@ -118,39 +118,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   enableSyntaxHighlighting = true,
   syntaxTheme = 'dark',
 }) => {
-  const { stable, pending } = isStreaming
-    ? splitPendingStreamBlock(content)
-    : { stable: content, pending: '' };
-
-  const processedContent = preprocessMarkdown(stable);
-  if (!processedContent && !pending) return null;
-
-  const remarkPlugins: PluggableList = disableMath
-    ? [remarkGfm]
-    : [remarkGfm, [remarkMath, { singleDollarTextMath: true }]];
-
-  const rehypePlugins: PluggableList = [];
-  if (!disableMath) {
-    rehypePlugins.push([rehypeKatex, {
-      throwOnError: false,
-      errorColor: '#cc0000',
-      strict: false,
-      trust: true,
-      macros: {
-        "\\RR": "\\mathbb{R}",
-        "\\NN": "\\mathbb{N}",
-        "\\ZZ": "\\mathbb{Z}",
-        "\\QQ": "\\mathbb{Q}",
-        "\\CC": "\\mathbb{C}",
-        "\\dx": "\\,dx",
-        "\\dy": "\\,dy",
-        "\\dt": "\\,dt",
-        "\\dz": "\\,dz",
-      }
-    }]);
-  }
-
-  const components: Partial<Components> = {
+  // Memoized so `components.pre`/`components.code` keep a stable identity across
+  // streaming re-renders. react-markdown treats a changed component reference as a
+  // different component type and fully unmounts/remounts whatever it rendered -
+  // which was destroying and rebuilding rich blocks (music, charts, ...) on every
+  // streamed token, discarding their internal state and causing visible shake.
+  // Declared before any early return to keep hook call order stable.
+  const components: Partial<Components> = React.useMemo(() => ({
     pre: ({ node, children, ...props }) => {
       const isMusicBlock = enableMusic && node?.children.some(child => {
         if (child.type !== 'element' || child.tagName !== 'code') return false;
@@ -255,7 +229,39 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
       return <p {...props} />;
     },
-  };
+  }), [enableGraphs, enableMermaid, enableSVG, enableCharts, enableMusic, enableSyntaxHighlighting, syntaxTheme]);
+
+  const { stable, pending } = isStreaming
+    ? splitPendingStreamBlock(content)
+    : { stable: content, pending: '' };
+
+  const processedContent = preprocessMarkdown(stable);
+  if (!processedContent && !pending) return null;
+
+  const remarkPlugins: PluggableList = disableMath
+    ? [remarkGfm]
+    : [remarkGfm, [remarkMath, { singleDollarTextMath: true }]];
+
+  const rehypePlugins: PluggableList = [];
+  if (!disableMath) {
+    rehypePlugins.push([rehypeKatex, {
+      throwOnError: false,
+      errorColor: '#cc0000',
+      strict: false,
+      trust: true,
+      macros: {
+        "\\RR": "\\mathbb{R}",
+        "\\NN": "\\mathbb{N}",
+        "\\ZZ": "\\mathbb{Z}",
+        "\\QQ": "\\mathbb{Q}",
+        "\\CC": "\\mathbb{C}",
+        "\\dx": "\\,dx",
+        "\\dy": "\\,dy",
+        "\\dt": "\\,dt",
+        "\\dz": "\\,dz",
+      }
+    }]);
+  }
 
   return (
     <div className={`markdown-content ${className}`}>

@@ -224,6 +224,11 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
   const lastCodeRef = useRef<string>('');
   const lastUpdateTimeRef = useRef<number>(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Unlike `hasRenderedTune` (reset to false at the start of every re-render), this
+  // tracks whether a tune has EVER rendered, so the loading spinner below only
+  // appears for the very first render — not on every streaming re-render, which would
+  // otherwise insert/remove a block above the already-visible score and shake the page.
+  const [hasRenderedOnce, setHasRenderedOnce] = useState(false);
 
   // First effect: Detect ABC notation and streaming state
   useEffect(() => {
@@ -282,17 +287,11 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
       return;
     }
 
-    // If streaming, debounce the render
-    if (isStreaming) {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-
-      debounceTimerRef.current = setTimeout(() => {
-        setIsStreaming(false);
-      }, 400);
-    }
-
+    // Always debounce the actual (expensive, DOM-destructive) render off of `code`
+    // itself, rather than gating it behind the `isStreaming` timing heuristic: SSE
+    // chunks can arrive more than 500ms apart mid-stream, which would make
+    // `isStreaming` read false and let a full tear-down-and-rebuild slip through on
+    // nearly every chunk — that repeated rebuild is what caused the visible shake.
     let cancelled = false;
     const effectAudioTarget = audioControlsRef.current;
 
@@ -346,6 +345,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
         const renderedTune = renderedTunes[0];
         renderedTuneRef.current = renderedTune ?? null;
         setHasRenderedTune(Boolean(renderedTune));
+        setHasRenderedOnce(true);
 
         const audioTarget = effectAudioTarget;
         const synth = abcjsLib.synth;
@@ -377,7 +377,13 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
       }
     };
 
-    renderAbc();
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      setIsStreaming(false);
+      void renderAbc();
+    }, 400);
 
     return () => {
       cancelled = true;
@@ -391,7 +397,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [code, isAbc, isStreaming, playerId, t]);
+  }, [code, isAbc, playerId, t]);
 
   if (!code.trim()) {
     return null;
@@ -607,7 +613,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
             alignItems: 'stretch',
           }}
         >
-          {!isLoading && !isStreaming && (
+          {(!isLoading || hasRenderedOnce) && !isStreaming && (
             <div className="graph-action-bar">
               <button
                 className="graph-action-button"
@@ -684,7 +690,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
               `}</style>
             </div>
           )}
-          {isLoading && !isStreaming && (
+          {isLoading && !isStreaming && !hasRenderedOnce && (
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -723,7 +729,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
           ref={audioControlsRef}
           className="music-playback-controls"
           onClickCapture={handleAudioControlClickCapture}
-          hidden={isLoading || isStreaming || !audioSupported}
+          hidden={(isLoading && !hasRenderedOnce) || isStreaming || !audioSupported}
         />
         {!isLoading && !isStreaming && !audioSupported && (
           <div className="music-playback-message" role="status">
