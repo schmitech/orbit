@@ -2,7 +2,7 @@
 
 # ORBIT CLI Bash Wrapper
 # Enterprise-grade shell wrapper for the ORBIT Python CLI
-# Version: 2.18.3
+# Version: 2.18.4
 
 set -euo pipefail  # Exit on error, undefined variables, and pipe failures
 
