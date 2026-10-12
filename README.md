@@ -33,6 +33,12 @@
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
 </p>
 
+<p align="center">
+  <img width="960" alt="ORBIT admin panel in action: resource monitoring, API keys, users, audit logs, and MCP tools" src="https://github.com/user-attachments/assets/6adf3f49-434c-4915-b2c1-ca6c44c0beee" />
+  <br />
+  <sub>Monitor resources, manage API keys and users, review audit logs, and configure MCP tools—all in one place.</sub>
+</p>
+
 ## Why ORBIT
 
 Build a chat app over private documents, an agent that calls your tools, or a triage workflow—with the same backend.
@@ -47,7 +53,7 @@ Build a chat app over private documents, an agent that calls your tools, or a tr
 Explore the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) for a detailed comparison.
 
 <details>
-<summary><strong>See ORBIT in action — 9 video demos</strong></summary>
+<summary><strong>See ORBIT in action</strong></summary>
 
 Explore what you can build with ORBIT, from conversations over private data to voice assistants and tool-using agents.
 
