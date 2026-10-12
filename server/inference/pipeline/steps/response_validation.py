@@ -6,6 +6,7 @@ This step validates the generated response for safety and quality.
 
 import logging
 from ..base import PipelineStep, ProcessingContext
+from ._utils import record_moderation_block
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,8 @@ class ResponseValidationStep(PipelineStep):
                     logger.warning(f"Response blocked by Moderator Service: {refusal_message}")
                     context.set_error(refusal_message or "Response blocked by content moderator", block=True)
                     context.response = ""  # Clear the unsafe response
+                    provider, model = moderator.get_moderator_identity()
+                    record_moderation_block(self.container, context, provider, model)
                     return context
                     
             except Exception as e:  # noqa: BLE001 - pluggable moderator boundary; must not block the pipeline

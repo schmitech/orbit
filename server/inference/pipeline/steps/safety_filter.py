@@ -6,6 +6,7 @@ This step checks message safety using guardrail services before processing.
 
 import logging
 from ..base import PipelineStep, ProcessingContext
+from ._utils import record_moderation_block
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,8 @@ class SafetyFilterStep(PipelineStep):
                     # Use the moderator's refusal message so clients understand why the message was blocked
                     error_message = refusal_message or "Message blocked by content moderator"
                     context.set_error(error_message, block=True)
+                    provider, model = moderator.get_moderator_identity()
+                    record_moderation_block(self.container, context, provider, model)
                     return context
                 else:
                     logger.debug(f"Moderator passed message: '{(context.message or '')[:50]}...'")

@@ -254,6 +254,17 @@ Query: """
             await self.session.close()
             self.session = None
 
+    def get_moderator_identity(self) -> tuple[Optional[str], Optional[str]]:
+        """
+        Return the (provider, model) actually performing safety checks, for auditing.
+
+        Returns:
+            Tuple[Optional[str], Optional[str]]: (provider, model)
+        """
+        if self.use_moderator:
+            return self.moderator_name, getattr(self.moderator, 'model', None)
+        return getattr(self, 'provider', None), getattr(self, 'model', None)
+
     async def is_safe(self, query: str) -> bool:
         """
         Check if a query is safe to process.

@@ -174,6 +174,22 @@ def test_observability_usage_filters_by_decision_call_type():
     assert audit_service.last_call_kwargs["filters"] == {"call_type": "decision"}
 
 
+def test_observability_usage_filters_by_moderation_call_type():
+    """Blocked conversations are audited as their own 'moderation' call_type
+    (see SafetyFilterStep/ResponseValidationStep) and must be filterable/
+    groupable like any other."""
+    audit_service = FakeAuditService()
+    app = _build_app(["admin"], audit_service=audit_service)
+    with TestClient(app) as client:
+        resp = client.get(
+            "/admin/observability/usage?group_by=call_type&call_type=moderation"
+        )
+
+    assert resp.status_code == 200
+    assert audit_service.last_call_kwargs["group_by"] == "call_type"
+    assert audit_service.last_call_kwargs["filters"] == {"call_type": "moderation"}
+
+
 def test_observability_usage_filters_by_api_key():
     audit_service = FakeAuditService()
     app = _build_app(["admin"], audit_service=audit_service)

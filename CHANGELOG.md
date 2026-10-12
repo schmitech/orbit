@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Core Features
+- **Moderation Blocks Surfaced as Their Own `call_type` in the Admin Panel**: A message or response blocked by the content moderator (`SafetyFilterStep`/`ResponseValidationStep`) previously produced no audit record at all — `_audit_usage_only_request()` only logs a request when `context.metadata["usage"]` is populated, and neither step ever set it, so blocked conversations were silently dropped from the audit trail with no cost, provider, or model attribution. Both steps now call `record_media_generation_usage(..., call_type="moderation")` when they block, using a new `ModeratorService.get_moderator_identity()` to attribute the block to whichever moderator actually ran (e.g. `openai`/`omni-moderation-latest`, `shieldstral`/`mistralai/Shieldstral-1.0-3B`). Added `moderation` to the observability route's accepted call types, the Audit Ledger's stream/type filters and source badge (its own color token), and the Costs tab's call-type filter — matching the `decision` call_type precedent — so blocked conversations are now visible end-to-end in the admin panel instead of invisible.
+
 ## [2.18.4] - 2026-10-12
 
 ### Core Features

@@ -1201,6 +1201,9 @@ class PipelineChatService:
             # Emit the refusal message directly without storing it in conversation history.
             if final_state is None and context.is_blocked:
                 refusal = context.error or "Message blocked by content moderator"
+                await self._audit_usage_only_request(
+                    context, message, client_ip, adapter_name, api_key, user_id
+                )
                 yield ResponseEvent(text=refusal, extra={"done": False})
                 yield DoneEvent()
                 return

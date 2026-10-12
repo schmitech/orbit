@@ -534,6 +534,37 @@ def record_usage(
         context.metadata["total_tokens"] = total_tokens
 
 
+def record_moderation_block(
+    container,
+    context,
+    provider: Optional[str],
+    model: Optional[str],
+) -> None:
+    """
+    Record an audit event for a message/response blocked by content moderation.
+
+    Any embedding/reranking usage already tracked for this request is detached
+    into its own audit event first (same as record_media_generation_usage),
+    rather than being folded into this one. If a main usage event already
+    exists — e.g. response validation blocking an answer that was already
+    generated — it is left untouched instead of being overwritten, so the
+    generation's recorded tokens/cost aren't discarded by the block.
+    """
+    extract_embedding_usage(container, context)
+    extract_reranking_usage(container, context)
+
+    if context.metadata.get("usage"):
+        return
+
+    context.metadata["usage"] = {
+        "prompt_tokens": None, "completion_tokens": None, "total_tokens": None,
+        "reasoning_tokens": None, "provider": provider, "model": model,
+        "cost_usd": None, "input_rate_per_1m": None, "output_rate_per_1m": None,
+        "pricing_source": "unreported", "usage_unit": None, "usage_quantity": None,
+        "call_type": "moderation", "reported": False,
+    }
+
+
 def record_media_generation_usage(
     container,
     context,

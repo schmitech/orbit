@@ -95,7 +95,7 @@ async def get_observability_usage(
     group_by: str = Query("model", pattern="^(model|provider|adapter_name|user_id|call_type|api_key|none)$"),
     provider: Optional[str] = Query(None),
     adapter_name: Optional[str] = Query(None),
-    call_type: Optional[str] = Query(None, pattern="^(chat|decision|embedding|reranking|image|video|audio|document)$"),
+    call_type: Optional[str] = Query(None, pattern="^(chat|decision|moderation|embedding|reranking|image|video|audio|document)$"),
     api_key: Optional[str] = Query(None),
     limit_groups: int = Query(10, ge=1, le=100),
 ):

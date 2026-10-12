@@ -181,7 +181,29 @@ async def test_streaming_clarification_block_is_streamed_to_client():
 
     assert any("Which one did you mean" in c for c in chunks), chunks
     assert any('"done": true' in c for c in chunks), chunks
-    svc._audit_usage_only_request.assert_not_called()
+    # Called unconditionally for every blocked stream (moderation blocks need
+    # it to persist their audit record — see test_moderation_audit.py), but a
+    # no-op here since a clarification never populates context.metadata["usage"].
+    svc._audit_usage_only_request.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_streaming_moderation_block_is_audited():
+    """A moderation block on the streaming path (SafetyFilterStep) must still
+    persist its audit record — see test_moderation_audit.py for the non-
+    streaming/step-level coverage of record_moderation_block itself."""
+    svc, context = _build_streaming_service(blocked_text="I cannot assist with that type of request.")
+    context.metadata["usage"] = {"call_type": "moderation", "provider": "openai", "model": "omni-moderation-latest"}
+
+    chunks = [chunk async for chunk in svc.process_chat_stream(
+        message=context.message, client_ip="127.0.0.1", adapter_name=context.adapter_name,
+        session_id=context.session_id,
+    )]
+
+    assert any("I cannot assist" in c for c in chunks), chunks
+    svc._audit_usage_only_request.assert_awaited_once()
+    awaited_context = svc._audit_usage_only_request.await_args.args[0]
+    assert awaited_context.metadata["usage"]["call_type"] == "moderation"
 
 
 @pytest.mark.asyncio
