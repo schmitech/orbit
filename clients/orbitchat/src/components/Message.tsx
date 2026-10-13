@@ -680,7 +680,7 @@ export function Message({
 
   const bubbleClasses = isAssistant
     ? 'message-bubble message-bubble-assistant min-w-0 break-words leading-relaxed text-[#353740] dark:text-[#ececf1]'
-    : 'message-bubble message-bubble-user inline-block min-w-0 break-words leading-relaxed rounded-[1.75rem] border border-[#2f6fd6]/10 bg-[#3574e0] px-4 py-3 text-white shadow-[0_1px_2px_rgba(21,60,132,0.18)] dark:border-white/[0.06] dark:bg-[#1e4fa3] dark:text-[#eef3ff] dark:shadow-[0_1px_3px_rgba(0,0,0,0.35)]';
+    : 'message-bubble message-bubble-user inline-block min-w-0 break-words leading-relaxed rounded-2xl border border-[#2f6fd6]/10 bg-[#3574e0] px-4 py-3 text-white shadow-[0_1px_2px_rgba(21,60,132,0.18)] dark:border-white/[0.06] dark:bg-[#1e4fa3] dark:text-[#eef3ff] dark:shadow-[0_1px_3px_rgba(0,0,0,0.35)]';
 
   const markCopied = useCallback(() => {
     setCopied(true);

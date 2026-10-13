@@ -60,7 +60,6 @@
   /* Assistant message styling - softer, more readable like ChatGPT */
   .prose p {
     @apply font-normal leading-7 text-[#353740] dark:text-[#ececf1];
-    font-size: 15px;
     margin-top: 0.75rem;
     margin-bottom: 0.75rem;
   }
@@ -97,7 +96,6 @@
   
   .prose li {
     @apply my-2 leading-7;
-    font-size: 15px;
   }
   
   .prose strong {
