@@ -406,22 +406,12 @@ export function ChatInterface({
                     <Settings className="h-4 w-4" />
                   </button>
                 </div>
-                {!isSingleAdapterMode && !shouldShowAgentSelectionList && !!currentConversation?.adapterName && (
+                {!isSingleAdapterMode && !shouldShowAgentSelectionList && !!currentConversation?.adapterName && canChangeAgent && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (!canChangeAgent) {
-                        return;
-                      }
-                      handleChangeAgent();
-                    }}
-                    disabled={!canChangeAgent}
-                    className={`order-2 sm:order-1 inline-flex h-8 md:h-[42px] w-[calc(50%-0.25rem)] min-w-[140px] md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 ${
-                      canChangeAgent
-                        ? 'border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 focus-visible:ring-blue-500 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-400/60 dark:focus-visible:ring-blue-400/60'
-                        : 'cursor-not-allowed border-gray-200 text-gray-400 bg-transparent dark:border-[#3c3f4a] dark:text-[#6b6f7a]'
-                    }`}
-                    title={canChangeAgent ? t('chatInterface.changeAgent.titleEnabled') : t('chatInterface.changeAgent.titleDisabled')}
+                    onClick={handleChangeAgent}
+                    className="order-2 sm:order-1 inline-flex h-8 md:h-[42px] w-[calc(50%-0.25rem)] min-w-[140px] md:w-[190px] items-center justify-center gap-1 md:gap-2 rounded-full border px-2.5 md:px-3.5 py-1.5 md:py-2.5 text-[11px] md:text-[13px] font-medium tracking-[0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 focus-visible:ring-blue-500 dark:border-blue-500/40 dark:text-blue-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-400/60 dark:focus-visible:ring-blue-400/60"
+                    title={t('chatInterface.changeAgent.titleEnabled')}
                   >
                     {t('chatInterface.changeAgent.button')}
                   </button>
