@@ -78,6 +78,43 @@ const setSecondaryControlsDisabled = (target: HTMLElement, disabled: boolean) =>
   });
 };
 
+const MIN_TEMPO = 1;
+const MAX_TEMPO = 999;
+
+// abcjs renders the tempo control as a plain, unconstrained <input>; clamp its
+// value on the fly so it can't hold non-numeric input or an absurd tempo.
+const constrainTempoInput = (target: HTMLElement) => {
+  const tempoInput = target.querySelector<HTMLInputElement>('.abcjs-midi-tempo');
+  if (!tempoInput) return;
+
+  tempoInput.setAttribute('type', 'number');
+  tempoInput.setAttribute('min', String(MIN_TEMPO));
+  tempoInput.setAttribute('max', String(MAX_TEMPO));
+  tempoInput.setAttribute('maxLength', '3');
+
+  // While typing, only strip non-digits - allow an empty/short value so the
+  // user can backspace the whole field before entering a new tempo.
+  const sanitize = () => {
+    const digitsOnly = tempoInput.value.replace(/[^\d]/g, '');
+    if (digitsOnly !== tempoInput.value) {
+      tempoInput.value = digitsOnly;
+    }
+  };
+
+  // Only clamp into range once the user is done editing.
+  const clamp = () => {
+    const parsed = parseInt(tempoInput.value, 10);
+    const clamped = Number.isNaN(parsed) ? MIN_TEMPO : Math.min(MAX_TEMPO, Math.max(MIN_TEMPO, parsed));
+    if (String(clamped) !== tempoInput.value) {
+      tempoInput.value = String(clamped);
+      tempoInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  };
+
+  tempoInput.addEventListener('input', sanitize);
+  tempoInput.addEventListener('blur', clamp);
+};
+
 const prepareSynthController = (
   synth: AbcSynthLike,
   tune: AbcTune,
@@ -106,6 +143,7 @@ const prepareSynthController = (
   setControlLabel('.abcjs-midi-progress-background', labels.seek);
   setControlLabel('.abcjs-midi-tempo', labels.tempo);
   setSecondaryControlsDisabled(target, true);
+  constrainTempoInput(target);
 
   // abcjs names its transport toggle `play()`. Calling its raw `pause()` does
   // not reset the internal isStarted flag, so the next Play would be ignored.
