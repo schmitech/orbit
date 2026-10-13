@@ -29,9 +29,22 @@ type MusicPlaybackController = {
   pause: () => Promise<void>;
 };
 
+type NotePreviewSynthLike = {
+  init: (options: { visualObj: AbcTune; options?: Record<string, unknown> }) => Promise<unknown>;
+  prime: () => Promise<unknown>;
+  millisecondsPerMeasure: number;
+};
+
+type AbcElemLike = {
+  midiPitches?: unknown[];
+  midiGraceNotePitches?: unknown[];
+};
+
 type AbcSynthLike = {
   supportsAudio: () => boolean;
   SynthController: new () => SynthControllerLike;
+  CreateSynth: new () => NotePreviewSynthLike;
+  playEvent: (eventToPlay: unknown[], allMidiEvents: unknown[], millisecondsPerMeasure: number) => Promise<unknown>;
   getMidiFile: (source: AbcTune, options?: Record<string, unknown>) => ArrayBuffer;
 };
 
@@ -209,6 +222,11 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
   const audioControlsRef = useRef<HTMLDivElement>(null);
   const synthControllerRef = useRef<MusicPlaybackController | null>(null);
   const renderedTuneRef = useRef<AbcTune | null>(null);
+  // Separate, lazily-created synth used only to preview a single clicked note -
+  // kept independent of `synthControllerRef` (full playback) so clicking a note
+  // never disturbs the transport's own synth/cursor state.
+  const notePreviewSynthRef = useRef<NotePreviewSynthLike | null>(null);
+  const notePreviewSynthPromiseRef = useRef<Promise<NotePreviewSynthLike | null> | null>(null);
   const [playerId] = useState(() => `music-player-${++nextMusicPlayerId}`);
   const [error, setError] = useState<string | null>(null);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
@@ -229,6 +247,61 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
   // appears for the very first render — not on every streaming re-render, which would
   // otherwise insert/remove a block above the already-visible score and shake the page.
   const [hasRenderedOnce, setHasRenderedOnce] = useState(false);
+
+  // Lazily creates (once) and reuses a synth dedicated to single-note previews.
+  const ensureNotePreviewSynth = async (): Promise<NotePreviewSynthLike | null> => {
+    if (notePreviewSynthRef.current) return notePreviewSynthRef.current;
+    if (notePreviewSynthPromiseRef.current) return notePreviewSynthPromiseRef.current;
+
+    const tune = renderedTuneRef.current;
+    const synth = abcjs?.synth;
+    if (!tune || !synth) return null;
+
+    const promise = (async () => {
+      // Deferring past this microtask guarantees `promise` (below) is assigned
+      // before any synchronous throw from `CreateSynth`/`init` can reach the
+      // `finally` block - otherwise that reference would hit the TDZ.
+      await Promise.resolve();
+      try {
+        const instance = new synth.CreateSynth();
+        // `init` also decorates the tune's note elements with `midiPitches`,
+        // which the click handler below reads - priming it as soon as a tune
+        // renders means that data is usually ready before the user clicks.
+        await instance.init({ visualObj: tune, options: { soundFontUrl: SOUNDFONT_URL } });
+        await instance.prime();
+        // A re-render may have replaced the tune (and started its own
+        // ensureNotePreviewSynth call) while this init/prime was in flight -
+        // don't let a stale synth for the old tune win the race.
+        if (renderedTuneRef.current !== tune) return null;
+        notePreviewSynthRef.current = instance;
+        return instance;
+      } catch {
+        return null;
+      } finally {
+        // Let a later click retry (fresh promise) instead of being stuck with
+        // this attempt's cached null result forever.
+        if (notePreviewSynthPromiseRef.current === promise) notePreviewSynthPromiseRef.current = null;
+      }
+    })();
+    notePreviewSynthPromiseRef.current = promise;
+    return promise;
+  };
+
+  // Plays the note(s) under a clicked notehead, independent of the main transport.
+  const handleNoteClick = React.useCallback((abcelem: AbcElemLike) => {
+    // Don't fight the transport while it's actively playing this score.
+    if (activeMusicPlayerId === playerId) return;
+
+    void (async () => {
+      const synth = abcjs?.synth;
+      const instance = await ensureNotePreviewSynth();
+      if (!synth || !instance) return;
+      // `init()` (above) decorates abcelem with `midiPitches` as a side effect,
+      // so it may only be populated by the time this resolves, not beforehand.
+      if (!abcelem.midiPitches?.length) return;
+      void synth.playEvent(abcelem.midiPitches, abcelem.midiGraceNotePitches ?? [], instance.millisecondsPerMeasure);
+    })();
+  }, [playerId]);
 
   // First effect: Detect ABC notation and streaming state
   useEffect(() => {
@@ -338,14 +411,21 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
           paddingright: 0,
           paddingtop: 15,
           paddingbottom: 15,
+          clickListener: (abcelem: AbcElemLike) => handleNoteClick(abcelem),
         });
 
         if (cancelled) return;
+
+        // A re-render replaces the tune's visualObj; the old preview synth was
+        // primed against the stale one, so it must be rebuilt on next click.
+        notePreviewSynthRef.current = null;
+        notePreviewSynthPromiseRef.current = null;
 
         const renderedTune = renderedTunes[0];
         renderedTuneRef.current = renderedTune ?? null;
         setHasRenderedTune(Boolean(renderedTune));
         setHasRenderedOnce(true);
+        if (renderedTune) void ensureNotePreviewSynth();
 
         const audioTarget = effectAudioTarget;
         const synth = abcjsLib.synth;
@@ -397,7 +477,7 @@ export const MusicRenderer: React.FC<MusicRendererProps> = ({ code }) => {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [code, isAbc, playerId, t]);
+  }, [code, isAbc, playerId, t, handleNoteClick]);
 
   if (!code.trim()) {
     return null;

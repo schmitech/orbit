@@ -729,6 +729,15 @@
   stroke: var(--md-text-primary);
 }
 
+/* Notes are clickable to preview a single pitch - signal that on hover */
+.markdown-content .music-score-area g[data-name="note"] {
+  cursor: pointer;
+}
+
+.markdown-content .music-score-area g[data-name="note"]:hover {
+  fill: #6366f1;
+}
+
 /* Cursor highlight for the note(s) currently sounding during playback */
 .markdown-content .abcjs-note-highlight {
   fill: #6366f1 !important;
