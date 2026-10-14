@@ -3003,19 +3003,22 @@ label.expiration-choice-row-item {
   box-shadow: var(--shadow-sm);
 }
 
-/* Terminal body */
+/* Terminal body. Uses the app's own theme tokens rather than a fixed navy
+   console palette, so it matches the admin theme in both light and dark
+   mode (pitch black in dark, matching the rest of the UI, white/light in
+   light mode) instead of always looking like a dark terminal. */
 .log-terminal {
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.65;
-  background: #0c1929;
-  color: #b0c4de;
+  background: var(--surface);
+  color: var(--ink-secondary);
   padding: var(--sp-2) 0;
   min-height: 400px;
   max-height: calc(100vh - 260px);
   overflow: auto;
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  border: 1px solid #1e2d47;
+  border: 1px solid var(--border);
   border-top: none;
 }
 
@@ -3028,14 +3031,14 @@ label.expiration-choice-row-item {
 }
 
 .log-line:hover {
-  background: rgba(56, 189, 248, 0.06);
+  background: var(--panel-hover);
 }
 
 .log-lineno {
   flex: 0 0 44px;
   text-align: right;
   padding-right: var(--sp-3);
-  color: #3a4f6f;
+  color: var(--ink-muted);
   user-select: none;
   font-size: 11px;
 }
@@ -3051,10 +3054,10 @@ label.expiration-choice-row-item {
   margin-right: var(--sp-2);
 }
 
-.log-badge-error   { background: rgba(225, 29, 72, 0.2); color: #fb7185; }
-.log-badge-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-.log-badge-info    { background: rgba(56, 189, 248, 0.12); color: #7dd3fc; }
-.log-badge-debug   { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
+.log-badge-error   { background: var(--danger-50); color: var(--danger-text); }
+.log-badge-warning { background: var(--warning-50); color: var(--warning-text); }
+.log-badge-info    { background: var(--brand-50); color: var(--brand-600); }
+.log-badge-debug   { background: var(--surface-sunken); color: var(--ink-muted); }
 
 .log-text {
   flex: 1;
@@ -3063,13 +3066,13 @@ label.expiration-choice-row-item {
   word-break: break-all;
 }
 
-.log-level-error .log-text { color: #fda4af; }
-.log-level-warning .log-text { color: #fde68a; }
-.log-level-debug .log-text { color: #6b7a96; }
+.log-level-error .log-text { color: var(--danger-text); }
+.log-level-warning .log-text { color: var(--warning-text); }
+.log-level-debug .log-text { color: var(--ink-muted); }
 
 .log-highlight {
-  background: rgba(251, 191, 36, 0.35);
-  color: inherit;
+  background: var(--warning-500);
+  color: #1a1400;
   border-radius: 2px;
   padding: 0 1px;
 }
@@ -4462,6 +4465,17 @@ details.monitoring-section > summary:hover::after {
   border-radius: var(--radius-md);
 }
 
+/* ace/theme/tomorrow_night ships its own dark grey (#1d1f21), not the app's
+   pitch-black dark surface - override it here rather than in the theme file
+   so the YAML editors match the rest of the dark UI. Light mode keeps the
+   theme's own (light) background untouched. */
+:root[data-theme="dark"] .settings-ace-wrap .ace_editor,
+:root[data-theme="dark"] .settings-ace-wrap .ace_gutter,
+:root[data-theme="dark"] .settings-ace-wrap .ace_scroller,
+:root[data-theme="dark"] .settings-ace-wrap .ace_gutter-active-line {
+  background-color: var(--surface);
+}
+
 .settings-banner {
   padding: var(--sp-3) var(--sp-4);
   margin-bottom: var(--sp-3);
@@ -5585,6 +5599,14 @@ button.mcp-kv-btn:active:not(:disabled) {
 
 .adapter-ace-wrap .ace_editor {
   border-radius: var(--radius-md);
+}
+
+/* See the matching override in .settings-ace-wrap - same theme, same fix. */
+:root[data-theme="dark"] .adapter-ace-wrap .ace_editor,
+:root[data-theme="dark"] .adapter-ace-wrap .ace_gutter,
+:root[data-theme="dark"] .adapter-ace-wrap .ace_scroller,
+:root[data-theme="dark"] .adapter-ace-wrap .ace_gutter-active-line {
+  background-color: var(--surface);
 }
 
 .adapter-toggle {
