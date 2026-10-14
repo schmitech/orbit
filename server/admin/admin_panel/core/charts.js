@@ -41,7 +41,7 @@ export function standardChartOptions() {
       x: { grid: { display: false }, ticks: { color: t.axisText, maxRotation: 0, autoSkip: true, maxTicksLimit: 10, font: { size: 12 } } },
     },
     plugins: {
-      legend: { labels: { color: t.legendText, usePointStyle: true, pointStyle: "circle", pointStyleWidth: 8, boxWidth: 8, boxHeight: 8, font: { size: 12 } } },
+      legend: { labels: { color: t.legendText, usePointStyle: true, pointStyle: "rect", boxWidth: 10, boxHeight: 10, font: { size: 12 } } },
       tooltip: { backgroundColor: t.tooltipBg, titleColor: t.tooltipTitle, bodyColor: t.tooltipBody, padding: 16, cornerRadius: 6, titleFont: { family: "'JetBrains Mono', monospace", size: 18, weight: "500" }, bodyFont: { family: "'JetBrains Mono', monospace", size: 17, weight: "400" } },
     },
   };

@@ -251,7 +251,7 @@ export function createFeedbackTab({
         clear(content);
 
         if (data.meta.truncated) {
-          content.appendChild(el("div", { className: "feedback-truncated-banner" },
+          content.appendChild(el("div", { className: "admin-warning-banner" },
             "This view uses the newest " + formatNum(data.meta.record_limit) + " ratings in the selected window."));
         }
 

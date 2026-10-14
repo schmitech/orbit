@@ -1304,6 +1304,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     endpoints: ENDPOINTS,
     el: el,
     clear: clear,
+    wrapTable: wrapTable,
     skeleton: skeleton,
     refreshButton: refreshButton,
     formatNum: formatNum,

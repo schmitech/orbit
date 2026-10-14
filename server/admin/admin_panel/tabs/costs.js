@@ -9,7 +9,7 @@ const GROUP_BY_LABELS = {
   api_key: "API key",
 };
 
-export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshButton, formatNum, chartOptions, renderMetricCard, createSelect, getActiveTab }) {
+export function createCostsTab({ api, endpoints, el, clear, wrapTable, skeleton, refreshButton, formatNum, chartOptions, renderMetricCard, createSelect, getActiveTab }) {
   let charts = {};
   let selectedWindowDays = 7;
   let selectedGroupBy = "model";
@@ -68,6 +68,38 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
     return options;
   }
 
+  // Chart colors read from the same design tokens the rest of the admin
+  // panel uses, so they track the light/dark theme instead of a fixed
+  // palette tuned for one background. The 10-color categorical set reuses
+  // the audit-log "content source" palette (already designed as a
+  // theme-aware categorical family) rather than inventing a second one.
+  function costsPalette() {
+    const style = getComputedStyle(document.documentElement);
+    const read = (name, fallback) => (style.getPropertyValue(name) || "").trim() || fallback;
+    return {
+      prompt: read("--brand-400", "#5b9bdc"),
+      completion: read("--success-500", "#34d399"),
+      cost: read("--warning-500", "#f2b84c"),
+      cumulative: read("--brand-400", "#5b9bdc"),
+      categorical: [
+        read("--brand-400", "#5b9bdc"), read("--audit-chat-text", "#f3ac6d"),
+        read("--audit-decision-text", "#5fd9cb"), read("--audit-moderation-text", "#f2918a"),
+        read("--audit-embedding-text", "#c4a9f7"), read("--audit-image-text", "#6fd6ec"),
+        read("--audit-video-text", "#f18cbb"), read("--audit-audio-text", "#7fe3a3"),
+        read("--audit-document-text", "#e8d271"), read("--success-500", "#34d399"),
+      ],
+    };
+  }
+
+  function hexToRgba(hex, alpha) {
+    const h = hex.replace("#", "");
+    const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+    const value = parseInt(full, 16);
+    if (isNaN(value)) return hex;
+    const r = (value >> 16) & 255, g = (value >> 8) & 255, b = value & 255;
+    return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
+  }
+
   const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   // Bucket keys are wall-clock values in the audit log's storage timezone
@@ -97,6 +129,8 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
     dispose();
     if (typeof Chart === "undefined") return;
 
+    const palette = costsPalette();
+
     const tokensCanvas = document.getElementById("obs-tokens-chart");
     if (tokensCanvas && data.series.length) {
       const opts = chartOptions();
@@ -105,8 +139,8 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         data: {
           labels: data.series.map((item) => formatBucketLabel(item.bucket, data.window.bucket === "hour")),
           datasets: [
-            { label: "Prompt tokens", data: data.series.map((item) => item.prompt_tokens), backgroundColor: "#5794f2", stack: "tokens" },
-            { label: "Completion tokens", data: data.series.map((item) => item.completion_tokens), backgroundColor: "#28a66a", stack: "tokens" }
+            { label: "Prompt tokens", data: data.series.map((item) => item.prompt_tokens), backgroundColor: palette.prompt, stack: "tokens" },
+            { label: "Completion tokens", data: data.series.map((item) => item.completion_tokens), backgroundColor: palette.completion, stack: "tokens" }
           ]
         },
         options: Object.assign(opts, { scales: Object.assign(opts.scales, { x: Object.assign(opts.scales.x, { stacked: true }), y: Object.assign(opts.scales.y, { stacked: true }) }) })
@@ -122,13 +156,23 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         data: {
           labels: data.series.map((item) => formatBucketLabel(item.bucket, data.window.bucket === "hour")),
           datasets: [
-            { label: "Cost / bucket", data: data.series.map((item) => item.cost_usd), borderColor: "#e0a22f", backgroundColor: "rgba(224,162,47,0.10)", fill: true, tension: 0.25 },
-            { label: "Cumulative", data: data.series.map((item) => { cumulative += item.cost_usd; return cumulative; }), borderColor: "#5794f2", backgroundColor: "transparent", borderDash: [5, 4], yAxisID: "y1", tension: 0.2 }
+            { label: "Cost / bucket", data: data.series.map((item) => item.cost_usd), borderColor: palette.cost, backgroundColor: hexToRgba(palette.cost, 0.1), fill: true, tension: 0.25 },
+            { label: "Cumulative", data: data.series.map((item) => { cumulative += item.cost_usd; return cumulative; }), borderColor: palette.cumulative, backgroundColor: "transparent", borderDash: [5, 4], yAxisID: "y1", tension: 0.2 }
           ]
         },
         options: Object.assign(costOpts, {
           scales: Object.assign(costOpts.scales, {
-            y1: { beginAtZero: true, position: "right", grid: { drawOnChartArea: false }, ticks: { color: chartTheme().axisText, font: { size: 12 } } }
+            // Chart.js's default tick formatter falls back to scientific
+            // notation ("4.000000E-5") for the sub-cent values common here
+            // (embedding/reranking calls priced in micro-dollars) - reuse the
+            // same magnitude-aware formatter as the tooltip and summary cards.
+            y: Object.assign(costOpts.scales.y, {
+              ticks: Object.assign(costOpts.scales.y.ticks, { precision: undefined, callback: (value) => obsCost(value) })
+            }),
+            y1: {
+              beginAtZero: true, position: "right", grid: { drawOnChartArea: false },
+              ticks: { color: chartTheme().axisText, font: { size: 12 }, callback: (value) => obsCost(value) }
+            }
           })
         })
       });
@@ -170,7 +214,7 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         type: "bar",
         data: {
           labels: groupRows.map((row) => row.label || row.key || "(unknown)"),
-          datasets: [{ data: groupRows.map((row) => row.cost_usd), backgroundColor: "#5794f2" }]
+          datasets: [{ data: groupRows.map((row) => row.cost_usd), backgroundColor: palette.prompt }]
         },
         options: modelOpts
       });
@@ -195,11 +239,65 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         type: "doughnut",
         data: {
           labels: groupRows.map((row) => row.label || row.key || "(unknown)"),
-          datasets: [{ data: groupRows.map((row) => row.cost_usd), backgroundColor: ["#5794f2", "#28a66a", "#e0a22f", "#e05260", "#9b7ede", "#4fb8b0", "#f28cb1", "#c0ca33", "#8d6e63", "#78909c"], borderWidth: 0, hoverOffset: 4 }]
+          datasets: [{ data: groupRows.map((row) => row.cost_usd), backgroundColor: palette.categorical, borderWidth: 0, hoverOffset: 4 }]
         },
         options: doughnutOptions
       });
     }
+  }
+
+  // Charts cap at the top 10 rows for readability; the table underneath
+  // lists every group so a long tail (e.g. many API keys) stays reachable
+  // and, for the api_key dimension, every row - not just a chart bar -
+  // can filter the page down to that key.
+  function breakdownTable(container, rows, totalCost, groupBy, onRowClick) {
+    if (!rows.length) {
+      container.appendChild(el("p", { className: "muted" }, "No usage in this window to break down."));
+      return;
+    }
+    // The endpoint caps a single request at 100 groups - at that cap there
+    // may be more beyond what's shown, with no further groups fetchable
+    // from here, so say so rather than implying this is the full set.
+    if (rows.length >= 100) {
+      container.appendChild(el("p", { className: "muted", style: "font-size:var(--text-xs)" },
+        "Showing the top 100 groups by cost. Narrow the time window or call type filter to see others."));
+    }
+    const clickable = groupBy === "api_key" && typeof onRowClick === "function";
+    const table = el("table", { className: "monitoring-table" });
+    table.appendChild(el("thead", null, el("tr", null,
+      el("th", null, GROUP_BY_LABELS[groupBy] || "Group"),
+      el("th", { style: "text-align:right" }, "Cost"),
+      el("th", null, "Share"),
+      el("th", { style: "text-align:right" }, "Requests"),
+      el("th", { style: "text-align:right" }, "Tokens"),
+      clickable ? el("th", { style: "text-align:right" }, "Actions") : null
+    )));
+    const body = el("tbody");
+    rows.forEach((row) => {
+      const label = row.label || row.key || "(unknown)";
+      const share = totalCost > 0 ? (row.cost_usd / totalCost) * 100 : 0;
+      const shareCell = el("div", { style: "display:flex;align-items:center;gap:var(--sp-2);min-width:7rem" },
+        el("span", null, formatNum(share, 1) + "%"),
+        el("div", { className: "monitoring-progress-track", style: "flex:1;margin-top:0" },
+          el("div", { className: "monitoring-progress-bar sky", style: "width:" + Math.min(100, Math.max(0, share)) + "%" })));
+      const cells = [
+        el("td", null, el("div", { className: "monitoring-table-primary", title: label }, label)),
+        el("td", { style: "text-align:right;font-weight:600" }, obsCost(row.cost_usd)),
+        el("td", null, shareCell),
+        el("td", { style: "text-align:right" }, formatNum(row.requests)),
+        el("td", { style: "text-align:right" }, formatNum(row.total_tokens)),
+      ];
+      if (clickable) {
+        const filterBtn = el("button", { type: "button", className: "secondary" }, "Filter");
+        filterBtn.addEventListener("click", () => onRowClick(row));
+        cells.push(el("td", { style: "text-align:right" }, filterBtn));
+      }
+      body.appendChild(el("tr", null, cells));
+    });
+    table.appendChild(body);
+    container.appendChild(wrapTable(table, clickable
+      ? ["fluid", "number", "label", "number", "number", "actions"]
+      : ["fluid", "number", "label", "number", "number"]));
   }
 
   async function render(container) {
@@ -297,6 +395,10 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         params.set("days", String(selectedWindowDays));
         params.set("bucket", selectedWindowDays <= 1 ? "hour" : "day");
         params.set("group_by", selectedGroupBy);
+        // The breakdown table (unlike the top-10 chart) wants every group
+        // it can get - 100 is the endpoint's hard cap (`limit_groups` is
+        // 1-100), not a choice made here.
+        params.set("limit_groups", "100");
         if (selectedCallType !== "all") params.set("call_type", selectedCallType);
         if (selectedApiKey) params.set("api_key", selectedApiKey);
         const data = await api("GET", endpoints.costsUsage + "?" + params.toString());
@@ -304,10 +406,8 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         clear(content);
 
         if (data.pricing && data.pricing.stale) {
-          content.appendChild(el("div", {
-            className: "panel",
-            style: "border-color:#e0a22f;background:rgba(224,162,47,0.08);font-size:var(--text-sm)"
-          }, "Pricing table last updated " + data.pricing.updated + " — cost estimates may be stale."));
+          content.appendChild(el("div", { className: "admin-warning-banner" },
+            "Pricing table last updated " + data.pricing.updated + " — cost estimates may be stale."));
         }
 
         const totals = data.totals;
@@ -331,6 +431,16 @@ export function createCostsTab({ api, endpoints, el, clear, skeleton, refreshBut
         } else {
           content.appendChild(el("div", { className: "panel empty-state" },
             el("p", null, "No usage recorded for this selection in this time window.")));
+        }
+
+        if (data.groups.length) {
+          const breakdownPanel = el("div", { className: "panel" },
+            el("h2", null, "Breakdown by " + GROUP_BY_LABELS[selectedGroupBy]),
+            el("p", { className: "muted" }, selectedGroupBy === "api_key"
+              ? "Filter the whole page to one key's usage from any row."
+              : "Every group in this window, ranked by cost."));
+          breakdownTable(breakdownPanel, data.groups, totals.cost_usd, selectedGroupBy, onGroupRowClick);
+          content.appendChild(breakdownPanel);
         }
 
         initCharts(data, onGroupRowClick);

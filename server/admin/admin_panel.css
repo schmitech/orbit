@@ -4021,9 +4021,10 @@ code.plain-code {
   height: 100% !important;
 }
 
-/* Truncated-window notice above the metric cards - same warning semantics
-   as .settings-banner, token-driven instead of a one-off inline style. */
-.feedback-truncated-banner {
+/* Shared inline notice banner (truncated feedback windows, stale cost
+   pricing, ...) - same warning semantics as .settings-banner, token-driven
+   instead of each caller hardcoding its own inline border/background. */
+.admin-warning-banner {
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--radius-md);
   background: var(--warning-50);
