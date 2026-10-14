@@ -78,6 +78,9 @@ export function createOverviewTab({
       // authenticate_websocket_admin - retrying can never succeed.
       const denied = event && (event.code === 4401 || event.code === 4403);
       if (txt) { txt.textContent = denied ? "Not permitted" : "Reconnecting..."; }
+      // The hero otherwise keeps showing the last snapshot's health (e.g.
+      // "Healthy") after the feed drops, which reads as a live status.
+      setHeroDisconnected(denied);
       if (denied) {
         if (metricsReconnectTimer) { clearInterval(metricsReconnectTimer); metricsReconnectTimer = null; }
         return;
@@ -320,9 +323,13 @@ export function createOverviewTab({
       : 0;
     setProgressBar("mon-rel-bar", errorBudgetUsed, errRate >= monitoringThresholds.error_rate ? "red" : errRate > 0 ? "amber" : "green");
     setMetricStatus("mon-rel", errRate, monitoringThresholds.error_rate, "high", "Reliability", 0);
-    setMetricChange("mon-rel", trendValues(series.error_rate), "% error rate");
+    const reliabilityTrend = Array.isArray(series.error_rate)
+      ? trendValues(series.error_rate).map((v) => (typeof v === "number" ? 100 - v : v))
+      : series.error_rate;
+    setMetricChange("mon-rel", trendValues(series.error_rate), "% error rate", reliabilityTrend);
 
     setText("mon-last-update", new Date().toLocaleTimeString());
+    updateMonitoringHero(cpu, mem, errRate);
 
     // Endpoint stats
     if (data.endpoint_stats && data.endpoint_stats.length > 0) {
@@ -396,15 +403,40 @@ export function createOverviewTab({
     if (card) card.dataset.state = "live";
   }
 
-  function setMetricChange(id, values, unit) {
+  function setMetricChange(id, values, unit, sparklineValues) {
     const change = document.getElementById(id + "-change");
-    if (!change) return;
     const points = Array.isArray(values) ? values.filter((value) => typeof value === "number" && !isNaN(value)) : [];
+    const sparkPoints = sparklineValues
+      ? sparklineValues.filter((value) => typeof value === "number" && !isNaN(value))
+      : points;
+    drawSparkline(id, sparkPoints);
+    if (!change) return;
     if (points.length < 2) { change.textContent = "Collecting trend data"; change.dataset.direction = "neutral"; return; }
     const delta = points[points.length - 1] - points[0];
     const sign = delta > 0 ? "+" : "";
     change.textContent = sign + formatNum(delta, 1) + unit + " since window start";
     change.dataset.direction = delta > 0 ? "up" : delta < 0 ? "down" : "neutral";
+  }
+
+  // A plain two-path SVG (filled area + stroked line) drawn to a 100x28
+  // viewBox - cheap to redraw on every metrics tick and needs no chart
+  // library, since it only has to read as a shape, not carry axes or labels.
+  function drawSparkline(id, points) {
+    const svg = document.getElementById(id + "-spark");
+    if (!svg) return;
+    if (points.length < 2) { svg.innerHTML = ""; return; }
+    const w = 100, h = 28, pad = 2;
+    const min = Math.min(...points), max = Math.max(...points);
+    const range = max - min || 1;
+    const coords = points.map((v, i) => [
+      (i / (points.length - 1)) * w,
+      h - pad - ((v - min) / range) * (h - pad * 2)
+    ]);
+    const line = "M" + coords.map((c) => c[0].toFixed(1) + "," + c[1].toFixed(1)).join(" L");
+    const area = line + ` L${w},${h} L0,${h} Z`;
+    svg.innerHTML =
+      `<path class="spark-area" d="${area}"></path>` +
+      `<path class="spark-line" d="${line}"></path>`;
   }
 
   function updateMonitoringEndpoints(endpoints) {
@@ -757,6 +789,40 @@ export function createOverviewTab({
     ], rows, "No datasource pool entries match the current filter.", overviewDatasourcePaginator, overviewDatasourceSorter);
   }
 
+  function updateMonitoringHero(cpu, mem, errRate) {
+    const hero = document.getElementById("mon-hero");
+    if (!hero) return;
+    const cpuCritical = cpu >= monitoringThresholds.cpu;
+    const memCritical = mem >= monitoringThresholds.memory;
+    const errCritical = errRate >= monitoringThresholds.error_rate;
+    const cpuWarning = !cpuCritical && cpu >= monitoringThresholds.cpu * 0.82;
+    const memWarning = !memCritical && mem >= monitoringThresholds.memory * 0.82;
+    const errWarning = !errCritical && errRate > 0;
+    const isCritical = cpuCritical || memCritical || errCritical;
+    const isWarning = !isCritical && (cpuWarning || memWarning || errWarning);
+    const state = isCritical ? "critical" : isWarning ? "warning" : "healthy";
+    const copy = {
+      healthy: ["All systems normal", "var(--success-500)", 100],
+      warning: ["Degraded — approaching threshold", "var(--warning-500)", 62],
+      critical: ["Action needed — a threshold is breached", "var(--danger-500)", 30]
+    }[state];
+    hero.dataset.state = state;
+    hero.style.setProperty("--hero-accent", copy[1]);
+    hero.style.setProperty("--hero-pct", copy[2] + "%");
+    setText("mon-hero-title", state === "healthy" ? "Healthy" : state === "warning" ? "Degraded" : "Critical");
+    setText("mon-hero-sub", copy[0]);
+  }
+
+  function setHeroDisconnected(denied) {
+    const hero = document.getElementById("mon-hero");
+    if (!hero) return;
+    hero.dataset.state = "unknown";
+    hero.style.setProperty("--hero-accent", "var(--ink-muted)");
+    hero.style.setProperty("--hero-pct", "0%");
+    setText("mon-hero-title", denied ? "Not permitted" : "Disconnected");
+    setText("mon-hero-sub", denied ? "Metrics access was denied for this session" : "Live metrics feed is down — showing last known values");
+  }
+
   function updateMonitoringConnections(conn) {
     setText("mon-ws-clients", (conn.websocket_clients || 0).toString());
     setText("mon-active-sessions", (conn.active_sessions || 0).toString());
@@ -785,7 +851,29 @@ export function createOverviewTab({
     overviewThreadPoolSorter = createColumnSorter(overviewThreadPoolPaginator);
     overviewEndpointSorter = createColumnSorter(overviewEndpointPaginator);
 
-    // 1. Toolbar
+    // 1. Hero — overall system health at a glance
+    const hero = el("div", { id: "mon-hero", className: "monitoring-hero", dataset: { state: "unknown" } },
+      el("div", { className: "monitoring-hero-status" },
+        el("div", { className: "monitoring-hero-ring" }, el("div", { className: "monitoring-hero-ring-dot" })),
+        el("div", { className: "monitoring-hero-text" },
+          el("p", { id: "mon-hero-title", className: "hero-title" }, "Connecting"),
+          el("p", { id: "mon-hero-sub", className: "hero-sub" }, "Waiting for the first metrics snapshot")
+        )
+      ),
+      el("div", { className: "monitoring-hero-meta" },
+        el("div", { className: "monitoring-hero-meta-item" },
+          el("span", { className: "meta-label" }, "WS clients"),
+          el("span", { id: "mon-ws-clients", className: "meta-value" }, "0")
+        ),
+        el("div", { className: "monitoring-hero-meta-item" },
+          el("span", { className: "meta-label" }, "Active sessions"),
+          el("span", { id: "mon-active-sessions", className: "meta-value" }, "0")
+        )
+      )
+    );
+    container.appendChild(hero);
+
+    // 2. Toolbar
     const toolbar = el("div", { className: "monitoring-toolbar" },
       el("div", { className: "monitoring-toolbar-left" },
         el("div", { id: "mon-status-dot", className: "status-dot disconnected" }),
@@ -822,6 +910,7 @@ export function createOverviewTab({
         ),
         el("div", { className: "metric-reading" }, el("span", { id: id + "-value", className: "metric-value" }, "—"), unit ? el("span", { className: "metric-unit" }, unit) : null),
         el("div", { id: id + "-sub", className: "metric-sub" }, ""),
+        el("svg", { id: id + "-spark", className: "metric-sparkline", viewBox: "0 0 100 28", preserveAspectRatio: "none", "aria-hidden": "true" }),
         el("div", { id: id + "-change", className: "metric-change", dataset: { direction: "neutral" } }, "Collecting trend data"),
         showProgress === false ? null : el("div", { className: "monitoring-progress-track" }, el("div", { id: id + "-bar", className: "monitoring-progress-bar muted", style: "width:0%" }))
       );
@@ -856,8 +945,8 @@ export function createOverviewTab({
     container.appendChild(endpointSection);
 
     // 6. Pipeline steps
-    const pipelineSection = el("div", { id: "mon-pipeline-section", className: "monitoring-section", style: "display:none" },
-      el("h3", null, "Pipeline Steps"),
+    const pipelineSection = el("details", { id: "mon-pipeline-section", className: "monitoring-section", open: "", style: "display:none" },
+      el("summary", null, el("h3", null, "Pipeline Steps")),
       el("div", { id: "mon-pipeline-summary", style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--sp-2);margin-bottom:var(--sp-3)" }),
       el("div", { id: "mon-pipeline-steps", className: "adapter-health-grid" })
     );
@@ -909,8 +998,8 @@ export function createOverviewTab({
     });
     dsSearchWrap.appendChild(dsSearchInput);
     dsToolbar.appendChild(dsSearchWrap);
-    const dsSection = el("div", { id: "mon-datasource-section", className: "monitoring-section", style: "display:none" },
-      el("h3", null, "Datasource Pool"),
+    const dsSection = el("details", { id: "mon-datasource-section", className: "monitoring-section", open: "", style: "display:none" },
+      el("summary", null, el("h3", null, "Datasource Pool")),
       el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--sp-2);margin-bottom:var(--sp-3)" },
         el("div", { className: "monitoring-summary-card monitoring-summary-card-compact" }, el("p", { className: "label" }, "Cached"), el("p", { id: "mon-ds-total", className: "value" }, "0")),
         el("div", { className: "monitoring-summary-card monitoring-summary-card-compact" }, el("p", { className: "label" }, "References"), el("p", { id: "mon-ds-refs", className: "value" }, "0")),
@@ -923,8 +1012,8 @@ export function createOverviewTab({
     container.appendChild(dsSection);
 
     // 9. Redis Health
-    const redisSection = el("div", { id: "mon-redis-section", className: "monitoring-section", style: "display:none" },
-      el("h3", { id: "mon-redis-heading" }, "Cache Health"),
+    const redisSection = el("details", { id: "mon-redis-section", className: "monitoring-section", open: "", style: "display:none" },
+      el("summary", null, el("h3", { id: "mon-redis-heading" }, "Cache Health")),
       el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:var(--sp-2)" },
         el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Status"), el("p", { id: "mon-redis-status", className: "value" }, "—")),
         el("div", { className: "monitoring-summary-card" }, el("p", { className: "label" }, "Circuit Breaker"), el("p", { id: "mon-redis-cb", className: "value" }, "—")),
@@ -946,8 +1035,8 @@ export function createOverviewTab({
     });
     threadSearchWrap.appendChild(threadSearchInput);
     threadToolbar.appendChild(threadSearchWrap);
-    const threadSection = el("div", { id: "mon-threadpool-section", className: "monitoring-section", style: "display:none" },
-      el("h3", null, "Thread Pools"),
+    const threadSection = el("details", { id: "mon-threadpool-section", className: "monitoring-section", open: "", style: "display:none" },
+      el("summary", null, el("h3", null, "Thread Pools")),
       threadToolbar,
       el("div", { id: "mon-threadpool-list", className: "table-wrap monitoring-table-wrap" }),
       overviewThreadPoolPaginator.getControlsEl()
