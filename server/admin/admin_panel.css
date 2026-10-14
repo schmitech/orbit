@@ -3660,100 +3660,6 @@ code.plain-code {
   100% { opacity: 1; }
 }
 
-/* Health hero — overall system status at a glance, above the toolbar */
-.monitoring-hero {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  padding: var(--sp-4) var(--sp-5);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
-}
-
-.monitoring-hero::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  background: var(--hero-accent, var(--ink-muted));
-  transition: background var(--transition-base);
-}
-
-.monitoring-hero-status {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.monitoring-hero-ring {
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background:
-    radial-gradient(closest-side, var(--surface-raised) calc(100% - 7px), transparent calc(100% - 6px)),
-    conic-gradient(var(--hero-accent, var(--ink-muted)) var(--hero-pct, 0%), var(--border) 0);
-  transition: background var(--transition-base);
-}
-
-.monitoring-hero-ring-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: var(--hero-accent, var(--ink-muted));
-}
-
-.monitoring-hero-text .hero-title {
-  margin: 0;
-  font-size: var(--text-md);
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.monitoring-hero-text .hero-sub {
-  margin: 0.15rem 0 0;
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-}
-
-.monitoring-hero-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-4);
-}
-
-.monitoring-hero-meta-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 5.5rem;
-}
-
-.monitoring-hero-meta-item .meta-label {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--ink-muted);
-  font-weight: 600;
-}
-
-.monitoring-hero-meta-item .meta-value {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--ink);
-}
-
 .time-window-btn {
   padding: var(--sp-1) var(--sp-3);
   min-height: 40px;
@@ -3852,22 +3758,22 @@ code.plain-code {
 }
 
 .metric-card .metric-sparkline path.spark-area {
-  fill: var(--hero-accent, var(--ink-muted));
+  fill: var(--spark-accent, var(--ink-muted));
   opacity: 0.12;
 }
 
 .metric-card .metric-sparkline path.spark-line {
   fill: none;
-  stroke: var(--hero-accent, var(--ink-muted));
+  stroke: var(--spark-accent, var(--ink-muted));
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .metric-card[data-state="healthy"] .metric-sparkline,
-.metric-card[data-state="live"] .metric-sparkline { --hero-accent: var(--success-500); }
-.metric-card[data-state="warning"] .metric-sparkline { --hero-accent: var(--warning-500); }
-.metric-card[data-state="critical"] .metric-sparkline { --hero-accent: var(--danger-500); }
+.metric-card[data-state="live"] .metric-sparkline { --spark-accent: var(--success-500); }
+.metric-card[data-state="warning"] .metric-sparkline { --spark-accent: var(--warning-500); }
+.metric-card[data-state="critical"] .metric-sparkline { --spark-accent: var(--danger-500); }
 
 .metric-card-header,
 .metric-reading {
