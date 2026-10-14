@@ -4021,6 +4021,28 @@ code.plain-code {
   height: 100% !important;
 }
 
+/* Truncated-window notice above the metric cards - same warning semantics
+   as .settings-banner, token-driven instead of a one-off inline style. */
+.feedback-truncated-banner {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  background: var(--warning-50);
+  color: var(--warning-text);
+  border: 1px solid var(--warning-border);
+  font-size: var(--text-sm);
+}
+
+/* Recent-negative-feedback prose columns (prompt/response/comment): a
+   visible two-line clamp means truncation is obvious without hovering,
+   unlike relying on the `title` attribute alone. */
+.feedback-cell-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 28rem;
+}
+
 /* Cost share can have ten legend entries. Give Chart.js enough vertical
    layout space for the wrapped legend without shrinking it into the ring. */
 .cost-share-donut-wrap {
