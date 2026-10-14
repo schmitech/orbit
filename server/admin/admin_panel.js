@@ -25,7 +25,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
   let currentUser = null;
   let activeTab = "overview";
   let serverVersion = null;
-  let railCollapsed = readStoredFlag("orbit.admin.railCollapsed");
+  let railCollapsed = readStoredFlag("orbit.admin.railCollapsed", window.innerWidth < 900);
   let theme = readStoredTheme();
 
   // Cached data
@@ -54,11 +54,12 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
   // browsers), so persistence is best-effort: on failure the preference
   // just lives in memory for the session.
   // ------------------------------------------------------------------
-  function readStoredFlag(key) {
+  function readStoredFlag(key, fallback) {
     try {
-      return localStorage.getItem(key) === "1";
+      const stored = localStorage.getItem(key);
+      return stored === null ? !!fallback : stored === "1";
     } catch (err) {
-      return false;
+      return !!fallback;
     }
   }
 
@@ -1106,6 +1107,13 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
           el("span", { className: "rail-link-icon" }, svgIcon(t.icon)),
           el("span", { className: "rail-link-label" }, t.label)
         );
+        // The native `title` above still covers this at full width, but is
+        // slow to appear and absent on touch - a collapsed icon-only rail
+        // needs its own instant, visible label via the shared flyout tooltip.
+        link.addEventListener("mouseenter", function () { showRailTooltip(link, t.label); });
+        link.addEventListener("mouseleave", hideRailTooltip);
+        link.addEventListener("focus", function () { showRailTooltip(link, t.label); });
+        link.addEventListener("blur", hideRailTooltip);
         link.addEventListener("click", function (e) { e.preventDefault(); switchTab(t.id); });
         link.addEventListener("keydown", function (e) {
           var currentIndex = navigationTabs.findIndex(function (tab) { return tab.id === t.id; });
@@ -1216,9 +1224,30 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     renderTab();
   }
 
+  var railTooltipEl = null;
+
+  function showRailTooltip(link, label) {
+    if (!railCollapsed) return;
+    if (!railTooltipEl) {
+      railTooltipEl = el("div", { className: "rail-flyout-tooltip", role: "presentation" });
+      document.body.appendChild(railTooltipEl);
+    }
+    railTooltipEl.textContent = label;
+    var rect = link.getBoundingClientRect();
+    railTooltipEl.style.left = (rect.right + 8) + "px";
+    railTooltipEl.style.top = (rect.top + rect.height / 2) + "px";
+    railTooltipEl.style.transform = "translateY(-50%)";
+    railTooltipEl.classList.add("visible");
+  }
+
+  function hideRailTooltip() {
+    if (railTooltipEl) railTooltipEl.classList.remove("visible");
+  }
+
   function toggleRail() {
     railCollapsed = !railCollapsed;
     writeStoredFlag("orbit.admin.railCollapsed", railCollapsed);
+    hideRailTooltip();
     var shell = document.querySelector(".app-shell");
     if (shell) shell.classList.toggle("rail-collapsed", railCollapsed);
     var btn = document.querySelector(".rail-collapse-btn");
