@@ -3,6 +3,7 @@ Vision service implementations.
 
 Available providers:
     - OpenAIVisionService: OpenAI vision (GPT-5, multimodal)
+    - OpenRouterVisionService: OpenRouter vision (multimodal models)
     - GeminiVisionService: Gemini vision (multimodal, OCR)
     - AnthropicVisionService: Anthropic Claude vision (multimodal analysis)
     - OllamaVisionService: Ollama vision (qwen3-vl, local multimodal)
@@ -21,6 +22,7 @@ __all__ = []
 
 _implementations = [
     ('openai_vision_service', 'OpenAIVisionService'),
+    ('openrouter_vision_service', 'OpenRouterVisionService'),
     ('gemini_vision_service', 'GeminiVisionService'),
     ('anthropic_vision_service', 'AnthropicVisionService'),
     ('ollama_vision_service', 'OllamaVisionService'),

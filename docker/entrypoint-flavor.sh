@@ -61,7 +61,7 @@ fi
 # a mismatched runtime override on a non-ollama image fails fast and loud.
 case "$ORBIT_PROFILE" in
     ollama) PROFILE_NEEDS_OLLAMA="true" ;;
-    openai|gemini) PROFILE_NEEDS_OLLAMA="false" ;;
+    openai|gemini|openrouter) PROFILE_NEEDS_OLLAMA="false" ;;
     *) echo "Error: unknown ORBIT_PROFILE '$ORBIT_PROFILE'" >&2; exit 1 ;;
 esac
 

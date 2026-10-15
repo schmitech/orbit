@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **OpenRouter vision provider**: Added image analysis, description, text extraction, object detection, and multimodal prompts through OpenRouter.
+
 ## [2.18.4] - 2026-10-12
 
 ### Core Features

@@ -154,6 +154,7 @@ def register_vision_services(config: dict[str, Any] = None) -> None:
     # Default to False — if vision.yaml is not imported, no vision services should register
     _register_services(ServiceType.VISION, 'ai_services.implementations.vision', [
         ("openai", "OpenAIVisionService", "OpenAI"),
+        ("openrouter", "OpenRouterVisionService", "OpenRouter"),
         ("gemini", "GeminiVisionService", "Gemini"),
         ("anthropic", "AnthropicVisionService", "Anthropic"),
         ("ollama", "OllamaVisionService", "Ollama"),

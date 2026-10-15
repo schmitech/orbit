@@ -21,7 +21,7 @@ def runtime_config_dir(tmp_path):
     return dest
 
 
-@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini", "openrouter"])
 def test_get_profile_known(profile_id):
     profile = rp.get_profile(profile_id)
     assert profile.profile_id == profile_id
@@ -36,7 +36,7 @@ def test_get_profile_unknown_rejected():
 
 @pytest.mark.parametrize(
     "profile_id,env_var",
-    [("openai", "OPENAI_API_KEY"), ("gemini", "GOOGLE_API_KEY")],
+    [("openai", "OPENAI_API_KEY"), ("gemini", "GOOGLE_API_KEY"), ("openrouter", "OPENROUTER_API_KEY")],
 )
 def test_cloud_profiles_require_credential(profile_id, env_var):
     profile = rp.get_profile(profile_id)
@@ -218,7 +218,45 @@ def test_gemini_profile_enables_audio_video_and_skill_routing(runtime_config_dir
     assert video_config["video_generation"]["gemini"]["enabled"] is True
 
 
-@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+def test_openrouter_profile_enables_audio_and_skill_routing(runtime_config_dir):
+    profile = rp.get_profile("openrouter")
+    rp.resolve_config(profile, runtime_config_dir)
+
+    adapters = yaml.safe_load((runtime_config_dir / rp.ADAPTER_FILE).read_text())
+    adapter = next(a for a in adapters["adapters"] if a["name"] == rp.ADAPTER_NAME)
+    assert adapter["inference_provider"] == "openrouter"
+    assert adapter["embedding_provider"] == "openrouter"
+    assert adapter["stt_provider"] == "openrouter"
+    assert adapter["tts_provider"] == "openrouter"
+    assert adapter["vision_provider"] == "openrouter"
+    assert set(adapter["capabilities"]["auto_routable_skills"]) == {
+        "Audio", "Image", "PDF", "Word", "Excel", "PowerPoint", "Fetch", "Markdown", "web-search",
+    }
+    assert adapter["capabilities"]["auto_skill_routing"] is True
+
+    stt = yaml.safe_load((runtime_config_dir / "stt.yaml").read_text())
+    assert stt["stt"]["enabled"] is True
+    assert stt["stt_providers"]["openrouter"]["enabled"] is True
+
+    tts = yaml.safe_load((runtime_config_dir / "tts.yaml").read_text())
+    assert tts["tts"]["enabled"] is True
+    assert tts["tts_providers"]["openrouter"]["enabled"] is True
+
+    vision = yaml.safe_load((runtime_config_dir / "vision.yaml").read_text())
+    assert vision["vision"]["enabled"] is True
+    assert vision["vision"]["provider"] == "openrouter"
+    assert vision["visions"]["openrouter"]["enabled"] is True
+    assert vision["visions"]["openrouter"]["model"] == profile.vision_model
+
+    image_generator = yaml.safe_load((runtime_config_dir / "adapters/image-generator.yaml").read_text())
+    ig_adapter = image_generator["adapters"][0]
+    assert ig_adapter["image_provider"] == "openrouter"
+
+    image_config = yaml.safe_load((runtime_config_dir / "image.yaml").read_text())
+    assert image_config["image_generation"]["openrouter"]["enabled"] is True
+
+
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini", "openrouter"])
 def test_resolve_config_enables_selected_inference_and_vision_providers(profile_id, runtime_config_dir):
     profile = rp.get_profile(profile_id)
     rp.resolve_config(profile, runtime_config_dir)
@@ -231,7 +269,7 @@ def test_resolve_config_enables_selected_inference_and_vision_providers(profile_
     assert vision["visions"][profile.vision_provider]["model"] == profile.vision_model
 
 
-@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini", "openrouter"])
 def test_resolve_config_enables_global_vision_flag(profile_id, runtime_config_dir):
     # file_processing_service.py reads the global vision.enabled (default
     # false) as self.enable_vision; if false, image uploads are routed
@@ -245,7 +283,7 @@ def test_resolve_config_enables_global_vision_flag(profile_id, runtime_config_di
     assert vision["vision"]["provider"] == profile.vision_provider
 
 
-@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini", "openrouter"])
 def test_resolve_config_enables_global_embedding_flag(profile_id, runtime_config_dir):
     # base_retriever.py treats embedding.enabled: false as an explicit
     # disable and skips creating any embedding service at all, independent
@@ -268,7 +306,7 @@ def test_resolve_config_points_sqlite_at_data_volume_and_drops_audio_imports(run
     assert "tts.yaml" not in config["import"]
 
 
-@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini", "openrouter"])
 def test_resolve_config_enables_audit_for_cost_tracking(profile_id, runtime_config_dir):
     # /admin/observability/usage (the Costs tab) 503s unless inference
     # auditing is on — usage/cost rows are read straight from audit records.
@@ -280,7 +318,7 @@ def test_resolve_config_enables_audit_for_cost_tracking(profile_id, runtime_conf
     assert config["internal_services"]["audit"]["admin_events"]["enabled"] is True
 
 
-@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini", "openrouter"])
 def test_resolve_config_keeps_pricing_import(profile_id, runtime_config_dir):
     # pricing.yaml backs the local rate table the Costs tab estimates from;
     # _resolve_docker_paths prunes the import list, so guard against it
@@ -293,7 +331,7 @@ def test_resolve_config_keeps_pricing_import(profile_id, runtime_config_dir):
     assert (runtime_config_dir / "pricing.yaml").exists()
 
 
-@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini", "openrouter"])
 def test_resolve_config_sets_global_default_inference_provider(profile_id, runtime_config_dir):
     profile = rp.get_profile(profile_id)
     rp.resolve_config(profile, runtime_config_dir)
@@ -302,7 +340,7 @@ def test_resolve_config_sets_global_default_inference_provider(profile_id, runti
     assert config["general"]["inference_provider"] == profile.inference_provider
 
 
-@pytest.mark.parametrize("profile_id", ["openai", "gemini"])
+@pytest.mark.parametrize("profile_id", ["openai", "gemini", "openrouter"])
 def test_cloud_profiles_disable_ollama_inference_to_avoid_warmup_against_nothing(profile_id, runtime_config_dir):
     profile = rp.get_profile(profile_id)
     rp.resolve_config(profile, runtime_config_dir)
@@ -328,7 +366,7 @@ def test_resolve_config_limits_adapter_registry_to_multimodal(runtime_config_dir
     assert adapters_registry["import"] == [rp.ADAPTER_FILE]
 
 
-@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini"])
+@pytest.mark.parametrize("profile_id", ["ollama", "openai", "gemini", "openrouter"])
 def test_resolve_config_uses_writable_absolute_paths_for_uploads_and_chroma(profile_id, runtime_config_dir):
     # WORKDIR /orbit is root-owned; the container runs as a non-root user, so
     # the canonical relative defaults ("./uploads", "./chroma_db") fail with

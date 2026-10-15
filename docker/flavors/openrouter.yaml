@@ -1,0 +1,120 @@
+# Runtime profile for the schmitech/orbit-openrouter flavor image.
+# Loaded by docker/runtime_profiles.py — see that file's module docstring.
+
+required_env_var: OPENROUTER_API_KEY
+needs_ollama: false
+
+inference:
+  provider: openrouter
+  model: "openrouter/free"
+
+embedding:
+  provider: openrouter
+  model: "openai/text-embedding-3-small"
+
+vision:
+  provider: openrouter
+  model: "nvidia/nemotron-3.5-super-vl:free"
+
+# effort: "low" is a conservative default (see EFFORT_PARAMETER_CHANGES.md) —
+# keeps reasoning-token spend down on a pull-and-run image; users can raise it
+# per model from the Admin Panel's adapter settings.
+allowed_models:
+  - name: "free"
+    provider: openrouter
+    model: "openrouter/free"
+    context_window: 200000
+    max_tokens: 50000
+    effort: low
+  - name: "gpt-oss-20b-free"
+    provider: openrouter
+    model: "openai/gpt-oss-20b:free"
+    context_window: 131072
+    max_tokens: 32768
+    effort: low
+  - name: "gemma-4-31b-it-free"
+    provider: openrouter
+    model: "google/gemma-4-31b-it:free"
+    context_window: 262144
+    max_tokens: 32768
+    effort: low
+  - name: "glm-5.2-free"
+    provider: openrouter
+    model: "z-ai/glm-5.2:free"
+    context_window: 256000
+    max_tokens: 256000
+    effort: low
+
+# Single-provider audio: STT/TTS both have OpenRouter implementations
+# (server/ai_services/registry.py: OpenRouterAudioService), so the whole
+# stack still needs only OPENROUTER_API_KEY.
+audio:
+  stt_provider: openrouter
+  tts_provider: openrouter
+
+# Natural-language skill auto-routing (docs/adapters/auto-skill-intent-detection.md).
+skills:
+  auto_routable:
+    - Audio
+    - Image
+    - PDF
+    - Word
+    - Excel
+    - PowerPoint
+    - Fetch
+    - Markdown
+    - web-search
+  router_provider: openrouter
+  router_model: "openrouter/free"
+
+# See this file's `skills:`/`audio:` sections above for how each entry below
+# gets exposed. Each `file` must exist under install/default-config/adapters/
+# (and be COPYed by Dockerfile.flavor's `COPY install/default-config/`, which
+# already copies the whole tree). `provider_fields` is patched onto every
+# adapter block in that file.
+extra_adapters:
+  - name: web-search
+    file: adapters/web-search.yaml
+    provider_fields:
+      inference_provider: openrouter
+      model: "openrouter/free"
+  - name: audio-generator
+    file: adapters/audio-generator.yaml
+    provider_fields:
+      tts_provider: openrouter
+    rewrite_provider: openrouter
+    rewrite_model: "openrouter/free"
+  - name: image-generator
+    file: adapters/image-generator.yaml
+    provider_fields:
+      image_provider: openrouter
+    rewrite_provider: openrouter
+    rewrite_model: "openrouter/free"
+    # image_generation.openrouter.enabled defaults to false (server/ai_services/registry.py) —
+    # enable it so the openrouter image provider actually registers.
+    enable_global:
+      - file: image.yaml
+        section: image_generation
+        provider: openrouter
+  - name: pdf-generator
+    file: adapters/pdf-generator.yaml
+    rewrite_provider: openrouter
+    rewrite_model: "openrouter/free"
+  - name: word-generator
+    file: adapters/word-generator.yaml
+    rewrite_provider: openrouter
+    rewrite_model: "openrouter/free"
+  - name: excel-generator
+    file: adapters/excel-generator.yaml
+    rewrite_provider: openrouter
+    rewrite_model: "openrouter/free"
+  - name: pptx-generator
+    file: adapters/pptx-generator.yaml
+    rewrite_provider: openrouter
+    rewrite_model: "openrouter/free"
+  - name: markdown-generator
+    file: adapters/markdown-generator.yaml
+    rewrite_provider: openrouter
+    rewrite_model: "openrouter/free"
+  - name: fetch
+    file: adapters/fetch.yaml

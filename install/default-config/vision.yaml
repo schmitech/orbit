@@ -1,10 +1,26 @@
 # Global vision configuration
 vision:
-  provider: "ollama"  # Default vision provider: openai, gemini, anthropic, ollama, ollama_cloud, azure
+  provider: "ollama"  # Default vision provider: openai, openrouter, gemini, anthropic, ollama, ollama_cloud, azure
   enabled: false        # Whether vision processing is enabled globally
 
 # Provider-specific configurations
 visions:
+  openrouter:
+    enabled: false
+    api_key: ${OPENROUTER_API_KEY}
+    model: "openai/gpt-4o"
+    temperature: 0.0
+    max_tokens: 1000
+    timeout:
+      connect: 15000
+      total: 90000
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
   openai:
     enabled: false
     api_key: ${OPENAI_API_KEY}

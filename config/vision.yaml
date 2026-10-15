@@ -1,10 +1,26 @@
 # Global vision configuration
 vision:
-  provider: "openai"  # Default vision provider: openai, gemini, anthropic, ollama, ollama_cloud, azure
+  provider: "openai"  # Default vision provider: openai, openrouter, gemini, anthropic, ollama, ollama_cloud, azure
   enabled: true        # Whether vision processing is enabled globally
 
 # Provider-specific configurations
 visions:
+  openrouter:
+    enabled: true
+    api_key: ${OPENROUTER_API_KEY}
+    model: "xiaomi/mimo-v2.6-flash"
+    temperature: 0.0
+    max_tokens: 1000
+    timeout:
+      connect: 15000
+      total: 90000
+    retry:
+      enabled: true
+      max_retries: 3
+      initial_wait_ms: 1000
+      max_wait_ms: 30000
+      exponential_base: 2
+
   openai:
     enabled: true
     api_key: ${OPENAI_API_KEY}
