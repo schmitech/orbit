@@ -99,6 +99,10 @@ auth:
 api_keys:
   header_name: "X-API-Key"
   prefix: "orbit_"
+  default_lifetime_days: 90
+  max_lifetime_days: 365
+  allow_non_expiring_exceptions: true
+  expiration_warning_days: 14
 
 prompt_service:
   cache:
@@ -282,3 +286,16 @@ security:
   # DISABLED - Requires Redis
   throttling:
     enabled: false
+
+  # Rate limiting for sensitive admin routes (key creation, audit/log export,
+  # MCP connection probes). Enabled by default, independent of rate_limiting.
+  admin_rate_limiting:
+    enabled: true
+    route_limits: {}
+    retry_after_seconds: 60
+    trust_proxy_headers: false
+    trusted_proxies: []
+
+  # Networks the MCP "test connection" probe may never target (DNS rebinding
+  # protection). Cloud-metadata range is always blocked; empty by default.
+  ssrf_denylist: []
