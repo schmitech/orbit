@@ -91,6 +91,7 @@ Choose **one** flavor:
 **Ollama**
 
 ```bash
+docker pull schmitech/orbit-ollama:latest
 docker run -d --name orbit \
   -p 127.0.0.1:5173:5173 -p 127.0.0.1:3000:3000 \
   -v orbit-data:/orbit/data \
@@ -101,6 +102,7 @@ docker run -d --name orbit \
 **OpenAI**
 
 ```bash
+docker pull schmitech/orbit-openai:latest
 docker run -d --name orbit \
   -p 127.0.0.1:5173:5173 -p 127.0.0.1:3000:3000 \
   -e OPENAI_API_KEY \
@@ -111,6 +113,7 @@ docker run -d --name orbit \
 **Gemini**
 
 ```bash
+docker pull schmitech/orbit-gemini:latest
 docker run -d --name orbit \
   -p 127.0.0.1:5173:5173 -p 127.0.0.1:3000:3000 \
   -e GOOGLE_API_KEY \
@@ -121,6 +124,7 @@ docker run -d --name orbit \
 **OpenRouter**
 
 ```bash
+docker pull schmitech/orbit-openrouter:latest
 docker run -d --name orbit \
   -p 127.0.0.1:5173:5173 -p 127.0.0.1:3000:3000 \
   -e OPENROUTER_API_KEY \
@@ -131,6 +135,7 @@ docker run -d --name orbit \
 **Cohere**
 
 ```bash
+docker pull schmitech/orbit-cohere:latest
 docker run -d --name orbit \
   -p 127.0.0.1:5173:5173 -p 127.0.0.1:3000:3000 \
   -e COHERE_API_KEY \
