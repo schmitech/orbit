@@ -14,7 +14,7 @@
 #
 # Each flavor publishes to its own Docker Hub repository:
 #   schmitech/orbit-ollama, schmitech/orbit-openai, schmitech/orbit-gemini,
-#   schmitech/orbit-openrouter
+#   schmitech/orbit-openrouter, schmitech/orbit-cohere
 #
 # USAGE:
 #   ./publish-flavor.sh --build --flavor ollama --tag 1.0.0
@@ -24,7 +24,7 @@
 # OPTIONS:
 #   --build              Build the Docker image(s)
 #   --publish            Build and push to Docker Hub
-#   --flavor NAME        One of: ollama, openai, gemini, openrouter
+#   --flavor NAME        One of: ollama, openai, gemini, openrouter, cohere
 #   --all-flavors        Build/publish every flavor
 #   --tag VERSION        Version tag (e.g. 1.0.0); also updates :latest
 #   --no-cache           Build without using Docker layer cache
@@ -48,7 +48,7 @@ VERSION_TAG=""
 FLAVOR=""
 ALL_FLAVORS=false
 
-FLAVORS=(ollama openai gemini openrouter)
+FLAVORS=(ollama openai gemini openrouter cohere)
 
 print_help() {
     sed -n '2,31p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -62,7 +62,7 @@ repo_for_flavor() {
 include_ollama_for_flavor() {
     case "$1" in
         ollama) echo "true" ;;
-        openai|gemini|openrouter) echo "false" ;;
+        openai|gemini|openrouter|cohere) echo "false" ;;
         *) echo -e "${RED}Unknown flavor: $1${NC}" >&2; exit 1 ;;
     esac
 }

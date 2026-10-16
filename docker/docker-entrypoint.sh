@@ -108,7 +108,7 @@ if [ ! -f /orbit/data/orbit.db ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Runtime profile resolution (published flavor images: ollama, openai, gemini, openrouter)
+# Runtime profile resolution (published flavor images: ollama, openai, gemini, openrouter, cohere)
 # ═══════════════════════════════════════════════════════════════════════════
 # ORBIT_PROFILE selects a flavor's provider wiring for the simple-chat-with-files
 # adapter (inference/vision/embeddings) via docker/runtime_profiles.py. Skips

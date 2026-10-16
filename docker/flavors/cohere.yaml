@@ -1,0 +1,88 @@
+# Runtime profile for the schmitech/orbit-cohere flavor image.
+# Loaded by docker/runtime_profiles.py — see that file's module docstring.
+
+required_env_var: COHERE_API_KEY
+needs_ollama: false
+
+inference:
+  provider: cohere
+  model: "command-r7b-12-2024"
+
+embedding:
+  provider: cohere
+  model: "embed-english-v3.0"
+
+vision:
+  provider: cohere
+  model: "command-a-vision-07-2025"
+
+allowed_models:
+  - name: "command-a-03-2025"
+    provider: cohere
+    model: "command-a-03-2025"
+    context_window: 256000
+    max_tokens: 8000
+  - name: "command-r7b-12-2024"
+    provider: cohere
+    model: "command-r7b-12-2024"
+    context_window: 128000
+    max_tokens: 4000
+
+# STT only — CohereAudioService.text_to_speech raises NotImplementedError
+# ("Cohere does not support text-to-speech"), so no tts_provider here. That
+# also means no "Audio" skill below (that skill routes to the TTS-based
+# audio-generator adapter) and no audio-generator extra_adapters entry.
+audio:
+  stt_provider: cohere
+
+# Natural-language skill auto-routing (docs/adapters/auto-skill-intent-detection.md).
+# "Image"/"Video" are left out — no CohereImageService/CohereVideoService
+# (server/ai_services/registry.py registers image/video generation only for
+# openai, gemini, ollama, xai, openrouter, azure). Vision (analyzing an
+# uploaded image) is unaffected — that's wired via vision_provider above,
+# independent of this skill-generation routing.
+skills:
+  auto_routable:
+    - PDF
+    - Word
+    - Excel
+    - PowerPoint
+    - Fetch
+    - Markdown
+    - web-search
+  router_provider: cohere
+  router_model: "command-r7b-12-2024"
+
+# See this file's `skills:`/`audio:` sections above for how each entry below
+# gets exposed. Each `file` must exist under install/default-config/adapters/
+# (and be COPYed by Dockerfile.flavor's `COPY install/default-config/`, which
+# already copies the whole tree). `provider_fields` is patched onto every
+# adapter block in that file.
+extra_adapters:
+  - name: web-search
+    file: adapters/web-search.yaml
+    provider_fields:
+      inference_provider: cohere
+      model: "command-r7b-12-2024"
+  - name: pdf-generator
+    file: adapters/pdf-generator.yaml
+    rewrite_provider: cohere
+    rewrite_model: "command-r7b-12-2024"
+  - name: word-generator
+    file: adapters/word-generator.yaml
+    rewrite_provider: cohere
+    rewrite_model: "command-r7b-12-2024"
+  - name: excel-generator
+    file: adapters/excel-generator.yaml
+    rewrite_provider: cohere
+    rewrite_model: "command-r7b-12-2024"
+  - name: pptx-generator
+    file: adapters/pptx-generator.yaml
+    rewrite_provider: cohere
+    rewrite_model: "command-r7b-12-2024"
+  - name: markdown-generator
+    file: adapters/markdown-generator.yaml
+    rewrite_provider: cohere
+    rewrite_model: "command-r7b-12-2024"
+  - name: fetch
+    file: adapters/fetch.yaml

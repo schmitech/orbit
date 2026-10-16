@@ -12,6 +12,7 @@ setup (PDF, Word, Excel, images, Markdown) in one container.
 | `schmitech/orbit-openai` | `openai` | OpenAI (`gpt-5.4-mini` / vision / embeddings) | `OPENAI_API_KEY` |
 | `schmitech/orbit-gemini` | `gemini` | Gemini (`gemini-3.1-pro-preview` / vision / embeddings) | `GOOGLE_API_KEY` |
 | `schmitech/orbit-openrouter` | `openrouter` | OpenRouter free models (chat / vision / embeddings) | `OPENROUTER_API_KEY` |
+| `schmitech/orbit-cohere` | `cohere` | Cohere (`command-r7b-12-2024` / vision / embeddings) | `COHERE_API_KEY` |
 
 Each cloud flavor uses the **same provider for chat, vision, and embeddings**
 — one credential powers the entire multimodal stack, never a silent fallback
@@ -51,6 +52,15 @@ docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
   -e OPENROUTER_API_KEY \
   -v orbit-data:/orbit/data \
   schmitech/orbit-openrouter:latest
+```
+
+```bash
+# Cohere
+docker pull schmitech/orbit-cohere:latest
+docker run -d --name orbit -p 5173:5173 -p 3000:3000 \
+  -e COHERE_API_KEY \
+  -v orbit-data:/orbit/data \
+  schmitech/orbit-cohere:latest
 ```
 
 Open the chat UI at `http://localhost:5173`; the OpenAI-compatible API is at
@@ -440,10 +450,10 @@ chmod +x publish-flavor.sh
 ```
 
 Each flavor publishes to its own repository (`schmitech/orbit-ollama`,
-`schmitech/orbit-openai`, `schmitech/orbit-gemini`, `schmitech/orbit-openrouter`)
-with both `:latest` and the given version tag. `--flavor ollama` builds with
-`INCLUDE_OLLAMA=true` (bundles the Ollama runtime); `openai`/`gemini`/`openrouter`
-build without it, so a
+`schmitech/orbit-openai`, `schmitech/orbit-gemini`, `schmitech/orbit-openrouter`,
+`schmitech/orbit-cohere`) with both `:latest` and the given version tag.
+`--flavor ollama` builds with `INCLUDE_OLLAMA=true` (bundles the Ollama
+runtime); `openai`/`gemini`/`openrouter`/`cohere` build without it, so a
 runtime `ORBIT_PROFILE=ollama` override is rejected on those images.
 
 ## Building and Publishing the Lean Server Image

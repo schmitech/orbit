@@ -86,6 +86,7 @@ Choose **one** flavor:
 | **OpenAI** | `schmitech/orbit-openai:latest` | `OPENAI_API_KEY` exported in your shell. |
 | **Gemini** | `schmitech/orbit-gemini:latest` | `GOOGLE_API_KEY` exported in your shell. |
 | **OpenRouter** | `schmitech/orbit-openrouter:latest` | `OPENROUTER_API_KEY` exported in your shell. Free models. |
+| **Cohere** | `schmitech/orbit-cohere:latest` | `COHERE_API_KEY` exported in your shell. |
 
 **Ollama**
 
@@ -125,6 +126,16 @@ docker run -d --name orbit \
   -e OPENROUTER_API_KEY \
   -v orbit-data:/orbit/data \
   schmitech/orbit-openrouter:latest
+```
+
+**Cohere**
+
+```bash
+docker run -d --name orbit \
+  -p 127.0.0.1:5173:5173 -p 127.0.0.1:3000:3000 \
+  -e COHERE_API_KEY \
+  -v orbit-data:/orbit/data \
+  schmitech/orbit-cohere:latest
 ```
 
 Once startup completes, open [OrbitChat](http://localhost:5173) to chat or upload a document. The API is available at [http://localhost:3000](http://localhost:3000), with the bundled `multimodal` API key for the document-chat adapter.
