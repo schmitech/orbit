@@ -9,8 +9,11 @@ inference:
   model: "command-r7b-12-2024"
 
 embedding:
+  # embed-v5.0-fast supports 128k-token inputs — embed-english-v3.0 hard-caps
+  # at 512 tokens, which the ~1000-char default chunk_size (tuned for
+  # OpenAI/Gemini's much higher embedding limits) could overflow.
   provider: cohere
-  model: "embed-english-v3.0"
+  model: "embed-v5.0-fast"
 
 vision:
   provider: cohere
