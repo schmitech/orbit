@@ -1,8 +1,11 @@
+import { revealDetails } from "../core/dom.js";
+
 // TAB: MCP (external Model Context Protocol servers and their tools)
 //
-// Master-detail. "Defaults" is pinned to the head of the server list
-// because it is what every server inherits from — selecting it edits the
-// mcp_clients-level block. Each server's settings row states its
+// Stacked list-then-detail for the configured servers. The mcp_clients-level
+// defaults every server inherits from are edited on the separate MCP
+// "Settings" tab (renderSettings), which shares this closure's data and
+// pending-edit state. Each server's settings row states its
 // provenance (inherited vs override) and lights its leading edge when it
 // departs from the default, reusing the panel accent already used across
 // this design system to mean "this is the thing you changed".
@@ -50,8 +53,9 @@ export function mcpToolSkillGlobMatch(name, pattern) {
 }
 
 export function createMcpTab({
-  api, endpoints, el, clear, skeleton, refreshButton, withButton, helpTooltip,
-  confirmAction, showError, showStatus, createSelect, getActiveTab
+  api, endpoints, el, clear, wrapTable, skeleton, refreshButton, withButton, helpTooltip,
+  confirmAction, showError, showStatus, createSelect, getActiveTab,
+  createPaginator, createColumnSorter, itemsPerPage
 }) {
   var mcpHintIdSeq = 0;
   function mcpSettingCopy(label, hint) {
@@ -65,7 +69,7 @@ export function createMcpTab({
   }
   var mcpData = null;      // { enabled, defaults, servers, settings }
   var mcpTools = null;     // { available, servers: { name: {reachable, tools} } }
-  var mcpSelected = null;  // server name, or MCP_DEFAULTS_KEY
+  var mcpSelected = null;  // server name, MCP_CREATE_KEY, or null
   var mcpPending = {};     // unsaved edits for the current selection only
   var mcpPinging = {};     // server name -> true while its own ping is in flight
   var mcpLastChecked = {}; // server name -> Date.now() of its last completed ping
@@ -75,8 +79,12 @@ export function createMcpTab({
   var mcpDetailSync = null; // { name, sync() } for the currently open server detail's tools section, or null
   var mcpSelectSync = {}; // list key -> fn(selected) that toggles just that row's selected styling
   var mcpDetailContainer = null; // the current detail <div>, so selecting a row can rebuild just it
+  var mcpListEnsuredFor = undefined; // mcpSelected value the paginator was last told to reveal, so a plain re-render (e.g. switching tabs and back) doesn't yank the page back under someone browsing it
+  // Tab-scoped rather than per-render so the page and sort survive the
+  // mcpRerender() that follows every save/refresh.
+  var mcpPaginator = createPaginator({ pageSize: itemsPerPage });
+  var mcpSorter = createColumnSorter(mcpPaginator);
 
-  var MCP_DEFAULTS_KEY = "__defaults__";
   var MCP_CREATE_KEY = "__create__";
 
   var MCP_SETTING_LABELS = {
@@ -262,7 +270,13 @@ export function createMcpTab({
   // rebuild the whole master-detail layout on every click and read as a
   // flicker.
   function mcpApplyPingState(name) {
-    if (mcpRowSync[name]) mcpRowSync[name]();
+    // When the list is ordered by something a ping changes, re-sort (on the
+    // same page) instead of patching the row, or the order goes stale.
+    if (mcpSorter.isSortedBy("status") || mcpSorter.isSortedBy("tools") || mcpSorter.isSortedBy("checked")) {
+      mcpSorter.reapply();
+    } else if (mcpRowSync[name]) {
+      mcpRowSync[name]();
+    }
     // A full pane rebuild here (discard and re-render, like mcpSelectServer
     // does) would re-seed the OAuth edit form's draft from the saved config
     // and silently strand whatever mcpPending["connection.auth"] already
@@ -358,8 +372,8 @@ export function createMcpTab({
     });
   }
 
-  // Reflects an unsaved enable/disable of `key` (a server name, or
-  // MCP_DEFAULTS_KEY) for whichever entry is currently selected — used for
+  // Reflects an unsaved enable/disable of server `key` when it is the
+  // currently selected entry — used for
   // display everywhere except ping eligibility, which must stay pinned to
   // the persisted value the live MCPClientManager actually has.
   function mcpPendingToggleValue(key, saved) {
@@ -395,7 +409,7 @@ export function createMcpTab({
     return null; // not_configured
   }
 
-  // Derives a server row's dot state / meta text / checked-at from current
+  // Derives a server row's dot state / meta text / tool count / checked-at from current
   // state — used for both the initial render and mcpRowSync's repaint, so
   // the two can never drift out of sync with each other.
   function mcpServerRowStatus(server) {
@@ -414,7 +428,8 @@ export function createMcpTab({
         result = discovery.reachable
           ? {
             state: "up",
-            meta: discovery.tools.length + (discovery.tools.length === 1 ? " tool" : " tools"),
+            meta: "Connected",
+            tools: discovery.tools.length,
             pinging: pinging,
             checkedAt: checkedAt,
           }
@@ -427,7 +442,8 @@ export function createMcpTab({
         result = server.status.reachable
           ? {
             state: "up",
-            meta: server.status.tool_count + (server.status.tool_count === 1 ? " tool" : " tools"),
+            meta: "Connected",
+            tools: server.status.tool_count,
             pinging: pinging,
             checkedAt: null,
           }
@@ -448,28 +464,37 @@ export function createMcpTab({
     return result;
   }
 
+  // Shared by the Servers and Settings tabs: fetches once, then rerenders
+  // whichever of the two is still active.
+  async function mcpLoadData(container) {
+    container.appendChild(skeleton());
+    try {
+      mcpData = await api("GET", endpoints.mcpServers);
+      mcpHydrateCachedTools(mcpData);
+    } catch (err) {
+      clear(container);
+      container.appendChild(el("div", { className: "panel empty-state" },
+        el("strong", null, "Could not read the MCP configuration"),
+        el("p", null, err.message)
+      ));
+      return;
+    }
+    mcpRerender();
+  }
+
   async function renderMcp(container) {
     clear(container);
 
     if (!mcpData) {
-      container.appendChild(skeleton());
-      try {
-        mcpData = await api("GET", endpoints.mcpServers);
-        mcpHydrateCachedTools(mcpData);
-      } catch (err) {
-        clear(container);
-        container.appendChild(el("div", { className: "panel empty-state" },
-          el("strong", null, "Could not read the MCP configuration"),
-          el("p", null, err.message)
-        ));
-        return;
-      }
-      if (getActiveTab() === "mcp") renderMcp(container);
+      await mcpLoadData(container);
       return;
     }
 
-    if (mcpSelected === null) {
-      mcpSelected = MCP_DEFAULTS_KEY;
+    // Nothing (or a since-removed server) selected: open the first server,
+    // or leave the detail pane hidden when there are none.
+    var servers = mcpData.servers || [];
+    if (mcpSelected !== MCP_CREATE_KEY && !servers.some(function (s) { return s.name === mcpSelected; })) {
+      mcpSelected = servers.length ? servers[0].name : null;
     }
 
     mcpListDirty = [];
@@ -481,7 +506,7 @@ export function createMcpTab({
     mcpSelectSync = {};
     mcpStartCheckedAtTimer();
 
-    var layout = el("div", { className: "mcp-layout" });
+    var layout = el("div", { className: "tab-stacked-layout" });
     container.appendChild(layout);
 
     var listSlot = mcpRenderList();
@@ -505,18 +530,46 @@ export function createMcpTab({
     mcpDiscoverMissingServers();
   }
 
+  async function renderMcpSettings(container) {
+    clear(container);
+
+    if (!mcpData) {
+      await mcpLoadData(container);
+      return;
+    }
+
+    mcpListDirty = [];
+    mcpDetailDirty = [];
+    mcpDetailPendingRows = [];
+    mcpDetailSync = null;
+
+    var detail = el("div", { className: "panel mcp-detail" });
+    container.appendChild(detail);
+    mcpRenderDefaultsDetail(detail, refreshButton("Refresh settings", function () {
+      mcpData = null;
+      mcpTools = null;
+      mcpPending = {};
+      mcpRerender();
+    }));
+  }
+
   function mcpRerender() {
     var c = document.getElementById("tab-content");
-    if (c && getActiveTab() === "mcp") renderMcp(c);
+    if (!c) return;
+    if (getActiveTab() === "mcp") renderMcp(c);
+    else if (getActiveTab() === "mcp-settings") renderMcpSettings(c);
   }
 
   // Selecting a row never changes anything about the list itself (dot,
   // meta, overrides) — only which row is highlighted and what the detail
   // pane shows. Repaint just those two things instead of routing through
-  // mcpRerender(), which tears down and rebuilds the whole master-detail
+  // mcpRerender(), which tears down and rebuilds the whole list-detail
   // layout and reads as a flicker on every click.
   function mcpSelectServer(key) {
-    if (mcpSelected === key) return;
+    if (mcpSelected === key) {
+      revealDetails(mcpDetailContainer);
+      return;
+    }
     if (mcpHasPendingEdits()) {
       confirmAction({
         title: "Unsaved Changes",
@@ -527,12 +580,15 @@ export function createMcpTab({
           mcpPending = {};
           mcpSelected = key;
           mcpRerender();
+          revealDetails(mcpDetailContainer);
         }
       });
       return;
     }
     var previous = mcpSelected;
     mcpSelected = key;
+    mcpListEnsuredFor = key;
+    mcpPaginator.ensureItemVisible(function (s) { return s.name === key; });
     if (mcpSelectSync[previous]) mcpSelectSync[previous](false);
     if (mcpSelectSync[key]) mcpSelectSync[key](true);
     if (mcpDetailContainer) {
@@ -547,12 +603,13 @@ export function createMcpTab({
     } else {
       mcpRerender();
     }
+    revealDetails(mcpDetailContainer);
   }
 
-  // ----- Server list (master) -----
+  // ----- Server list -----
 
   function mcpRenderList() {
-    var panel = el("div", { className: "panel mcp-list-panel" });
+    var panel = el("div", { className: "panel" });
 
     var header = el("div", { className: "panel-header-row" },
       el("h2", null, "MCP servers"),
@@ -562,11 +619,12 @@ export function createMcpTab({
           onclick: function () {
             if (mcpHasPendingEdits()) {
               confirmAction({ title: "Unsaved Changes", message: "Discard changes and add a server?", confirmLabel: "Discard", isDanger: true,
-                onConfirm: function () { mcpPending = {}; mcpSelected = MCP_CREATE_KEY; mcpRerender(); } });
+                onConfirm: function () { mcpPending = {}; mcpSelected = MCP_CREATE_KEY; mcpRerender(); revealDetails(mcpDetailContainer); } });
               return;
             }
             mcpSelected = MCP_CREATE_KEY;
             mcpRerender();
+            revealDetails(mcpDetailContainer);
           }
         }, mcpPlusIcon()),
         refreshButton("Refresh servers and tools", function () {
@@ -579,109 +637,90 @@ export function createMcpTab({
     );
     panel.appendChild(header);
 
-    var list = el("div", { className: "mcp-list", role: "listbox", "aria-label": "MCP servers" });
+    var tbody = el("tbody");
 
-    var globalEnabled = mcpPendingToggleValue(MCP_DEFAULTS_KEY, mcpData.enabled);
-    list.appendChild(mcpListItem({
-      key: MCP_DEFAULTS_KEY,
-      name: "Defaults",
-      meta: globalEnabled ? "MCP enabled" : "MCP disabled",
-      state: globalEnabled ? "on" : "off",
-      isDefaults: true,
-    }));
-    list.appendChild(el("div", { className: "mcp-list-rule", role: "presentation" }));
+    // Sync fns for the outgoing rows are dropped so a ping for a server
+    // that's no longer on screen finds nothing to repaint.
+    mcpPaginator.setPageChangeHandler(function (pageServers) {
+      mcpSelectSync = {};
+      mcpRowSync = {};
+      clear(tbody);
 
-    var servers = mcpData.servers || [];
-    if (!servers.length) {
-      list.appendChild(el("p", { className: "muted mcp-list-empty" },
-        "No servers defined. Add one to connect tools from an HTTP endpoint or local subprocess."
-      ));
+      if (!pageServers.length) {
+        tbody.appendChild(el("tr", null, el("td", { colspan: "6", className: "muted" },
+          "No servers defined. Add one to connect tools from an HTTP endpoint or local subprocess."
+        )));
+      }
+
+      pageServers.forEach(function (server) {
+        var status = mcpServerRowStatus(server);
+        tbody.appendChild(mcpListRow({
+          key: server.name,
+          name: server.name,
+          transport: server.transport,
+          meta: status.meta,
+          state: status.state,
+          tools: status.tools,
+          oauth: status.oauth,
+          checkedAt: status.checkedAt,
+          pinging: status.pinging,
+          // Gate on the saved `enabled` flag, not the pending toggle: the live
+          // MCPClientManager only knows about servers that are enabled on
+          // disk, so a server that's disabled-but-pending-enabled (or was
+          // never enabled) can't be resolved by GET /mcp/tools?server=<name>
+          // yet, and would just 404.
+          onPing: server.enabled ? function () { mcpPingServer(server.name); } : null,
+          server: server,
+        }));
+      });
+    });
+    mcpPaginator.setData(mcpData.servers || [], true);
+    if (mcpListEnsuredFor !== mcpSelected) {
+      mcpListEnsuredFor = mcpSelected;
+      mcpPaginator.ensureItemVisible(function (s) { return s.name === mcpSelected; });
     }
 
-    servers.forEach(function (server) {
-      var status = mcpServerRowStatus(server);
-      list.appendChild(mcpListItem({
-        key: server.name,
-        name: server.name,
-        transport: server.transport,
-        meta: status.meta,
-        state: status.state,
-        overrides: Object.keys(server.overrides || {}).length,
-        oauth: status.oauth,
-        checkedAt: status.checkedAt,
-        pinging: status.pinging,
-        // Gate on the saved `enabled` flag, not the pending toggle: the live
-        // MCPClientManager only knows about servers that are enabled on
-        // disk, so a server that's disabled-but-pending-enabled (or was
-        // never enabled) can't be resolved by GET /mcp/tools?server=<name>
-        // yet, and would just 404.
-        onPing: server.enabled ? function () { mcpPingServer(server.name); } : null,
-        server: server,
-      }));
-    });
-
-    panel.appendChild(list);
+    var table = el("table", { "aria-label": "MCP servers" },
+      el("thead", null, mcpSorter.headerRow([
+        { label: "Name", key: "name", sortValue: function (s) { return s.name; } },
+        { label: "Transport", key: "transport", sortValue: function (s) { return s.transport || ""; } },
+        { label: "Status", key: "status", sortValue: function (s) { return mcpServerRowStatus(s).meta; } },
+        { label: "Tools", key: "tools", sortValue: function (s) { return mcpServerRowStatus(s).tools; } },
+        { label: "Last checked", key: "checked", sortValue: function (s) { return mcpServerRowStatus(s).checkedAt; } },
+        { content: el("span", { className: "sr-only" }, "Actions") },
+      ])),
+      tbody
+    );
+    panel.appendChild(wrapTable(table, ["fluid", "label", "label", "status", "label", "actions"]));
+    panel.appendChild(mcpPaginator.getControlsEl());
     return panel;
   }
 
-  function mcpListItem(opts) {
+  function mcpListRow(opts) {
     var isSelected = mcpSelected === opts.key;
     var dot = el("span", {
       className: "mcp-dot mcp-dot--" + opts.state,
       "aria-hidden": "true",
     });
-
-    var lines = [el("span", { className: "mcp-list-name" }, opts.name)];
     var metaTextSpan = el("span", null, opts.meta);
-    var metaParts = [];
-    if (opts.transport) {
-      metaParts.push(el("span", { className: "mcp-transport" }, opts.transport));
-    }
-    metaParts.push(metaTextSpan);
-    // Always create the checked-at span, even with no timestamp yet, so a
-    // ping completing later can reveal it via setTs() rather than needing
-    // to splice a new node into an already-rendered meta line.
-    var checkedAtCtl = mcpCheckedAtSpan(opts.checkedAt || null);
-    metaParts.push(checkedAtCtl.node);
+    var statusParts = [dot, metaTextSpan];
     // A credential problem already took over the dot/meta text above (see
     // mcpServerRowStatus) — only add a badge here for the "ready" case,
     // which otherwise has no visible sign this is an OAuth-authenticated
     // server rather than a plain static-header one.
     if (opts.oauth && opts.oauth.status === "ready") {
-      metaParts.push(el("span", { className: "mcp-oauth-pill mcp-oauth-pill--ready" }, "OAuth"));
+      statusParts.push(el("span", { className: "mcp-oauth-pill mcp-oauth-pill--ready" }, "OAuth"));
     }
-    if (opts.overrides) {
-      metaParts.push(el("span", { className: "mcp-override-count" },
-        opts.overrides + (opts.overrides === 1 ? " override" : " overrides")
-      ));
-    }
-    lines.push(el("span", { className: "mcp-list-meta" }, metaParts));
 
-    var item = el("button", {
-      type: "button",
-      role: "option",
-      "aria-selected": String(isSelected),
-      className: "mcp-list-item"
-        + (isSelected ? " is-selected" : "")
-        + (opts.isDefaults ? " is-defaults" : ""),
-    }, dot, el("span", { className: "mcp-list-copy" }, lines));
+    var toolsCell = el("td", null, opts.tools != null ? String(opts.tools) : "—");
+    // Always create the checked-at span, even with no timestamp yet, so a
+    // ping completing later can reveal it via setTs() rather than needing
+    // to splice a new node into an already-rendered cell.
+    var checkedAtCtl = mcpCheckedAtSpan(opts.checkedAt || null);
 
-    item.addEventListener("click", function () {
-      mcpSelectServer(opts.key);
-    });
-
-    // Repaint just this row's selected styling when another row is picked —
-    // see mcpSelectServer.
-    mcpSelectSync[opts.key] = function (selected) {
-      item.classList.toggle("is-selected", selected);
-      item.setAttribute("aria-selected", String(selected));
-    };
-
-    // The select button and the ping button must be siblings, not nested —
-    // a <button> can't contain another interactive <button>.
-    var row = el("div", { className: "mcp-list-row" }, item);
     var pingBtn = null;
     var pingIcon = null;
+    var actionsCell = el("td", null);
     if (opts.onPing) {
       pingIcon = mcpPingIcon(opts.pinging);
       pingBtn = el("button", {
@@ -695,8 +734,41 @@ export function createMcpTab({
         e.stopPropagation();
         opts.onPing();
       });
-      row.appendChild(pingBtn);
+      actionsCell.appendChild(pingBtn);
     }
+
+    var tr = el("tr", {
+      className: "selectable-row" + (isSelected ? " selected-row" : ""),
+      tabindex: "0",
+      "aria-selected": String(isSelected),
+    },
+      el("td", null, el("span", { className: "mcp-name-cell" },
+        el("code", { className: "plain-code" }, opts.name))),
+      el("td", null, opts.transport ? el("span", { className: "mcp-transport" }, opts.transport) : "—"),
+      el("td", null, el("span", { className: "mcp-status-cell" }, statusParts)),
+      toolsCell,
+      el("td", null, checkedAtCtl.node),
+      actionsCell
+    );
+
+    tr.addEventListener("click", function () {
+      mcpSelectServer(opts.key);
+    });
+    tr.addEventListener("keydown", function (e) {
+      // Leave Enter/Space on the ping button to the button itself.
+      if (e.target !== tr) return;
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        tr.click();
+      }
+    });
+
+    // Repaint just this row's selected styling when another row is picked —
+    // see mcpSelectServer.
+    mcpSelectSync[opts.key] = function (selected) {
+      tr.classList.toggle("selected-row", selected);
+      tr.setAttribute("aria-selected", String(selected));
+    };
 
     // Repaint just this row on a ping, in place — see mcpApplyPingState.
     if (opts.server) {
@@ -704,6 +776,7 @@ export function createMcpTab({
         var status = mcpServerRowStatus(opts.server);
         dot.className = "mcp-dot mcp-dot--" + status.state;
         metaTextSpan.textContent = status.meta;
+        toolsCell.textContent = status.tools != null ? String(status.tools) : "—";
         checkedAtCtl.setTs(status.checkedAt);
         if (pingBtn) {
           pingBtn.disabled = !!status.pinging;
@@ -712,26 +785,22 @@ export function createMcpTab({
         if (pingIcon) pingIcon.classList.toggle("is-spinning", !!status.pinging);
       };
     }
-    return row;
+    return tr;
   }
 
   // ----- Detail -----
 
   function mcpRenderDetail(detail) {
+    detail.hidden = false;
     if (mcpSelected === MCP_CREATE_KEY) {
       mcpRenderCreateDetail(detail);
-      return;
-    }
-    if (mcpSelected === MCP_DEFAULTS_KEY) {
-      mcpRenderDefaultsDetail(detail);
       return;
     }
     var server = (mcpData.servers || []).filter(function (s) {
       return s.name === mcpSelected;
     })[0];
     if (!server) {
-      mcpSelected = MCP_DEFAULTS_KEY;
-      mcpRenderDefaultsDetail(detail);
+      detail.hidden = true;
       return;
     }
     mcpRenderServerDetail(detail, server);
@@ -860,7 +929,7 @@ export function createMcpTab({
         });
       });
       detail.appendChild(el("div", { className: "mcp-save-row" },
-        el("button", { type: "button", className: "btn btn--neutral", onclick: function () { mcpSelected = MCP_DEFAULTS_KEY; mcpRerender(); } }, "Cancel"),
+        el("button", { type: "button", className: "btn btn--neutral", onclick: function () { mcpSelected = null; mcpRerender(); } }, "Cancel"),
         createBtn
       ));
     }
@@ -886,7 +955,7 @@ export function createMcpTab({
     return row;
   }
 
-  function mcpRenderDefaultsDetail(detail) {
+  function mcpRenderDefaultsDetail(detail, refreshBtn) {
     var head = el("div", { className: "mcp-detail-head" },
       el("div", { className: "mcp-detail-title" },
         el("h2", null, "Defaults"),
@@ -894,6 +963,7 @@ export function createMcpTab({
           "Manage global loop budgets and the defaults inherited by each server."
         )
       ),
+      refreshBtn || null,
       mcpToggle({
         on: mcpPending.enabled != null ? mcpPending.enabled : mcpData.enabled,
         label: "MCP tool calling",
@@ -1023,7 +1093,7 @@ export function createMcpTab({
               onConfirm: async function () {
                 var res = await api("DELETE", endpoints.mcpServers + "/" + encodeURIComponent(server.name));
                 mcpPending = {};
-                mcpSelected = MCP_DEFAULTS_KEY;
+                mcpSelected = null;
                 mcpData = null;
                 mcpTools = null;
                 showStatus(res.message || "Server removed.");
@@ -2477,7 +2547,7 @@ export function createMcpTab({
   function invalidatePlaybooksCache() { mcpSkillsCache = null; }
 
   return {
-    render: renderMcp, dispose: dispose, hasPendingEdits: hasPendingEdits, clearPendingEdits: clearPendingEdits,
+    render: renderMcp, renderSettings: renderMcpSettings, dispose: dispose, hasPendingEdits: hasPendingEdits, clearPendingEdits: clearPendingEdits,
     invalidatePlaybooksCache: invalidatePlaybooksCache,
   };
 }

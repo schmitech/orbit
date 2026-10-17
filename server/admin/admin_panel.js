@@ -998,6 +998,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     { id: "adapters", description: "Configure the models and services behind your assistants.", label: "Adapters", permission: "adapters.manage", group: "configure", icon: ICON_NAV_ADAPTERS },
     { id: "settings", description: "Manage server configuration and operational preferences.", label: "Settings", permission: "config.manage", group: "configure", icon: ICON_NAV_SETTINGS },
     { id: "mcp", description: "Connect tool servers and manage the capabilities available to assistants.", label: "Servers", permission: "config.manage", group: "mcp", icon: ICON_NAV_MCP },
+    { id: "mcp-settings", description: "Turn tool calling on or off and set the limits every server inherits.", label: "Settings", permission: "config.manage", group: "mcp", icon: ICON_NAV_SETTINGS },
     { id: "skills", description: "Organize reusable guidance for consistent tool use.", label: "Skills", permission: "config.manage", group: "mcp", icon: ICON_NAV_SKILLS },
     { id: "ops", description: "Inspect runtime information, review logs, and manage server operations.", label: "Ops", permission: "system.manage", group: "system", icon: ICON_NAV_OPS },
     { id: "audit", description: "Investigate request history and trace activity across your services.", label: "Audit", permission: "audit.read", group: "system", icon: ICON_NAV_AUDIT },
@@ -1508,6 +1509,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     endpoints: ENDPOINTS,
     el: el,
     clear: clear,
+    wrapTable: wrapTable,
     skeleton: skeleton,
     refreshButton: refreshButton,
     withButton: withButton,
@@ -1516,6 +1518,9 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
     showError: showError,
     showStatus: showStatus,
     createSelect: createSelect,
+    createPaginator: createPaginator,
+    createColumnSorter: createColumnSorter,
+    itemsPerPage: ITEMS_PER_PAGE,
     getActiveTab: function () { return activeTab; }
   });
 
@@ -1579,7 +1584,9 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
       return;
     }
 
-    if (activeTab === "mcp" && id !== "mcp" && mcpTab.hasPendingEdits()) {
+    // Both MCP tabs share one pending-edit store, so it is always cleared on
+    // the way out of either.
+    if ((activeTab === "mcp" || activeTab === "mcp-settings") && id !== activeTab && mcpTab.hasPendingEdits()) {
       confirmAction({
         title: "Unsaved Changes",
         message: "You have unsaved MCP changes. Discard them?",
@@ -1645,6 +1652,7 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
       case "settings": settingsTab.render(c); break;
       case "mcp": mcpTab.render(c); break;
       case "skills": skillsTab.render(c); break;
+      case "mcp-settings": mcpTab.renderSettings(c); break;
     }
   }
 
