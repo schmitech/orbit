@@ -266,17 +266,19 @@ behavior this section actually specifies.
 - [x] Wire token-file deletion into `DELETE /mcp/servers/{name}` and into
       `update_mcp_server` whenever an update changes a server's `auth:`
       block from set to absent/replaced-by-headers (per "Token lifecycle").
-- [ ] Frontend: render `oauth_status` and `connection_status` as separate
+- [x] Frontend: render `oauth_status` and `connection_status` as separate
       indicators, with `oauth_status` taking rendering precedence for the
-      failure message whenever both indicate a problem.
-- [ ] Skip automatic discovery/ping for servers whose `oauth_status` is
+      failure message whenever both indicate a problem. (List row dot/pill,
+      detail-head pill, and an inline notice in both the detail header and
+      the Tools section — `server/admin/admin_panel/tabs/mcp.js`.)
+- [x] Skip automatic discovery/ping for servers whose `oauth_status` is
       `not_logged_in` or `needs_relogin` when the panel loads or the MCP tab
       opens — pinging a server known to have no usable credentials just
       produces a predictable, noisy failure on every page load.
       `list_mcp_servers` already treats an undiscovered server specially
       (status `None` until first discovered/pinged); extend that gate to
-      cover these two `oauth_status` values explicitly. (Backend field is in
-      place; the discovery-warm-up gate itself is not wired up yet.)
+      cover these two `oauth_status` values explicitly. (`mcpDiscoverMissingServers`
+      in `tabs/mcp.js` — the manual Ping button still works as a retry.)
 - [ ] Decide whether `needs_relogin` should also surface as a general
       admin-panel notification/badge, not just inline on the MCP servers
       page — check for an existing "needs attention" affordance (adapter/
@@ -334,13 +336,14 @@ not just `list_mcp_servers`):
 - [x] Backend: redact `client_secret` to `client_secret_set` in every
       response that can include a server's `auth:` block (create, update,
       list) — not just `list_mcp_servers`.
-- [ ] Frontend: add an "OAuth 2.0" option alongside the existing
+- [x] Frontend: add an "OAuth 2.0" option alongside the existing
       bearer-token header form, with fields for scopes / client id / client
       secret / redirect port, mutually exclusive with the headers form in
       the UI. The client-secret field renders empty with a "leave blank to
       keep the current value" hint when `client_secret_set: true`, per the
-      contract above.
-- [ ] **Atomic mode switching — send both fields in one request.** The
+      contract above. (`mcpAuthModeToggle`/`mcpOauthFieldsEditor` in
+      `tabs/mcp.js`, used by both the create and edit forms.)
+- [x] **Atomic mode switching — send both fields in one request.** The
       backend's mutual-exclusion check looks at the *resulting* state
       (existing entry + this payload), so two sequential calls (clear
       headers, then separately set auth) would not necessarily be *rejected*

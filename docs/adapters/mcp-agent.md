@@ -1383,7 +1383,7 @@ Key test classes:
 | OAuth token storage | `server/services/mcp_oauth_token_storage.py` | `FileTokenStorage`; shared by the CLI and the running server |
 | OAuth connection wiring | `server/services/mcp_client_service.py` | `MCPClientManager._build_oauth_provider`, `_find_oauth_error` |
 | Design document | `docs/adapters/mcp-client-skill.md` | Original architecture design and phased plan |
-| Admin panel OAuth roadmap | `docs/roadmap/mcp-oauth-admin-panel.md` | UI/status-model work not yet shipped — CLI-only today |
+| Admin panel OAuth UI | `server/admin/admin_panel/tabs/mcp.js` | Create/edit OAuth 2.0 servers, `oauth_status`/`connection_status` indicators; see `docs/roadmap/complete/mcp-oauth-admin-panel.md` |
 
 ### `ProcessingContext` additions
 

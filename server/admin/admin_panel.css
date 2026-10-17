@@ -4902,6 +4902,85 @@ button.settings-nav-group-header:hover:not(:disabled) {
   animation: pulse 1s ease-in-out infinite;
 }
 
+/* OAuth credential status takes the dot over from plain reachability
+   whenever it has something to say — see mcpServerRowStatus. These read as
+   distinct from --down (a connectivity fact) because the fix here is "log
+   in again," not "check the network." */
+.mcp-dot--not-logged-in { background: transparent; box-shadow: inset 0 0 0 1.5px var(--warning-500); }
+.mcp-dot--needs-relogin { background: var(--danger-500); }
+
+/* A small pill naming OAuth credential health, independent of the
+   connectivity dot — the two are separate signals (see
+   docs/roadmap/mcp-oauth-admin-panel.md, "Two separate status fields") and
+   are never collapsed into one indicator. */
+.mcp-oauth-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.mcp-oauth-pill--ready         { background: var(--success-50); color: var(--success-text); border: 1px solid var(--success-border); }
+.mcp-oauth-pill--not-logged-in { background: var(--warning-50); color: var(--warning-text); border: 1px solid var(--warning-border); }
+.mcp-oauth-pill--needs-relogin { background: var(--danger-50); color: var(--danger-text); border: 1px solid var(--danger-border); }
+
+.mcp-oauth-notice {
+  margin-top: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+.mcp-oauth-notice--warning { border: 1px solid var(--warning-border); background: var(--warning-50); color: var(--warning-text); }
+.mcp-oauth-notice--danger  { border: 1px solid var(--danger-border); background: var(--danger-50); color: var(--danger-text); }
+.mcp-oauth-notice code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.mcp-auth-switch-warning {
+  margin-top: var(--sp-1);
+  margin-bottom: var(--sp-1);
+  font-size: var(--text-xs);
+  color: var(--warning-text);
+}
+
+.mcp-auth-mode-toggle {
+  display: inline-flex;
+  gap: var(--sp-1);
+}
+.mcp-auth-mode-btn.is-active {
+  background: var(--brand-600);
+  border-color: var(--brand-600);
+  color: #fff;
+}
+
+.mcp-oauth-fields {
+  display: grid;
+  gap: 2px;
+}
+
+.mcp-oauth-secret-control {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.mcp-auth-clear-secret {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--text-xs);
+  color: var(--ink-secondary);
+  white-space: nowrap;
+}
+
 /* ----- Detail ----- */
 
 .mcp-detail-head {

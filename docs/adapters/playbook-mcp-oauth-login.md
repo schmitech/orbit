@@ -4,7 +4,7 @@ Steps to verify the `auth: {type: oauth2}` path for outbound MCP servers —
 the browser-login alternative to the static `headers:` bearer-token path
 used by `docs/adapters/playbook-mcp-tool-loop.md`'s `business-sample`/
 `github` examples. See `docs/adapters/mcp-agent.md`'s "OAuth 2.0 servers"
-section for the config shape, and `docs/roadmap/mcp-oauth-admin-panel.md`
+section for the config shape, and `docs/roadmap/complete/mcp-oauth-admin-panel.md`
 for what's shipped (CLI-only) versus still admin-panel-only work.
 
 What this feature covers, concretely:
@@ -346,6 +346,9 @@ more than once if revocation hasn't propagated yet. Confirm:
   `OAuthContext.prepare_token_auth` to drop the redundant body parameter);
   if you see this error, confirm that fix is present before re-registering
   a client.
-- **Admin panel doesn't show OAuth login status**: expected — this is
-  CLI-only today. See `docs/roadmap/mcp-oauth-admin-panel.md` for the
-  tracked follow-up work.
+- **Admin panel doesn't show OAuth login status**: the admin panel does show
+  `oauth_status`/`connection_status` now — see
+  [`playbook-mcp-oauth-admin-panel.md`](playbook-mcp-oauth-admin-panel.md).
+  Running the actual browser login flow is still CLI-only; see
+  `docs/roadmap/complete/mcp-oauth-admin-panel.md` for why that's a deliberate,
+  not-yet-revisited choice.

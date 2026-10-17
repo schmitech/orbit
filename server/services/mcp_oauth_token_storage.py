@@ -32,7 +32,7 @@ _FINGERPRINT_VERSION = 1
 
 def compute_fingerprint(url: str, client_id: str | None, scopes: list[str], redirect_port: int) -> str:
     """Canonical, versioned fingerprint of the identity a stored token/client
-    registration is valid for — see docs/roadmap/mcp-oauth-admin-panel.md's
+    registration is valid for — see docs/roadmap/complete/mcp-oauth-admin-panel.md's
     "Token lifecycle" section for why each field is included."""
     payload = {
         "v": _FINGERPRINT_VERSION,
@@ -178,7 +178,7 @@ class FileTokenStorage:
     async def get_last_error(self) -> dict | None:
         """Bounded `{code, at}` record of the last credential failure, or
         None. Never holds a raw exception message — see
-        docs/roadmap/mcp-oauth-admin-panel.md's "last_error" section."""
+        docs/roadmap/complete/mcp-oauth-admin-panel.md's "last_error" section."""
         return self._read().get("last_error")
 
     async def set_last_error(self, code: str) -> None:

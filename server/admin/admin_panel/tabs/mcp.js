@@ -109,6 +109,44 @@ export function createMcpTab({
   var MCP_CONNECTION_HEADER_KEY_MAX_LENGTH = 256;
   var MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH = 8192;
   var MCP_CONNECTION_HEADER_MAX_ENTRIES = 32;
+  // Match the backend's _MCP_AUTH_CLIENT_FIELD_MAX_LENGTH/_MCP_AUTH_SCOPE_*
+  // in admin_routes.py so the form can't accept input the server will reject.
+  var MCP_AUTH_CLIENT_FIELD_MAX_LENGTH = 512;
+  var MCP_AUTH_SCOPES_FIELD_MAX_LENGTH = 2048;
+  var MCP_AUTH_SCOPE_MAX_COUNT = 32;
+  var MCP_AUTH_SCOPE_MAX_LENGTH = 512;
+  var MCP_AUTH_DEFAULT_REDIRECT_PORT = 8765;
+
+  // The space-separated field caps total length at
+  // MCP_AUTH_SCOPES_FIELD_MAX_LENGTH, but that alone doesn't stop more than
+  // MCP_AUTH_SCOPE_MAX_COUNT short scopes, or one scope longer than
+  // MCP_AUTH_SCOPE_MAX_LENGTH among several short ones — the backend
+  // rejects either with a 422, so both are checked here before submission.
+  function mcpOauthScopesError(scopes) {
+    if (scopes.length > MCP_AUTH_SCOPE_MAX_COUNT) {
+      return "At most " + MCP_AUTH_SCOPE_MAX_COUNT + " scopes are allowed.";
+    }
+    if (scopes.some(function (s) { return s.length > MCP_AUTH_SCOPE_MAX_LENGTH; })) {
+      return "Each scope must be " + MCP_AUTH_SCOPE_MAX_LENGTH + " characters or fewer.";
+    }
+    return null;
+  }
+
+  // Validates the raw text rather than a parsed-and-clamped number: a value
+  // outside 1-65535 must be rejected, not silently substituted for another
+  // port the admin never saw and would then mismatch what `orbit mcp login`
+  // is told to listen on.
+  function mcpOauthRedirectPortError(value) {
+    var trimmed = (value || "").trim();
+    if (!/^\d+$/.test(trimmed)) return "Redirect port must be a whole number.";
+    var port = parseInt(trimmed, 10);
+    if (port < 1 || port > 65535) return "Redirect port must be between 1 and 65535.";
+    return null;
+  }
+
+  function mcpOauthDraftError(draft) {
+    return mcpOauthRedirectPortError(draft.redirect_port) || mcpOauthScopesError(draft.scopes);
+  }
 
   function mcpEndpointUrlError(value) {
     if (!value || value.length > MCP_CONNECTION_URL_MAX_LENGTH) {
@@ -225,7 +263,39 @@ export function createMcpTab({
   // flicker.
   function mcpApplyPingState(name) {
     if (mcpRowSync[name]) mcpRowSync[name]();
+    // A full pane rebuild here (discard and re-render, like mcpSelectServer
+    // does) would re-seed the OAuth edit form's draft from the saved config
+    // and silently strand whatever mcpPending["connection.auth"] already
+    // holds from an in-progress edit — Save would then submit a value the
+    // form no longer displays. mcpDetailSync.sync() only repaints the
+    // pieces a ping can change (tools/playbooks, and — see
+    // mcpRenderServerDetail — the OAuth pill/notice, read fresh from
+    // server.oauth each call) without touching any field the admin is
+    // mid-edit on.
     if (mcpDetailSync && mcpDetailSync.name === name) mcpDetailSync.sync();
+  }
+
+  // GET /mcp/tools (used by a ping) only reports reachability — oauth_status
+  // is computed by GET /mcp/servers instead. A ping is a real connection
+  // attempt, which per the roadmap doc ("last_error semantics") is exactly
+  // when a credential can transition ready <-> needs_relogin, so a ping
+  // that leaves the credential pill/notice showing the pre-ping status would
+  // read as broken (e.g. still "Not logged in" right after a successful
+  // `orbit mcp login` + retry). Best-effort: a failure here just leaves the
+  // indicator stale until the next full refresh, same as before this existed.
+  async function mcpRefreshServerOauthStatus(name) {
+    try {
+      var fresh = await api("GET", endpoints.mcpServers);
+      var freshServer = (fresh.servers || []).find(function (s) { return s.name === name; });
+      var idx = mcpData ? (mcpData.servers || []).findIndex(function (s) { return s.name === name; }) : -1;
+      if (freshServer && idx !== -1) {
+        mcpData.servers[idx].oauth = freshServer.oauth;
+        mcpData.servers[idx].connection_status = freshServer.connection_status;
+        mcpData.servers[idx].status = freshServer.status;
+      }
+    } catch (_err) {
+      // See comment above — non-fatal.
+    }
   }
 
   // Re-dials a single server via GET /mcp/tools?server=<name>, merging its
@@ -248,6 +318,7 @@ export function createMcpTab({
     } catch (err) {
       showError(err.message);
     } finally {
+      await mcpRefreshServerOauthStatus(name);
       mcpPinging[name] = false;
       mcpApplyPingState(name);
     }
@@ -277,7 +348,13 @@ export function createMcpTab({
     if (!mcpData || !mcpData.enabled) return;
     (mcpData.servers || []).forEach(function (server) {
       var known = mcpTools && mcpTools.servers && mcpTools.servers[server.name];
-      if (server.enabled && !known && !mcpPinging[server.name]) mcpPingServer(server.name);
+      // A server known to have no usable OAuth credential would just fail
+      // predictably on every page load — the manual Ping button is still
+      // available for a retry after logging in. See "Skip automatic
+      // discovery/ping" in the roadmap doc.
+      var oauthInfo = mcpOauthStatusInfo(server.oauth);
+      var blockedByOauth = oauthInfo && oauthInfo.status !== "ready";
+      if (server.enabled && !known && !mcpPinging[server.name] && !blockedByOauth) mcpPingServer(server.name);
     });
   }
 
@@ -289,6 +366,35 @@ export function createMcpTab({
     return (mcpSelected === key && mcpPending.enabled != null) ? mcpPending.enabled : saved;
   }
 
+  // OAuth credential health is a signal independent of reachability (see
+  // docs/roadmap/complete/mcp-oauth-admin-panel.md, "Two separate status fields").
+  // `server.oauth` is only present for auth.type=="oauth2" servers. Returns
+  // null for a non-OAuth server ("not_configured").
+  function mcpOauthStatusInfo(oauth) {
+    if (!oauth || !oauth.oauth_status) return null;
+    var status = oauth.oauth_status;
+    if (status === "ready") {
+      return { status: status, label: "OAuth ready", pillClass: "ready", dotState: null, message: null };
+    }
+    if (status === "not_logged_in") {
+      return {
+        status: status, label: "Not logged in", pillClass: "not-logged-in", dotState: "not-logged-in",
+        message: "Not logged in yet. Run `orbit mcp login <name>` from the CLI to connect this server.",
+      };
+    }
+    if (status === "needs_relogin") {
+      var code = oauth.last_error && oauth.last_error.code;
+      var reason = code === "fingerprint_mismatch"
+        ? "This server's OAuth settings changed since the last login, so the saved credential no longer applies."
+        : "The saved OAuth credential was rejected — it may have expired or been revoked.";
+      return {
+        status: status, label: "Needs re-login", pillClass: "needs-relogin", dotState: "needs-relogin",
+        message: reason + " Run `orbit mcp login <name>` from the CLI to reconnect.",
+      };
+    }
+    return null; // not_configured
+  }
+
   // Derives a server row's dot state / meta text / checked-at from current
   // state — used for both the initial render and mcpRowSync's repaint, so
   // the two can never drift out of sync with each other.
@@ -296,36 +402,50 @@ export function createMcpTab({
     var discovery = (mcpTools && mcpTools.servers && mcpTools.servers[server.name]) || null;
     var pinging = !!mcpPinging[server.name];
     var displayEnabled = mcpPendingToggleValue(server.name, server.enabled);
-    if (!displayEnabled) return { state: "off", meta: "Disabled", pinging: pinging, checkedAt: null };
-    if (pinging) return { state: "checking", meta: "Pinging…", pinging: pinging, checkedAt: null };
-    var checkedAt = mcpLastChecked[server.name] || null;
-    if (discovery) {
-      if (discovery.reachable) {
-        return {
-          state: "up",
-          meta: discovery.tools.length + (discovery.tools.length === 1 ? " tool" : " tools"),
-          pinging: pinging,
-          checkedAt: checkedAt,
-        };
+    var oauthInfo = mcpOauthStatusInfo(server.oauth);
+    var result;
+    if (!displayEnabled) {
+      result = { state: "off", meta: "Disabled", pinging: pinging, checkedAt: null };
+    } else if (pinging) {
+      result = { state: "checking", meta: "Pinging…", pinging: pinging, checkedAt: null };
+    } else {
+      var checkedAt = mcpLastChecked[server.name] || null;
+      if (discovery) {
+        result = discovery.reachable
+          ? {
+            state: "up",
+            meta: discovery.tools.length + (discovery.tools.length === 1 ? " tool" : " tools"),
+            pinging: pinging,
+            checkedAt: checkedAt,
+          }
+          : { state: "down", meta: "Unreachable", pinging: pinging, checkedAt: checkedAt };
+      } else if (server.status) {
+        // Nothing pinged this session yet — fall back to what the backend
+        // already knows from its startup warm-up (or a previous admin
+        // session), so the dot doesn't sit blank until someone clicks Ping.
+        // There's no timestamp for that discovery, so checkedAt stays null.
+        result = server.status.reachable
+          ? {
+            state: "up",
+            meta: server.status.tool_count + (server.status.tool_count === 1 ? " tool" : " tools"),
+            pinging: pinging,
+            checkedAt: null,
+          }
+          : { state: "down", meta: "Unreachable", pinging: pinging, checkedAt: null };
+      } else {
+        result = { state: "unknown", meta: "Not checked", pinging: pinging, checkedAt: checkedAt };
       }
-      return { state: "down", meta: "Unreachable", pinging: pinging, checkedAt: checkedAt };
     }
-    // Nothing pinged this session yet — fall back to what the backend
-    // already knows from its startup warm-up (or a previous admin session),
-    // so the dot doesn't sit blank until someone clicks Ping. There's no
-    // timestamp for that discovery, so checkedAt stays null.
-    if (server.status) {
-      if (server.status.reachable) {
-        return {
-          state: "up",
-          meta: server.status.tool_count + (server.status.tool_count === 1 ? " tool" : " tools"),
-          pinging: pinging,
-          checkedAt: null,
-        };
-      }
-      return { state: "down", meta: "Unreachable", pinging: pinging, checkedAt: null };
+    // A recorded credential problem is the authoritative explanation for a
+    // failure to connect — it overrides the connectivity-derived dot/meta
+    // above (never the reverse), so the row never reads a bare "Unreachable"
+    // when the real issue is "log in again."
+    if (oauthInfo && oauthInfo.dotState && displayEnabled && !pinging) {
+      result.state = oauthInfo.dotState;
+      result.meta = oauthInfo.label;
     }
-    return { state: "unknown", meta: "Not checked", pinging: pinging, checkedAt: checkedAt };
+    result.oauth = oauthInfo;
+    return result;
   }
 
   async function renderMcp(container) {
@@ -487,6 +607,7 @@ export function createMcpTab({
         meta: status.meta,
         state: status.state,
         overrides: Object.keys(server.overrides || {}).length,
+        oauth: status.oauth,
         checkedAt: status.checkedAt,
         pinging: status.pinging,
         // Gate on the saved `enabled` flag, not the pending toggle: the live
@@ -522,6 +643,13 @@ export function createMcpTab({
     // to splice a new node into an already-rendered meta line.
     var checkedAtCtl = mcpCheckedAtSpan(opts.checkedAt || null);
     metaParts.push(checkedAtCtl.node);
+    // A credential problem already took over the dot/meta text above (see
+    // mcpServerRowStatus) — only add a badge here for the "ready" case,
+    // which otherwise has no visible sign this is an OAuth-authenticated
+    // server rather than a plain static-header one.
+    if (opts.oauth && opts.oauth.status === "ready") {
+      metaParts.push(el("span", { className: "mcp-oauth-pill mcp-oauth-pill--ready" }, "OAuth"));
+    }
     if (opts.overrides) {
       metaParts.push(el("span", { className: "mcp-override-count" },
         opts.overrides + (opts.overrides === 1 ? " override" : " overrides")
@@ -610,9 +738,17 @@ export function createMcpTab({
   }
 
   function mcpRenderCreateDetail(detail) {
-    var draft = { name: "", transport: "http", url: "", headers: {}, command: "", args: [], env: {} };
+    var draft = {
+      name: "", transport: "http", url: "", headers: {}, command: "", args: [], env: {},
+      authMode: "none",
+      auth: { scopes: [], client_id: "", client_secret: "", clearSecret: false, redirect_port: String(MCP_AUTH_DEFAULT_REDIRECT_PORT) },
+    };
     var mapEditor = null;
     function render() {
+      // Reset on every render — a stale reference to a now-hidden/detached
+      // editor (e.g. the headers editor after switching to OAuth) must never
+      // be consulted for commitPending()/pendingKey() at Create time.
+      mapEditor = null;
       clear(detail);
       detail.appendChild(el("div", { className: "mcp-detail-head" },
         el("div", { className: "mcp-detail-title" }, el("h2", null, "Add MCP server"),
@@ -637,10 +773,12 @@ export function createMcpTab({
         el("span", { className: "mcp-setting-control" }, transport)
       ));
       // A successful Test connection is required before Create is enabled
-      // for http — set below, once testCtl exists — so an unreachable URL
-      // can no longer be saved unchecked. stdio has no equivalent ad-hoc
-      // test (it would mean spawning an arbitrary local subprocess from this
-      // request rather than dialing a URL) so it's exempt from the gate.
+      // for a static-header http server — set below, once testCtl exists —
+      // so an unreachable URL can no longer be saved unchecked. stdio has no
+      // equivalent ad-hoc test (it would mean spawning an arbitrary local
+      // subprocess from this request rather than dialing a URL), and an
+      // OAuth server can't be tested until after a CLI login exists, so both
+      // are exempt from the gate.
       var testCtl = null;
       var syncCreateBtn = function () {}; // replaced once createBtn exists below
       if (draft.transport === "http") {
@@ -649,14 +787,25 @@ export function createMcpTab({
           if (testCtl) testCtl.onFieldEdited();
           syncCreateBtn();
         }, { maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }));
-        mapEditor = mcpKeyValueRows("Headers", "HTTP headers; declare ${VAR} values in .env or export them before use", draft.headers, function (next) {
-          draft.headers = next;
-          if (testCtl) testCtl.onFieldEdited();
-          syncCreateBtn();
-        }, { keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH, valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH, maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES, keyPattern: /^[A-Za-z0-9_-]+$/ });
-        ledger.appendChild(mapEditor);
-        testCtl = mcpTestConnectionButton(function () { return draft.url; }, function () { return draft.headers; }, function () { syncCreateBtn(); });
-        ledger.appendChild(testCtl.row);
+
+        ledger.appendChild(el("div", { className: "mcp-setting-row mcp-connection-row" },
+          mcpSettingCopy("Authentication", "How ORBIT authenticates to this server"),
+          el("span", { className: "mcp-setting-control" },
+            mcpAuthModeToggle(draft.authMode, function (next) { draft.authMode = next; render(); }))
+        ));
+
+        if (draft.authMode === "oauth2") {
+          ledger.appendChild(mcpOauthFieldsEditor(draft.auth, false, function () { syncCreateBtn(); }));
+        } else {
+          mapEditor = mcpKeyValueRows("Headers", "HTTP headers; declare ${VAR} values in .env or export them before use", draft.headers, function (next) {
+            draft.headers = next;
+            if (testCtl) testCtl.onFieldEdited();
+            syncCreateBtn();
+          }, { keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH, valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH, maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES, keyPattern: /^[A-Za-z0-9_-]+$/ });
+          ledger.appendChild(mapEditor);
+          testCtl = mcpTestConnectionButton(function () { return draft.url; }, function () { return draft.headers; }, function () { syncCreateBtn(); });
+          ledger.appendChild(testCtl.row);
+        }
       } else {
         ledger.appendChild(mcpConnectionRow("Command", "Executable launched for this server", draft.command, function (next) { draft.command = next; }, { maxLength: MCP_CONNECTION_COMMAND_MAX_LENGTH }));
         ledger.appendChild(mcpArgsTextEditor("Args", "One argument per line", draft.args, function (next) { draft.args = next; }, { argMaxLength: MCP_CONNECTION_ARG_MAX_LENGTH, maxCount: MCP_CONNECTION_ARGS_MAX_COUNT }));
@@ -667,7 +816,7 @@ export function createMcpTab({
       detail.appendChild(ledger);
       var createBtn = el("button", { type: "button", className: "btn btn--primary" }, "Create server");
       syncCreateBtn = function () {
-        var needsTest = draft.transport === "http" && !(testCtl && testCtl.isVerified());
+        var needsTest = draft.transport === "http" && draft.authMode === "none" && !(testCtl && testCtl.isVerified());
         createBtn.disabled = needsTest;
         createBtn.title = needsTest ? "Run Test connection successfully first." : "";
       };
@@ -687,13 +836,20 @@ export function createMcpTab({
               );
             }
           }
-          var connection = draft.transport === "http"
-            ? { url: draft.url, headers: draft.headers }
-            : { command: draft.command, args: draft.args, env: draft.env };
+          var connection;
           if (draft.transport === "http") {
             var error = mcpEndpointUrlError(draft.url);
             if (error) throw new Error(error);
-            if (!testCtl.isVerified()) throw new Error("Run Test connection successfully before creating this server.");
+            if (draft.authMode === "oauth2") {
+              var authError = mcpOauthDraftError(draft.auth);
+              if (authError) throw new Error(authError);
+              connection = { url: draft.url, headers: {}, auth: mcpBuildOauthPayload(draft.auth) };
+            } else {
+              if (!testCtl.isVerified()) throw new Error("Run Test connection successfully before creating this server.");
+              connection = { url: draft.url, headers: draft.headers };
+            }
+          } else {
+            connection = { command: draft.command, args: draft.args, env: draft.env };
           }
           var res = await api("POST", endpoints.mcpServers, { name: draft.name, transport: draft.transport, connection: connection });
           mcpSelected = draft.name;
@@ -810,14 +966,39 @@ export function createMcpTab({
     var enabled = mcpPending.enabled != null ? mcpPending.enabled : server.enabled;
     // Assigned below, http transport only — referenced (via the `testCtl &&`
     // guards) both there and in the Save gate near the bottom of this
-    // function, which needs the outer, function-scoped `var` in reach.
+    // function, which needs the outer, function-scoped `var` in reach. The
+    // auth-mode toggle rebuilds the connection ledger in place (see
+    // buildConnLedger below), so these are plain assignment targets there,
+    // not redeclared, to stay reachable from the Save handler afterwards.
     var testCtl = null;
+    var urlRow = null;
+    var headersRow = null;
+    // Read fresh from server.oauth on every call rather than cached once —
+    // a ping can update server.oauth in place (mcpRefreshServerOauthStatus)
+    // without touching any pending edit, so re-deriving this is always safe
+    // and never needs to re-seed the OAuth form's draft from it.
+    function currentOauthInfo() { return mcpOauthStatusInfo(server.oauth); }
+
+    var oauthPill = el("span", { className: "mcp-oauth-pill", style: "display:none" });
+    function syncOauthPill() {
+      var info = currentOauthInfo();
+      if (info) {
+        oauthPill.className = "mcp-oauth-pill mcp-oauth-pill--" + info.pillClass;
+        oauthPill.textContent = info.label;
+        oauthPill.style.display = "";
+      } else {
+        oauthPill.style.display = "none";
+        oauthPill.textContent = "";
+      }
+    }
+    syncOauthPill();
 
     var head = el("div", { className: "mcp-detail-head" },
       el("div", { className: "mcp-detail-title" },
         el("h2", { className: "mcp-server-name" }, server.name),
         el("p", { className: "muted" },
-          MCP_TRANSPORT_LABELS[server.transport] || server.transport
+          MCP_TRANSPORT_LABELS[server.transport] || server.transport,
+          oauthPill
         )
       ),
       el("div", { className: "mcp-detail-actions" },
@@ -854,6 +1035,21 @@ export function createMcpTab({
       )
     );
     detail.appendChild(head);
+
+    // Precedence rule from the roadmap doc: a recorded credential problem is
+    // the authoritative explanation for a connection failure, so it's
+    // surfaced once, prominently, rather than left to compete with (or be
+    // contradicted by) a generic "unreachable" message further down. A
+    // fixed slot (rather than a one-shot conditional append) lets a ping
+    // refresh this without rebuilding the pane — see syncOauthPill above.
+    var oauthNoticeSlot = el("div", null);
+    detail.appendChild(oauthNoticeSlot);
+    function syncOauthNotice() {
+      clear(oauthNoticeSlot);
+      var info = currentOauthInfo();
+      if (info && info.status !== "ready") oauthNoticeSlot.appendChild(mcpOauthNotice(info));
+    }
+    syncOauthNotice();
 
     if (server.connection) {
       detail.appendChild(el("h3", null, "Connection"));
@@ -907,65 +1103,150 @@ export function createMcpTab({
         connLedger.appendChild(envRow);
         mcpDetailPendingRows.push(envRow.hasPendingRow);
       } else {
-        var urlRow = mcpUrlRow(
-          "URL",
-          "Streamable HTTP endpoint",
-          Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
-            ? mcpPending["connection.url"] : server.connection.url,
-          function (next) {
-            if (next === server.connection.url) delete mcpPending["connection.url"];
-            else mcpPending["connection.url"] = next;
-            if (testCtl) testCtl.onFieldEdited();
-            mcpSyncDirty();
-          },
-          { maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }
-        );
-        connLedger.appendChild(urlRow);
-        mcpDetailDirty.push(function () {
-          urlRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.url"));
-        });
+        // Authentication is a mutually-exclusive mode, not a per-field edit:
+        // "none" means the Headers editor below (static bearer tokens etc.),
+        // "oauth2" means the fields from mcpOauthFieldsEditor instead. Both
+        // directions send `connection.headers` and `connection.auth` in the
+        // same PATCH as each other — never two separate requests — so there
+        // is no window where the saved entry has neither (see "Atomic mode
+        // switching" in the roadmap doc).
+        var authSavedMode = (server.connection.auth && server.connection.auth.type === "oauth2") ? "oauth2" : "none";
+        var authMode = Object.prototype.hasOwnProperty.call(mcpPending, "connection.auth")
+          ? (mcpPending["connection.auth"] && mcpPending["connection.auth"].type === "oauth2" ? "oauth2" : "none")
+          : authSavedMode;
+        var existingAuth = server.connection.auth || {};
+        var authDraft = {
+          scopes: (existingAuth.scopes || []).slice(),
+          client_id: existingAuth.client_id || "",
+          client_secret: "",
+          clearSecret: false,
+          redirect_port: String(existingAuth.redirect_port || MCP_AUTH_DEFAULT_REDIRECT_PORT),
+        };
+        var clientSecretSet = !!existingAuth.client_secret_set;
 
-        // headers is http-only: the stdio transport never reads it (see
-        // MCPClientManager._open_session), so it isn't editable there.
-        var headersRow = mcpKeyValueRows(
-          "Headers",
-          "HTTP headers; declare ${VAR} values in .env or export them before use",
-          Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers")
-            ? mcpPending["connection.headers"] : server.connection.headers,
-          function (next) {
-            mcpPending["connection.headers"] = next;
-            if (testCtl) testCtl.onFieldEdited();
-            mcpSyncDirty();
-          },
-          {
-            keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH,
-            valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH,
-            maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES,
-            keyPattern: /^[A-Za-z0-9_-]+$/,
-            onDirty: mcpSyncDirty,
+        // A rebuild (switching auth mode) replaces urlRow/headersRow/testCtl
+        // with fresh instances — these two indirection layers let the one
+        // listener registered with mcpDetailDirty/mcpDetailPendingRows always
+        // reach the *current* instance instead of a stale, detached one.
+        var connDirtySync = function () {};
+        mcpDetailDirty.push(function () { connDirtySync(); });
+        var connPendingRowChecker = function () { return false; };
+        mcpDetailPendingRows.push(function () { return connPendingRowChecker(); });
+
+        var buildConnLedger = function () {
+          clear(connLedger);
+          urlRow = mcpUrlRow(
+            "URL",
+            "Streamable HTTP endpoint",
+            Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
+              ? mcpPending["connection.url"] : server.connection.url,
+            function (next) {
+              if (next === server.connection.url) delete mcpPending["connection.url"];
+              else mcpPending["connection.url"] = next;
+              if (testCtl) testCtl.onFieldEdited();
+              mcpSyncDirty();
+            },
+            { maxLength: MCP_CONNECTION_URL_MAX_LENGTH, validate: mcpEndpointUrlError }
+          );
+          connLedger.appendChild(urlRow);
+          connDirtySync = function () {
+            urlRow.sync(Object.prototype.hasOwnProperty.call(mcpPending, "connection.url"));
+          };
+
+          connLedger.appendChild(el("div", { className: "mcp-setting-row mcp-connection-row" },
+            mcpSettingCopy("Authentication", "How ORBIT authenticates to this server"),
+            el("span", { className: "mcp-setting-control" },
+              mcpAuthModeToggle(authMode, mcpPickAuthMode))
+          ));
+
+          if (authMode === "oauth2") {
+            headersRow = null;
+            testCtl = null;
+            connPendingRowChecker = function () { return false; };
+            connLedger.appendChild(mcpOauthFieldsEditor(authDraft, clientSecretSet, function () {
+              mcpPending["connection.auth"] = mcpBuildOauthPayload(authDraft);
+              mcpSyncDirty();
+            }));
+          } else {
+            // headers is http-only: the stdio transport never reads it (see
+            // MCPClientManager._open_session), so it isn't editable there.
+            headersRow = mcpKeyValueRows(
+              "Headers",
+              "HTTP headers; declare ${VAR} values in .env or export them before use",
+              Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers")
+                ? mcpPending["connection.headers"] : server.connection.headers,
+              function (next) {
+                mcpPending["connection.headers"] = next;
+                if (testCtl) testCtl.onFieldEdited();
+                mcpSyncDirty();
+              },
+              {
+                keyMaxLength: MCP_CONNECTION_HEADER_KEY_MAX_LENGTH,
+                valueMaxLength: MCP_CONNECTION_HEADER_VALUE_MAX_LENGTH,
+                maxEntries: MCP_CONNECTION_HEADER_MAX_ENTRIES,
+                keyPattern: /^[A-Za-z0-9_-]+$/,
+                onDirty: mcpSyncDirty,
+              }
+            );
+            connLedger.appendChild(headersRow);
+            connPendingRowChecker = headersRow.hasPendingRow;
+
+            // A saved-but-unreachable URL is exactly what this gate exists to
+            // prevent — see mcpSaveRow's isBlocked below, which requires
+            // testCtl.isVerified() before a pending connection.url/headers
+            // edit can be saved.
+            testCtl = mcpTestConnectionButton(
+              function () {
+                return Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
+                  ? mcpPending["connection.url"] : server.connection.url;
+              },
+              function () {
+                return Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers")
+                  ? mcpPending["connection.headers"] : server.connection.headers;
+              },
+              mcpSyncDirty
+            );
+            connLedger.appendChild(testCtl.row);
           }
-        );
-        connLedger.appendChild(headersRow);
-        mcpDetailPendingRows.push(headersRow.hasPendingRow);
+          mcpSyncDirty();
+        };
 
-        // A saved-but-unreachable URL is exactly what this gate exists to
-        // prevent — see mcpSaveRow's isBlocked below, which requires
-        // testCtl.isVerified() before a pending connection.url/headers edit
-        // can be saved. `var` here (not `let`/`const`) reaches that call
-        // via function-scoped hoisting despite being declared inside this
-        // http-only branch.
-        testCtl = mcpTestConnectionButton(
-          function () {
-            return Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
-              ? mcpPending["connection.url"] : server.connection.url;
-          },
-          function () {
-            return Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers")
-              ? mcpPending["connection.headers"] : server.connection.headers;
-          },
-          mcpSyncDirty
-        );
-        connLedger.appendChild(testCtl.row);
+        var mcpPickAuthMode = function (next) {
+          if (next === authMode) return;
+          if (next === "none" && authSavedMode === "oauth2") {
+            confirmAction({
+              title: "Switch to static headers",
+              message: "Switching away from OAuth will permanently delete the stored credentials for this server. Switching back to OAuth later will require logging in again.",
+              confirmLabel: "Switch anyway",
+              isDanger: true,
+              onConfirm: function () {
+                authMode = "none";
+                mcpPending["connection.auth"] = null;
+                if (!Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers")) {
+                  mcpPending["connection.headers"] = server.connection.headers || {};
+                }
+                buildConnLedger();
+              }
+            });
+            return;
+          }
+          authMode = next;
+          if (authMode === "oauth2") {
+            mcpPending["connection.headers"] = {};
+            mcpPending["connection.auth"] = mcpBuildOauthPayload(authDraft);
+          } else {
+            // Reverting a not-yet-saved pick back to the mode already on
+            // disk: the headers editor was hidden the whole time this was
+            // pending, so `connection.headers` can only hold the `{}`
+            // placeholder set above, never a real edit — safe to drop both
+            // and land back on a clean, undirtied state.
+            delete mcpPending["connection.auth"];
+            delete mcpPending["connection.headers"];
+          }
+          buildConnLedger();
+        };
+
+        buildConnLedger();
       }
 
       detail.appendChild(connLedger);
@@ -1030,7 +1311,7 @@ export function createMcpTab({
     function syncToolsBody() {
       clear(toolsBody);
       var stillEnabled = mcpPending.enabled != null ? mcpPending.enabled : server.enabled;
-      toolsBody.appendChild(mcpRenderTools(server, stillEnabled));
+      toolsBody.appendChild(mcpRenderTools(server, stillEnabled, currentOauthInfo()));
     }
     syncToolsBody();
     detail.appendChild(toolsBody);
@@ -1048,7 +1329,7 @@ export function createMcpTab({
 
     mcpDetailSync = {
       name: server.name,
-      sync: function () { syncToolsHeader(); syncToolsBody(); syncPlaybooks(server, playbooksBody); },
+      sync: function () { syncOauthPill(); syncOauthNotice(); syncToolsHeader(); syncToolsBody(); syncPlaybooks(server, playbooksBody); },
     };
 
     // ----- Settings ledger -----
@@ -1136,7 +1417,7 @@ export function createMcpTab({
       // "+" button never reaches onChange, so mcpPending — and therefore
       // Save — never sees it. Commit it here too, matching the "Add MCP
       // server" flow, so a forgotten "+" click doesn't strand the edit.
-      var mapEditor = server.transport === "stdio" ? envRow : headersRow;
+      var mapEditor = server.transport === "stdio" ? envRow : (server.transport === "http" && authMode === "none" ? headersRow : null);
       if (mapEditor && !mapEditor.commitPending()) {
         var pendingKey = mapEditor.pendingKey();
         if (pendingKey) {
@@ -1149,7 +1430,7 @@ export function createMcpTab({
         }
       }
       var body = { settings: {}, connection: {} };
-      var CONNECTION_FIELDS = ["url", "command", "args", "env", "headers"];
+      var CONNECTION_FIELDS = ["url", "command", "args", "env", "headers", "auth"];
       Object.keys(mcpPending).forEach(function (key) {
         if (key === "enabled") { body.enabled = mcpPending[key]; return; }
         var connField = CONNECTION_FIELDS.find(function (f) { return key === "connection." + f; });
@@ -1160,9 +1441,18 @@ export function createMcpTab({
         var urlError = mcpEndpointUrlError(body.connection.url);
         if (urlError) { showError(urlError); return; }
       }
-      if ((body.connection.url != null || body.connection.headers != null) && !(testCtl && testCtl.isVerified())) {
+      // The Test connection gate only applies to the static-headers path —
+      // an OAuth server can't be ad-hoc tested until after a CLI login (see
+      // mcpOauthFieldsEditor's own notice), so switching into or editing
+      // within that mode never requires it.
+      var resultingAuthMode = server.transport === "http" ? authMode : "none";
+      if (resultingAuthMode === "none" && (body.connection.url != null || body.connection.headers != null) && !(testCtl && testCtl.isVerified())) {
         showError("Run Test connection successfully before saving your connection changes.");
         return;
+      }
+      if (resultingAuthMode === "oauth2" && body.connection.auth) {
+        var authError = mcpOauthDraftError(authDraft);
+        if (authError) { showError(authError); return; }
       }
       if (!Object.keys(body.connection).length) delete body.connection;
       var res = await api(
@@ -1176,7 +1466,7 @@ export function createMcpTab({
       showStatus(res.message || "Saved.");
       mcpRerender();
     }, function () {
-      if (server.transport !== "http") return null;
+      if (server.transport !== "http" || authMode !== "none") return null;
       var pendingConnectionEdit = Object.prototype.hasOwnProperty.call(mcpPending, "connection.url")
         || Object.prototype.hasOwnProperty.call(mcpPending, "connection.headers");
       if (!pendingConnectionEdit || (testCtl && testCtl.isVerified())) return null;
@@ -1192,6 +1482,17 @@ export function createMcpTab({
           ? "Check the command runs and is on PATH. Startup logs record the underlying error."
           : "Check the URL is reachable and required headers are set. Startup logs record the underlying error."
       )
+    );
+  }
+
+  // Renders an OAuth credential problem as the explanation for a connection
+  // failure — used in place of mcpUnreachableNotice's generic message
+  // whenever oauth_status says the real cause is the credential, not the
+  // network (see "Two separate status fields" in the roadmap doc).
+  function mcpOauthNotice(oauthInfo) {
+    var severity = oauthInfo.status === "needs_relogin" ? "danger" : "warning";
+    return el("div", { className: "mcp-oauth-notice mcp-oauth-notice--" + severity },
+      el("strong", null, oauthInfo.label), el("p", null, oauthInfo.message)
     );
   }
 
@@ -1255,7 +1556,7 @@ export function createMcpTab({
     });
   }
 
-  function mcpRenderTools(server, enabled) {
+  function mcpRenderTools(server, enabled, oauthInfo) {
     if (!enabled) {
       return el("p", { className: "muted mcp-tools-empty" },
         "This server is disabled, so none of its tools reach the model."
@@ -1264,9 +1565,14 @@ export function createMcpTab({
     if (mcpPinging[server.name]) {
       return el("p", { className: "muted mcp-tools-empty" }, "Pinging " + server.name + "…");
     }
+    var blockedByOauth = oauthInfo && oauthInfo.status !== "ready";
     if (!mcpTools) {
-      return el("p", { className: "muted mcp-tools-empty" },
-        "Select Ping server to dial this server and list what it exposes."
+      // Automatic discovery is skipped for a known-bad credential (see
+      // mcpDiscoverMissingServers) — don't suggest a plain ping will help
+      // when the real blocker is the OAuth problem shown above.
+      return el("p", { className: "muted mcp-tools-empty" }, blockedByOauth
+        ? "Resolve the OAuth issue above, then use Ping server to check this server's tools."
+        : "Select Ping server to dial this server and list what it exposes."
       );
     }
     if (!mcpTools.available) {
@@ -1279,18 +1585,19 @@ export function createMcpTab({
       // reachable — surface that instead of a blanket "not checked" when
       // it's available. The tool list itself still needs an actual ping.
       if (server.status) {
-        if (!server.status.reachable) return mcpUnreachableNotice(server);
+        if (!server.status.reachable) return blockedByOauth ? mcpOauthNotice(oauthInfo) : mcpUnreachableNotice(server);
         return el("p", { className: "muted mcp-tools-empty" },
           "Reachable — " + server.status.tool_count
             + (server.status.tool_count === 1 ? " tool" : " tools")
             + " available. Select Ping server to list them."
         );
       }
-      return el("p", { className: "muted mcp-tools-empty" },
-        "This server hasn't been pinged yet. Select Ping server to dial it and list what it exposes."
+      return el("p", { className: "muted mcp-tools-empty" }, blockedByOauth
+        ? "Resolve the OAuth issue above, then use Ping server to check this server's tools."
+        : "This server hasn't been pinged yet. Select Ping server to dial it and list what it exposes."
       );
     }
-    if (!discovery.reachable) return mcpUnreachableNotice(server);
+    if (!discovery.reachable) return blockedByOauth ? mcpOauthNotice(oauthInfo) : mcpUnreachableNotice(server);
 
     var container = el("div", null);
     if (discovery.instructions) {
@@ -1552,6 +1859,129 @@ export function createMcpTab({
     };
     row.sync(false);
     return row;
+  }
+
+  // Two-way "Static headers" / "OAuth 2.0" picker. Deliberately plain
+  // buttons rather than a <select>: the OAuth-to-headers direction needs a
+  // destructive-action confirmation first (it deletes the stored token —
+  // see "Token lifecycle" in the roadmap doc), and a native <select> commits
+  // its displayed value before any JS runs, with no hook to revert it if the
+  // confirmation is cancelled. A button only calls back when clicked, so the
+  // caller can gate the actual switch behind a confirm dialog and simply
+  // do nothing if the admin cancels.
+  function mcpAuthModeToggle(mode, onPick) {
+    var noneBtn = el("button", {
+      type: "button",
+      className: "btn btn--neutral mcp-auth-mode-btn" + (mode === "none" ? " is-active" : ""),
+      "aria-pressed": String(mode === "none"),
+    }, "Static headers");
+    var oauthBtn = el("button", {
+      type: "button",
+      className: "btn btn--neutral mcp-auth-mode-btn" + (mode === "oauth2" ? " is-active" : ""),
+      "aria-pressed": String(mode === "oauth2"),
+    }, "OAuth 2.0");
+    noneBtn.addEventListener("click", function () { if (mode !== "none") onPick("none"); });
+    oauthBtn.addEventListener("click", function () { if (mode !== "oauth2") onPick("oauth2"); });
+    return el("div", { className: "mcp-auth-mode-toggle", role: "group", "aria-label": "Authentication method" }, noneBtn, oauthBtn);
+  }
+
+  // Editable fields for an `auth: {type: oauth2, ...}` block. `draft` is
+  // mutated in place by the caller's onChange; `clientSecretSet` reflects
+  // the server's redacted `client_secret_set` flag (never the real secret —
+  // see the secret contract in the roadmap doc) and drives the "leave blank
+  // to keep" placeholder plus the explicit "remove stored secret" checkbox,
+  // which only makes sense when there's something stored to remove.
+  function mcpOauthFieldsEditor(draft, clientSecretSet, onChange) {
+    var container = el("div", { className: "mcp-oauth-fields" });
+
+    container.appendChild(mcpConnectionRow(
+      "Scopes", "Space-separated OAuth scopes requested at login",
+      draft.scopes.join(" "),
+      function (next) { draft.scopes = next.split(/\s+/).filter(Boolean); onChange(); },
+      {
+        maxLength: MCP_AUTH_SCOPES_FIELD_MAX_LENGTH,
+        autocomplete: "off",
+        validate: function (value) { return mcpOauthScopesError(value.split(/\s+/).filter(Boolean)); },
+      }
+    ));
+
+    container.appendChild(mcpConnectionRow(
+      "Client ID", "Leave blank to use RFC 7591 dynamic client registration",
+      draft.client_id,
+      function (next) { draft.client_id = next; onChange(); },
+      { maxLength: MCP_AUTH_CLIENT_FIELD_MAX_LENGTH, autocomplete: "off" }
+    ));
+
+    var secretInput = el("input", {
+      type: "password",
+      className: "mcp-text",
+      autocomplete: "new-password",
+      placeholder: clientSecretSet ? "Set — leave blank to keep" : "No client secret",
+      maxLength: MCP_AUTH_CLIENT_FIELD_MAX_LENGTH,
+    });
+    secretInput.value = draft.client_secret;
+    secretInput.disabled = draft.clearSecret;
+    secretInput.addEventListener("input", function () {
+      draft.client_secret = secretInput.value;
+      onChange();
+    });
+    var secretControls = [secretInput];
+    if (clientSecretSet) {
+      var clearId = "mcp-oauth-clear-secret-" + (mcpHintIdSeq += 1);
+      var clearCheckbox = el("input", { type: "checkbox", id: clearId });
+      clearCheckbox.checked = draft.clearSecret;
+      clearCheckbox.addEventListener("change", function () {
+        draft.clearSecret = clearCheckbox.checked;
+        secretInput.disabled = draft.clearSecret;
+        if (draft.clearSecret) { draft.client_secret = ""; secretInput.value = ""; }
+        onChange();
+      });
+      secretControls.push(el("label", { className: "mcp-auth-clear-secret", htmlFor: clearId },
+        clearCheckbox, "Remove stored secret"
+      ));
+    }
+    container.appendChild(el("div", { className: "mcp-setting-row mcp-connection-row" },
+      mcpSettingCopy("Client secret", "Confidential clients only; omit for a public/PKCE client"),
+      el("span", { className: "mcp-setting-control mcp-oauth-secret-control" }, secretControls)
+    ));
+
+    container.appendChild(mcpConnectionRow(
+      "Redirect port", "Local loopback port `orbit mcp login` listens on for the OAuth callback",
+      draft.redirect_port,
+      // Kept as the raw string the admin typed, not a parsed-and-clamped
+      // number — substituting a different port than what's displayed would
+      // make the saved config and the next `orbit mcp login` disagree on
+      // which callback port to use. An out-of-range/non-numeric value is
+      // instead surfaced by `validate` below and must be fixed before
+      // create/save will submit it (see mcpOauthDraftError at the call
+      // sites).
+      function (next) { draft.redirect_port = next; onChange(); },
+      { maxLength: 5, autocomplete: "off", validate: mcpOauthRedirectPortError }
+    ));
+
+    container.appendChild(el("p", { className: "mcp-oauth-notice mcp-oauth-notice--warning" },
+      "Saving does not log in. Run ", el("code", null, "orbit mcp login <name>"),
+      " from the CLI afterwards to complete the OAuth handshake."
+    ));
+
+    return container;
+  }
+
+  // Builds the `auth` object to send to the API from an oauth draft (shared
+  // by create and edit). `includeType` is always true — kept as a parameter
+  // only for readability at call sites that assemble a whole `connection`.
+  function mcpBuildOauthPayload(draft) {
+    // Callers must check mcpOauthDraftError(draft) first — this assumes
+    // draft.redirect_port has already been validated as 1-65535.
+    var auth = { type: "oauth2", redirect_port: parseInt(draft.redirect_port, 10) };
+    if (draft.scopes.length) auth.scopes = draft.scopes;
+    if (draft.client_id) auth.client_id = draft.client_id;
+    // Omitting client_secret entirely means "preserve the stored value" on
+    // update (see the secret contract) — only send it when the admin typed
+    // a new one or explicitly asked to remove it.
+    if (draft.clearSecret) auth.client_secret = null;
+    else if (draft.client_secret) auth.client_secret = draft.client_secret;
+    return auth;
   }
 
   // Ad-hoc connectivity check for whatever URL/headers are currently typed

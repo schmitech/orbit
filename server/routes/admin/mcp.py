@@ -519,7 +519,7 @@ async def _compute_oauth_status(
     entry: dict[str, Any], resolved_entry: Optional[dict[str, Any]] = None
 ) -> Optional[dict[str, Any]]:
     """`oauth_status`/`last_error` for one oauth2-configured server — see
-    docs/roadmap/mcp-oauth-admin-panel.md's "Two separate status fields".
+    docs/roadmap/complete/mcp-oauth-admin-panel.md's "Two separate status fields".
     Returns None for a server with no `auth: {type: oauth2}` block (not an
     OAuth server; CLI/panel both call this `not_configured`).
 
