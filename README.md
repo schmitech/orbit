@@ -145,8 +145,8 @@ See the [Docker guide](docker/README.md#flavor-images-recommended-pull-and-run) 
 **Prerequisites:** Python 3.12+, an internet connection for downloads, and [Ollama](https://ollama.com/) installed and running. If needed, run `ollama serve` in a separate terminal. On Windows, follow the [installation guide](install/windows.md).
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.18.4/orbit-2.18.4.tar.gz
-tar -xzf orbit-2.18.4.tar.gz && cd orbit-2.18.4
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.18.5/orbit-2.18.5.tar.gz
+tar -xzf orbit-2.18.5.tar.gz && cd orbit-2.18.5
 ./install/setup.sh --profile default
 
 ollama pull gemma4:e2b
