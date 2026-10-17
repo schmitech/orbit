@@ -5,26 +5,16 @@
 
   # ORBIT
 
-  **The self-hosted AI backend for private data and tool-using agents.**
+  **Open Retrieval-Based Inference Toolkit**
 
-  Connect your data and tools to local or hosted models through one OpenAI-compatible API.
-  Configure with YAML. Deploy on your own infrastructure.
-
-  <p>
-    <a href="https://orbit.schmitech.ca/?utm_source=github&utm_medium=readme&utm_campaign=try_orbit&utm_content=hero">
-      <img src="https://img.shields.io/badge/Try_ORBIT_Sandbox-Open_live_demo_%E2%86%92-2563eb?style=for-the-badge" alt="Try ORBIT Sandbox →" />
-    </a>
-    <br />
-    <sub>Explore interactive demos in your browser. No installation or account required.</sub>
-  </p>
+  Connect your data and tools to local or hosted models through one API.
+  Deploy on your own infrastructure.
 
   <p>
     <a href="#quick-start">Quick start</a>
     &nbsp;·&nbsp;
     <a href="docs/">Documentation</a>
   </p>
-
-  <p>⭐ Building with private data or AI agents? <strong>Star ORBIT</strong> to bookmark it and help others discover it.</p>
 </div>
 
 <p align="center">
@@ -41,13 +31,11 @@
 
 ## Why ORBIT
 
-Build a chat app over private documents, an agent that calls your tools, or a triage workflow—with the same backend.
-
 | | What you get |
 | :--- | :--- |
 | **Your data, connected** | Files, SQL, NoSQL, vector stores, APIs, and MCP tools through YAML-configured adapters. |
 | **Your choice of models** | Switch between local and hosted providers behind one OpenAI-compatible API. |
-| **Your infrastructure** | Self-host on-premises or in a private cloud; use local models for air-gapped deployments. |
+| **Your infrastructure** | Self-host on-premises or in a private cloud, use local models for air-gapped deployments. |
 | **Operations built in** | Authentication, quotas, audit logs, provider fallbacks, monitoring, and an admin UI. |
 
 Explore the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) for a detailed comparison.
@@ -258,4 +246,4 @@ Maintained by [Remsy Schmilinsky](https://www.linkedin.com/in/remsy/).
 
 ## License
 
-ORBIT (Open Retrieval-Based Inference Toolkit) is licensed under the [Apache License 2.0](LICENSE).
+ORBIT is licensed under the [Apache License 2.0](LICENSE).
