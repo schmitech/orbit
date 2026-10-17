@@ -1108,6 +1108,381 @@ class TestDeleteMcpServer:
         assert all(server["name"] != "stdio-server" for server in written["mcp_clients"]["servers"])
 
 
+OAUTH_MCP_YAML = """mcp_clients:
+  enabled: true
+  tool_timeout: 30
+
+  servers:
+    - name: "oauth-server"
+      transport: "http"
+      url: "https://example.com/oauth-mcp"
+      auth:
+        type: "oauth2"
+        scopes: ["read"]
+        client_id: "cid"
+        client_secret: "shh"
+      enabled: true
+"""
+
+
+def _write_oauth_config(tmp_path: Path) -> Path:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("import:\n  - mcp_clients.yaml\n", encoding="utf-8")
+    (tmp_path / "mcp_clients.yaml").write_text(OAUTH_MCP_YAML, encoding="utf-8")
+    return config_path
+
+
+class TestMcpAuthSecretContract:
+    @pytest.mark.asyncio
+    async def test_list_uses_managers_resolved_config_for_fingerprinting(self, tmp_path):
+        # The live manager's _server_configs holds the already env/secrets-
+        # expanded auth.client_id (built via reload_adapters_config) —
+        # list_mcp_servers must use that, not a raw re-expansion of the YAML
+        # entry, so a ${VAR:-default} or secrets-backed client_id agrees
+        # with what the manager actually dialed with.
+        config_path = _write_oauth_config(tmp_path)
+        config = {"mcp_clients": yaml.safe_load(OAUTH_MCP_YAML)["mcp_clients"]}
+        # Simulate the manager having resolved client_id differently than the
+        # raw YAML (e.g. via a secrets backend) by overriding its live config.
+        request = _fake_request(config_path, config=config)
+        manager = mcp_client_service.get_mcp_client_manager(config)
+        manager._server_configs["oauth-server"]["auth"] = {
+            **manager._server_configs["oauth-server"]["auth"], "client_id": "resolved-from-manager",
+        }
+
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+        from mcp.shared.auth import OAuthToken
+
+        expected_fingerprint = compute_fingerprint(
+            "https://example.com/oauth-mcp", "resolved-from-manager", ["read"], 8765,
+        )
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path / "oauth_state"):
+            await FileTokenStorage("oauth-server", fingerprint=expected_fingerprint).set_tokens(
+                OAuthToken(access_token="a")
+            )
+            result = await admin_routes.list_mcp_servers(request)
+
+        oauth = next(s for s in result["servers"] if s["name"] == "oauth-server")["oauth"]
+        assert oauth == {"oauth_status": "ready", "last_error": None}
+
+    @pytest.mark.asyncio
+    async def test_list_redacts_client_secret(self, tmp_path):
+        config_path = _write_oauth_config(tmp_path)
+        request = _fake_request(config_path)
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path / "oauth_state"):
+            result = await admin_routes.list_mcp_servers(request)
+
+        auth = next(s for s in result["servers"] if s["name"] == "oauth-server")["connection"]["auth"]
+        assert "client_secret" not in auth
+        assert auth["client_secret_set"] is True
+
+    @pytest.mark.asyncio
+    async def test_create_response_redacts_client_secret(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_temp_config(tmp_path)
+        request = _fake_request(config_path)
+        with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+            with patch.object(mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])):
+                result = await admin_routes.create_mcp_server(
+                    request,
+                    {
+                        "name": "new-oauth",
+                        "transport": "http",
+                        "connection": {
+                            "url": "https://example.com/mcp",
+                            "auth": {"type": "oauth2", "scopes": ["read"], "client_secret": "shh"},
+                        },
+                    },
+                )
+
+        assert "client_secret" not in result["server"]["auth"]
+        assert result["server"]["auth"]["client_secret_set"] is True
+
+    @pytest.mark.asyncio
+    async def test_update_omitting_client_secret_preserves_it(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_oauth_config(tmp_path)
+        request = _fake_request(config_path)
+        with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+            with patch.object(mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])):
+                result = await admin_routes.update_mcp_server(
+                    "oauth-server",
+                    request,
+                    {"connection": {"auth": {"type": "oauth2", "scopes": ["read", "write"]}}},
+                )
+
+        assert result["reload_error"] is None
+        written = yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())
+        entry = next(s for s in written["mcp_clients"]["servers"] if s["name"] == "oauth-server")
+        assert entry["auth"]["client_secret"] == "shh"
+        assert entry["auth"]["scopes"] == ["read", "write"]
+
+    @pytest.mark.asyncio
+    async def test_update_explicit_null_client_secret_removes_it(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_oauth_config(tmp_path)
+        request = _fake_request(config_path)
+        with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+            with patch.object(mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])):
+                result = await admin_routes.update_mcp_server(
+                    "oauth-server",
+                    request,
+                    {"connection": {"auth": {"type": "oauth2", "scopes": ["read"], "client_secret": None}}},
+                )
+
+        assert result["reload_error"] is None
+        written = yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())
+        entry = next(s for s in written["mcp_clients"]["servers"] if s["name"] == "oauth-server")
+        assert "client_secret" not in entry["auth"]
+
+    @pytest.mark.asyncio
+    async def test_switching_away_from_oauth_deletes_token_file(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_oauth_config(tmp_path)
+        request = _fake_request(config_path)
+        state_dir = tmp_path / "oauth_state"
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", state_dir):
+            from services.mcp_oauth_token_storage import FileTokenStorage
+            from mcp.shared.auth import OAuthToken
+
+            storage = FileTokenStorage("oauth-server")
+            await storage.set_tokens(OAuthToken(access_token="a"))
+            assert storage.path.exists()
+
+            with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+                with patch.object(
+                    mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])
+                ):
+                    result = await admin_routes.update_mcp_server(
+                        "oauth-server",
+                        request,
+                        {"connection": {"auth": None, "headers": {"Authorization": "Bearer x"}}},
+                    )
+
+        assert result["reload_error"] is None
+        assert not storage.path.exists()
+
+    @pytest.mark.asyncio
+    async def test_deleting_server_deletes_its_token_file(self, tmp_path):
+        def _fake_reload(_config_path):
+            return {"mcp_clients": yaml.safe_load((tmp_path / "mcp_clients.yaml").read_text())["mcp_clients"]}
+
+        config_path = _write_oauth_config(tmp_path)
+        request = _fake_request(config_path)
+        state_dir = tmp_path / "oauth_state"
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", state_dir):
+            from services.mcp_oauth_token_storage import FileTokenStorage
+            from mcp.shared.auth import OAuthToken
+
+            storage = FileTokenStorage("oauth-server")
+            await storage.set_tokens(OAuthToken(access_token="a"))
+            assert storage.path.exists()
+
+            with patch.object(admin_routes, "reload_adapters_config", side_effect=_fake_reload):
+                with patch.object(
+                    mcp_client_service.MCPClientManager, "_list_tools_on_server", new=AsyncMock(return_value=[])
+                ):
+                    result = await admin_routes.delete_mcp_server("oauth-server", request)
+
+        assert result["reload_error"] is None
+        assert not storage.path.exists()
+
+
+class TestComputeOauthStatus:
+    @pytest.mark.asyncio
+    async def test_not_logged_in_with_no_token_file(self, tmp_path):
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            result = await admin_routes._compute_oauth_status(
+                {"name": "s", "url": "https://x.example/mcp", "auth": {"type": "oauth2"}}
+            )
+        assert result == {"oauth_status": "not_logged_in", "last_error": None}
+
+    @pytest.mark.asyncio
+    async def test_ready_with_a_valid_token(self, tmp_path):
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+        from mcp.shared.auth import OAuthToken
+
+        entry = {"name": "s", "url": "https://x.example/mcp", "auth": {"type": "oauth2"}}
+        fp = compute_fingerprint(entry["url"], None, [], 8765)
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            await FileTokenStorage("s", fingerprint=fp).set_tokens(OAuthToken(access_token="a"))
+            result = await admin_routes._compute_oauth_status(entry)
+        assert result == {"oauth_status": "ready", "last_error": None}
+
+    @pytest.mark.asyncio
+    async def test_needs_relogin_when_last_error_recorded(self, tmp_path):
+        from services.mcp_oauth_token_storage import FileTokenStorage
+
+        entry = {"name": "s", "url": "https://x.example/mcp", "auth": {"type": "oauth2"}}
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            await FileTokenStorage("s").set_last_error("refresh_rejected")
+            result = await admin_routes._compute_oauth_status(entry)
+        assert result["oauth_status"] == "needs_relogin"
+        assert result["last_error"]["code"] == "refresh_rejected"
+
+    @pytest.mark.asyncio
+    async def test_returns_none_for_non_oauth_server(self):
+        assert await admin_routes._compute_oauth_status({"name": "s", "headers": {}}) is None
+
+    @pytest.mark.asyncio
+    async def test_literal_client_id_is_trustworthy_without_a_resolved_entry(self, tmp_path):
+        # A client_id with no ${...} reference is exact straight from the raw
+        # YAML entry — no live manager is needed to trust it, so invalidation
+        # still runs normally here.
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+        from mcp.shared.auth import OAuthToken
+
+        entry = {
+            "name": "s", "url": "https://x.example/mcp",
+            "auth": {"type": "oauth2", "client_id": "literal-client-id"},
+        }
+        fingerprint = compute_fingerprint("https://x.example/mcp", "literal-client-id", [], 8765)
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            await FileTokenStorage("s", fingerprint=fingerprint).set_tokens(OAuthToken(access_token="a"))
+            result = await admin_routes._compute_oauth_status(entry)
+
+        assert result == {"oauth_status": "ready", "last_error": None}
+
+    @pytest.mark.asyncio
+    async def test_env_var_client_id_without_a_resolved_entry_defers_invalidation(self, tmp_path, monkeypatch):
+        # No live manager yet to supply the real resolved client_id, and the
+        # raw client_id references ${VAR:-default}/a secrets backend that a
+        # plain substitution here could get wrong — guessing could compute
+        # the wrong fingerprint and destructively clear a still-valid token.
+        # This must defer invalidation entirely rather than risk that: the
+        # stored token (minted under some other, unknown fingerprint) must
+        # survive untouched, and no last_error may be written.
+        from services.mcp_oauth_token_storage import FileTokenStorage
+        from mcp.shared.auth import OAuthToken
+
+        monkeypatch.setenv("MY_CLIENT_ID", "resolved-client-id")
+        entry = {
+            "name": "s", "url": "https://x.example/mcp",
+            "auth": {"type": "oauth2", "client_id": "${MY_CLIENT_ID}"},
+        }
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            # Written under a completely different (even bogus) fingerprint —
+            # if invalidation ran here with a guessed fingerprint, this would
+            # be destructively cleared.
+            storage = FileTokenStorage("s", fingerprint="some-other-fingerprint")
+            await storage.set_tokens(OAuthToken(access_token="a"))
+
+            result = await admin_routes._compute_oauth_status(entry, resolved_entry=None)
+
+            assert (await FileTokenStorage("s").get_tokens()) is not None
+            assert await FileTokenStorage("s").get_last_error() is None
+
+        assert result == {"oauth_status": "ready", "last_error": None}
+
+    @pytest.mark.asyncio
+    async def test_resolved_entry_client_id_wins_over_raw_expansion(self, tmp_path):
+        # resolved_entry simulates manager._server_configs[name] — the config
+        # MCPClientManager actually built from (via reload_adapters_config,
+        # which also supports ${VAR:-default} and a secrets backend that
+        # plain os.path.expandvars never resolves). When present, it must be
+        # the source of truth for the fingerprint, not the raw YAML entry.
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+        from mcp.shared.auth import OAuthToken
+
+        entry = {
+            "name": "s", "url": "https://x.example/mcp",
+            "auth": {"type": "oauth2", "client_id": "${UNRESOLVABLE_VAR:-fallback-literal}"},
+        }
+        resolved_entry = {"auth": {"client_id": "secrets-backend-resolved-id"}}
+        expected_fingerprint = compute_fingerprint("https://x.example/mcp", "secrets-backend-resolved-id", [], 8765)
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            await FileTokenStorage("s", fingerprint=expected_fingerprint).set_tokens(OAuthToken(access_token="a"))
+            result = await admin_routes._compute_oauth_status(entry, resolved_entry)
+
+        assert result == {"oauth_status": "ready", "last_error": None}
+
+    @pytest.mark.asyncio
+    async def test_unresolved_url_without_a_resolved_entry_defers_invalidation(self, tmp_path):
+        # client_id is literal/absent (trustworthy on its own), but url
+        # itself references ${...} with no resolved_entry to supply the real
+        # value — every fingerprint field must be trustworthy, not just
+        # client_id, or this would still disagree with the live manager.
+        from services.mcp_oauth_token_storage import FileTokenStorage
+        from mcp.shared.auth import OAuthToken
+
+        entry = {"name": "s", "url": "${MCP_URL}", "auth": {"type": "oauth2"}}
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            storage = FileTokenStorage("s", fingerprint="some-other-fingerprint")
+            await storage.set_tokens(OAuthToken(access_token="a"))
+
+            result = await admin_routes._compute_oauth_status(entry, resolved_entry=None)
+
+            assert (await FileTokenStorage("s").get_tokens()) is not None
+            assert await FileTokenStorage("s").get_last_error() is None
+
+        assert result == {"oauth_status": "ready", "last_error": None}
+
+    @pytest.mark.asyncio
+    async def test_unresolved_scopes_without_a_resolved_entry_defers_invalidation(self, tmp_path):
+        from services.mcp_oauth_token_storage import FileTokenStorage
+        from mcp.shared.auth import OAuthToken
+
+        entry = {
+            "name": "s", "url": "https://x.example/mcp",
+            "auth": {"type": "oauth2", "scopes": ["${SCOPE_VAR}"]},
+        }
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            storage = FileTokenStorage("s", fingerprint="some-other-fingerprint")
+            await storage.set_tokens(OAuthToken(access_token="a"))
+
+            result = await admin_routes._compute_oauth_status(entry, resolved_entry=None)
+
+            assert (await FileTokenStorage("s").get_tokens()) is not None
+
+        assert result == {"oauth_status": "ready", "last_error": None}
+
+    @pytest.mark.asyncio
+    async def test_unresolved_redirect_port_without_a_resolved_entry_defers_invalidation(self, tmp_path):
+        from services.mcp_oauth_token_storage import FileTokenStorage
+        from mcp.shared.auth import OAuthToken
+
+        entry = {
+            "name": "s", "url": "https://x.example/mcp",
+            "auth": {"type": "oauth2", "redirect_port": "${REDIRECT_PORT_VAR}"},
+        }
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            storage = FileTokenStorage("s", fingerprint="some-other-fingerprint")
+            await storage.set_tokens(OAuthToken(access_token="a"))
+
+            result = await admin_routes._compute_oauth_status(entry, resolved_entry=None)
+
+            assert (await FileTokenStorage("s").get_tokens()) is not None
+
+        assert result == {"oauth_status": "ready", "last_error": None}
+
+    @pytest.mark.asyncio
+    async def test_resolved_entry_url_wins_over_raw_unresolved_value(self, tmp_path):
+        # resolved_entry must be consulted for url (not just client_id) when
+        # present.
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+        from mcp.shared.auth import OAuthToken
+
+        entry = {"name": "s", "url": "${MCP_URL}", "auth": {"type": "oauth2"}}
+        resolved_entry = {"url": "https://resolved.example/mcp"}
+        expected_fingerprint = compute_fingerprint("https://resolved.example/mcp", None, [], 8765)
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            await FileTokenStorage("s", fingerprint=expected_fingerprint).set_tokens(OAuthToken(access_token="a"))
+            result = await admin_routes._compute_oauth_status(entry, resolved_entry)
+
+        assert result == {"oauth_status": "ready", "last_error": None}
+
+
 class TestSsrfDenylist:
     """The shared SSRF check (Phase 3): same denylist, same helper, applied to
     both the one-off probe (test_mcp_connection) and saved-config writes

@@ -242,26 +242,28 @@ behavior this section actually specifies.
   briefly unreachable for an unrelated reason.
 
 **Tasks:**
-- [ ] Add `compute_fingerprint`, and `last_error`/fingerprint get-set, to
+- [x] Add `compute_fingerprint`, and `last_error`/fingerprint get-set, to
       `FileTokenStorage`; accept `fingerprint` as a constructor argument.
-- [ ] Update `_build_oauth_provider`'s pre-warm to: compute the current
+- [x] Update `_build_oauth_provider`'s pre-warm to: compute the current
       fingerprint, compare against the stored one, and run the
       clear-credentials + `fingerprint_mismatch` path on any mismatch
       (including a missing/legacy fingerprint) before doing anything else.
-- [ ] Update `_create_connection` to: check token existence up front (for
+- [x] Update `_create_connection` to: check token existence up front (for
       classification), record `last_error: refresh_rejected` only in the
       "token existed, matched, still failed" case, and clear `last_error`
       only on a successful `session.initialize()`.
-- [ ] Update `MCPStatusCommand` (CLI) and `MCPLoginCommand` (on successful
+- [x] Update `MCPStatusCommand` (CLI) and `MCPLoginCommand` (on successful
       login: clear `last_error`, write the current fingerprint) to use this
       same logic — the CLI currently only checks token presence and
       displays the token's original `expires_in` at issuance, not current
       validity or any recorded failure.
-- [ ] Extend `list_mcp_servers` to return `oauth_status` (per the state
+- [x] Extend `list_mcp_servers` to return `oauth_status` (per the state
       table above) and `connection_status` (breaker-derived, see "Two
       separate status fields") as two separate fields per OAuth-configured
-      server.
-- [ ] Wire token-file deletion into `DELETE /mcp/servers/{name}` and into
+      server. (Returned as a per-server `connection_status` field plus an
+      `oauth: {oauth_status, last_error}` field, present only for
+      `auth.type == "oauth2"` servers.)
+- [x] Wire token-file deletion into `DELETE /mcp/servers/{name}` and into
       `update_mcp_server` whenever an update changes a server's `auth:`
       block from set to absent/replaced-by-headers (per "Token lifecycle").
 - [ ] Frontend: render `oauth_status` and `connection_status` as separate
@@ -273,7 +275,8 @@ behavior this section actually specifies.
       produces a predictable, noisy failure on every page load.
       `list_mcp_servers` already treats an undiscovered server specially
       (status `None` until first discovered/pinged); extend that gate to
-      cover these two `oauth_status` values explicitly.
+      cover these two `oauth_status` values explicitly. (Backend field is in
+      place; the discovery-warm-up gate itself is not wired up yet.)
 - [ ] Decide whether `needs_relogin` should also surface as a general
       admin-panel notification/badge, not just inline on the MCP servers
       page — check for an existing "needs attention" affordance (adapter/
@@ -325,10 +328,10 @@ not just `list_mcp_servers`):
   any other response path that can echo back a server's `auth:` block.
 
 **Tasks:**
-- [ ] Backend: `_validate_mcp_auth` accepts `client_secret: null` as deletion.
-- [ ] Backend: `update_mcp_server` merges an omitted `client_secret` from the
+- [x] Backend: `_validate_mcp_auth` accepts `client_secret: null` as deletion.
+- [x] Backend: `update_mcp_server` merges an omitted `client_secret` from the
       existing entry before validation/patching.
-- [ ] Backend: redact `client_secret` to `client_secret_set` in every
+- [x] Backend: redact `client_secret` to `client_secret_set` in every
       response that can include a server's `auth:` block (create, update,
       list) — not just `list_mcp_servers`.
 - [ ] Frontend: add an "OAuth 2.0" option alongside the existing

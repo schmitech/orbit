@@ -240,7 +240,7 @@ class MCPLoginCommand(BaseCommand):
         from mcp.client.streamable_http import streamable_http_client
         from mcp.shared._httpx_utils import create_mcp_http_client
         from mcp.shared.auth import AuthorizationCodeResult, OAuthClientMetadata
-        from services.mcp_oauth_token_storage import FileTokenStorage
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
 
         # The caller binds the loopback listener (before opening the
         # browser, and before the SDK calls redirect_handler, which happens
@@ -270,7 +270,15 @@ class MCPLoginCommand(BaseCommand):
             scope=" ".join(scopes) or None,
             client_name="ORBIT",
         )
-        storage = FileTokenStorage(server_name)
+        fingerprint = compute_fingerprint(url, client_id, scopes, port)
+        storage = FileTokenStorage(server_name, fingerprint=fingerprint)
+        # Must run before anything below reads from storage: a stored token
+        # for a different identity (url/client_id/scopes/redirect_port
+        # changed since the last login) must never be handed to the SDK or
+        # to _prime_static_client — both would otherwise send a bearer token
+        # minted for the old configuration to the new endpoint instead of
+        # starting a fresh authorization flow.
+        await storage.check_and_apply_fingerprint()
         provider = OAuthClientProvider(
             server_url=url,
             client_metadata=metadata,
@@ -319,6 +327,12 @@ class MCPLoginCommand(BaseCommand):
         if provider.context.oauth_metadata is not None:
             await storage.set_oauth_metadata(provider.context.oauth_metadata)
 
+        # A successful login clears any previously recorded credential
+        # failure (refresh_rejected/fingerprint_mismatch) and, via
+        # set_tokens above, already stamped the file with this login's
+        # fingerprint — restoring `ready` on both the CLI and the panel.
+        await storage.clear_last_error()
+
 
 class MCPStatusCommand(BaseCommand):
     """Show whether OAuth-configured MCP servers currently have a stored token."""
@@ -339,7 +353,7 @@ class MCPStatusCommand(BaseCommand):
         parser.add_argument("--config", default="config/mcp_clients.yaml", help="Path to mcp_clients.yaml")
 
     def execute(self, args: argparse.Namespace) -> int:
-        from services.mcp_oauth_token_storage import FileTokenStorage
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
 
         servers = _load_server_config(args.config)
         oauth_servers = [s for s in servers if (s.get("auth") or {}).get("type") == "oauth2"]
@@ -357,23 +371,57 @@ class MCPStatusCommand(BaseCommand):
 
         table = Table(show_header=True, header_style="bold magenta")
         table.add_column("Server")
-        table.add_column("Logged in")
+        table.add_column("Status")
         table.add_column("Expires")
         table.add_column("Client registered")
 
+        _STATUS_DISPLAY = {
+            "ready": "[green]ready[/green]",
+            "not_logged_in": "[yellow]not logged in[/yellow]",
+            "needs_relogin": "[red]needs relogin[/red]",
+        }
+
         for server in oauth_servers:
             name = server.get("name", "")
-            storage = FileTokenStorage(name)
-            tokens, client_info = asyncio.run(self._read_status(storage))
+            auth_cfg = server.get("auth") or {}
+            url = server.get("url", "")
+            # _load_server_config is a raw yaml.safe_load with no ${VAR}
+            # substitution (unlike the server's own config loading) — expand
+            # client_id here too, or the fingerprint computed here would
+            # differ from the one MCPClientManager computes server-side.
+            client_id = auth_cfg.get("client_id")
+            if client_id:
+                client_id = os.path.expandvars(str(client_id))
+            fingerprint = compute_fingerprint(
+                url, client_id, auth_cfg.get("scopes") or [],
+                auth_cfg.get("redirect_port", 8765),
+            )
+            storage = FileTokenStorage(name, fingerprint=fingerprint)
+            # Mirrors _build_oauth_provider's pre-warm: a stored token for a
+            # different identity (config changed, or a legacy pre-fingerprint
+            # file) must be invalidated here too, so `mcp status` agrees with
+            # the admin panel's oauth_status for the same server.
+            asyncio.run(storage.check_and_apply_fingerprint())
+            tokens, client_info, last_error = asyncio.run(self._read_status(storage))
+
+            if last_error is not None:
+                oauth_status = "needs_relogin"
+            elif tokens is not None:
+                oauth_status = "ready"
+            else:
+                oauth_status = "not_logged_in"
+
+            expires_display = "-"
             if tokens is not None:
                 expires_display = f"{tokens.expires_in}s from last refresh" if tokens.expires_in else "unknown"
-                table.add_row(name, "[green]yes[/green]", expires_display, "yes" if client_info else "no")
-            else:
-                table.add_row(name, "[red]no[/red]", "-", "yes" if client_info else "no")
+
+            table.add_row(
+                name, _STATUS_DISPLAY[oauth_status], expires_display, "yes" if client_info else "no",
+            )
 
         console.print(table)
         return 0
 
     @staticmethod
     async def _read_status(storage):
-        return await storage.get_tokens(), await storage.get_client_info()
+        return await storage.get_tokens(), await storage.get_client_info(), await storage.get_last_error()

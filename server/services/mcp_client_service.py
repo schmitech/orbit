@@ -625,6 +625,17 @@ class MCPClientManager:
         server_name = server_config.get("name", "")
         transport = server_config.get("transport", "stdio")
         stack = AsyncExitStack()
+        oauth_storage = None
+        oauth_had_valid_token = False
+        # Tracks whether this connection attempt actually saw the server
+        # issue a 401 — i.e. the endpoint demonstrably checks credentials
+        # (as opposed to one that accepts `initialize`/`tools/list`
+        # unauthenticated regardless of what's sent, per the CLI login
+        # flow's own note on this). Only this positive signal can confirm a
+        # previously recorded refresh_rejected is now resolved; a bare
+        # successful handshake against an endpoint that never challenges the
+        # request proves nothing about the credential itself.
+        oauth_401_observed = {"value": False}
         try:
             if transport == "stdio":
                 from mcp.client.stdio import stdio_client, StdioServerParameters
@@ -652,7 +663,13 @@ class MCPClientManager:
                 headers = self._expand_headers(server_config)
                 # MCP Streamable HTTP requires both JSON and SSE content types.
                 headers.setdefault("Accept", "application/json, text/event-stream")
-                auth_provider = await self._build_oauth_provider(server_name, server_config, url)
+                oauth_result = await self._build_oauth_provider(server_name, server_config, url)
+                auth_provider = None
+                oauth_access_token_before: Optional[str] = None
+                if oauth_result is not None:
+                    auth_provider, oauth_storage, oauth_had_valid_token = oauth_result
+                    if auth_provider.context.current_tokens is not None:
+                        oauth_access_token_before = auth_provider.context.current_tokens.access_token
                 # Use create_mcp_http_client so the client inherits MCP defaults:
                 # follow_redirects=True, 30s general timeout, 300s SSE read timeout.
                 http_client = await stack.enter_async_context(
@@ -662,11 +679,28 @@ class MCPClientManager:
                 # exchange into a generic error (see the comment in
                 # _discover_server), so attach our own hooks here — this is
                 # the only place the actual request/response is visible.
+                response_hooks = [*http_client.event_hooks.get("response", []), self._log_http_response(server_name)]
+                if oauth_storage is not None:
+                    # Only a 401 from the MCP resource endpoint itself proves
+                    # the server actually checked and rejected our token (and
+                    # that a subsequent success is therefore real proof of a
+                    # fix). OAuthClientProvider.async_auth_flow yields its
+                    # token-refresh and metadata-discovery requests through
+                    # this same httpx client too — a 401 from the token
+                    # endpoint (a failed refresh) must not count, or a failed
+                    # refresh followed by an endpoint that allows anonymous
+                    # `initialize` would be wrongly treated as proof the
+                    # credential now works.
+                    _resource_url = url.rstrip("/")
+
+                    async def _observe_oauth_401(response, _flag=oauth_401_observed, _resource_url=_resource_url) -> None:
+                        if response.status_code == 401 and str(response.request.url).rstrip("/") == _resource_url:
+                            _flag["value"] = True
+                    response_hooks.append(_observe_oauth_401)
                 http_client.event_hooks = {
                     "request": [*http_client.event_hooks.get("request", []),
                                 self._log_http_request(server_name)],
-                    "response": [*http_client.event_hooks.get("response", []),
-                                 self._log_http_response(server_name)],
+                    "response": response_hooks,
                 }
                 # MCP 1.x yielded (read, write, get_session_id); MCP 2.x
                 # standardizes every transport on the (read, write) pair.
@@ -697,6 +731,15 @@ class MCPClientManager:
                 # see _build_oauth_provider. streamable_http_client runs
                 # requests inside an anyio task group, so this can arrive
                 # wrapped in a BaseExceptionGroup rather than directly.
+                if oauth_storage is not None and oauth_had_valid_token:
+                    # A token existed and matched the current fingerprint
+                    # (otherwise _build_oauth_provider's pre-warm would
+                    # already have cleared it and recorded
+                    # fingerprint_mismatch) but the connection attempt still
+                    # failed for an OAuth reason — the refresh token was
+                    # rejected/revoked. A "no token at all" failure (first
+                    # login never run) is not recorded as an error.
+                    await oauth_storage.set_last_error("refresh_rejected")
                 logger.warning(
                     "MCP server '%s': OAuth login required or refresh failed "
                     "(%s) — run: ./bin/orbit.sh mcp login %s",
@@ -708,7 +751,65 @@ class MCPClientManager:
                 ) from exc
             raise
 
+        if oauth_storage is not None and oauth_had_valid_token:
+            # Only a completed handshake against a token that actually
+            # existed and matched the current fingerprint proves that
+            # credential still works — never clear last_error from the
+            # pre-warm path alone, and not just because the handshake
+            # happened to succeed (some OAuth-configured MCP endpoints allow
+            # an unauthenticated `initialize`, so a successful connection
+            # with no valid/matching token on hand proves nothing about
+            # credentials and must not erase a recorded fingerprint_mismatch
+            # or refresh_rejected).
+            previous_error = await oauth_storage.get_last_error()
+            # See _should_clear_oauth_last_error for exactly what counts as
+            # proof when previous_error is refresh_rejected specifically.
+            oauth_access_token_after = (
+                auth_provider.context.current_tokens.access_token
+                if oauth_result is not None and auth_provider.context.current_tokens is not None
+                else None
+            )
+            # A failed refresh calls context.clear_tokens(), so the access
+            # token also "changes" (to None) on that path — require the new
+            # token to be a real, present value, not just different from
+            # before, or a failed refresh followed by an endpoint that
+            # accepts anonymous `initialize` would be misread as proof.
+            token_was_refreshed = (
+                oauth_access_token_after is not None and oauth_access_token_after != oauth_access_token_before
+            )
+            if self._should_clear_oauth_last_error(
+                previous_error, observed_401=oauth_401_observed["value"], token_was_refreshed=token_was_refreshed,
+            ):
+                await oauth_storage.clear_last_error()
+
         return MCPConnection(session=session, stack=stack)
+
+    @staticmethod
+    def _should_clear_oauth_last_error(
+        previous_error: Optional[dict[str, Any]], *, observed_401: bool, token_was_refreshed: bool,
+    ) -> bool:
+        """Whether a successful handshake (with a token that existed and
+        matched the current fingerprint) is enough to clear `previous_error`.
+
+        `refresh_rejected` specifically means "the server previously
+        rejected this exact credential" — clearing it needs positive proof
+        the server actually checked and accepted credentials this time, not
+        just a silent 200 that an endpoint accepting unauthenticated
+        requests would produce regardless (per the CLI login flow's own
+        note that initialize/tools-list don't require auth on every
+        provider). Either of two signals counts as proof: the server issued
+        a 401 that this attempt recovered from (`observed_401`), or the
+        access token actually changed (`token_was_refreshed` — a refresh
+        round-trip to the authorization server succeeded; it would only
+        ever reject, not silently no-op). `fingerprint_mismatch`/None don't
+        need this stronger bar: a fingerprint mismatch already implies no
+        token survived to reach this call at all (the caller only invokes
+        this when a valid, matching token existed), and no recorded error
+        needs no proof to stay cleared.
+        """
+        if previous_error is None or previous_error.get("code") != "refresh_rejected":
+            return True
+        return observed_401 or token_was_refreshed
 
     @asynccontextmanager
     async def _open_session(self, server_config: dict[str, Any]):
@@ -899,7 +1000,11 @@ class MCPClientManager:
         from mcp.client.auth import OAuthClientProvider
         from mcp.shared.auth import OAuthClientMetadata
 
-        from services.mcp_oauth_token_storage import FileTokenStorage, build_static_client_info
+        from services.mcp_oauth_token_storage import (
+            FileTokenStorage,
+            build_static_client_info,
+            compute_fingerprint,
+        )
 
         redirect_port = auth_cfg.get("redirect_port", 8765)
         scopes = auth_cfg.get("scopes") or []
@@ -911,7 +1016,13 @@ class MCPClientManager:
             scope=" ".join(scopes) or None,
             client_name="ORBIT",
         )
-        storage = FileTokenStorage(server_name)
+        client_id = auth_cfg.get("client_id")
+        fingerprint = compute_fingerprint(url, client_id, scopes, redirect_port)
+        storage = FileTokenStorage(server_name, fingerprint=fingerprint)
+        # Must run before any of the pre-warm reads below: a stored token
+        # for a different identity (config changed, or a legacy
+        # pre-fingerprint file) must never be loaded into the provider.
+        await storage.check_and_apply_fingerprint()
         provider = OAuthClientProvider(
             server_url=url,
             client_metadata=metadata,
@@ -934,7 +1045,6 @@ class MCPClientManager:
         # Setting _initialized = True unconditionally (even with no token
         # yet) makes this pre-warm authoritative and skips _initialize()
         # entirely, in both cases.
-        client_id = auth_cfg.get("client_id")
         if client_id:
             provider.context.client_info = build_static_client_info(
                 client_id, auth_cfg.get("client_secret"), redirect_uris, metadata.scope,
@@ -954,7 +1064,8 @@ class MCPClientManager:
         provider.context.oauth_metadata = await storage.get_oauth_metadata()
         provider._initialized = True
 
-        return provider
+        had_valid_token = provider.context.current_tokens is not None
+        return provider, storage, had_valid_token
 
     @staticmethod
     def _extract_text_content(content_list) -> str:

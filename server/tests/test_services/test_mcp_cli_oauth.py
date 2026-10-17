@@ -108,6 +108,66 @@ class TestPrimeStaticClient:
         assert provider.context.current_tokens.access_token == "a"
 
 
+class TestLoginChecksFingerprintBeforeLoadingCredentials:
+    """If the server's url/client_id/scopes/redirect_port changed since the
+    last login, `mcp login` must invalidate the old token file before the
+    SDK (or _prime_static_client) can read it — otherwise a bearer token
+    minted for the previous configuration could be sent to the new endpoint
+    instead of starting a fresh authorization flow."""
+
+    @pytest.mark.asyncio
+    async def test_mismatched_token_is_cleared_before_the_session_is_built(self, tmp_path, monkeypatch):
+        from contextlib import asynccontextmanager
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from mcp.shared.auth import OAuthToken
+
+        from services.mcp_oauth_token_storage import compute_fingerprint
+
+        server_name = "google-drive"
+        url = "https://drivemcp.googleapis.com/mcp/v1"
+        old_fingerprint = compute_fingerprint(url, None, [], 8765)
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            await FileTokenStorage(server_name, fingerprint=old_fingerprint).set_tokens(
+                OAuthToken(access_token="stale", refresh_token="stale-r", expires_in=3600)
+            )
+
+            captured = {}
+
+            @asynccontextmanager
+            async def fake_create_mcp_http_client(headers=None, auth=None, **kwargs):
+                # The provider's context must already have no stale token by
+                # the time the HTTP client (and thus any real request) is
+                # built — this is the earliest point the SDK could leak it.
+                captured["current_tokens"] = auth.context.current_tokens
+                yield MagicMock()
+
+            @asynccontextmanager
+            async def fake_streamable_http_client(url, http_client=None):
+                yield MagicMock(), MagicMock()
+
+            @asynccontextmanager
+            async def fake_client_session(read, write):
+                session = MagicMock()
+                session.initialize = AsyncMock()
+                session.list_tools = AsyncMock(return_value=MagicMock(tools=[]))
+                yield session
+
+            cmd = mcp_cli.MCPLoginCommand(__import__(
+                "bin.orbit.utils.output", fromlist=["OutputFormatter"]
+            ).OutputFormatter())
+
+            with patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
+                 patch("mcp.client.streamable_http.streamable_http_client", fake_streamable_http_client), \
+                 patch("mcp.client.session.ClientSession", fake_client_session), \
+                 pytest.raises(RuntimeError, match="No token was issued"):
+                # A different client_id than old_fingerprint used — simulates
+                # the config having changed since the stale token was stored.
+                await cmd._login(server_name, url, [], 8765, client_id="new-client-id", client_secret=None)
+
+        assert captured["current_tokens"] is None
+
+
 class TestLoadServerConfigExpandsAuthEnvVars:
     def _write_config(self, tmp_path):
         config_path = tmp_path / "mcp_clients.yaml"

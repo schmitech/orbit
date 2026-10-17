@@ -9,7 +9,9 @@ running server's connection pool (which reads it) — see
 docs: `bin/orbit/commands/mcp.py`, `services/mcp_client_service.py`.
 """
 
+import hashlib
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -18,7 +20,29 @@ import mcp.client.auth.oauth2 as _oauth2
 from mcp.client.auth.oauth2 import TokenStorage as _TokenStorageProtocol  # noqa: F401
 from mcp.shared.auth import OAuthClientInformationFull, OAuthMetadata, OAuthToken
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_STATE_DIR = Path.home() / ".orbit" / "mcp_oauth"
+
+# Bump when the fingerprint payload shape changes; a version mismatch is
+# itself treated as "no match" by compute_fingerprint's caller, since the
+# stored hex digest simply won't equal a newly computed one.
+_FINGERPRINT_VERSION = 1
+
+
+def compute_fingerprint(url: str, client_id: str | None, scopes: list[str], redirect_port: int) -> str:
+    """Canonical, versioned fingerprint of the identity a stored token/client
+    registration is valid for — see docs/roadmap/mcp-oauth-admin-panel.md's
+    "Token lifecycle" section for why each field is included."""
+    payload = {
+        "v": _FINGERPRINT_VERSION,
+        "url": url,
+        "client_id": client_id or "",
+        "scopes": sorted(scopes),
+        "redirect_port": redirect_port,
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 # Google's real-world discovery document issues a bare-origin issuer
 # ("https://accounts.google.com", no trailing slash), but the SDK derives
@@ -80,10 +104,16 @@ _oauth2.OAuthContext.prepare_token_auth = _prepare_token_auth_no_duplicate_clien
 class FileTokenStorage:
     """Persists OAuth tokens and client registration info for one MCP server."""
 
-    def __init__(self, server_name: str, state_dir: Path | None = None):
+    def __init__(self, server_name: str, state_dir: Path | None = None, fingerprint: str | None = None):
         self._server_name = server_name
         self._state_dir = state_dir or DEFAULT_STATE_DIR
         self._path = self._state_dir / f"{server_name}.json"
+        # The identity (url/client_id/scopes/redirect_port) the caller's
+        # *current* config computes to — see compute_fingerprint. Passed in
+        # by both _build_oauth_provider and MCPLoginCommand so set_tokens/
+        # set_client_info can stamp the file with it, and
+        # check_and_apply_fingerprint can compare it against what's stored.
+        self._fingerprint = fingerprint
 
     @property
     def path(self) -> Path:
@@ -127,6 +157,8 @@ class FileTokenStorage:
         data = self._read()
         data["tokens"] = tokens.model_dump(mode="json")
         data["expires_at"] = time.time() + tokens.expires_in if tokens.expires_in is not None else None
+        if self._fingerprint is not None:
+            data["fingerprint"] = self._fingerprint
         self._write(data)
 
     async def get_client_info(self) -> OAuthClientInformationFull | None:
@@ -136,7 +168,80 @@ class FileTokenStorage:
     async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
         data = self._read()
         data["client_info"] = client_info.model_dump(mode="json")
+        if self._fingerprint is not None:
+            data["fingerprint"] = self._fingerprint
         self._write(data)
+
+    async def get_fingerprint(self) -> str | None:
+        return self._read().get("fingerprint")
+
+    async def get_last_error(self) -> dict | None:
+        """Bounded `{code, at}` record of the last credential failure, or
+        None. Never holds a raw exception message — see
+        docs/roadmap/mcp-oauth-admin-panel.md's "last_error" section."""
+        return self._read().get("last_error")
+
+    async def set_last_error(self, code: str) -> None:
+        data = self._read()
+        data["last_error"] = {"code": code, "at": time.time()}
+        self._write(data)
+
+    async def clear_last_error(self) -> None:
+        """Called only after a real successful connection — never from the
+        pre-warm path, which proves nothing about whether a loaded token
+        still works."""
+        data = self._read()
+        if "last_error" in data:
+            del data["last_error"]
+            self._write(data)
+
+    async def clear_credentials(self) -> None:
+        """Remove token/client_info fields but keep the file (and whatever
+        `last_error` is written alongside this) — used when a stored
+        credential no longer matches the current fingerprint."""
+        data = self._read()
+        data.pop("tokens", None)
+        data.pop("expires_at", None)
+        data.pop("client_info", None)
+        self._write(data)
+
+    async def check_and_apply_fingerprint(self) -> None:
+        """Call once per load (pre-warm, `mcp login`, `mcp status`) before
+        trusting any stored token. Compares the fingerprint this instance
+        was constructed with (the server's *current* config) against what's
+        stored. A mismatch — including a legacy file with no fingerprint at
+        all — means the stored credential was minted for a different
+        identity and must not be used: clear it and record
+        `last_error: fingerprint_mismatch`, but never delete the file.
+        A no-op if this instance wasn't given a fingerprint to check.
+        """
+        if self._fingerprint is None:
+            return
+        data = self._read()
+        stored = data.get("fingerprint")
+        if stored == self._fingerprint:
+            return
+        if "tokens" not in data and "client_info" not in data:
+            # Nothing stored to invalidate — a server that's never been
+            # logged into (or whose credentials were already cleared by an
+            # earlier mismatch) isn't a *new* mismatch just because it also
+            # has no fingerprint on file.
+            return
+        if stored is None:
+            logger.warning(
+                "MCP server '%s': pre-fingerprint OAuth token file found — treating as a "
+                "credential mismatch (one-time migration), clearing stored credentials",
+                self._server_name,
+            )
+        else:
+            logger.warning(
+                "MCP server '%s': stored OAuth credentials no longer match the server's "
+                "current config (url/client_id/scopes/redirect_port changed) — clearing "
+                "stored credentials, login required",
+                self._server_name,
+            )
+        await self.clear_credentials()
+        await self.set_last_error("fingerprint_mismatch")
 
     async def get_oauth_metadata(self) -> OAuthMetadata | None:
         """The discovered authorization-server metadata (RFC 8414), notably

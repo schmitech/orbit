@@ -382,15 +382,39 @@ def _validate_mcp_auth(auth: Any) -> None:
         for scope in scopes:
             if not isinstance(scope, str) or not scope or len(scope) > _MCP_AUTH_SCOPE_MAX_LENGTH:
                 raise HTTPException(status_code=422, detail="'auth.scopes' entries must be non-empty strings")
-    for key in ("client_id", "client_secret"):
-        if key in auth:
-            value = auth[key]
-            if not isinstance(value, str) or not value or len(value) > _MCP_AUTH_CLIENT_FIELD_MAX_LENGTH:
-                raise HTTPException(status_code=422, detail=f"'auth.{key}' must be a non-empty string")
+    if "client_id" in auth:
+        value = auth["client_id"]
+        if not isinstance(value, str) or not value or len(value) > _MCP_AUTH_CLIENT_FIELD_MAX_LENGTH:
+            raise HTTPException(status_code=422, detail="'auth.client_id' must be a non-empty string")
+    if "client_secret" in auth:
+        # None is the explicit "remove the stored secret" signal (update_mcp_server
+        # merges an omitted client_secret in before this ever runs) — distinct
+        # from the key being absent, which means "no change requested."
+        value = auth["client_secret"]
+        if value is not None and (
+            not isinstance(value, str) or not value or len(value) > _MCP_AUTH_CLIENT_FIELD_MAX_LENGTH
+        ):
+            raise HTTPException(
+                status_code=422, detail="'auth.client_secret' must be a non-empty string or null"
+            )
     if "redirect_port" in auth:
         port = auth["redirect_port"]
         if isinstance(port, bool) or not isinstance(port, int) or not (1 <= port <= 65535):
             raise HTTPException(status_code=422, detail="'auth.redirect_port' must be an integer between 1 and 65535")
+
+
+def _redact_mcp_auth(auth: Any) -> Optional[dict[str, Any]]:
+    """Replace a literal `client_secret` with `client_secret_set: true/false`
+    in every response that can echo back a server's `auth:` block (create,
+    update, list) — see the roadmap's "Secret contract". `headers:` values
+    have the same raw-value exposure today, noted as a separate, pre-existing
+    gap this doesn't fix.
+    """
+    if not isinstance(auth, dict):
+        return auth
+    redacted = {k: v for k, v in auth.items() if k != "client_secret"}
+    redacted["client_secret_set"] = bool(auth.get("client_secret"))
+    return redacted
 
 
 async def _validate_new_mcp_server(
@@ -491,6 +515,90 @@ async def _validate_mcp_connection(
         )
 
 
+async def _compute_oauth_status(
+    entry: dict[str, Any], resolved_entry: Optional[dict[str, Any]] = None
+) -> Optional[dict[str, Any]]:
+    """`oauth_status`/`last_error` for one oauth2-configured server — see
+    docs/roadmap/mcp-oauth-admin-panel.md's "Two separate status fields".
+    Returns None for a server with no `auth: {type: oauth2}` block (not an
+    OAuth server; CLI/panel both call this `not_configured`).
+
+    `resolved_entry` is the *already env/secrets-expanded* server config the
+    live MCPClientManager itself holds (its `_server_configs[name]`, built
+    from `reload_adapters_config`, which resolves `${VAR}`, `${VAR:-default}`,
+    and a configured secrets backend) — pass it whenever a manager is live,
+    so this agrees exactly with what MCPClientManager._build_oauth_provider
+    computes. `_read_mcp_config`'s raw yaml.safe_load has none of that.
+
+    Every field the fingerprint is built from (url, client_id, scopes,
+    redirect_port) is resolved the same way: take it from `resolved_entry`
+    when available, otherwise fall back to the raw entry only if that raw
+    value contains no unresolved `${...}` reference. A literal/absent value
+    is exact straight from the raw entry and needs no `resolved_entry`.
+    `${VAR:-default}` and a secrets backend can't be reproduced with a
+    plain substitution, so if *any* field still references one and no
+    `resolved_entry` is available (e.g. right after startup, before the
+    warm-up dial brings a manager up), computing a fingerprint here could
+    disagree with what MCPClientManager would compute and destructively
+    clear a still-valid token. In that case this skips fingerprint
+    invalidation entirely and only reports whatever is already recorded on
+    disk, deferring invalidation to the first live connection attempt
+    (which always has the real resolved config) instead.
+
+    Read-only except for that same fingerprint-invalidation pre-warm
+    MCPClientManager itself runs before using a stored token, and only when
+    every field going into the fingerprint is actually known to be correct
+    — so this never clears credentials on a guess.
+    """
+    auth_cfg = entry.get("auth")
+    if not isinstance(auth_cfg, dict) or auth_cfg.get("type") != "oauth2":
+        return None
+
+    from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+
+    def _has_unresolved_reference(value: Any) -> bool:
+        if isinstance(value, str):
+            return "${" in value
+        if isinstance(value, list):
+            return any(_has_unresolved_reference(v) for v in value)
+        return False
+
+    resolved_auth = resolved_entry.get("auth") if isinstance(resolved_entry, dict) else None
+    resolved_auth = resolved_auth if isinstance(resolved_auth, dict) else {}
+
+    def _resolve_field(key: str, raw_value: Any, *, from_entry_level: bool = False) -> tuple[Any, bool]:
+        source = resolved_entry if from_entry_level else resolved_auth
+        if isinstance(source, dict) and key in source:
+            return source[key], True
+        return raw_value, not _has_unresolved_reference(raw_value)
+
+    url, url_ok = _resolve_field("url", entry.get("url", ""), from_entry_level=True)
+    client_id, client_id_ok = _resolve_field("client_id", auth_cfg.get("client_id"))
+    scopes, scopes_ok = _resolve_field("scopes", auth_cfg.get("scopes") or [])
+    redirect_port, redirect_port_ok = _resolve_field("redirect_port", auth_cfg.get("redirect_port", 8765))
+    fingerprint_is_trustworthy = url_ok and client_id_ok and scopes_ok and redirect_port_ok
+
+    fingerprint = None
+    if fingerprint_is_trustworthy:
+        fingerprint = compute_fingerprint(url, client_id, scopes, redirect_port)
+    # FileTokenStorage treats fingerprint=None as "nothing to check" — see
+    # check_and_apply_fingerprint — so this is a genuine no-op, not a guess,
+    # whenever fingerprint_is_trustworthy is False.
+    storage = FileTokenStorage(entry["name"], fingerprint=fingerprint)
+    await storage.check_and_apply_fingerprint()
+    tokens = await storage.get_tokens()
+    last_error = await storage.get_last_error()
+
+    if last_error is not None:
+        oauth_status = "needs_relogin"
+    elif tokens is not None:
+        oauth_status = "ready"
+    else:
+        oauth_status = "not_logged_in"
+
+    return {"oauth_status": oauth_status, "last_error": last_error}
+
+
 def _mcp_endpoint_label(server: dict[str, Any]) -> str:
     """One-line human description of where a server lives."""
     transport = server.get("transport", "stdio")
@@ -580,12 +688,15 @@ async def list_mcp_servers(request: Request):
         effective.update(overrides)
         transport = entry.get("transport", "stdio")
         connection = None
+        oauth = None
         if transport == "http":
             connection = {
                 "url": entry.get("url", ""),
                 "headers": entry.get("headers") or {},
-                "auth": entry.get("auth"),
+                "auth": _redact_mcp_auth(entry.get("auth")),
             }
+            resolved_entry = manager._server_configs.get(name) if manager is not None else None
+            oauth = await _compute_oauth_status(entry, resolved_entry)
         elif transport == "stdio":
             connection = {
                 "command": entry.get("command", ""),
@@ -597,9 +708,11 @@ async def list_mcp_servers(request: Request):
         # "reachable", which would otherwise flash green before the startup
         # warm-up (or first ping) has actually dialed it.
         status = None
+        connection_status = "not_checked"
         if manager is not None and name in manager._tools_cache:
+            reachable = manager.is_reachable(name)
             status = {
-                "reachable": manager.is_reachable(name),
+                "reachable": reachable,
                 "tool_count": len(manager._tools_cache[name]),
                 # This is the manager's already-discovered cache: returning
                 # it is read-only and never dials a server. The panel uses it
@@ -611,6 +724,7 @@ async def list_mcp_servers(request: Request):
                 # (see MCPClientManager._server_instructions).
                 "instructions": manager.server_instructions(name),
             }
+            connection_status = "reachable" if reachable else "unreachable"
         servers.append({
             "name": name,
             "transport": transport,
@@ -620,6 +734,13 @@ async def list_mcp_servers(request: Request):
             "effective": effective,
             "connection": connection,
             "status": status,
+            # connection_status is breaker-derived and never distinguishes
+            # OAuth from network failures; oauth_status (from `oauth`, only
+            # present for auth.type=="oauth2" servers) is the authoritative
+            # signal for whether an "unreachable" was actually a credential
+            # problem — see "Two separate status fields" in the roadmap doc.
+            "connection_status": connection_status,
+            "oauth": oauth,
         })
 
     return {
@@ -1162,7 +1283,10 @@ async def create_mcp_server(request: Request, body: dict = Body(...)):
         f"'{entry['name']}' created and applied." if reload_error is None
         else f"'{entry['name']}' created, but reload failed ({reload_error}). Restart to apply."
     )
-    return {"message": message, "server": entry, "reload_summary": reload_summary, "reload_error": reload_error}
+    redacted_entry = {**entry, "auth": _redact_mcp_auth(entry.get("auth"))} if "auth" in entry else entry
+    return {
+        "message": message, "server": redacted_entry, "reload_summary": reload_summary, "reload_error": reload_error,
+    }
 
 
 @router.delete("/mcp/servers/{server_name}", dependencies=[config_auth])
@@ -1186,6 +1310,14 @@ async def delete_mcp_server(server_name: str, request: Request):
         raise HTTPException(status_code=422, detail="Delete would not remove the requested MCP server")
 
     _write_adapter_config(path, new_content)
+
+    from services.mcp_oauth_token_storage import FileTokenStorage
+
+    try:
+        FileTokenStorage(server_name).path.unlink(missing_ok=True)
+    except OSError as exc:  # noqa: BLE001 - config is already written; token cleanup is best-effort
+        logger.warning("Failed to delete OAuth token file for '%s': %s", server_name, exc)
+
     reload_summary, reload_error = None, None
     try:
         reload_summary = await _reload_mcp_clients(request, server_name=server_name)
@@ -1226,6 +1358,29 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
         )
         if entry is None:
             raise HTTPException(status_code=404, detail=f"MCP server '{server_name}' not found")
+
+        # "Omit client_secret to preserve it" can't be implemented inside
+        # _patch_yaml_auth (full-replace, no merge semantics) — the route
+        # merges it in from the existing on-disk entry before validation, so
+        # an edit to just e.g. scopes doesn't silently drop a configured
+        # secret. A key explicitly present (including `null`, the deletion
+        # signal) always wins over this merge.
+        incoming_auth = connection.get("auth") if isinstance(connection, dict) else None
+        if isinstance(connection, dict) and "auth" in connection and isinstance(incoming_auth, dict) \
+                and "client_secret" not in incoming_auth:
+            existing_auth = entry.get("auth")
+            if isinstance(existing_auth, dict) and existing_auth.get("client_secret"):
+                connection = {**connection, "auth": {**incoming_auth, "client_secret": existing_auth["client_secret"]}}
+
+        # Switching `auth:` away from oauth2 entirely (replaced by headers:,
+        # or removed outright) is not a "maybe I'll switch back" edit like a
+        # scopes/client_id/redirect_port change — there's no fingerprint left
+        # to preserve a tombstone against, so the stored token file is
+        # deleted outright rather than just invalidated in place.
+        has_auth_key = isinstance(connection, dict) and "auth" in connection
+        was_oauth2 = isinstance(entry.get("auth"), dict) and entry["auth"].get("type") == "oauth2"
+        will_be_oauth2 = has_auth_key and isinstance(incoming_auth, dict) and incoming_auth.get("type") == "oauth2"
+        delete_oauth_token_file = was_oauth2 and has_auth_key and not will_be_oauth2
 
         await _validate_mcp_connection(entry, connection, denylist)
 
@@ -1270,7 +1425,12 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
             start, end = _find_adapter_block(lines, server_name)
             name_line = lines[start]
             indent = " " * (len(name_line) - len(name_line.lstrip()) + 2)
-            lines = _patch_yaml_auth(lines, start, end, nested_fields["auth"], indent)
+            auth_value = nested_fields["auth"]
+            # None subvalues (currently only client_secret) mean "delete this
+            # field" per _validate_mcp_auth, not a literal null to render.
+            if isinstance(auth_value, dict):
+                auth_value = {k: v for k, v in auth_value.items() if v is not None}
+            lines = _patch_yaml_auth(lines, start, end, auth_value, indent)
 
         new_content = "\n".join(lines)
 
@@ -1282,6 +1442,14 @@ async def update_mcp_server(server_name: str, request: Request, body: dict = Bod
             raise HTTPException(status_code=422, detail="Edit would remove the mcp_clients section")
 
         _write_adapter_config(path, new_content)
+
+    if delete_oauth_token_file:
+        from services.mcp_oauth_token_storage import FileTokenStorage
+
+        try:
+            FileTokenStorage(server_name).path.unlink(missing_ok=True)
+        except OSError as exc:  # noqa: BLE001 - config is already written; token cleanup is best-effort
+            logger.warning("Failed to delete OAuth token file for '%s': %s", server_name, exc)
 
     reload_summary, reload_error = None, None
     try:

@@ -4,6 +4,10 @@
 
 ### Core Features
 - **OpenRouter vision provider**: Added image analysis, description, text extraction, object detection, and multimodal prompts through OpenRouter.
+- **MCP OAuth credential status (backend)**: OAuth-protected MCP servers now track login/credential health (`not_logged_in`, `ready`, `needs_relogin`) separately from reachability, surfaced via the admin API and `mcp status`/`mcp login`. A config change (URL, client ID, scopes, redirect port) safely invalidates the old credential instead of silently reusing it, and switching a server off OAuth (or deleting it) cleans up its stored token. Admin API responses no longer return a configured client secret in plain text. Frontend UI for managing this is still to come.
+
+### Security
+- **MCP OAuth hardening**: Closed several edge cases where a stale, mismatched, or previously-rejected OAuth credential could be trusted again too eagerly — including unresolved environment/secrets references, and an endpoint that accepts unauthenticated requests masking an actual credential failure.
 
 ## [2.18.4] - 2026-10-12
 

@@ -11,7 +11,7 @@ server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 sys.path.append(server_dir)
 
 from mcp.shared.auth import OAuthClientInformationFull, OAuthMetadata, OAuthToken
-from services.mcp_oauth_token_storage import FileTokenStorage, build_static_client_info
+from services.mcp_oauth_token_storage import FileTokenStorage, build_static_client_info, compute_fingerprint
 
 
 @pytest.mark.asyncio
@@ -116,6 +116,138 @@ async def test_oauth_metadata_coexists_with_tokens_and_client_info(tmp_path):
     assert (await storage.get_tokens()).access_token == "a"
     assert (await storage.get_client_info()).client_id == "c"
     assert str((await storage.get_oauth_metadata()).token_endpoint) == "https://example.com/token"
+
+
+class TestComputeFingerprint:
+    def test_deterministic_for_same_inputs(self):
+        a = compute_fingerprint("https://x.example/mcp", "cid", ["a", "b"], 8765)
+        b = compute_fingerprint("https://x.example/mcp", "cid", ["a", "b"], 8765)
+        assert a == b
+
+    def test_scope_order_does_not_matter(self):
+        a = compute_fingerprint("https://x.example/mcp", "cid", ["a", "b"], 8765)
+        b = compute_fingerprint("https://x.example/mcp", "cid", ["b", "a"], 8765)
+        assert a == b
+
+    def test_none_and_empty_client_id_are_equivalent(self):
+        a = compute_fingerprint("https://x.example/mcp", None, [], 8765)
+        b = compute_fingerprint("https://x.example/mcp", "", [], 8765)
+        assert a == b
+
+    @pytest.mark.parametrize(
+        "other_kwargs",
+        [
+            {"url": "https://y.example/mcp"},
+            {"client_id": "other-cid"},
+            {"scopes": ["a"]},
+            {"redirect_port": 9999},
+        ],
+    )
+    def test_changing_any_field_changes_the_fingerprint(self, other_kwargs):
+        base = {"url": "https://x.example/mcp", "client_id": "cid", "scopes": ["a", "b"], "redirect_port": 8765}
+        changed = {**base, **other_kwargs}
+        assert compute_fingerprint(**base) != compute_fingerprint(**changed)
+
+
+class TestCheckAndApplyFingerprint:
+    @pytest.mark.asyncio
+    async def test_no_fingerprint_configured_is_a_noop(self, tmp_path):
+        storage = FileTokenStorage("srv", state_dir=tmp_path)
+        await storage.set_tokens(OAuthToken(access_token="a"))
+        await storage.check_and_apply_fingerprint()
+        assert (await storage.get_tokens()).access_token == "a"
+        assert await storage.get_last_error() is None
+
+    @pytest.mark.asyncio
+    async def test_matching_fingerprint_preserves_credentials(self, tmp_path):
+        fp = compute_fingerprint("https://x.example/mcp", None, [], 8765)
+        storage = FileTokenStorage("srv", state_dir=tmp_path, fingerprint=fp)
+        await storage.set_tokens(OAuthToken(access_token="a"))
+
+        await storage.check_and_apply_fingerprint()
+
+        assert (await storage.get_tokens()).access_token == "a"
+        assert await storage.get_last_error() is None
+
+    @pytest.mark.asyncio
+    async def test_mismatched_fingerprint_clears_credentials_and_records_error(self, tmp_path):
+        old_fp = compute_fingerprint("https://x.example/mcp", None, [], 8765)
+        storage = FileTokenStorage("srv", state_dir=tmp_path, fingerprint=old_fp)
+        await storage.set_tokens(OAuthToken(access_token="a"))
+        await storage.set_client_info(OAuthClientInformationFull(client_id="c", redirect_uris=[]))
+
+        new_fp = compute_fingerprint("https://x.example/mcp", "new-client", [], 8765)
+        reloaded = FileTokenStorage("srv", state_dir=tmp_path, fingerprint=new_fp)
+        await reloaded.check_and_apply_fingerprint()
+
+        assert await reloaded.get_tokens() is None
+        assert await reloaded.get_client_info() is None
+        last_error = await reloaded.get_last_error()
+        assert last_error["code"] == "fingerprint_mismatch"
+        # File is kept, not deleted, per "Token lifecycle" in the roadmap doc.
+        assert storage.path.exists()
+
+    @pytest.mark.asyncio
+    async def test_legacy_file_with_no_fingerprint_is_treated_as_mismatch(self, tmp_path):
+        # A token file written before this fingerprint mechanism existed.
+        legacy = FileTokenStorage("srv", state_dir=tmp_path)
+        await legacy.set_tokens(OAuthToken(access_token="a"))
+
+        fp = compute_fingerprint("https://x.example/mcp", None, [], 8765)
+        reloaded = FileTokenStorage("srv", state_dir=tmp_path, fingerprint=fp)
+        await reloaded.check_and_apply_fingerprint()
+
+        assert await reloaded.get_tokens() is None
+        assert (await reloaded.get_last_error())["code"] == "fingerprint_mismatch"
+
+
+class TestLastError:
+    @pytest.mark.asyncio
+    async def test_absent_by_default(self, tmp_path):
+        storage = FileTokenStorage("srv", state_dir=tmp_path)
+        assert await storage.get_last_error() is None
+
+    @pytest.mark.asyncio
+    async def test_set_and_clear_round_trip(self, tmp_path):
+        storage = FileTokenStorage("srv", state_dir=tmp_path)
+        await storage.set_last_error("refresh_rejected")
+        last_error = await storage.get_last_error()
+        assert last_error["code"] == "refresh_rejected"
+        assert "at" in last_error
+
+        await storage.clear_last_error()
+        assert await storage.get_last_error() is None
+
+    @pytest.mark.asyncio
+    async def test_clear_is_a_noop_when_already_absent(self, tmp_path):
+        storage = FileTokenStorage("srv", state_dir=tmp_path)
+        await storage.clear_last_error()
+        assert await storage.get_last_error() is None
+
+
+class TestClearCredentials:
+    @pytest.mark.asyncio
+    async def test_removes_tokens_and_client_info_but_keeps_file(self, tmp_path):
+        storage = FileTokenStorage("srv", state_dir=tmp_path)
+        await storage.set_tokens(OAuthToken(access_token="a", expires_in=3600))
+        await storage.set_client_info(OAuthClientInformationFull(client_id="c", redirect_uris=[]))
+        await storage.set_oauth_metadata(
+            OAuthMetadata(
+                issuer="https://example.com",
+                authorization_endpoint="https://example.com/authorize",
+                token_endpoint="https://example.com/token",
+                response_types_supported=["code"],
+            )
+        )
+
+        await storage.clear_credentials()
+
+        assert await storage.get_tokens() is None
+        assert await storage.get_client_info() is None
+        assert await storage.get_token_expiry() is None
+        # Non-credential fields untouched by this call.
+        assert (await storage.get_oauth_metadata()) is not None
+        assert storage.path.exists()
 
 
 class TestValidateMetadataIssuerTolerantPatch:

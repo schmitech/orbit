@@ -932,7 +932,7 @@ class TestBuildOAuthProvider:
     async def test_oauth2_config_builds_provider_with_no_handlers(self):
         from mcp.client.auth import OAuthClientProvider
 
-        provider = await MCPClientManager._build_oauth_provider(
+        provider, storage, had_valid_token = await MCPClientManager._build_oauth_provider(
             "google-drive",
             {"auth": {"type": "oauth2", "scopes": ["a", "b"], "redirect_port": 9999}},
             "https://drivemcp.googleapis.com/mcp/v1",
@@ -942,6 +942,7 @@ class TestBuildOAuthProvider:
         assert provider.context.callback_handler is None
         assert provider.context.client_metadata.scope == "a b"
         assert str(provider.context.client_metadata.redirect_uris[0]) == "http://127.0.0.1:9999/callback"
+        assert had_valid_token is False
 
     @pytest.mark.asyncio
     async def test_prewarms_expiry_from_a_token_already_on_disk(self, tmp_path):
@@ -951,13 +952,14 @@ class TestBuildOAuthProvider:
         # it's treated as permanently valid until the first 401 (which then
         # fails, since this process has no redirect/callback handler).
         from mcp.shared.auth import OAuthToken
-        from services.mcp_oauth_token_storage import FileTokenStorage
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
 
-        storage = FileTokenStorage("google-drive", state_dir=tmp_path)
+        fingerprint = compute_fingerprint("https://drivemcp.googleapis.com/mcp/v1", None, [], 8765)
+        storage = FileTokenStorage("google-drive", state_dir=tmp_path, fingerprint=fingerprint)
         await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
 
         with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
-            provider = await MCPClientManager._build_oauth_provider(
+            provider, _storage, had_valid_token = await MCPClientManager._build_oauth_provider(
                 "google-drive",
                 {"auth": {"type": "oauth2"}},
                 "https://drivemcp.googleapis.com/mcp/v1",
@@ -967,6 +969,7 @@ class TestBuildOAuthProvider:
         assert provider.context.token_expiry_time is not None
         assert provider.context.is_token_valid()
         assert provider._initialized is True
+        assert had_valid_token is True
 
     @pytest.mark.asyncio
     async def test_prewarms_oauth_metadata_from_disk(self, tmp_path):
@@ -978,9 +981,10 @@ class TestBuildOAuthProvider:
         # which is wrong whenever the real token endpoint is on a different
         # origin (e.g. Google Drive).
         from mcp.shared.auth import OAuthMetadata, OAuthToken
-        from services.mcp_oauth_token_storage import FileTokenStorage
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
 
-        storage = FileTokenStorage("google-drive", state_dir=tmp_path)
+        fingerprint = compute_fingerprint("https://drivemcp.googleapis.com/mcp/v1", None, [], 8765)
+        storage = FileTokenStorage("google-drive", state_dir=tmp_path, fingerprint=fingerprint)
         await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
         await storage.set_oauth_metadata(
             OAuthMetadata(
@@ -992,7 +996,7 @@ class TestBuildOAuthProvider:
         )
 
         with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
-            provider = await MCPClientManager._build_oauth_provider(
+            provider, _storage, _had_valid_token = await MCPClientManager._build_oauth_provider(
                 "google-drive",
                 {"auth": {"type": "oauth2"}},
                 "https://drivemcp.googleapis.com/mcp/v1",
@@ -1003,13 +1007,14 @@ class TestBuildOAuthProvider:
     @pytest.mark.asyncio
     async def test_no_oauth_metadata_on_disk_leaves_it_unset(self, tmp_path):
         from mcp.shared.auth import OAuthToken
-        from services.mcp_oauth_token_storage import FileTokenStorage
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
 
-        storage = FileTokenStorage("google-drive", state_dir=tmp_path)
+        fingerprint = compute_fingerprint("https://drivemcp.googleapis.com/mcp/v1", None, [], 8765)
+        storage = FileTokenStorage("google-drive", state_dir=tmp_path, fingerprint=fingerprint)
         await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
 
         with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
-            provider = await MCPClientManager._build_oauth_provider(
+            provider, _storage, _had_valid_token = await MCPClientManager._build_oauth_provider(
                 "google-drive",
                 {"auth": {"type": "oauth2"}},
                 "https://drivemcp.googleapis.com/mcp/v1",
@@ -1024,7 +1029,7 @@ class TestBuildOAuthProvider:
         # context.client_info is still unset at that step, so presetting it
         # here is what actually opts out.
         with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
-            provider = await MCPClientManager._build_oauth_provider(
+            provider, _storage, _had_valid_token = await MCPClientManager._build_oauth_provider(
                 "google-drive",
                 {"auth": {"type": "oauth2", "client_id": "preregistered-id", "client_secret": "shh"}},
                 "https://drivemcp.googleapis.com/mcp/v1",
@@ -1038,7 +1043,7 @@ class TestBuildOAuthProvider:
     @pytest.mark.asyncio
     async def test_static_client_id_without_secret_is_a_public_client(self, tmp_path):
         with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
-            provider = await MCPClientManager._build_oauth_provider(
+            provider, _storage, _had_valid_token = await MCPClientManager._build_oauth_provider(
                 "google-drive",
                 {"auth": {"type": "oauth2", "client_id": "preregistered-id"}},
                 "https://drivemcp.googleapis.com/mcp/v1",
@@ -1054,15 +1059,16 @@ class TestBuildOAuthProvider:
         # registration (run during `mcp login`) persisted to disk should
         # still be honored, so registration doesn't happen again.
         from mcp.shared.auth import OAuthClientInformationFull
-        from services.mcp_oauth_token_storage import FileTokenStorage
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
 
-        storage = FileTokenStorage("google-drive", state_dir=tmp_path)
+        fingerprint = compute_fingerprint("https://drivemcp.googleapis.com/mcp/v1", None, [], 8765)
+        storage = FileTokenStorage("google-drive", state_dir=tmp_path, fingerprint=fingerprint)
         await storage.set_client_info(
             OAuthClientInformationFull(client_id="dynamically-registered", redirect_uris=[])
         )
 
         with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
-            provider = await MCPClientManager._build_oauth_provider(
+            provider, _storage, _had_valid_token = await MCPClientManager._build_oauth_provider(
                 "google-drive",
                 {"auth": {"type": "oauth2"}},
                 "https://drivemcp.googleapis.com/mcp/v1",
@@ -2042,3 +2048,279 @@ class TestCreateConnectionWiresDiagnosticHooks:
         assert "srv" in caplog.text
         assert "401" in caplog.text
         assert "bad key" in caplog.text
+
+
+class TestCreateConnectionOauthLastErrorClearing:
+    """A successful handshake only proves a *used, matching* stored
+    credential still works — some OAuth-configured MCP endpoints allow an
+    unauthenticated `initialize`, so a bare successful connection must not
+    by itself erase a recorded `needs_relogin` (fingerprint_mismatch or
+    refresh_rejected) when no valid/matching token was actually on hand."""
+
+    @staticmethod
+    @asynccontextmanager
+    async def _fake_streamable_http_client(url, http_client=None):
+        yield MagicMock(), MagicMock()
+
+    @staticmethod
+    @asynccontextmanager
+    async def _fake_client_session(read, write):
+        session = MagicMock()
+        session.initialize = AsyncMock(return_value=MagicMock(instructions=None))
+        yield session
+
+    async def _run_connection(self, mgr, server_config):
+        from contextlib import asynccontextmanager as _acm
+
+        @_acm
+        async def fake_create_mcp_http_client(headers=None, **kwargs):
+            yield httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+
+        with patch("mcp.client.streamable_http.streamable_http_client", self._fake_streamable_http_client), \
+             patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
+             patch("mcp.client.session.ClientSession", self._fake_client_session):
+            conn = await mgr._create_connection(server_config)
+            await conn.close()
+
+    async def test_successful_handshake_with_no_valid_token_does_not_clear_last_error(self, tmp_path):
+        from mcp.shared.auth import OAuthToken
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+
+        server_config = {
+            "transport": "http", "url": "https://example.com/mcp", "name": "oauth-srv",
+            "auth": {"type": "oauth2"},
+        }
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            # A fingerprint mismatch recorded on a prior load (config changed) —
+            # no valid token is on hand for *this* connection attempt.
+            await FileTokenStorage("oauth-srv").set_last_error("fingerprint_mismatch")
+
+            mgr = _make_manager()
+            await self._run_connection(mgr, server_config)
+
+            last_error = await FileTokenStorage("oauth-srv").get_last_error()
+
+        assert last_error is not None
+        assert last_error["code"] == "fingerprint_mismatch"
+
+    async def test_successful_handshake_with_a_valid_matching_token_and_no_prior_error_stays_clear(self, tmp_path):
+        from mcp.shared.auth import OAuthToken
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+
+        server_config = {
+            "transport": "http", "url": "https://example.com/mcp", "name": "oauth-srv",
+            "auth": {"type": "oauth2"},
+        }
+        fingerprint = compute_fingerprint("https://example.com/mcp", None, [], 8765)
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            storage = FileTokenStorage("oauth-srv", fingerprint=fingerprint)
+            await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
+
+            mgr = _make_manager()
+            await self._run_connection(mgr, server_config)
+
+            last_error = await FileTokenStorage("oauth-srv").get_last_error()
+
+        assert last_error is None
+
+    async def test_successful_handshake_does_not_clear_refresh_rejected_without_proof(self, tmp_path):
+        # A bare 200 from the endpoint, with no 401 ever seen and the access
+        # token unchanged, is not proof the credential was actually
+        # (re-)validated — some OAuth-configured MCP endpoints accept
+        # initialize/tools-list unauthenticated regardless of what's sent.
+        from mcp.shared.auth import OAuthToken
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+
+        server_config = {
+            "transport": "http", "url": "https://example.com/mcp", "name": "oauth-srv",
+            "auth": {"type": "oauth2"},
+        }
+        fingerprint = compute_fingerprint("https://example.com/mcp", None, [], 8765)
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            storage = FileTokenStorage("oauth-srv", fingerprint=fingerprint)
+            await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
+            await storage.set_last_error("refresh_rejected")
+
+            mgr = _make_manager()
+            await self._run_connection(mgr, server_config)
+
+            last_error = await FileTokenStorage("oauth-srv").get_last_error()
+
+        assert last_error is not None
+        assert last_error["code"] == "refresh_rejected"
+
+    async def test_a_401_from_the_token_endpoint_does_not_count_as_proof(self, tmp_path):
+        # OAuthClientProvider.async_auth_flow yields its token-refresh
+        # request through this same httpx client — a failed refresh (401
+        # from the *token* endpoint, not the MCP resource endpoint) must not
+        # be mistaken for the resource server having challenged and then
+        # accepted our credential. Otherwise a failed refresh followed by an
+        # endpoint that allows anonymous `initialize` would wrongly clear a
+        # recorded refresh_rejected.
+        from mcp.shared.auth import OAuthToken
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+
+        resource_url = "https://example.com/mcp"
+        server_config = {"transport": "http", "url": resource_url, "name": "oauth-srv", "auth": {"type": "oauth2"}}
+        fingerprint = compute_fingerprint(resource_url, None, [], 8765)
+
+        def handler(request):
+            if str(request.url).rstrip("/") != resource_url:
+                return httpx.Response(401, content=b'{"error": "invalid_grant"}')
+            return httpx.Response(200)
+
+        from contextlib import asynccontextmanager as _acm
+
+        @_acm
+        async def fake_create_mcp_http_client(headers=None, **kwargs):
+            yield httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+        @_acm
+        async def fake_streamable_http_client(url, http_client=None):
+            # Simulate the SDK's own failed-refresh round trip to the token
+            # endpoint, over the same (already-hooked) http_client, before
+            # the resource-server session is ever established.
+            await http_client.get("https://example.com/token")
+            yield MagicMock(), MagicMock()
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            storage = FileTokenStorage("oauth-srv", fingerprint=fingerprint)
+            await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
+            await storage.set_last_error("refresh_rejected")
+
+            mgr = _make_manager()
+            with patch("mcp.client.streamable_http.streamable_http_client", fake_streamable_http_client), \
+                 patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
+                 patch("mcp.client.session.ClientSession", self._fake_client_session):
+                conn = await mgr._create_connection(server_config)
+                await conn.close()
+
+            last_error = await FileTokenStorage("oauth-srv").get_last_error()
+
+        assert last_error is not None
+        assert last_error["code"] == "refresh_rejected"
+
+    async def test_a_401_from_the_resource_endpoint_does_count_as_proof(self, tmp_path):
+        # Sanity check for the URL filter itself: a 401 from the *resource*
+        # endpoint (the MCP server itself) still counts.
+        from mcp.shared.auth import OAuthToken
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+
+        resource_url = "https://example.com/mcp"
+        server_config = {"transport": "http", "url": resource_url, "name": "oauth-srv", "auth": {"type": "oauth2"}}
+        fingerprint = compute_fingerprint(resource_url, None, [], 8765)
+
+        def handler(request):
+            return httpx.Response(401 if str(request.url).rstrip("/") == resource_url else 200)
+
+        from contextlib import asynccontextmanager as _acm
+
+        @_acm
+        async def fake_create_mcp_http_client(headers=None, **kwargs):
+            yield httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+        @_acm
+        async def fake_streamable_http_client(url, http_client=None):
+            await http_client.get(resource_url)
+            yield MagicMock(), MagicMock()
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            storage = FileTokenStorage("oauth-srv", fingerprint=fingerprint)
+            await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
+            await storage.set_last_error("refresh_rejected")
+
+            mgr = _make_manager()
+            with patch("mcp.client.streamable_http.streamable_http_client", fake_streamable_http_client), \
+                 patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
+                 patch("mcp.client.session.ClientSession", self._fake_client_session):
+                conn = await mgr._create_connection(server_config)
+                await conn.close()
+
+            last_error = await FileTokenStorage("oauth-srv").get_last_error()
+
+        assert last_error is None
+
+    async def test_failed_refresh_that_clears_tokens_does_not_count_as_proof(self, tmp_path):
+        # On a failed refresh, the SDK calls context.clear_tokens(), which
+        # also changes the access token (from a real value to None). That
+        # change must not be mistaken for a successful refresh — only a new,
+        # *present* token counts as proof — or a failed refresh followed by
+        # an endpoint that accepts anonymous `initialize` would wrongly
+        # clear a recorded refresh_rejected.
+        from mcp.shared.auth import OAuthToken
+        from services.mcp_oauth_token_storage import FileTokenStorage, compute_fingerprint
+
+        resource_url = "https://example.com/mcp"
+        server_config = {"transport": "http", "url": resource_url, "name": "oauth-srv", "auth": {"type": "oauth2"}}
+        fingerprint = compute_fingerprint(resource_url, None, [], 8765)
+
+        def handler(request):
+            # Resource endpoint accepts anonymously; only the token endpoint
+            # rejects (simulating the refresh failure).
+            if str(request.url).rstrip("/") != resource_url:
+                return httpx.Response(401, content=b'{"error": "invalid_grant"}')
+            return httpx.Response(200)
+
+        from contextlib import asynccontextmanager as _acm
+
+        @_acm
+        async def fake_create_mcp_http_client(headers=None, auth=None, **kwargs):
+            # Simulate the SDK's own failed-refresh round trip clearing the
+            # provider's tokens, the same way a real 401 from the token
+            # endpoint would via OAuthContext.clear_tokens().
+            if auth is not None:
+                auth.context.clear_tokens()
+            yield httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+        @_acm
+        async def fake_streamable_http_client(url, http_client=None):
+            await http_client.get("https://example.com/token")
+            yield MagicMock(), MagicMock()
+
+        with patch("services.mcp_oauth_token_storage.DEFAULT_STATE_DIR", tmp_path):
+            storage = FileTokenStorage("oauth-srv", fingerprint=fingerprint)
+            await storage.set_tokens(OAuthToken(access_token="a", refresh_token="r", expires_in=3600))
+            await storage.set_last_error("refresh_rejected")
+
+            mgr = _make_manager()
+            with patch("mcp.client.streamable_http.streamable_http_client", fake_streamable_http_client), \
+                 patch("mcp.shared._httpx_utils.create_mcp_http_client", fake_create_mcp_http_client), \
+                 patch("mcp.client.session.ClientSession", self._fake_client_session):
+                conn = await mgr._create_connection(server_config)
+                await conn.close()
+
+            last_error = await FileTokenStorage("oauth-srv").get_last_error()
+
+        assert last_error is not None
+        assert last_error["code"] == "refresh_rejected"
+
+
+class TestShouldClearOauthLastError:
+    """Unit tests for the pure decision helper
+    MCPClientManager._should_clear_oauth_last_error — see its docstring for
+    exactly what counts as proof for refresh_rejected specifically."""
+
+    def test_no_previous_error_always_clears(self):
+        assert MCPClientManager._should_clear_oauth_last_error(
+            None, observed_401=False, token_was_refreshed=False,
+        ) is True
+
+    def test_fingerprint_mismatch_always_clears_without_needing_proof(self):
+        assert MCPClientManager._should_clear_oauth_last_error(
+            {"code": "fingerprint_mismatch", "at": 1.0}, observed_401=False, token_was_refreshed=False,
+        ) is True
+
+    def test_refresh_rejected_without_any_proof_does_not_clear(self):
+        assert MCPClientManager._should_clear_oauth_last_error(
+            {"code": "refresh_rejected", "at": 1.0}, observed_401=False, token_was_refreshed=False,
+        ) is False
+
+    def test_refresh_rejected_with_observed_401_clears(self):
+        assert MCPClientManager._should_clear_oauth_last_error(
+            {"code": "refresh_rejected", "at": 1.0}, observed_401=True, token_was_refreshed=False,
+        ) is True
+
+    def test_refresh_rejected_with_token_refresh_clears(self):
+        assert MCPClientManager._should_clear_oauth_last_error(
+            {"code": "refresh_rejected", "at": 1.0}, observed_401=False, token_was_refreshed=True,
+        ) is True
