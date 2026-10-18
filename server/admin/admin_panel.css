@@ -1667,10 +1667,13 @@ button.help-button:focus-visible {
 
 /* A toggle chip, not a checkbox+label row: skill names range from "PDF" to
    "pandemic-preparedness", and sizing each option to its own text (rather
-   than a fixed grid column) is what keeps a long list legible as it wraps. */
-.adapter-chip {
+   than a fixed grid column) is what keeps a long list legible as it wraps.
+   Named "adapter-toggle-chip", not "adapter-chip" — the latter is already an
+   unrelated, differently-styled badge class used on the adapter list, and
+   sharing a class name let that rule's properties bleed into this widget. */
+.adapter-toggle-chip {
   appearance: none;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ink-muted);
   background: transparent;
   color: var(--ink);
   border-radius: var(--radius-pill);
@@ -1682,24 +1685,27 @@ button.help-button:focus-visible {
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
-.adapter-chip:hover:not(:disabled) {
+.adapter-toggle-chip:hover:not(:disabled) {
   border-color: var(--brand-500);
 }
 
-.adapter-chip:focus-visible {
+.adapter-toggle-chip:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
-.adapter-chip.is-selected {
+.adapter-toggle-chip.is-selected {
   background: var(--brand-50);
   border-color: var(--brand-500);
   color: var(--brand-600);
 }
 
-.adapter-chip:disabled {
+/* Muted colors, not opacity — opacity compounds with the picker-level
+   .is-disabled rule below and leaves the label unreadable in both themes. */
+.adapter-toggle-chip:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  color: var(--ink-muted);
+  border-color: var(--border);
 }
 
 .adapter-chip-empty {

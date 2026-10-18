@@ -52,6 +52,9 @@ class Question:
     # When True (list questions only), the admin UI renders a checkbox list sourced
     # from options_source instead of a free-text comma-separated box.
     multi: bool = False
+    # Message shown by the multi-select picker when options_source has no entries.
+    # Falls back to a generic message in the admin UI when left unset.
+    empty_message: Optional[str] = None
 
 
 def question_limits(q: Question) -> dict[str, Any]:
@@ -284,12 +287,15 @@ MULTIMODAL = AdapterSpec(
         Question("stt_provider", "STT provider (audio transcription)", default="openai"),
         Question("tts_provider", "TTS provider", default="gemini"),
         Question("available_skills", "Available skills (invokable via / picker)", type="list", default=[],
-                 options_source="skills", multi=True),
+                 options_source="skills", multi=True, empty_message="No skills configured yet — add capabilities.expose_as_skill: true to an adapter to offer it here."),
         Question("auto_routable_skills", "Auto-routable skills (auto-only, not user-invokable)",
-                 type="list", default=[], options_source="skills", multi=True),
+                 type="list", default=[], options_source="skills", multi=True, empty_message="No skills configured yet — add capabilities.expose_as_skill: true to an adapter to offer it here."),
         Question("auto_skill_routing", "Enable automatic skill intent detection?", type="bool", default=True),
         Question("mcp_tools", "Enable opportunistic MCP tool calling?", type="bool", default=False),
-        Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[]),
+        Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[],
+                 options_source="mcp_servers", multi=True,
+                 empty_message="No MCP servers are enabled for opportunistic tool calling — see config/mcp_clients.yaml.",
+                 help="Leave empty to allow all servers enabled for opportunistic calling."),
         Question("storage_backend", "Storage backend", default="filesystem"),
         Question("storage_root", "Storage root", default="./uploads", max_length=500),
         Question("max_file_size", "Max file size (bytes)", type="int", default=52428800,
@@ -329,12 +335,15 @@ PASSTHROUGH = AdapterSpec(
                  options_source="inference_providers", options_strict=True),
         Question("model", "Model (override; blank for global default)", default=None),
         Question("available_skills", "Available skills (invokable via / picker)", type="list", default=[],
-                 options_source="skills", multi=True),
+                 options_source="skills", multi=True, empty_message="No skills configured yet — add capabilities.expose_as_skill: true to an adapter to offer it here."),
         Question("auto_routable_skills", "Auto-routable skills (auto-only, not user-invokable)",
-                 type="list", default=[], options_source="skills", multi=True),
+                 type="list", default=[], options_source="skills", multi=True, empty_message="No skills configured yet — add capabilities.expose_as_skill: true to an adapter to offer it here."),
         Question("auto_skill_routing", "Enable automatic skill intent detection?", type="bool", default=False),
         Question("mcp_tools", "Enable opportunistic MCP tool calling?", type="bool", default=False),
-        Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[]),
+        Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[],
+                 options_source="mcp_servers", multi=True,
+                 empty_message="No MCP servers are enabled for opportunistic tool calling — see config/mcp_clients.yaml.",
+                 help="Leave empty to allow all servers enabled for opportunistic calling."),
         _q_enabled(),
     ],
 )
@@ -384,7 +393,10 @@ MCP_AGENT = AdapterSpec(
         Question("model", "Model", default="gpt-5.4-mini"),
         _q_skill_name(default="mcp-agent"),
         _q_skill_description(default="Use external MCP server tools to answer (agentic tool calling)"),
-        Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[]),
+        Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[],
+                 options_source="mcp_servers_all", multi=True,
+                 empty_message="No MCP servers are enabled — see config/mcp_clients.yaml.",
+                 help="Leave empty to allow all enabled servers."),
         _q_enabled(),
     ],
 )

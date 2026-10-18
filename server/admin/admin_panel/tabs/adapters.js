@@ -348,6 +348,18 @@ export function createAdaptersTab({
         var entry = createInputs[name];
         answers[name] = readAnswer(entry.q, entry.input);
       });
+      // mcp_servers only matters once opportunistic tool calling is on; the
+      // templates already drop it when mcp_tools is false, but zero it here
+      // too so the submitted payload stays self-consistent either way. Gated
+      // on the spec actually having an mcp_tools question — mcp-agent has
+      // mcp_servers with no mcp_tools toggle at all (its allowlist is always
+      // active), so clearing unconditionally would silently broaden it to
+      // "all enabled servers" on every create.
+      if (Object.prototype.hasOwnProperty.call(answers, "mcp_servers")
+          && Object.prototype.hasOwnProperty.call(answers, "mcp_tools")
+          && !answers.mcp_tools) {
+        answers.mcp_servers = [];
+      }
       return answers;
     }
 
@@ -383,6 +395,8 @@ export function createAdaptersTab({
     // becomes the expected shape of a tag cloud instead of a broken grid.
     function createMultiCheckboxList(q) {
       var checked = [];
+      var isDisabled = false;
+      var disabledReason = "";
       var wrap = el("div", { className: "adapter-chip-picker" });
       var chipRow = el("div", { className: "adapter-chip-row", role: "group", "aria-label": q.prompt });
       var countEl = el("div", { className: "adapter-chip-count", "aria-live": "polite" });
@@ -394,6 +408,11 @@ export function createAdaptersTab({
       }
 
       function syncCount() {
+        if (isDisabled && disabledReason) {
+          countEl.textContent = disabledReason;
+          countEl.classList.remove("near-limit");
+          return;
+        }
         var limit = maxItems();
         countEl.textContent = isFinite(limit)
           ? checked.length + " of " + limit + " selected"
@@ -404,15 +423,20 @@ export function createAdaptersTab({
       function updateChipStates() {
         var limit = maxItems();
         var atLimit = checked.length >= limit;
-        Array.prototype.forEach.call(chipRow.querySelectorAll(".adapter-chip"), function (chip) {
+        // Note: "adapter-toggle-chip", not "adapter-chip" — that name is already
+        // used by an unrelated, differently-styled badge elsewhere in this file
+        // (the adapter list's info chips), and sharing it let that rule's
+        // later-declared CSS properties bleed into this widget.
+        Array.prototype.forEach.call(chipRow.querySelectorAll(".adapter-toggle-chip"), function (chip) {
           var isOn = checked.indexOf(chip.dataset.value) !== -1;
           chip.classList.toggle("is-selected", isOn);
           chip.setAttribute("aria-pressed", String(isOn));
-          chip.disabled = !isOn && atLimit;
+          chip.disabled = isDisabled || (!isOn && atLimit);
         });
       }
 
       function toggle(value) {
+        if (isDisabled) return;
         var limit = maxItems();
         var idx = checked.indexOf(value);
         if (idx !== -1) {
@@ -431,14 +455,14 @@ export function createAdaptersTab({
         var options = ((cachedAdapterAnswerOptions || {})[q.options_source] || []);
         if (!options.length) {
           chipRow.appendChild(el("div", { className: "adapter-chip-empty" },
-            "No skills configured yet — add capabilities.expose_as_skill: true to an adapter to offer it here."));
+            q.empty_message || "No options configured yet."));
           syncCount();
           return;
         }
         options.forEach(function (opt) {
           var chip = el("button", {
             type: "button",
-            className: "adapter-chip",
+            className: "adapter-toggle-chip",
             "aria-pressed": "false",
             title: opt.description || "",
             onClick: function () { toggle(opt.value); }
@@ -457,6 +481,29 @@ export function createAdaptersTab({
         set: function (v) {
           checked = Array.isArray(v) ? v.slice() : [];
           renderOptions();
+        }
+      });
+
+      // Used by fields whose selection is only meaningful while another
+      // question (e.g. mcp_tools) is enabled; the selection itself is left
+      // intact so re-enabling restores it without the user retyping it.
+      Object.defineProperty(wrap, "disabled", {
+        get: function () { return isDisabled; },
+        set: function (v) {
+          isDisabled = !!v;
+          wrap.classList.toggle("is-disabled", isDisabled);
+          syncCount();
+          updateChipStates();
+        }
+      });
+
+      // Replaces the selection count with an explanation while disabled, so
+      // a dimmed, unclickable picker doesn't read as broken.
+      Object.defineProperty(wrap, "disabledReason", {
+        get: function () { return disabledReason; },
+        set: function (v) {
+          disabledReason = v || "";
+          syncCount();
         }
       });
 
@@ -784,6 +831,20 @@ export function createAdaptersTab({
         optionsGroup.insertBefore(el("span", { className: "adapter-options-group-label" }, "Options"), optionsGroup.firstChild);
       }
       optionsGroup.classList.toggle("is-empty", !optionsGroup.children.length);
+
+      // mcp_servers only has an effect once mcp_tools is on; keep the picker
+      // dimmed and non-interactive otherwise, without discarding the selection,
+      // so toggling mcp_tools back on restores what was already picked.
+      var mcpToolsEntry = createInputs.mcp_tools;
+      var mcpServersEntry = createInputs.mcp_servers;
+      if (mcpToolsEntry && mcpServersEntry && "disabled" in mcpServersEntry.input) {
+        mcpServersEntry.input.disabledReason = "Enable “Enable opportunistic MCP tool calling” above to choose specific servers.";
+        var syncMcpServersDisabled = function () {
+          mcpServersEntry.input.disabled = !mcpToolsEntry.input.checked;
+        };
+        syncMcpServersDisabled();
+        mcpToolsEntry.input.addEventListener("change", syncMcpServersDisabled);
+      }
     }
 
     function hideCreatePreview() {

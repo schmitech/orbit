@@ -166,6 +166,100 @@ def test_answer_options_excludes_non_skill_adapters(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Answer options — scanned MCP servers for the mcp_servers picker
+# --------------------------------------------------------------------------- #
+
+def _mcp_config(servers, **mcp_overrides):
+    mcp_clients = {"enabled": True, "allow_opportunistic": False, "servers": servers}
+    mcp_clients.update(mcp_overrides)
+    return {"mcp_clients": mcp_clients}
+
+
+def test_answer_options_excludes_mcp_servers_when_globally_disabled(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = _mcp_config(
+        [{"name": "search", "enabled": True, "allow_opportunistic": True}], enabled=False
+    )
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["mcp_servers"] == []
+
+
+def test_answer_options_excludes_disabled_mcp_server(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = _mcp_config(
+        [{"name": "search", "enabled": False, "allow_opportunistic": True}]
+    )
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["mcp_servers"] == []
+
+
+def test_answer_options_excludes_non_opportunistic_mcp_server(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = _mcp_config(
+        [{"name": "search", "enabled": True, "allow_opportunistic": False}],
+        allow_opportunistic=True,
+    )
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["mcp_servers"] == []
+
+
+def test_answer_options_includes_mcp_server_inheriting_global_opportunistic_default(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = _mcp_config(
+        [{"name": "search", "enabled": True}], allow_opportunistic=True
+    )
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["mcp_servers"] == [{"value": "search", "label": "search", "description": ""}]
+
+
+def test_answer_options_includes_mcp_server_overriding_global_opportunistic_default(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = _mcp_config(
+        [{"name": "search", "enabled": True, "allow_opportunistic": True}], allow_opportunistic=False
+    )
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["mcp_servers"] == [{"value": "search", "label": "search", "description": ""}]
+
+
+# --------------------------------------------------------------------------- #
+# Answer options — scanned MCP servers for mcp-agent's own picker
+# (enabled-only; no allow_opportunistic gate, unlike mcp_servers above)
+# --------------------------------------------------------------------------- #
+
+def test_answer_options_mcp_servers_all_excludes_when_globally_disabled(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = _mcp_config([{"name": "search", "enabled": True}], enabled=False)
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["mcp_servers_all"] == []
+
+
+def test_answer_options_mcp_servers_all_excludes_disabled_server(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = _mcp_config([{"name": "search", "enabled": False}])
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["mcp_servers_all"] == []
+
+
+def test_answer_options_mcp_servers_all_includes_server_without_opportunistic_calling(tmp_path):
+    """mcp-agent's allowlist isn't gated by allow_opportunistic — a server
+    that opts out of opportunistic calling is still usable here."""
+    app = _build_app(tmp_path)
+    app.state.config = _mcp_config(
+        [{"name": "search", "enabled": True, "allow_opportunistic": False}]
+    )
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["mcp_servers_all"] == [{"value": "search", "label": "search", "description": ""}]
+
+
+# --------------------------------------------------------------------------- #
 # Preview
 # --------------------------------------------------------------------------- #
 
@@ -184,6 +278,35 @@ def test_preview_rejects_unknown_spec(tmp_path):
     with TestClient(_build_app(tmp_path)) as client:
         resp = client.post("/admin/adapters/preview", json={"spec": "nope", "answers": {}})
     assert resp.status_code == 404
+
+
+@pytest.mark.parametrize("spec_key", ["passthrough", "multimodal"])
+def test_preview_round_trips_mcp_servers_when_tools_enabled(tmp_path, spec_key):
+    answers = _default_answers(get_spec(spec_key))
+    answers["mcp_tools"] = True
+    answers["mcp_servers"] = ["search", "weather"]
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/preview", json={"spec": spec_key, "answers": answers})
+    assert resp.status_code == 200
+    rendered = yaml.safe_load(resp.json()["yaml"])
+    caps = rendered["adapters"][0]["capabilities"]
+    assert caps["mcp_servers"] == ["search", "weather"]
+
+
+@pytest.mark.parametrize("spec_key", ["passthrough", "multimodal"])
+def test_preview_omits_mcp_servers_when_tools_disabled(tmp_path, spec_key):
+    """A leftover mcp_servers selection must not reach the rendered YAML once
+    mcp_tools is off — both templates must agree on this (multimodal.yaml.j2
+    used to emit mcp_servers unconditionally, independent of mcp_tools)."""
+    answers = _default_answers(get_spec(spec_key))
+    answers["mcp_tools"] = False
+    answers["mcp_servers"] = ["search", "weather"]
+    with TestClient(_build_app(tmp_path)) as client:
+        resp = client.post("/admin/adapters/preview", json={"spec": spec_key, "answers": answers})
+    assert resp.status_code == 200
+    rendered = yaml.safe_load(resp.json()["yaml"])
+    caps = rendered["adapters"][0]["capabilities"]
+    assert "mcp_servers" not in caps
 
 
 def test_preview_rejects_bad_variant(tmp_path):

@@ -519,6 +519,60 @@ def _available_skill_options(config: dict) -> list[dict[str, Any]]:
     return options
 
 
+def _available_mcp_server_options(config: dict) -> list[dict[str, Any]]:
+    """MCP servers a create-form opportunistic-tools picker may offer.
+
+    Mirrors the gates that determine whether `MCPClientManager` will actually
+    surface a server's tools via the opportunistic path
+    (`get_all_tools(..., opportunistic_only=True)`): MCP must be globally
+    enabled, the server itself must be enabled, and the server's effective
+    `allow_opportunistic` (per-server override, else the `mcp_clients`-level
+    default) must resolve true.
+    """
+    mcp_clients = config.get("mcp_clients") or {}
+    if not mcp_clients.get("enabled"):
+        return []
+    global_allow_opportunistic = mcp_clients.get("allow_opportunistic", False)
+    options: list[dict[str, Any]] = []
+    for server in mcp_clients.get("servers", []) or []:
+        if not isinstance(server, dict):
+            continue
+        if not server.get("enabled", True):
+            continue
+        if not server.get("allow_opportunistic", global_allow_opportunistic):
+            continue
+        name = server.get("name")
+        if not name:
+            continue
+        options.append({"value": name, "label": name, "description": ""})
+    options.sort(key=lambda o: o["value"])
+    return options
+
+
+def _available_mcp_server_options_unfiltered(config: dict) -> list[dict[str, Any]]:
+    """MCP servers mcp-agent may allowlist — its own `mcp_servers` is always
+    active (no `mcp_tools`-style toggle), and per `mcp_client_service.py`'s
+    `_OVERRIDABLE["allow_opportunistic"]` comment, mcp-agent isn't gated by
+    `allow_opportunistic` the way opportunistic tool calling is. So this only
+    applies the global/per-server `enabled` gates, not the opportunistic one.
+    """
+    mcp_clients = config.get("mcp_clients") or {}
+    if not mcp_clients.get("enabled"):
+        return []
+    options: list[dict[str, Any]] = []
+    for server in mcp_clients.get("servers", []) or []:
+        if not isinstance(server, dict):
+            continue
+        if not server.get("enabled", True):
+            continue
+        name = server.get("name")
+        if not name:
+            continue
+        options.append({"value": name, "label": name, "description": ""})
+    options.sort(key=lambda o: o["value"])
+    return options
+
+
 @router.get("/adapters/specs", dependencies=[adapters_auth])
 async def list_adapter_specs():
     """List the adapter families the SDK can generate, with their form questions."""
@@ -538,6 +592,8 @@ async def adapter_answer_options(request: Request):
         "vector_stores": sorted(_enabled_config_section_names(config, "vector_stores", default_enabled=False) or []),
         "datasources": sorted(_enabled_config_section_names(config, "datasources") or []),
         "skills": _available_skill_options(config),
+        "mcp_servers": _available_mcp_server_options(config),
+        "mcp_servers_all": _available_mcp_server_options_unfiltered(config),
     }
 
 

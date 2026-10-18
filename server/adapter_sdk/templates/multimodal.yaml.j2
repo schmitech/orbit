@@ -46,11 +46,13 @@ adapters:
         - "{{ param }}"
 {%- endfor %}
       mcp_tools: {{ mcp_tools | lower }}
+{%- if mcp_tools %}
 {%- if mcp_servers %}
       mcp_servers:
 {%- for server in mcp_servers %}
         - "{{ server }}"
 {%- endfor %}
+{%- endif %}
 {%- endif %}
 
     config:

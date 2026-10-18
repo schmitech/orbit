@@ -3,6 +3,7 @@
 [UNRELEASED]
 
 ### Core Features
+- **MCP server picker for adapter creation**: "Allowed MCP servers" on the passthrough, multimodal, and MCP agent create forms is now a pick-from-a-list chip picker, instead of typing exact server names by hand. For passthrough/multimodal it only lists servers usable for opportunistic tool calling and is disabled (selection preserved) until "Enable opportunistic MCP tool calling" is turned on; the MCP agent form lists every enabled server since its allowlist is always active.
 - **DeepSeek web search provider**: Added `deepseek` as a new external search backend for the `web-search` adapter type, alongside DuckDuckGo, Brave, Serper, Tavily, SearXNG, Google PSE, and Perplexity.
 
 ## [2.18.6] - 2026-10-18
