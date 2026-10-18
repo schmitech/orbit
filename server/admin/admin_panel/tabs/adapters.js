@@ -255,7 +255,7 @@ export function createAdaptersTab({
     // The whole form is built from GET /admin/adapters/specs, so adapter
     // knowledge stays in the SDK spec registry and never leaks into this file.
     var createPanel = el("div", { className: "panel", style: "display:none" });
-    container.insertBefore(createPanel, layout);
+    container.appendChild(createPanel);
 
     var createPanelTitle = el("h2", null, "New Adapter");
     var closeCreateBtn = el("button", { className: "secondary", type: "button" }, "Close");
@@ -318,6 +318,9 @@ export function createAdaptersTab({
       if (q.type === "bool") {
         input.checked = !!value;
         input._appliedDefault = String(!!value);
+      } else if (q.type === "list" && q.multi) {
+        input.value = Array.isArray(value) ? value.slice() : [];
+        input._appliedDefault = input.value.slice().sort().join(",");
       } else {
         input.value = defaultAsString(q, value);
         input._appliedDefault = input.value;
@@ -326,6 +329,7 @@ export function createAdaptersTab({
 
     function readAnswer(q, input) {
       if (q.type === "bool") return input.checked;
+      if (q.type === "list" && q.multi) return input.value.slice();
       var raw = (input.value || "").trim();
       if (q.type === "list") {
         return raw.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
@@ -368,8 +372,100 @@ export function createAdaptersTab({
       }));
     }
 
+    // Auto-scanned skills (and future multi-select sources) come back from
+    // answer-options as [{ value, label, description }], not the plain string
+    // arrays other options_source fields use — this widget is the only consumer.
+    //
+    // Rendered as toggle chips rather than checkbox+label pairs: skill names
+    // vary wildly in length ("PDF" vs. "business-analytics"), and a checkbox
+    // grid of ragged-width rows reads as misaligned clutter at any column
+    // count. Chips wrap at their own width like tags, so the ragged edge
+    // becomes the expected shape of a tag cloud instead of a broken grid.
+    function createMultiCheckboxList(q) {
+      var checked = [];
+      var wrap = el("div", { className: "adapter-chip-picker" });
+      var chipRow = el("div", { className: "adapter-chip-row", role: "group", "aria-label": q.prompt });
+      var countEl = el("div", { className: "adapter-chip-count", "aria-live": "polite" });
+      wrap.appendChild(chipRow);
+      wrap.appendChild(countEl);
+
+      function maxItems() {
+        return q.max_items || Infinity;
+      }
+
+      function syncCount() {
+        var limit = maxItems();
+        countEl.textContent = isFinite(limit)
+          ? checked.length + " of " + limit + " selected"
+          : checked.length + " selected";
+        countEl.classList.toggle("near-limit", isFinite(limit) && checked.length >= limit);
+      }
+
+      function updateChipStates() {
+        var limit = maxItems();
+        var atLimit = checked.length >= limit;
+        Array.prototype.forEach.call(chipRow.querySelectorAll(".adapter-chip"), function (chip) {
+          var isOn = checked.indexOf(chip.dataset.value) !== -1;
+          chip.classList.toggle("is-selected", isOn);
+          chip.setAttribute("aria-pressed", String(isOn));
+          chip.disabled = !isOn && atLimit;
+        });
+      }
+
+      function toggle(value) {
+        var limit = maxItems();
+        var idx = checked.indexOf(value);
+        if (idx !== -1) {
+          checked.splice(idx, 1);
+        } else {
+          if (checked.length >= limit) return;
+          checked.push(value);
+        }
+        syncCount();
+        updateChipStates();
+        wrap.dispatchEvent(new Event("change"));
+      }
+
+      function renderOptions() {
+        clear(chipRow);
+        var options = ((cachedAdapterAnswerOptions || {})[q.options_source] || []);
+        if (!options.length) {
+          chipRow.appendChild(el("div", { className: "adapter-chip-empty" },
+            "No skills configured yet — add capabilities.expose_as_skill: true to an adapter to offer it here."));
+          syncCount();
+          return;
+        }
+        options.forEach(function (opt) {
+          var chip = el("button", {
+            type: "button",
+            className: "adapter-chip",
+            "aria-pressed": "false",
+            title: opt.description || "",
+            onClick: function () { toggle(opt.value); }
+          }, opt.label);
+          chip.dataset.value = opt.value;
+          chipRow.appendChild(chip);
+        });
+        syncCount();
+        updateChipStates();
+      }
+
+      renderOptions();
+
+      Object.defineProperty(wrap, "value", {
+        get: function () { return checked.slice(); },
+        set: function (v) {
+          checked = Array.isArray(v) ? v.slice() : [];
+          renderOptions();
+        }
+      });
+
+      return wrap;
+    }
+
     function makeQuestionInput(q) {
       if (q.type === "bool") return el("input", { type: "checkbox" });
+      if (q.type === "list" && q.multi && q.options_source) return createMultiCheckboxList(q);
       if (q.options_strict) return createSelect({ ariaLabel: q.prompt });
       if (q.choices) {
         return createSelect({
@@ -537,7 +633,9 @@ export function createAdaptersTab({
     function questionHint(q) {
       var parts = [];
       if (q.help) parts.push(q.help);
-      if (q.type === "list") {
+      if (q.type === "list" && q.multi) {
+        parts.push("Check up to " + q.max_items + " entries.");
+      } else if (q.type === "list") {
         parts.push("Comma-separated, up to " + q.max_items + " entries of "
           + q.max_length + " characters.");
       } else if (q.type === "int" && q.min_value !== null && q.min_value !== undefined) {
@@ -545,8 +643,10 @@ export function createAdaptersTab({
       } else if (q.type === "str" && q.max_length) {
         parts.push("Max " + q.max_length + " characters.");
       }
-      if (q.options_strict) parts.push("Only active, configured providers are listed.");
-      else if (q.options_source) parts.push("Start typing to see configured values.");
+      // The checkbox-list widget (q.multi) needs no "start typing"/"only active
+      // values" hint — its options are already visibly fixed to what's offered.
+      if (!q.multi && q.options_strict) parts.push("Only active, configured providers are listed.");
+      else if (!q.multi && q.options_source) parts.push("Start typing to see configured values.");
       return parts.join(" ");
     }
 
@@ -568,6 +668,23 @@ export function createAdaptersTab({
     function adapterQuestionField(q, input, hint) {
       if (q.type !== "bool") {
         var control;
+        if (q.type === "list" && q.multi) {
+          // Each option is its own toggle button, so (as with the combobox
+          // branch above) this must not be nested inside a wrapping <label> —
+          // a click on the group div would otherwise forward to one chip.
+          var groupId = input.id || "field-" + Math.random().toString(36).slice(2, 9);
+          input.id = groupId;
+          var groupLabelRow = [el("span", { className: "field-label-text" }, q.prompt)];
+          if (hint) {
+            var groupHelpId = groupId + "-help";
+            groupLabelRow.push(helpTooltip(q.prompt, hint, groupHelpId));
+          }
+          control = el("div", { className: "stack" },
+            el("div", { className: "field-label-row" }, groupLabelRow),
+            input
+          );
+          return control;
+        }
         if (q.options_source && !q.options_strict) {
           // A combobox's option panel must not be nested in the <label>. Apart
           // from being invalid label content, option clicks then also trigger

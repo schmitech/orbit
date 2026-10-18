@@ -100,6 +100,72 @@ def test_variant_specs_carry_per_variant_defaults(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Answer options — scanned skills for the available_skills/auto_routable_skills picker
+# --------------------------------------------------------------------------- #
+
+def test_answer_options_lists_enabled_skills_with_descriptions(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = {
+        "adapters": [
+            {
+                "name": "image-generator",
+                "enabled": True,
+                "capabilities": {
+                    "expose_as_skill": True,
+                    "skill_name": "Image",
+                    "skill_description": "Generate images from text",
+                },
+            },
+        ]
+    }
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.status_code == 200
+    skills = resp.json()["skills"]
+    assert skills == [{"value": "Image", "label": "Image", "description": "Generate images from text"}]
+
+
+def test_answer_options_excludes_disabled_skill_adapter(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = {
+        "adapters": [
+            {
+                "name": "video-generator",
+                "enabled": False,
+                "capabilities": {"expose_as_skill": True, "skill_name": "Video"},
+            },
+        ]
+    }
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["skills"] == []
+
+
+def test_answer_options_excludes_skill_adapter_without_skill_name(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = {
+        "adapters": [
+            {"name": "broken-skill", "enabled": True, "capabilities": {"expose_as_skill": True}},
+        ]
+    }
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["skills"] == []
+
+
+def test_answer_options_excludes_non_skill_adapters(tmp_path):
+    app = _build_app(tmp_path)
+    app.state.config = {
+        "adapters": [
+            {"name": "simple-chat", "enabled": True, "capabilities": {"retrieval_behavior": "none"}},
+        ]
+    }
+    with TestClient(app) as client:
+        resp = client.get("/admin/adapters/answer-options")
+    assert resp.json()["skills"] == []
+
+
+# --------------------------------------------------------------------------- #
 # Preview
 # --------------------------------------------------------------------------- #
 

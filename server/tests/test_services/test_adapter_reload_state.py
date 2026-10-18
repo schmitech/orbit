@@ -8,6 +8,38 @@ import pytest
 from services import adapter_reload_state
 
 
+class TestAdapterConfigReloadPropagation:
+    @pytest.mark.asyncio
+    async def test_apply_adapter_reload_updates_app_state_config(self):
+        """A sibling worker's propagated reload must refresh app_state.config too —
+        not just the adapter manager — so request-time reads of app_state.config
+        (e.g. the answer-options skill picker) see the applied config, not the
+        stale snapshot from this worker's own startup or last local reload.
+        """
+        app_state = SimpleNamespace(
+            config={"adapters": ["stale"]},
+            config_path="config/config.yaml",
+            adapter_manager=MagicMock(reload_adapter_configs=AsyncMock(return_value={"reloaded": 1})),
+        )
+        new_config = {"adapters": ["fresh"]}
+
+        with patch(
+            "config.config_manager.reload_adapters_config", return_value=new_config
+        ), patch("services.mcp_auth_policy.apply_mcp_auth_policy") as apply_policy:
+            assert await adapter_reload_state._apply_reload(app_state, "adapter_config")
+
+        assert app_state.config == new_config
+        app_state.adapter_manager.reload_adapter_configs.assert_awaited_once_with(new_config, None)
+        apply_policy.assert_called_once_with(app_state, new_config)
+
+    @pytest.mark.asyncio
+    async def test_apply_adapter_reload_fails_without_adapter_manager(self):
+        app_state = SimpleNamespace(config={"adapters": ["stale"]}, config_path="config/config.yaml",
+                                     adapter_manager=None)
+        assert not await adapter_reload_state._apply_reload(app_state, "adapter_config")
+        assert app_state.config == {"adapters": ["stale"]}
+
+
 class TestMcpReloadPropagation:
     @pytest.mark.asyncio
     async def test_apply_mcp_reload_rebuilds_manager_and_refreshes_tools(self):

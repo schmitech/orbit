@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **Skill picker for adapter creation**: When creating a passthrough or multimodal adapter in the admin panel, "Available skills" and "Auto-routable skills" are now pick-from-a-list checkboxes populated from the skills already configured elsewhere, instead of typing comma-separated names by hand. The list always reflects the adapter configuration currently in effect, including changes made by other workers in a multi-worker deployment.
+
 ## [2.18.5] - 2026-10-17
 
 ### Core Features

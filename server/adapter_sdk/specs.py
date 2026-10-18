@@ -49,6 +49,9 @@ class Question:
     # like vector_store, where a value defined after the form's cache loaded should
     # still be typeable.
     options_strict: bool = False
+    # When True (list questions only), the admin UI renders a checkbox list sourced
+    # from options_source instead of a free-text comma-separated box.
+    multi: bool = False
 
 
 def question_limits(q: Question) -> dict[str, Any]:
@@ -280,9 +283,10 @@ MULTIMODAL = AdapterSpec(
         Question("vision_provider", "Vision provider (image files)", default="gemini"),
         Question("stt_provider", "STT provider (audio transcription)", default="openai"),
         Question("tts_provider", "TTS provider", default="gemini"),
-        Question("available_skills", "Available skills (invokable via / picker)", type="list", default=[]),
+        Question("available_skills", "Available skills (invokable via / picker)", type="list", default=[],
+                 options_source="skills", multi=True),
         Question("auto_routable_skills", "Auto-routable skills (auto-only, not user-invokable)",
-                 type="list", default=[]),
+                 type="list", default=[], options_source="skills", multi=True),
         Question("auto_skill_routing", "Enable automatic skill intent detection?", type="bool", default=True),
         Question("mcp_tools", "Enable opportunistic MCP tool calling?", type="bool", default=False),
         Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[]),
@@ -324,9 +328,10 @@ PASSTHROUGH = AdapterSpec(
         Question("inference_provider", "Inference provider (override; blank for global default)", default=None,
                  options_source="inference_providers", options_strict=True),
         Question("model", "Model (override; blank for global default)", default=None),
-        Question("available_skills", "Available skills (invokable via / picker)", type="list", default=[]),
+        Question("available_skills", "Available skills (invokable via / picker)", type="list", default=[],
+                 options_source="skills", multi=True),
         Question("auto_routable_skills", "Auto-routable skills (auto-only, not user-invokable)",
-                 type="list", default=[]),
+                 type="list", default=[], options_source="skills", multi=True),
         Question("auto_skill_routing", "Enable automatic skill intent detection?", type="bool", default=False),
         Question("mcp_tools", "Enable opportunistic MCP tool calling?", type="bool", default=False),
         Question("mcp_servers", "Allowed MCP servers (blank = all enabled)", type="list", default=[]),

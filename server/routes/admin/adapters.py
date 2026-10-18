@@ -294,6 +294,7 @@ async def toggle_adapter_enabled(
             new_config = reload_adapters_config(config_path)
             reload_summary = await adapter_manager.reload_adapter_configs(new_config, adapter_name)
             apply_mcp_auth_policy(request.app.state, new_config)
+            request.app.state.config = new_config
         except Exception as e:
             logger.error(
                 f"Adapter '{adapter_name}' YAML was {state} but runtime reload failed: {e}",
@@ -494,6 +495,30 @@ def _find_skill_name_owner(adapters_dir: Path, skill_name: str, exclude_name: Op
     return None
 
 
+def _available_skill_options(config: dict) -> list[dict[str, Any]]:
+    """Skills a create-form picker may offer: enabled adapters with a declared `skill_name`.
+
+    Mirrors the enabled/skill_name filtering `AdapterConfigManager.get_all_skills()`
+    applies at runtime, so the picker never lists a skill the runtime registry
+    wouldn't actually recognize.
+    """
+    options: list[dict[str, Any]] = []
+    for entry in config.get("adapters", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        if not entry.get("enabled", True):
+            continue
+        caps = entry.get("capabilities") or {}
+        if not caps.get("expose_as_skill"):
+            continue
+        skill_name = caps.get("skill_name")
+        if not skill_name:
+            continue
+        options.append({"value": skill_name, "label": skill_name, "description": caps.get("skill_description", "")})
+    options.sort(key=lambda o: o["value"])
+    return options
+
+
 @router.get("/adapters/specs", dependencies=[adapters_auth])
 async def list_adapter_specs():
     """List the adapter families the SDK can generate, with their form questions."""
@@ -512,6 +537,7 @@ async def adapter_answer_options(request: Request):
         "inference_providers": sorted(_enabled_inference_providers(config) or []),
         "vector_stores": sorted(_enabled_config_section_names(config, "vector_stores", default_enabled=False) or []),
         "datasources": sorted(_enabled_config_section_names(config, "datasources") or []),
+        "skills": _available_skill_options(config),
     }
 
 
@@ -768,6 +794,7 @@ async def import_adapter(
             new_config = reload_adapters_config(config_path)
             reload_summary = await adapter_manager.reload_adapter_configs(new_config, name)
             apply_mcp_auth_policy(request.app.state, new_config)
+            request.app.state.config = new_config
         except Exception as e:
             logger.error(f"Adapter '{name}' was imported but runtime reload failed: {e}", exc_info=True)
             reload_error = str(e)
@@ -883,6 +910,7 @@ async def create_adapter(
             new_config = reload_adapters_config(config_path)
             reload_summary = await adapter_manager.reload_adapter_configs(new_config, name)
             apply_mcp_auth_policy(request.app.state, new_config)
+            request.app.state.config = new_config
         except Exception as e:
             logger.error(f"Adapter '{name}' was created but runtime reload failed: {e}", exc_info=True)
             reload_error = str(e)
@@ -1058,6 +1086,7 @@ async def delete_adapter(
             new_config = reload_adapters_config(config_path)
             reload_summary = await adapter_manager.reload_adapter_configs(new_config)
             apply_mcp_auth_policy(request.app.state, new_config)
+            request.app.state.config = new_config
         except Exception as e:  # noqa: BLE001 - runtime reload must not crash the delete flow; surfaced to the caller as reload_error
             logger.error(f"Adapter '{adapter_name}' was deleted but runtime reload failed: {e}", exc_info=True)
             reload_error = str(e)
@@ -1151,6 +1180,7 @@ async def reload_adapters(
         # Reload adapters using the adapter manager
         summary = await adapter_manager.reload_adapter_configs(new_config, adapter_name)
         apply_mcp_auth_policy(request.app.state, new_config)
+        request.app.state.config = new_config
 
         # Under performance.workers > 1, this only reloaded the worker that
         # served this request - bump the durable generation counter so
