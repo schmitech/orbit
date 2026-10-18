@@ -28,6 +28,7 @@ class FakeApiKeyDatabase:
         return {
             "_id": query["_id"],
             "api_key": "orbit_super-secret-value-1234",
+            "key_suffix": "e-1234",
             "client_name": "regression-test",
             "active": True,
         }

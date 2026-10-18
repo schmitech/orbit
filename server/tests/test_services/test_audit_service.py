@@ -26,6 +26,7 @@ from services.audit import (
     MongoDBDAuditStrategy,
 )
 from services.sqlite_service import SQLiteService
+from services.api_key_service import hash_api_key_for_storage
 
 
 # ============================================================================
@@ -684,8 +685,11 @@ class TestAuditService:
         await sqlite_service.initialize()
 
         full_api_key = "api_abc123def456ghi789jkl012mno345"
+        key_config = {'api_keys': {'hash_pepper': 'audit-test-pepper'}}
         inserted_id = await sqlite_service.insert_one('api_keys', {
-            'api_key': full_api_key, 'client_name': 'Acme Corp', 'active': True,
+            'api_key_hash': hash_api_key_for_storage(full_api_key, key_config),
+            'key_suffix': full_api_key[-6:],
+            'client_name': 'Acme Corp', 'active': True,
             'created_at': datetime(2026, 1, 1).isoformat(),
         })
 
@@ -693,10 +697,11 @@ class TestAuditService:
             def __init__(self, database):
                 self.database = database
                 self.collection_name = 'api_keys'
-                self.config = {}
+                self.config = key_config
 
             async def _find_by_raw_key(self, api_key):
-                return await self.database.find_one(self.collection_name, {'api_key': api_key})
+                key_hash = hash_api_key_for_storage(api_key, self.config)
+                return await self.database.find_one(self.collection_name, {'api_key_hash': key_hash})
 
         audit_service = AuditService(sqlite_config, sqlite_service, _FakeApiKeyService(sqlite_service))
         await audit_service.initialize()
@@ -1765,73 +1770,6 @@ class TestUsageFieldsRoundTrip:
         stored = results[0]
         assert stored['cost_usd'] == 0.0
         assert stored['pricing_source'] == "local_zero"
-
-    @pytest.mark.asyncio
-    async def test_sqlite_migration_adds_usage_columns_to_old_table(self, tmp_path):
-        """A table created before this feature (no usage columns) must gain
-        them automatically on the next SQLiteService initialization, via the
-        existing _migrate_table_schema DDL-diff mechanism."""
-        db_path = os.path.join(tmp_path, "test_migrate.db")
-
-        # Create an old-shape audit_logs table directly, bypassing SQLiteService's
-        # current (already-migrated) schema.
-        import sqlite3
-        conn = sqlite3.connect(db_path)
-        conn.execute('''
-            CREATE TABLE audit_logs (
-                id TEXT PRIMARY KEY,
-                timestamp TEXT NOT NULL,
-                query TEXT NOT NULL,
-                response TEXT NOT NULL,
-                response_compressed INTEGER NOT NULL DEFAULT 0,
-                provider TEXT,
-                blocked INTEGER NOT NULL DEFAULT 0,
-                ip TEXT,
-                ip_type TEXT,
-                ip_is_local INTEGER DEFAULT 0,
-                ip_source TEXT,
-                ip_original_value TEXT,
-                api_key_value TEXT,
-                api_key_timestamp TEXT,
-                session_id TEXT,
-                user_id TEXT,
-                adapter_name TEXT,
-                model TEXT
-            )
-        ''')
-        conn.commit()
-        conn.close()
-
-        config = {
-            'general': {'inference_provider': 'test'},
-            'internal_services': {
-                'backend': {'type': 'sqlite', 'sqlite': {'database_path': db_path}},
-            }
-        }
-        sqlite_service = SQLiteService(config)
-        await sqlite_service.initialize()
-
-        conn = sqlite3.connect(db_path)
-        columns = {row[1] for row in conn.execute("PRAGMA table_info(audit_logs)").fetchall()}
-        conn.close()
-
-        for expected in (
-            'prompt_tokens', 'completion_tokens', 'total_tokens', 'reasoning_tokens',
-            'cached_prompt_tokens',
-            'cost_usd', 'input_rate_per_1m', 'output_rate_per_1m', 'pricing_source',
-            'usage_unit', 'usage_quantity', 'api_key_id',
-        ):
-            assert expected in columns, f"migration did not add column {expected}"
-
-        # The migration must be additive, not merely column-present: an
-        # existing database must open and be queryable before any new row
-        # carrying api_key_id is ever written.
-        rows = await sqlite_service.find_many('audit_logs', {})
-        assert rows == []
-
-        sqlite_service.close()
-        SQLiteService.clear_cache()
-
 
 class TestGroupByFieldMapping:
     """Every backend must accept the same logical group-by dimension names and

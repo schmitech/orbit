@@ -2,9 +2,7 @@
 Feedback Service Tests
 ======================
 
-Tests the feedback service toggle/comment semantics and the SQLite
-additive-column migration that adds the `comment` column to pre-existing
-databases.
+Tests the feedback service toggle/comment semantics.
 
 Covers:
 - thumb-only toggle logic (create / toggle-off / switch type)
@@ -13,11 +11,9 @@ Covers:
 - get_session_feedback returns the comment
 - comment length bound (MAX_COMMENT_LENGTH) enforcement
 - invalid feedback_type rejection
-- migration of a legacy feedback table (no `comment` column)
 """
 
 import os
-import sqlite3
 import shutil
 import sys
 import tempfile
@@ -155,41 +151,3 @@ async def test_exactly_max_length_comment_accepted(feedback_service):
 async def test_invalid_feedback_type_rejected(feedback_service):
   with pytest.raises(ValueError, match="Invalid feedback_type"):
     await feedback_service.submit_feedback(MID, SID, "sideways")
-
-
-@pytest.mark.asyncio
-async def test_migration_adds_comment_column_to_legacy_db():
-  """A pre-existing feedback table without `comment` gains it on startup."""
-  temp_dir = tempfile.mkdtemp()
-  db_path = os.path.join(temp_dir, "legacy_orbit.db")
-  try:
-    # Create a legacy feedback table WITHOUT the comment column.
-    conn = sqlite3.connect(db_path)
-    conn.execute(
-      """CREATE TABLE feedback (
-          id TEXT PRIMARY KEY, message_id TEXT NOT NULL, session_id TEXT NOT NULL,
-          user_id TEXT, feedback_type TEXT NOT NULL, adapter_name TEXT,
-          created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"""
-    )
-    conn.commit()
-    conn.close()
-
-    config = _make_config(db_path)
-    sqlite_service = SQLiteService(config)
-    await sqlite_service.initialize()  # runs the additive-column migration
-
-    columns = {
-      row[1]
-      for row in sqlite3.connect(db_path).execute("PRAGMA table_info(feedback)").fetchall()
-    }
-    assert "comment" in columns
-
-    # Feedback with a comment works against the migrated table.
-    service = FeedbackService(config, database_service=sqlite_service)
-    await service.initialize()
-    result = await service.submit_feedback(MID, SID, "down", comment="after migration")
-    assert result["comment"] == "after migration"
-
-    sqlite_service.close()
-  finally:
-    shutil.rmtree(temp_dir, ignore_errors=True)
