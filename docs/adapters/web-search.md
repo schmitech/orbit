@@ -116,6 +116,7 @@ Because searching and synthesis are decoupled, you can mix and match freely — 
 | `tavily` | Limited | Yes | AI-native search, [tavily.com](https://tavily.com/) |
 | `google_pse` | Limited | Yes | Google Programmable Search Engine |
 | `perplexity` | No | Yes | Structured results via [/search endpoint](https://docs.perplexity.ai/docs/search/quickstart) |
+| `deepseek` | No | Yes | [DeepSeek Search API](https://api-docs.deepseek.com/guides/search/) |
 
 ### Configuration
 
@@ -167,6 +168,7 @@ adapters:
 | Tavily | `TAVILY_API_KEY` |
 | Google PSE | `GOOGLE_PSE_API_KEY`, `GOOGLE_PSE_ENGINE_ID` |
 | Perplexity | `PERPLEXITY_API_KEY` |
+| DeepSeek | `DEEPSEEK_API_KEY` |
 
 All variables are defined in `env.example`.
 

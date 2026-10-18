@@ -1,5 +1,10 @@
 # Changelog
 
+[UNRELEASED]
+
+### Core Features
+- **DeepSeek web search provider**: Added `deepseek` as a new external search backend for the `web-search` adapter type, alongside DuckDuckGo, Brave, Serper, Tavily, SearXNG, Google PSE, and Perplexity.
+
 ## [2.18.6] - 2026-10-18
 
 ### Core Features

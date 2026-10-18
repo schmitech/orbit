@@ -16,6 +16,7 @@
 #   tavily       — AI-native search, requires TAVILY_API_KEY
 #   google_pse   — requires GOOGLE_PSE_API_KEY + GOOGLE_PSE_ENGINE_ID
 #   perplexity   — requires PERPLEXITY_API_KEY
+#   deepseek     — requires DEEPSEEK_API_KEY
 #
 # ALTERNATIVE: for provider-native search (Gemini GoogleSearch grounding,
 #   OpenAI web_search_preview, xAI Grok search) in a single API call, see:
@@ -96,13 +97,17 @@ adapters:
         api_key: "${GOOGLE_PSE_API_KEY}"
         search_engine_id: "${GOOGLE_PSE_ENGINE_ID}"
         result_count: 5
+      - name: "deepseek"
+        provider: "deepseek"
+        api_key: "${DEEPSEEK_API_KEY}"
+        result_count: 5
     web_search:
       provider: "duckduckgo"
       result_count: 5
       # backend: "auto"   # optional: auto, duckduckgo, google, brave, etc.
     capabilities:
       expose_as_skill: true
-      skill_name: "web-search-duckduckgo"
+      skill_name: "web-search-providers"
       skill_description: "Search the web using DuckDuckGo (free, no API key)"
       retrieval_behavior: "none"
       formatting_style: "standard"
@@ -243,6 +248,28 @@ adapters:
       expose_as_skill: true
       skill_name: "web-search-google-pse"
       skill_description: "Search Google via Programmable Search Engine"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
+  # ── DeepSeek Search ──────────────────────────────────────────────────────────
+  # Requires a DeepSeek API key (https://api-docs.deepseek.com/guides/search/).
+  - name: "web-search-deepseek"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-haiku-4-5-20251001"
+    web_search:
+      provider: "deepseek"
+      api_key: "${DEEPSEEK_API_KEY}"
+      result_count: 5
+    capabilities:
+      expose_as_skill: true
+      skill_name: "web-search-deepseek"
+      skill_description: "Search the web using the DeepSeek Search API"
       retrieval_behavior: "none"
       formatting_style: "standard"
       requires_api_key_validation: false

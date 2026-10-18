@@ -10,6 +10,7 @@ passed through **provider_kwargs from the adapter config's web_search block.
 from __future__ import annotations
 
 from .providers.brave import search_brave
+from .providers.deepseek import search_deepseek
 from .providers.duckduckgo import search_duckduckgo
 from .providers.google_pse import search_google_pse
 from .providers.perplexity import search_perplexity
@@ -20,6 +21,7 @@ from .providers.tavily import search_tavily
 PROVIDERS: dict[str, callable] = {
     "duckduckgo": search_duckduckgo,
     "brave": search_brave,
+    "deepseek": search_deepseek,
     "searxng": search_searxng,
     "serper": search_serper,
     "tavily": search_tavily,
