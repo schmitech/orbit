@@ -4,6 +4,7 @@ Decision model service implementations ("System One" / Jev-style models).
 Available providers:
     - OllamaDecisionService: local decision models via Ollama's /v1/systemone
     - TypeSafeDecisionService: TypeSafe hosted API via the typesafe-sdk
+    - OpenAIDecisionService: OpenAI hosted Decisions API (/v1/decisions)
 """
 
 import logging
@@ -15,6 +16,7 @@ __all__ = []
 _implementations = [
     ('ollama_decision_service', 'OllamaDecisionService'),
     ('typesafe_decision_service', 'TypeSafeDecisionService'),
+    ('openai_decision_service', 'OpenAIDecisionService'),
 ]
 
 for module_name, class_name in _implementations:

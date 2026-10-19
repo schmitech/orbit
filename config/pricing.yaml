@@ -37,6 +37,9 @@ pricing:
       # Realtime voice models bill audio tokens at a separate, much higher
       # tier than text — see PricingService.estimate()'s audio_* args.
       "gpt-realtime*": { input_per_1m: 4.00, output_per_1m: 16.00, audio_input_per_1m: 32.00, audio_output_per_1m: 64.00 }
+      # Decisions API model (server/ai_services/implementations/decision/
+      # openai_decision_service.py). No output-token or cache charges published.
+      "gpt-6-luna*": { input_per_1m: 0.10, output_per_1m: 0.0 }
 
     # Azure AI Foundry — pricing is looked up by deployment name (self.model
     # mirrors self.deployment in azure_base.py), which is caller-chosen and

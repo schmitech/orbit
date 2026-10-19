@@ -263,6 +263,7 @@ def register_decision_services(config: dict[str, Any] = None) -> None:
     _register_services(ServiceType.DECISION, 'ai_services.implementations.decision', [
         ("ollama", "OllamaDecisionService", "Ollama"),
         ("typesafe", "TypeSafeDecisionService", "TypeSafe"),
+        ("openai", "OpenAIDecisionService", "OpenAI"),
     ], config=config, config_section='decision_models', default_enabled=False)
 
 

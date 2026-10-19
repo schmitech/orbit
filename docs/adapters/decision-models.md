@@ -2,14 +2,15 @@
 
 Decision models (also called "System One" or Jev-style models) are a different kind of model from the chat LLMs used by most ORBIT adapters. They **do not generate text**. You give them some context (the `state`) and a set of typed questions, and they return typed answers with a probability for every candidate. Because they only score a fixed set of answers instead of writing a reply, they are fast (roughly 100 ms per decision on a local GPU or Apple Silicon) and predictable. That makes them a good fit for light, real-time decisions inside an application: ticket triage, content moderation, request routing, and similar checks.
 
-ORBIT exposes these models through the `decision_model` adapter type, with two providers:
+ORBIT exposes these models through the `decision_model` adapter type, with three providers:
 
 | Provider | Where it runs | Models | How ORBIT calls it |
 |----------|---------------|--------|--------------------|
 | `ollama` | Local, Ollama 0.35+ | `nimble` (9B, Bespoke Labs), `tev1` (4B), `tev1:0.8b` (0.8B, Together AI) | Plain HTTP to `POST /v1/systemone` (no extra dependency) |
 | `typesafe` | Hosted by [TypeSafe](https://docs.typesafe.ai) | `jev-latest` (resolves to a version such as `jev-1.13.0`) | The official `typesafe-sdk` (`AsyncTypeSafeClient`) |
+| `openai` | Hosted by OpenAI | `gpt-6-luna` | Plain HTTP to `POST /v1/decisions` (no extra dependency) |
 
-Both providers speak the same System One protocol, so an adapter can switch between local and hosted by changing one line.
+All three speak the same `choice` / `noul` / `score` question shape at the adapter level — ORBIT translates to and from each provider's own wire format (OpenAI's Decisions API calls `noul` a `predicate`, and uses `choices` / `levels` instead of `criteria`) — so an adapter can switch providers by changing one line.
 
 ---
 
@@ -82,7 +83,7 @@ And the typed result:
 
 ```yaml
 decision:
-  provider: "ollama"   # Default decision provider: ollama, typesafe
+  provider: "ollama"   # Default decision provider: ollama, typesafe, openai
   enabled: true        # Whether decision models are enabled globally
 
 decision_models:
@@ -107,10 +108,26 @@ decision_models:
     model: "jev-latest"
     timeout:
       total: 30000                # milliseconds (converted to seconds for the SDK)
+
+  openai:
+    enabled: true
+    api_key: ${OPENAI_API_KEY}
+    base_url: "https://api.openai.com"
+    model: "gpt-6-luna"
+    timeout:
+      connect: 5000
+      total: 30000                # milliseconds
+    retry:
+      enabled: true
+      max_retries: 2
+      initial_wait_ms: 500
+      max_wait_ms: 5000
+      exponential_base: 2
 ```
 
 - **Ollama retries**: only connection errors, timeouts, HTTP 429 and HTTP 5xx are retried. Any other error (for example a 404 for a model that isn't pulled, or a 422 for an invalid question) fails right away and returns the provider's own error message.
 - **TypeSafe retries**: handled by the SDK.
+- **OpenAI retries**: same policy as Ollama — only connection errors, timeouts, 429 and 5xx are retried.
 - Setting `decision.enabled: false` turns off every decision provider. Setting `decision_models.<provider>.enabled: false` turns off just that one.
 
 ### 2. Get a model
@@ -145,6 +162,8 @@ pip install "typesafe-sdk>=0.7.2,<0.8"
 ```
 
 If the SDK isn't installed, ORBIT skips the `typesafe` provider at startup and `ollama` keeps working. If the API key is missing, requests to a TypeSafe adapter fail with `TypeSafe API key not configured (set TYPESAFE_API_KEY)`.
+
+**Hosted (OpenAI):** uses the same `OPENAI_API_KEY` as ORBIT's other OpenAI services (chat, embeddings, etc.) — no extra dependency is needed, since the `openai` decision provider is called over plain HTTP. If the key is missing, requests to an OpenAI decision adapter fail with `OpenAI API key not configured (set OPENAI_API_KEY)`.
 
 ### 3. Enable the adapters
 
@@ -215,6 +234,7 @@ No `inference_provider` is needed: decision adapters never call a chat LLM.
 | `ticket-triage` | `ollama` / `tev1:0.8b` | `team` (choice), `refund_requested` (noul), `urgency` (score). Question override enabled |
 | `content-moderation` | `typesafe` / `jev-latest` | `category` (choice), `needs_human_review` (noul), `severity` (score) |
 | `ticket-triage-typesafe` | `typesafe` / `jev-latest` | Same questions as `ticket-triage`, answered by TypeSafe |
+| `ticket-triage-openai` | `openai` / `gpt-6-luna` | Same questions as `ticket-triage`, answered by OpenAI's Decisions API |
 | `skill-router` | `ollama` / `tev1:0.8b` | `skill` (choice across ORBIT skills), `needs_retrieval` (noul) |
 
 `skill-router` is an example configuration only. ORBIT's built-in skill router doesn't use it yet, but an application can call it as a fast routing step before deciding which adapter to send a request to.
@@ -325,6 +345,8 @@ Decision services are cached per provider and preloaded when an adapter sets `de
 | `HTTP 503: …` after retries | Ollama is overloaded or still loading the model. The first request after a model loads is slower |
 | `Decision provider 'typesafe' is unavailable: TypeSafe API key not configured` | Set `TYPESAFE_API_KEY` in `.env` and restart |
 | `Decision provider 'typesafe' is unavailable` right after startup | `typesafe-sdk` isn't installed, or `decision_models.typesafe.enabled` is `false` |
+| `Decision provider 'openai' is unavailable: OpenAI API key not configured` | Set `OPENAI_API_KEY` in `.env` and restart |
+| `OpenAI decision error (HTTP 404): ...` | The Decisions API isn't enabled for the account yet, or the model name isn't `gpt-6-luna` |
 | `Choice question 'x' requires a non-empty 'criteria' mapping…` | Fix the question definition (see [Question Types](#question-types)) |
 | Request questions are ignored | Set `allow_question_override: true` on the adapter |
 
@@ -337,6 +359,7 @@ Decision services are cached per provider and preloaded when an adapter sets `de
 | Service interface | `server/ai_services/services/decision_service.py` | `DecisionService.decide()`; config under `decision_models` |
 | Ollama provider | `server/ai_services/implementations/decision/ollama_decision_service.py` | HTTP client for `/v1/systemone`, restricted retries |
 | TypeSafe provider | `server/ai_services/implementations/decision/typesafe_decision_service.py` | `typesafe-sdk` client, question conversion, response normalization |
+| OpenAI provider | `server/ai_services/implementations/decision/openai_decision_service.py` | HTTP client for `/v1/decisions`, question/answer conversion, restricted retries |
 | Service registration | `server/ai_services/registry.py` | `register_decision_services()` |
 | Service cache | `server/services/cache/decision_cache_manager.py` | Per-provider caching; used by `DynamicAdapterManager.get_decision_service()` |
 | Pipeline step | `server/inference/pipeline/steps/decision_model.py` | `DecisionModelStep`, `validate_questions()` |

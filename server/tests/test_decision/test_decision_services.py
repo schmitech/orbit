@@ -23,6 +23,11 @@ from ai_services.implementations.decision.ollama_decision_service import (  # no
     DecisionRetryableError,
     OllamaDecisionService,
 )
+from ai_services.implementations.decision.openai_decision_service import (  # noqa: E402
+    OpenAIDecisionService,
+    _from_openai_answers,
+    _to_openai_questions,
+)
 
 QUESTIONS = {
     "team": {
@@ -41,10 +46,13 @@ ANSWERS = {
 }
 
 
+_DEFAULT_MODELS = {"ollama": "nimble", "typesafe": "jev-latest", "openai": "gpt-6-luna"}
+
+
 def _config(provider="ollama", **overrides):
     provider_config = {
         "enabled": True,
-        "model": "nimble" if provider == "ollama" else "jev-latest",
+        "model": _DEFAULT_MODELS.get(provider, "nimble"),
         "timeout": {"connect": 1000, "total": 12000},
         "retry": {"enabled": True, "max_retries": 2, "initial_wait_ms": 1, "max_wait_ms": 1,
                   "exponential_base": 2},
@@ -271,3 +279,198 @@ class TestTypeSafeDecisionService:
 
         client.aclose.assert_awaited_once()
         assert service.client is None
+
+
+OPENAI_QUESTIONS_WIRE = [
+    {
+        "name": "team",
+        "type": "choice",
+        "instructions": "Which team should handle this ticket?",
+        "choices": [
+            {"value": "billing", "description": "Payments and refunds"},
+            {"value": "technical", "description": "Bugs"},
+        ],
+    },
+    {"name": "refund", "type": "predicate", "instructions": "Does the customer ask for a refund?"},
+    {
+        "name": "urgency",
+        "type": "score",
+        "instructions": "How urgent?",
+        "levels": [
+            {"label": "Routine", "description": "Routine"},
+            {"label": "Soon", "description": "Soon"},
+            {"label": "Urgent", "description": "Urgent"},
+        ],
+    },
+]
+
+OPENAI_ANSWERS_WIRE = [
+    {
+        "name": "team",
+        "type": "choice",
+        "choice": "billing",
+        "probabilities": [{"value": "billing", "probability": 0.98}, {"value": "technical", "probability": 0.02}],
+        "confidence": 0.92,
+    },
+    {"name": "refund", "type": "predicate", "probability": 0.997},
+]
+
+
+class TestOpenAIQuestionAnswerConversion:
+    def test_noul_criteria_are_preserved_in_instructions(self):
+        questions = {
+            "refund": {
+                "type": "noul",
+                "instructions": "Does the customer ask for a refund?",
+                "criteria": {"yes": "Explicit refund request", "no": "No refund mentioned"},
+            },
+        }
+
+        converted = _to_openai_questions(questions)[0]
+
+        assert converted["type"] == "predicate"
+        assert "Does the customer ask for a refund?" in converted["instructions"]
+        assert "Explicit refund request" in converted["instructions"]
+        assert "No refund mentioned" in converted["instructions"]
+
+    def test_score_probabilities_map_by_value_not_position(self):
+        # The response lists levels out of request order; value must still win over position.
+        answers = [{
+            "name": "urgency",
+            "type": "score",
+            "score": 2.0,
+            "confidence": 0.1,
+            "probabilities": [
+                {"value": 2, "label": "Urgent", "probability": 0.7},
+                {"value": 0, "label": "Routine", "probability": 0.1},
+                {"value": 1, "label": "Soon", "probability": 0.2},
+            ],
+        }]
+
+        converted = _from_openai_answers(answers)
+
+        assert converted["urgency"]["legend"] == {"0": "Routine", "1": "Soon", "2": "Urgent"}
+        assert converted["urgency"]["probabilities"] == {"0": 0.1, "1": 0.2, "2": 0.7}
+
+
+class TestOpenAIDecisionService:
+    def test_reads_decision_models_config(self):
+        service = OpenAIDecisionService(_config("openai", base_url="https://api.openai.test/", model="gpt-6-luna"))
+        assert service.base_url == "https://api.openai.test"
+        assert service.model == "gpt-6-luna"
+
+    async def test_initialize_fails_without_api_key(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        service = OpenAIDecisionService(_config("openai"))
+
+        with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+            await service.initialize()
+
+    async def test_initialize_builds_connection_manager(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        service = OpenAIDecisionService(_config("openai", api_key="sk-test"))
+
+        assert await service.initialize() is True
+
+        assert service.connection_manager.base_url == "https://api.openai.com"
+        assert service.connection_manager.timeout_ms == 12000
+
+    async def test_posts_decisions_path_with_converted_questions(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        service = OpenAIDecisionService(_config("openai", api_key="sk-test"))
+        await service.initialize()
+        session = _FakeSession(_FakeResponse(200, {
+            "model": "gpt-6-luna",
+            "answers": OPENAI_ANSWERS_WIRE,
+            "usage": {"input_tokens": 841, "output_tokens": 4},
+        }))
+        service.connection_manager.get_session = AsyncMock(return_value=session)
+
+        result = await service.decide({"ticket": "charged twice"}, QUESTIONS)
+
+        url, payload = session.calls[0]
+        assert url == "/v1/decisions"
+        assert payload["model"] == "gpt-6-luna"
+        assert payload["input"] == '{"ticket": "charged twice"}'
+        assert payload["questions"] == OPENAI_QUESTIONS_WIRE
+        assert result == {
+            "model": "gpt-6-luna",
+            "answers": {
+                "team": {"type": "choice", "choice": "billing",
+                         "probabilities": {"billing": 0.98, "technical": 0.02}, "confidence": 0.92},
+                "refund": {"type": "noul", "noul": 0.997},
+            },
+            "usage": {"input_tokens": 841, "output_tokens": 4},
+        }
+
+    async def test_per_call_model_override(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        service = OpenAIDecisionService(_config("openai", api_key="sk-test"))
+        await service.initialize()
+        session = _FakeSession(_FakeResponse(200, {"model": "gpt-6-luna-preview", "answers": OPENAI_ANSWERS_WIRE}))
+        service.connection_manager.get_session = AsyncMock(return_value=session)
+
+        result = await service.decide({"q": "x"}, QUESTIONS, model="gpt-6-luna-preview")
+
+        assert session.calls[0][1]["model"] == "gpt-6-luna-preview"
+        assert result["model"] == "gpt-6-luna-preview"
+        assert result["usage"] == {}
+
+    async def test_client_error_fails_once_with_provider_detail(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        service = OpenAIDecisionService(_config("openai", api_key="sk-test"))
+        await service.initialize()
+        session = _FakeSession(_FakeResponse(422, text='{"error":"unsupported question type"}'))
+        service.connection_manager.get_session = AsyncMock(return_value=session)
+
+        with pytest.raises(ValueError, match="HTTP 422.*unsupported question type"):
+            await service.decide({"q": "x"}, QUESTIONS)
+        assert len(session.calls) == 1
+
+    async def test_server_error_is_retried(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        service = OpenAIDecisionService(_config("openai", api_key="sk-test"))
+        await service.initialize()
+        session = _FakeSession(
+            _FakeResponse(503, text="overloaded"),
+            _FakeResponse(200, {"model": "gpt-6-luna", "answers": OPENAI_ANSWERS_WIRE}),
+        )
+        service.connection_manager.get_session = AsyncMock(return_value=session)
+
+        result = await service.decide({"q": "x"}, QUESTIONS)
+
+        assert result["answers"]["team"]["choice"] == "billing"
+        assert len(session.calls) == 2
+
+    async def test_refusal_answer_raises(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        service = OpenAIDecisionService(_config("openai", api_key="sk-test"))
+        await service.initialize()
+        session = _FakeSession(_FakeResponse(200, {
+            "model": "gpt-6-luna",
+            "answers": [{"name": "team", "type": "refusal"}],
+        }))
+        service.connection_manager.get_session = AsyncMock(return_value=session)
+
+        with pytest.raises(ValueError, match="refused"):
+            await service.decide({"q": "x"}, QUESTIONS)
+
+    async def test_missing_answers_raises(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        service = OpenAIDecisionService(_config("openai", api_key="sk-test"))
+        await service.initialize()
+        session = _FakeSession(_FakeResponse(200, {"model": "gpt-6-luna"}))
+        service.connection_manager.get_session = AsyncMock(return_value=session)
+
+        with pytest.raises(ValueError, match="did not include answers"):
+            await service.decide({"q": "x"}, QUESTIONS)
+
+    async def test_close_closes_connection_manager(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        service = OpenAIDecisionService(_config("openai", api_key="sk-test"))
+        await service.initialize()
+        service.connection_manager.close = AsyncMock()
+
+        await service.close()
+
+        service.connection_manager.close.assert_awaited_once()

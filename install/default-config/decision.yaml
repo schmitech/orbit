@@ -5,7 +5,7 @@
 # with probabilities, typically in ~100ms. Used by adapters of type `decision_model`
 # (see config/adapters/decision.yaml).
 decision:
-  provider: "ollama"   # Default decision provider: ollama, typesafe
+  provider: "ollama"   # Default decision provider: ollama, typesafe, openai
   enabled: false        # Whether decision models are enabled globally
 
 # Provider-specific configurations
@@ -37,3 +37,21 @@ decision_models:
     # Timeout configuration (milliseconds; converted to seconds for the SDK)
     timeout:
       total: 30000
+
+  # OpenAI hosted Decisions API (https://api.openai.com/v1/decisions).
+  openai:
+    enabled: false
+    api_key: ${OPENAI_API_KEY}
+    base_url: "https://api.openai.com"
+    model: "gpt-6-luna"
+    # Timeout configuration (milliseconds)
+    timeout:
+      connect: 5000
+      total: 30000
+    # Retry configuration (only connection errors, timeouts, 429 and 5xx are retried)
+    retry:
+      enabled: true
+      max_retries: 2
+      initial_wait_ms: 500
+      max_wait_ms: 5000
+      exponential_base: 2
