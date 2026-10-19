@@ -241,7 +241,7 @@ export function createSelect({ options = [], value, ariaLabel, className = "", s
     updateValueLabel();
     close();
     trigger.focus();
-    if (changed) root.dispatchEvent(new Event("change"));
+    if (changed) root.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   function updateValueLabel() {
@@ -463,7 +463,7 @@ export function createMultiSelect({ options = [], value = [], ariaLabel, classNa
     }
     updateValueLabel();
     renderListOptions();
-    root.dispatchEvent(new Event("change"));
+    root.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   function optionItem(opt, idx) {

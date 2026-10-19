@@ -1727,7 +1727,8 @@ button.help-button:focus-visible {
 }
 
 .user-create-form-actions,
-.api-key-create-form-actions {
+.api-key-create-form-actions,
+.adapter-create-form-actions {
   justify-content: flex-start;
 }
 
@@ -3570,6 +3571,10 @@ code.plain-code {
 
   .admin-create-form-actions {
     justify-content: stretch;
+    /* A three-button row (e.g. Cancel/Preview/Create) no longer fits one line
+       at this width even with stretched widths — let it wrap instead of
+       overflowing the panel. */
+    flex-wrap: wrap;
   }
 
   .admin-create-form-actions button {

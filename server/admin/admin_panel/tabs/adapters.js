@@ -289,6 +289,8 @@ export function createAdaptersTab({
       "aria-controls": "adapter-yaml-preview",
       "aria-expanded": "false"
     }, "Preview YAML");
+    var cancelCreateBtn = el("button", { className: "secondary", type: "button" }, "Cancel");
+    cancelCreateBtn.addEventListener("click", function () { closeAdapterCreatePanel(); });
     var createBtn = el("button", { type: "button" }, "Create Adapter");
 
     createPanel.appendChild(el("div", { className: "admin-create-form" },
@@ -298,7 +300,7 @@ export function createAdaptersTab({
       optionsGroup,
       createBanner,
       previewWrap,
-      el("div", { className: "admin-create-form-actions" }, previewBtn, createBtn)
+      el("div", { className: "admin-create-form-actions adapter-create-form-actions" }, cancelCreateBtn, previewBtn, createBtn)
     ));
 
     // field name -> { q, input }, rebuilt whenever the family changes
@@ -688,7 +690,6 @@ export function createAdaptersTab({
       clear(formGrid);
       clear(optionsGroup);
       createInputs = {};
-      hideCreatePreview();
       if (!spec) return;
 
       specHint.textContent = spec.description;
@@ -747,6 +748,8 @@ export function createAdaptersTab({
       previewBtn.setAttribute("aria-expanded", "false");
       createBanner.style.display = "none";
       clear(createBanner);
+      previewWantsOpen = false;
+      clearTimeout(previewRefreshTimer);
     }
 
     function showCreatePreview(yamlText, errors) {
@@ -782,26 +785,81 @@ export function createAdaptersTab({
       }
     }
 
+    // Bumped on every request so a response can tell whether it's still the
+    // latest one in flight — guards against a slower, older request (e.g. one
+    // fired just before a quick second edit) landing after a newer one and
+    // overwriting its YAML with stale content.
+    var previewRequestSeq = 0;
+    // Set the moment the user asks to see the preview (the "Preview YAML"
+    // click) and cleared only by hideCreatePreview(). Unlike checking
+    // previewWrap's own visibility, this stays true across a request that's
+    // invalidated (by an edit or family change) before its first response
+    // ever arrives — so schedulePreviewRefresh still knows to queue the
+    // replacement request that will open it, even though nothing is on
+    // screen yet.
+    var previewWantsOpen = false;
+
+    async function refreshCreatePreview() {
+      var spec = currentSpec();
+      if (!spec) return;
+      var seq = ++previewRequestSeq;
+      var data;
+      try {
+        data = await api("POST", endpoints.adapterPreview, {
+          spec: spec.key,
+          answers: collectAdapterAnswers(),
+        });
+      } catch (err) {
+        if (seq !== previewRequestSeq) return; // superseded; a newer request owns the error now
+        throw new Error("Preview failed: " + err.message);
+      }
+      if (seq !== previewRequestSeq) return; // a newer request already resolved
+      // Read live, not a flag captured when this request was fired: the user
+      // may have hidden the preview (clearing previewWantsOpen) while this
+      // very response was in flight, and that hide must win regardless of
+      // why the request was started.
+      if (!previewWantsOpen) return;
+      showCreatePreview(data.yaml, data.errors);
+    }
+
     previewBtn.addEventListener("click", function () {
       if (previewWrap.style.display !== "none") {
         hideCreatePreview();
         return;
       }
-      var spec = currentSpec();
-      if (!spec) return;
-      withButton(previewBtn, async function () {
-        var data;
-        try {
-          data = await api("POST", endpoints.adapterPreview, {
-            spec: spec.key,
-            answers: collectAdapterAnswers(),
-          });
-        } catch (err) {
-          throw new Error("Preview failed: " + err.message);
-        }
-        showCreatePreview(data.yaml, data.errors);
-      });
+      previewWantsOpen = true;
+      withButton(previewBtn, refreshCreatePreview);
     });
+
+    // Keep an already-open preview in sync with the form instead of going
+    // stale the moment a field changes — re-requests on a trailing debounce
+    // so fast typing doesn't fire one request per keystroke, and silently
+    // (no withButton/spinner) since this runs behind the scenes, not from a
+    // click. Delegated on the two field containers rather than per-input,
+    // since formGrid/optionsGroup are rebuilt wholesale on every family
+    // change (buildAdapterCreateForm) and per-input listeners would have to
+    // be re-attached there too.
+    var previewRefreshTimer = null;
+    function schedulePreviewRefresh() {
+      // Invalidate any request already in flight (e.g. a forceShow click
+      // whose preview is still hidden while it waits on a response) so a
+      // stale answer snapshot can never land, even before the preview has
+      // first appeared.
+      previewRequestSeq++;
+      // previewWantsOpen, not previewWrap's own visibility: the request this
+      // edit just invalidated may be the very one that was going to open the
+      // preview for the first time, so the replacement below still needs to
+      // run, or nothing will ever open it.
+      if (!previewWantsOpen) return;
+      clearTimeout(previewRefreshTimer);
+      previewRefreshTimer = setTimeout(function () {
+        refreshCreatePreview().catch(function (err) { showError(err.message); });
+      }, 400);
+    }
+    formGrid.addEventListener("input", schedulePreviewRefresh);
+    formGrid.addEventListener("change", schedulePreviewRefresh);
+    optionsGroup.addEventListener("input", schedulePreviewRefresh);
+    optionsGroup.addEventListener("change", schedulePreviewRefresh);
 
     createBtn.addEventListener("click", function () {
       var spec = currentSpec();
@@ -836,6 +894,7 @@ export function createAdaptersTab({
       // `cachedAdapterAnswerOptions` live on every open/keystroke.
       await loadAdapterAnswerOptions();
       createPanel.style.display = "";
+      hideCreatePreview();
       buildAdapterCreateForm();
       createPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -845,7 +904,16 @@ export function createAdaptersTab({
       createPanel.style.display = "none";
     }
 
-    specSelect.addEventListener("change", buildAdapterCreateForm);
+    specSelect.addEventListener("change", function () {
+      buildAdapterCreateForm();
+      // Invalidate any request already in flight for the old family — even
+      // one from a forceShow click whose preview is still hidden while it
+      // waits on its response — so it can never land and display stale YAML.
+      previewRequestSeq++;
+      if (previewWantsOpen) {
+        refreshCreatePreview().catch(function (err) { showError(err.message); });
+      }
+    });
 
     // ----- Import panel: paste or upload a single-adapter YAML export -----
     var importPanel = el("div", { className: "panel", style: "display:none" });
