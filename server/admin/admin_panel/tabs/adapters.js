@@ -1,4 +1,4 @@
-import { wrapTable, aceThemeName, revealDetails } from "../core/dom.js";
+import { wrapTable, aceThemeName, revealDetails, createMultiSelect } from "../core/dom.js";
 
 export function createAdaptersTab({
   api, endpoints, el, clear, skeleton, svgIcon, iconPlus, iconSave, iconRefresh,
@@ -388,126 +388,19 @@ export function createAdaptersTab({
     // answer-options as [{ value, label, description }], not the plain string
     // arrays other options_source fields use — this widget is the only consumer.
     //
-    // Rendered as toggle chips rather than checkbox+label pairs: skill names
-    // vary wildly in length ("PDF" vs. "business-analytics"), and a checkbox
-    // grid of ragged-width rows reads as misaligned clutter at any column
-    // count. Chips wrap at their own width like tags, so the ragged edge
-    // becomes the expected shape of a tag cloud instead of a broken grid.
+    // Rendered as a searchable checkbox dropdown rather than a row of always-
+    // visible chips: a chip grid renders one DOM node per option up front and
+    // gets unwieldy well before "hundreds of skills" — a closed trigger plus
+    // a filterable popup scales the same way regardless of list size, and
+    // matches the themed createSelect used elsewhere on this form.
     function createMultiCheckboxList(q) {
-      var checked = [];
-      var isDisabled = false;
-      var disabledReason = "";
-      var wrap = el("div", { className: "adapter-chip-picker" });
-      var chipRow = el("div", { className: "adapter-chip-row", role: "group", "aria-label": q.prompt });
-      var countEl = el("div", { className: "adapter-chip-count", "aria-live": "polite" });
-      wrap.appendChild(chipRow);
-      wrap.appendChild(countEl);
-
-      function maxItems() {
-        return q.max_items || Infinity;
-      }
-
-      function syncCount() {
-        if (isDisabled && disabledReason) {
-          countEl.textContent = disabledReason;
-          countEl.classList.remove("near-limit");
-          return;
-        }
-        var limit = maxItems();
-        countEl.textContent = isFinite(limit)
-          ? checked.length + " of " + limit + " selected"
-          : checked.length + " selected";
-        countEl.classList.toggle("near-limit", isFinite(limit) && checked.length >= limit);
-      }
-
-      function updateChipStates() {
-        var limit = maxItems();
-        var atLimit = checked.length >= limit;
-        // Note: "adapter-toggle-chip", not "adapter-chip" — that name is already
-        // used by an unrelated, differently-styled badge elsewhere in this file
-        // (the adapter list's info chips), and sharing it let that rule's
-        // later-declared CSS properties bleed into this widget.
-        Array.prototype.forEach.call(chipRow.querySelectorAll(".adapter-toggle-chip"), function (chip) {
-          var isOn = checked.indexOf(chip.dataset.value) !== -1;
-          chip.classList.toggle("is-selected", isOn);
-          chip.setAttribute("aria-pressed", String(isOn));
-          chip.disabled = isDisabled || (!isOn && atLimit);
-        });
-      }
-
-      function toggle(value) {
-        if (isDisabled) return;
-        var limit = maxItems();
-        var idx = checked.indexOf(value);
-        if (idx !== -1) {
-          checked.splice(idx, 1);
-        } else {
-          if (checked.length >= limit) return;
-          checked.push(value);
-        }
-        syncCount();
-        updateChipStates();
-        wrap.dispatchEvent(new Event("change"));
-      }
-
-      function renderOptions() {
-        clear(chipRow);
-        var options = ((cachedAdapterAnswerOptions || {})[q.options_source] || []);
-        if (!options.length) {
-          chipRow.appendChild(el("div", { className: "adapter-chip-empty" },
-            q.empty_message || "No options configured yet."));
-          syncCount();
-          return;
-        }
-        options.forEach(function (opt) {
-          var chip = el("button", {
-            type: "button",
-            className: "adapter-toggle-chip",
-            "aria-pressed": "false",
-            title: opt.description || "",
-            onClick: function () { toggle(opt.value); }
-          }, opt.label);
-          chip.dataset.value = opt.value;
-          chipRow.appendChild(chip);
-        });
-        syncCount();
-        updateChipStates();
-      }
-
-      renderOptions();
-
-      Object.defineProperty(wrap, "value", {
-        get: function () { return checked.slice(); },
-        set: function (v) {
-          checked = Array.isArray(v) ? v.slice() : [];
-          renderOptions();
-        }
+      var options = (cachedAdapterAnswerOptions || {})[q.options_source] || [];
+      return createMultiSelect({
+        options: options,
+        ariaLabel: q.prompt,
+        emptyMessage: q.empty_message || "No options configured yet.",
+        maxItems: q.max_items || null,
       });
-
-      // Used by fields whose selection is only meaningful while another
-      // question (e.g. mcp_tools) is enabled; the selection itself is left
-      // intact so re-enabling restores it without the user retyping it.
-      Object.defineProperty(wrap, "disabled", {
-        get: function () { return isDisabled; },
-        set: function (v) {
-          isDisabled = !!v;
-          wrap.classList.toggle("is-disabled", isDisabled);
-          syncCount();
-          updateChipStates();
-        }
-      });
-
-      // Replaces the selection count with an explanation while disabled, so
-      // a dimmed, unclickable picker doesn't read as broken.
-      Object.defineProperty(wrap, "disabledReason", {
-        get: function () { return disabledReason; },
-        set: function (v) {
-          disabledReason = v || "";
-          syncCount();
-        }
-      });
-
-      return wrap;
     }
 
     function makeQuestionInput(q) {

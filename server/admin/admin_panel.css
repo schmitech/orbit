@@ -1650,76 +1650,31 @@ button.help-button:focus-visible {
   gap: var(--sp-1);
 }
 
-.adapter-chip-picker {
+/* Checkbox dropdown used for "available skills"/"MCP servers" style
+   multi-select questions — a themed variant of .styled-select (see its
+   rules above) that stays open across picks and tracks several values. */
+.multiselect-option {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--sp-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--sp-3);
+  white-space: normal;
 }
 
-.adapter-chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
+.multiselect-option input[type="checkbox"] {
+  flex: 0 0 auto;
+  pointer-events: none;
 }
 
-/* A toggle chip, not a checkbox+label row: skill names range from "PDF" to
-   "pandemic-preparedness", and sizing each option to its own text (rather
-   than a fixed grid column) is what keeps a long list legible as it wraps.
-   Named "adapter-toggle-chip", not "adapter-chip" — the latter is already an
-   unrelated, differently-styled badge class used on the adapter list, and
-   sharing a class name let that rule's properties bleed into this widget. */
-.adapter-toggle-chip {
-  appearance: none;
-  border: 1px solid var(--ink-muted);
-  background: transparent;
-  color: var(--ink);
-  border-radius: var(--radius-pill);
-  padding: var(--sp-1) var(--sp-3);
-  font: inherit;
-  font-size: var(--text-sm);
-  line-height: 1.4;
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
-}
-
-.adapter-toggle-chip:hover:not(:disabled) {
-  border-color: var(--brand-500);
-}
-
-.adapter-toggle-chip:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-.adapter-toggle-chip.is-selected {
-  background: var(--brand-50);
-  border-color: var(--brand-500);
-  color: var(--brand-600);
-}
-
-/* Muted colors, not opacity — opacity compounds with the picker-level
-   .is-disabled rule below and leaves the label unreadable in both themes. */
-.adapter-toggle-chip:disabled {
+.multiselect-option.is-disabled {
   cursor: not-allowed;
   color: var(--ink-muted);
-  border-color: var(--border);
 }
 
-.adapter-chip-empty {
-  font-size: var(--text-xs);
+/* Replaces the trigger's value label with an explanation while disabled
+   (e.g. "Enable opportunistic MCP tool calling above…"), so a dimmed,
+   unopenable picker doesn't read as broken. */
+.multiselect-trigger:disabled {
   color: var(--ink-muted);
-}
-
-.adapter-chip-count {
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-}
-
-.adapter-chip-count.near-limit {
-  color: var(--danger-text);
 }
 
 /* Every boolean question in the create form lands here instead of the two-column

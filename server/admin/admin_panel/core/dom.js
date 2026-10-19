@@ -350,3 +350,223 @@ export function createSelect({ options = [], value, ariaLabel, className = "", s
   close();
   return root;
 }
+
+/**
+ * Checkbox-style multiselect dropdown, built on the same trigger+listbox
+ * shell as createSelect (so it inherits its theming, outside-click close,
+ * and keyboard nav) but stays open across picks and tracks an array of
+ * values instead of one. Meant for option lists that can grow into the
+ * hundreds — a fixed-height searchable popup scales where a row of toggle
+ * chips (one DOM node per option, always rendered) does not.
+ *
+ * options: [{ value, label, description? }]
+ * `emptyMessage` renders in place of the listbox when options is empty.
+ * `maxItems` silently stops checking further options once reached (the
+ * trigger label notes the limit); server-side validation is the real cap.
+ */
+export function createMultiSelect({ options = [], value = [], ariaLabel, className = "", searchPlaceholder = "Search", emptyMessage = "No options configured yet.", maxItems } = {}) {
+  let opts = options;
+  let checked = Array.isArray(value) ? value.slice() : [];
+  let activeIndex = -1;
+  let query = "";
+  let disabledReason = "";
+
+  const valueLabel = el("span", { className: "styled-select-value" });
+  const trigger = el("button", {
+    type: "button",
+    className: `styled-select-trigger multiselect-trigger ${className}`.trim(),
+    "aria-haspopup": "listbox",
+    "aria-expanded": "false",
+    "aria-label": ariaLabel || null,
+  },
+    valueLabel,
+    el("svg", { className: "styled-select-chevron", viewBox: "0 0 14 9", fill: "none", "aria-hidden": "true" },
+      el("path", { d: "M1.5 1.5 7 7l5.5-5.5", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round" }))
+  );
+  const listbox = el("ul", { className: "styled-select-listbox", role: "listbox", "aria-multiselectable": "true", tabindex: "-1" });
+  const searchInput = el("input", {
+    type: "text",
+    className: "styled-select-search",
+    placeholder: searchPlaceholder,
+    "aria-label": searchPlaceholder,
+    autocomplete: "off",
+  });
+  const searchRow = el("li", { className: "styled-select-search-row", role: "presentation" }, searchInput);
+  const root = el("div", { className: `styled-select multiselect has-search ${className}`.trim() }, trigger, listbox);
+
+  function limit() {
+    return maxItems || Infinity;
+  }
+
+  function filteredOptions() {
+    if (!query) return opts;
+    const lc = query.toLowerCase();
+    return opts.filter((o) => o.label.toLowerCase().indexOf(lc) !== -1);
+  }
+
+  function updateValueLabel() {
+    if (trigger.disabled && disabledReason) {
+      valueLabel.textContent = disabledReason;
+      return;
+    }
+    if (!checked.length) {
+      valueLabel.textContent = "None selected";
+      return;
+    }
+    const labels = checked.map((v) => {
+      const match = opts.find((o) => o.value === v);
+      return match ? match.label : v;
+    });
+    const shown = labels.slice(0, 2).join(", ");
+    valueLabel.textContent = labels.length > 2
+      ? `${shown} +${labels.length - 2} more`
+      : shown;
+  }
+
+  function close() {
+    root.classList.remove("is-open");
+    trigger.setAttribute("aria-expanded", "false");
+    listbox.hidden = true;
+    query = "";
+    searchInput.value = "";
+  }
+
+  function open() {
+    if (trigger.disabled) return;
+    query = "";
+    root.classList.add("is-open");
+    trigger.setAttribute("aria-expanded", "true");
+    listbox.hidden = false;
+    activeIndex = -1;
+    renderListOptions();
+    searchInput.focus();
+  }
+
+  function highlight() {
+    listbox.querySelectorAll(".styled-select-option").forEach((node, idx) => {
+      node.classList.toggle("is-active", idx === activeIndex);
+    });
+  }
+
+  function scrollActiveIntoView() {
+    const activeEl = listbox.querySelector(".styled-select-option.is-active");
+    if (activeEl) activeEl.scrollIntoView({ block: "nearest" });
+  }
+
+  function toggle(v) {
+    const idx = checked.indexOf(v);
+    if (idx !== -1) {
+      checked.splice(idx, 1);
+    } else {
+      if (checked.length >= limit()) return;
+      checked.push(v);
+    }
+    updateValueLabel();
+    renderListOptions();
+    root.dispatchEvent(new Event("change"));
+  }
+
+  function optionItem(opt, idx) {
+    const isChecked = checked.indexOf(opt.value) !== -1;
+    const atLimit = !isChecked && checked.length >= limit();
+    return el("li", {
+      className: "styled-select-option multiselect-option" + (idx === activeIndex ? " is-active" : "") + (atLimit ? " is-disabled" : ""),
+      role: "option",
+      "aria-selected": String(isChecked),
+      "data-value": opt.value,
+      title: opt.description || "",
+      onMousedown: (e) => e.preventDefault(),
+      // stopPropagation, not just the isDisabled/atLimit guard above: toggle()
+      // rebuilds the option list, detaching this very <li> from the DOM before
+      // the click finishes bubbling — the document-level outside-click
+      // listener then sees a target no longer contained by root and closes
+      // the dropdown after every single pick. Stopping propagation here keeps
+      // the click from ever reaching that listener, regardless of the DOM
+      // mutation toggle() causes.
+      onClick: (e) => { e.stopPropagation(); if (!atLimit || isChecked) toggle(opt.value); },
+    },
+      el("input", { type: "checkbox", tabindex: "-1", checked: isChecked ? "" : null, disabled: atLimit ? "" : null }),
+      el("span", null, opt.label)
+    );
+  }
+
+  function renderListOptions() {
+    Array.from(listbox.children).forEach((child) => { if (child !== searchRow) child.remove(); });
+    if (!searchRow.isConnected) listbox.appendChild(searchRow);
+    if (!opts.length) {
+      listbox.appendChild(el("li", { className: "styled-select-empty", role: "presentation" }, emptyMessage));
+      return;
+    }
+    const list = filteredOptions();
+    if (!list.length) {
+      listbox.appendChild(el("li", { className: "styled-select-empty", role: "presentation" }, "No matches"));
+      return;
+    }
+    list.forEach((opt, idx) => listbox.appendChild(optionItem(opt, idx)));
+  }
+
+  trigger.addEventListener("click", () => (root.classList.contains("is-open") ? close() : open()));
+
+  function handleNavKey(e) {
+    const list = filteredOptions();
+    if (e.key === "Escape") { e.preventDefault(); close(); trigger.focus(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); activeIndex = Math.min(list.length - 1, activeIndex + 1); highlight(); scrollActiveIntoView(); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); highlight(); scrollActiveIntoView(); return; }
+    if (e.key === "Enter") { e.preventDefault(); if (list[activeIndex]) toggle(list[activeIndex].value); return; }
+    if (e.key === "Tab") close();
+  }
+  searchInput.addEventListener("keydown", handleNavKey);
+  searchInput.addEventListener("input", () => {
+    query = searchInput.value.trim();
+    activeIndex = -1;
+    renderListOptions();
+  });
+
+  function onDocumentClick(e) {
+    if (!root.contains(e.target)) close();
+  }
+  document.addEventListener("click", onDocumentClick);
+
+  let destroyed = false;
+  root.destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    document.removeEventListener("click", onDocumentClick);
+    liveSelects.delete(entry);
+    if (liveSelects.size === 0 && selectGcObserver) {
+      selectGcObserver.disconnect();
+      selectGcObserver = null;
+    }
+  };
+  const entry = { root, destroy: root.destroy };
+  trackSelect(entry);
+
+  Object.defineProperty(root, "value", {
+    get() { return checked.slice(); },
+    set(v) {
+      checked = Array.isArray(v) ? v.slice() : [];
+      updateValueLabel();
+      if (!listbox.hidden) renderListOptions();
+    },
+  });
+
+  Object.defineProperty(root, "disabled", {
+    get() { return trigger.disabled; },
+    set(v) { trigger.disabled = !!v; root.classList.toggle("is-disabled", !!v); if (v) close(); updateValueLabel(); },
+  });
+
+  Object.defineProperty(root, "disabledReason", {
+    get() { return disabledReason; },
+    set(v) { disabledReason = v || ""; updateValueLabel(); },
+  });
+
+  root.setOptions = (newOptions) => {
+    opts = newOptions;
+    updateValueLabel();
+    if (!listbox.hidden) renderListOptions();
+  };
+
+  updateValueLabel();
+  close();
+  return root;
+}
