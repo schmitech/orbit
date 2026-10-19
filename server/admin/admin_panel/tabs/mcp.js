@@ -2536,6 +2536,31 @@ export function createMcpTab({
     mcpPending = {};
   }
 
+  // Clicking back into the Servers nav link while it's already active should
+  // return to the default view (first server) instead of leaving whichever
+  // server the admin drilled into selected. Routes through the same
+  // unsaved-edits guard as mcpSelectServer so edits on the previous server
+  // can't ride along into the default server's editor and get saved there.
+  function resetSelection() {
+    if (mcpSelected === null) return;
+    if (mcpHasPendingEdits()) {
+      confirmAction({
+        title: "Unsaved Changes",
+        message: "You have unsaved changes here. Discard them?",
+        confirmLabel: "Discard",
+        isDanger: true,
+        onConfirm: function () {
+          mcpPending = {};
+          mcpSelected = null;
+          mcpRerender();
+        }
+      });
+      return;
+    }
+    mcpSelected = null;
+    mcpRerender();
+  }
+
   function dispose() {
     if (mcpCheckedAtTimer) {
       clearInterval(mcpCheckedAtTimer);
@@ -2548,6 +2573,6 @@ export function createMcpTab({
 
   return {
     render: renderMcp, renderSettings: renderMcpSettings, dispose: dispose, hasPendingEdits: hasPendingEdits, clearPendingEdits: clearPendingEdits,
-    invalidatePlaybooksCache: invalidatePlaybooksCache,
+    invalidatePlaybooksCache: invalidatePlaybooksCache, resetSelection: resetSelection,
   };
 }

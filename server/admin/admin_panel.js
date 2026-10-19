@@ -1115,7 +1115,18 @@ import { createSettingsTab } from "./admin_panel/tabs/settings.js";
         link.addEventListener("mouseleave", hideRailTooltip);
         link.addEventListener("focus", function () { showRailTooltip(link, t.label); });
         link.addEventListener("blur", hideRailTooltip);
-        link.addEventListener("click", function (e) { e.preventDefault(); switchTab(t.id); });
+        link.addEventListener("click", function (e) {
+          e.preventDefault();
+          // Already on Servers: just reset which server is open (its own
+          // guard handles unsaved edits and re-renders) instead of routing
+          // through switchTab, which would re-render immediately and race
+          // the unsaved-changes confirm dialog.
+          if (t.id === "mcp" && activeTab === "mcp") {
+            mcpTab.resetSelection();
+            return;
+          }
+          switchTab(t.id);
+        });
         link.addEventListener("keydown", function (e) {
           var currentIndex = navigationTabs.findIndex(function (tab) { return tab.id === t.id; });
           if (e.key === "ArrowDown") {
