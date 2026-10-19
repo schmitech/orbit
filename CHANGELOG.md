@@ -1,6 +1,6 @@
 # Changelog
 
-[UNRELEASED]
+## [2.18.7] - 2026-10-19
 
 ### Core Features
 - **MCP server picker for adapter creation**: "Allowed MCP servers" on the passthrough, multimodal, and MCP agent create forms is now a pick-from-a-list chip picker, instead of typing exact server names by hand. For passthrough/multimodal it only lists servers usable for opportunistic tool calling and is disabled (selection preserved) until "Enable opportunistic MCP tool calling" is turned on; the MCP agent form lists every enabled server since its allowlist is always active.
