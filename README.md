@@ -24,7 +24,29 @@
 </p>
 
 <p align="center">
-  <img width="960" alt="ORBIT admin panel in action: resource monitoring, API keys, users, audit logs, and MCP tools" src="https://github.com/user-attachments/assets/6adf3f49-434c-4915-b2c1-ca6c44c0beee" />
+  <strong>Real-time AI-powered decisions</strong>
+  <br />
+  <img width="700" alt="Decision Car Simulation showing ORBIT-powered lane choices in an arcade driving game" src="https://github.com/user-attachments/assets/cc4d9839-263b-4632-b0a2-770b90121e57" />
+  <br />
+  <sub>ORBIT chooses lanes and assesses collision risk—the same decision-model adapters can power routing, triage, and moderation.</sub>
+  <br />
+  <a href="examples/decision-car-simulation/">Run the car simulation</a>
+</p>
+
+<p align="center">
+  <strong>Chat with files using a multimodal agent</strong>
+  <br />
+  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls width="700" preload="metadata" aria-label="Chat with files using a multimodal agent"></video>
+  <br />
+  <sub>Ask questions about your documents and images through one conversational interface.</sub>
+  <br />
+  <a href="docs/adapters/file-adapter-guide.md">Explore file chat</a>
+</p>
+
+<p align="center">
+  <strong>ORBIT control plane</strong>
+  <br />
+  <img width="700" alt="ORBIT admin panel in action: resource monitoring, API keys, users, audit logs, and MCP tools" src="https://github.com/user-attachments/assets/6adf3f49-434c-4915-b2c1-ca6c44c0beee" />
   <br />
   <sub>Monitor resources, manage API keys and users, review audit logs, and configure MCP tools—all in one place.</sub>
 </p>
@@ -45,7 +67,6 @@ Explore the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) for a detailed 
 
 Explore what you can build with ORBIT, from conversations over private data to voice assistants and tool-using agents.
 
-- [Chat with files using a multimodal agent](https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c)
 - [Talk to a municipal assistant in real time](https://github.com/user-attachments/assets/9c6530be-1116-4a14-aa82-321448ea5a8d)
 - [Choose AI models and configure model availability per agent](https://github.com/user-attachments/assets/17b2521c-b65a-4717-a842-074bfea9ffb7)
 - [Call MCP tools from an agent](https://github.com/user-attachments/assets/b177b234-e64f-491a-8c3e-8294774c548c)
