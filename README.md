@@ -33,15 +33,19 @@
   <a href="examples/decision-car-simulation/">Run the car simulation</a>
 </p>
 
+<br/>
+
 <p align="center">
   <strong>Chat with files using a multimodal agent</strong>
   <br />
-  <video src="https://github.com/user-attachments/assets/9d09fb57-ed65-4426-857c-cd2f76a58c8c" controls width="700" preload="metadata" aria-label="Chat with files using a multimodal agent"></video>
+  <img width="700" alt="Chat with files using a multimodal agent" src="https://github.com/user-attachments/assets/8526017b-756c-420d-b880-8ebe1a5dd33e" />
   <br />
   <sub>Ask questions about your documents and images through one conversational interface.</sub>
   <br />
   <a href="docs/adapters/file-adapter-guide.md">Explore file chat</a>
 </p>
+
+<br/>
 
 <p align="center">
   <strong>ORBIT control plane</strong>
