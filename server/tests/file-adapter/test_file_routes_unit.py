@@ -95,10 +95,10 @@ def test_file_query_audits_embedding_usage(monkeypatch):
     service = DummyProcessingService()
     service.metadata_store = SimpleNamespace(
         get_file_info=AsyncMock(return_value={
-            "api_key": "files",
             "collection_name": "collection-1",
             "filename": "notes.txt",
-        })
+        }),
+        verify_ownership=lambda file_info, api_key: api_key == "files",
     )
     service._get_adapter_config_for_api_key = AsyncMock(return_value={})
 

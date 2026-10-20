@@ -15,6 +15,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from services.api_key_service import hash_api_key_for_storage
 from services.file_metadata.metadata_store import FileMetadataStore
 from services.file_processing.chunking import (
     Chunk,
@@ -845,7 +846,7 @@ class FileProcessingService:
             raise ValueError(f"Unsupported file type: {mime_type}")
 
         # Store file
-        storage_key = f"{api_key}/{file_id}/{filename}"
+        storage_key = f"{self._storage_key_namespace(api_key)}/{file_id}/{filename}"
         requires_encryption = await self._requires_encryption_for_api_key(
             api_key, current_user_id=current_user_id, current_user_email=current_user_email
         )
@@ -1167,7 +1168,7 @@ class FileProcessingService:
                 raise ValueError(f"Unsupported file type: {mime_type}")
             
             # 2. Store file
-            storage_key = f"{api_key}/{file_id}/{filename}"
+            storage_key = f"{self._storage_key_namespace(api_key)}/{file_id}/{filename}"
             requires_encryption = await self._requires_encryption_for_api_key(api_key, current_user_id=current_user_id)
             metadata = {
                 'filename': filename,
@@ -1274,6 +1275,16 @@ class FileProcessingService:
             
             raise
     
+    def _storage_key_namespace(self, api_key: str) -> str:
+        """
+        Non-secret, stable namespace for an API key's storage paths.
+
+        storage_key is persisted in uploaded_files and passed to storage
+        backends (e.g. as a filesystem path), so it must never embed the raw
+        key - use the same peppered HMAC hash as api_key_hash instead.
+        """
+        return hash_api_key_for_storage(api_key, self.config)
+
     def _validate_file(self, file_data: bytes, mime_type: str) -> bool:
         """Validate file size and type."""
         # Check size
@@ -1991,7 +2002,7 @@ class FileProcessingService:
         if not file_info:
             raise FileNotFoundError(f"File not found: {file_id}")
         
-        if file_info['api_key'] != api_key:
+        if not self.metadata_store.verify_ownership(file_info, api_key):
             raise PermissionError("Access denied")
         
         storage_key = file_info['storage_key']
@@ -2010,7 +2021,7 @@ class FileProcessingService:
         if not file_info:
             return False
 
-        if file_info['api_key'] != api_key:
+        if not self.metadata_store.verify_ownership(file_info, api_key):
             raise PermissionError("Access denied")
 
         # 1. Delete chunks from vector store and metadata store
@@ -2093,7 +2104,7 @@ class FileProcessingService:
         file_info = await self.metadata_store.get_file_info(file_id)
         if not file_info:
             raise FileNotFoundError(f"File not found: {file_id}")
-        if file_info['api_key'] != api_key:
+        if not self.metadata_store.verify_ownership(file_info, api_key):
             raise PermissionError("Access denied")
 
         filename = file_info['filename']

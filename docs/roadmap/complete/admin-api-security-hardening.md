@@ -154,6 +154,44 @@ Full `server/tests/file-adapter/` suite passes (one pre-existing, unrelated
 failure in `test_file_types_full_pipeline.py::test_html_file_full_pipeline`
 reproduces identically on `main` before this change).
 
+**Follow-up (2026-10-20, GHSA-mqqp-549x-j92q): the raw key is no longer
+written at all.** The gap this phase deliberately left open — new uploads
+still wrote the raw key into `uploaded_files.api_key` — was reported as a
+vulnerability (API keys stored in clear text in `uploaded_files`). Closed by:
+`FileMetadataStore.record_file_upload()` now writes only `api_key_hash`,
+never `api_key`; the column is nullable (SQLite v2.2 / Postgres v2.2,
+following the v2.0 clean-schema policy — no in-place migration, pre-upgrade
+rows keep their existing raw value). The single-use ownership comparisons
+that previously did `file_info['api_key'] != api_key` in
+`FileProcessingService.get_file()`/`delete_file()`/`reprocess_file()` and the
+four `/api/files/*` routes in `server/routes/file_routes.py` now call a new
+`FileMetadataStore.verify_ownership(file_info, api_key)` helper, which hashes
+the caller's key and compares it to `api_key_hash` with `hmac.compare_digest`
+— a legacy row with no hash is treated as unowned rather than compared
+against a raw value. Tests updated in `test_metadata_store.py`,
+`test_file_processing.py`, `test_integration.py`, and
+`test_file_routes_unit.py` to assert `api_key` is no longer populated and to
+use `verify_ownership()` instead of raw equality.
+
+Two follow-up fixes caught in review of the above:
+- `storage_key` (persisted in `uploaded_files.storage_key` and handed to the
+  storage backends as a path/object key) was built as
+  `f"{api_key}/{file_id}/{filename}"` in both `FileProcessingService` upload
+  paths and all four `_persist_generated_*` helpers in
+  `server/services/pipeline_chat_service.py` — embedding the raw key even
+  though `api_key` itself was no longer written. Added
+  `FileProcessingService._storage_key_namespace(api_key)` (the same peppered
+  HMAC hash used for `api_key_hash`) and used it in place of the raw key at
+  all six call sites.
+- The bundled fresh-install seed (`install/orbit.db.default`, copied into
+  place by the Docker entrypoint) still had `uploaded_files.api_key TEXT NOT
+  NULL` baked into its schema; `CREATE TABLE IF NOT EXISTS` does not retrofit
+  that once the file exists, so every upload against a fresh install failed
+  its metadata insert once `api_key` stopped being written. Rebuilt the
+  `uploaded_files` table in the seed database (it was empty) with `api_key`
+  nullable, matching the updated `sqlite_service.py` schema; every other
+  table in the seed is untouched.
+
 ## Phase 3 — Broaden and unify the SSRF denylist ✅ DONE
 
 **Why:** `_reject_cloud_metadata_host()` only blocks the metadata range for

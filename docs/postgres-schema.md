@@ -389,7 +389,7 @@ CREATE TABLE IF NOT EXISTS uploaded_files (
 
 **Indexes:** `idx_uploaded_files_api_key` on `api_key`; `idx_uploaded_files_api_key_hash` on `api_key_hash`; `idx_uploaded_files_processing_status` on `processing_status`
 
-`api_key_hash` is an HMAC-SHA256 hash of the uploading key (via `hash_api_key()`, same pepper/algorithm as `api_keys.api_key_hash`), used for all ownership filtering (`list_files()`, `get_generated_file_ids_for_session()`) as of v1.13. `NULL` for rows written before v1.13; such rows are excluded from hash-filtered queries until rewritten — no bulk backfill (see `docs/roadmap/admin-api-security-hardening.md` Phase 2). The legacy `api_key` column still holds the raw key in plain text and is still written on every upload.
+`api_key_hash` is an HMAC-SHA256 hash of the uploading key (via `hash_api_key_for_storage()`, same pepper/algorithm as `api_keys.api_key_hash`), used for all ownership checks (`get_file()`, `delete_file()`, `reprocess_file()`, `list_files()`, `get_generated_file_ids_for_session()`) as of v1.13. `NULL` for rows written before v1.13; such rows are excluded from hash-filtered queries and treated as unowned by `verify_ownership()` until rewritten — no bulk backfill (see `docs/roadmap/admin-api-security-hardening.md` Phase 2). The legacy `api_key` column (nullable as of v2.2) is no longer written on new uploads; a pre-v2.2 row still holds the raw key in plain text until the table is recreated.
 
 > Note the `DEFAULT CURRENT_TIMESTAMP::TEXT` cast — Postgres's `CURRENT_TIMESTAMP` is a `timestamptz`, and the column is `TEXT` for cross-backend consistency with SQLite/MongoDB, so it's cast explicitly. SQLite's equivalent column uses a bare `DEFAULT CURRENT_TIMESTAMP`, which SQLite stores as text natively.
 
@@ -641,6 +641,10 @@ Password storage (PBKDF2, 600,000 iterations, SHA-256) and API key handling (has
 
 ## Version History
 
+- **v2.2** (2026-10-20): `uploaded_files` stops writing the raw API key (breaking change; matches SQLite v2.2; GHSA-mqqp-549x-j92q)
+  - `FileMetadataStore.record_file_upload()` no longer writes `uploaded_files.api_key`; only `api_key_hash` is persisted for new uploads. `api_key` is now nullable (was `NOT NULL`)
+  - All ownership checks (`FileProcessingService.get_file()`/`delete_file()`/`reprocess_file()`, and the `/api/files/*` routes) now compare via the new `FileMetadataStore.verify_ownership()` helper (HMAC hash + constant-time compare) instead of equality against the raw stored key
+  - No startup migration — per the v2.0 clean-schema policy, a database created before this version must be recreated. A pre-v2.2 row keeps its plain-text `api_key` value until the table is recreated
 - **v2.1** (2026-10-06): `system_state.value_text` column (breaking change; matches SQLite v2.1)
   - Added `system_state.value_text` (TEXT) so `api_key_service.py` can persist the `ORBIT_API_KEY_PEPPER` fingerprint without colliding with `value`'s `INTEGER` type, which rejected it with `invalid input syntax for type integer` on every reload/restart
   - No startup migration — per the v2.0 clean-schema policy, a database created before this version must be recreated

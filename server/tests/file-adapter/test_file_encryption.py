@@ -304,7 +304,8 @@ async def test_classified_adapter_upload_is_encrypted_on_disk(encryption_service
     )
     file_id = result["file_id"]
 
-    raw_path = tmp_path / "uploads" / "classified-key" / file_id / "classified.txt"
+    namespace = encryption_service._storage_key_namespace("classified-key")
+    raw_path = tmp_path / "uploads" / namespace / file_id / "classified.txt"
     assert raw_path.exists()
     assert plaintext not in raw_path.read_bytes()
 
@@ -324,7 +325,8 @@ async def test_general_adapter_upload_stays_plaintext(encryption_service, tmp_pa
     )
     file_id = result["file_id"]
 
-    raw_path = tmp_path / "uploads" / "general-key" / file_id / "memo.txt"
+    namespace = encryption_service._storage_key_namespace("general-key")
+    raw_path = tmp_path / "uploads" / namespace / file_id / "memo.txt"
     assert raw_path.read_bytes() == plaintext
 
     read_back = await encryption_service.get_file(file_id, "general-key")

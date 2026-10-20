@@ -300,7 +300,7 @@ def create_file_router() -> APIRouter:
                 raise HTTPException(status_code=404, detail="File not found")
             
             # Check API key matches
-            if file_info['api_key'] != x_api_key:
+            if not processing_service.metadata_store.verify_ownership(file_info, x_api_key):
                 raise HTTPException(status_code=403, detail="Access denied")
 
             # Extract error message from metadata if processing failed
@@ -498,7 +498,7 @@ def create_file_router() -> APIRouter:
             if not file_info:
                 raise HTTPException(status_code=404, detail="File not found")
             
-            if file_info['api_key'] != x_api_key:
+            if not processing_service.metadata_store.verify_ownership(file_info, x_api_key):
                 raise HTTPException(status_code=403, detail="Access denied")
 
             # Delete file
@@ -557,7 +557,7 @@ def create_file_router() -> APIRouter:
             file_info = await processing_service.metadata_store.get_file_info(file_id)
             if not file_info:
                 raise HTTPException(status_code=404, detail="File not found")
-            if file_info['api_key'] != x_api_key:
+            if not processing_service.metadata_store.verify_ownership(file_info, x_api_key):
                 raise HTTPException(status_code=403, detail="Access denied")
 
             # Mark as processing immediately so clients polling status see the change
@@ -683,7 +683,7 @@ def create_file_router() -> APIRouter:
             if not file_info:
                 raise HTTPException(status_code=404, detail="File not found")
             
-            if file_info['api_key'] != x_api_key:
+            if not processing_service.metadata_store.verify_ownership(file_info, x_api_key):
                 raise HTTPException(status_code=403, detail="Access denied")
             
             # Initialize retriever and query

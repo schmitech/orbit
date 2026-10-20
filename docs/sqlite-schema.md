@@ -528,7 +528,7 @@ Requests with no API key (key enforcement disabled) skip all of this unchanged.
 
 > **Known race.** Ownership is derived from message rows, not from an immutable session-owner record. Two concurrent first writes to the same new client-supplied `session_id` can both observe an empty session and both stamp their own fingerprint, producing a mixed-owner session. That no longer authorizes deletion or reads — mixed ownership is denied for everyone — but it can strand the session for both parties. Closing this cleanly needs a dedicated session-ownership record with a unique `session_id` constraint and atomic create-or-compare. Not implemented.
 
-The raw key is never persisted in this table. `uploaded_files` is a separate, independent ownership check: as of v1.23 it filters by `api_key_hash` (see below) for any row written since; a pre-v1.23 row still carries only the plain-text `api_key` column until rewritten.
+The raw key is never persisted in this table. `uploaded_files` is a separate, independent ownership check: as of v2.2 it no longer writes the raw key at all, filtering/comparing by `api_key_hash` (see below) for every row written since; a pre-v2.2 row still carries only the plain-text `api_key` column until rewritten.
 
 ---
 
@@ -629,8 +629,8 @@ CREATE TABLE IF NOT EXISTS uploaded_files (
 
 **Fields:**
 - `id` (TEXT, PK): Unique uploaded file ID (UUID)
-- `api_key` (TEXT): API key that uploaded the file, in plain text. Legacy ownership/filter key, superseded by `api_key_hash` below; retained unmodified on existing rows (no backfill) and still written on new uploads as of v1.23, pending a future phase that stops writing it
-- `api_key_hash` (TEXT): HMAC-SHA256 hash of the uploading key (via `hash_api_key`, same pepper and algorithm as `api_keys.api_key_hash`), used for all ownership filtering (`list_files()`, `get_generated_file_ids_for_session()`) as of v1.23. `NULL` for rows written before v1.23; such rows are excluded from hash-filtered queries until rewritten — no bulk backfill (see `docs/roadmap/admin-api-security-hardening.md` Phase 2)
+- `api_key` (TEXT, nullable): Legacy plain-text ownership/filter key. As of v2.2, no longer written on new uploads — every ownership check (`get_file()`, `delete_file()`, `reprocess_file()`, the `/api/files/*` routes) uses `api_key_hash` via `FileMetadataStore.verify_ownership()` instead. Rows written before v2.2 still carry the raw key in this column (no backfill or deletion of existing values)
+- `api_key_hash` (TEXT): HMAC-SHA256 hash of the uploading key (via `hash_api_key_for_storage`, same pepper and algorithm as `api_keys.api_key_hash`), used for all ownership checks (`get_file()`, `delete_file()`, `reprocess_file()`, `list_files()`, `get_generated_file_ids_for_session()`) as of v1.23. `NULL` for rows written before v1.23; such rows are excluded from hash-filtered queries and treated as unowned by `verify_ownership()` until rewritten — no bulk backfill (see `docs/roadmap/admin-api-security-hardening.md` Phase 2)
 - `filename` (TEXT): Original filename
 - `mime_type` (TEXT): File MIME type
 - `file_size` (INTEGER): File size in bytes
@@ -1120,6 +1120,10 @@ chmod 600 orbit.db  # Owner read/write only
 
 ## Version History
 
+- **v2.2** (2026-10-20): `uploaded_files` stops writing the raw API key (breaking change; matches Postgres v2.2; GHSA-mqqp-549x-j92q)
+  - `FileMetadataStore.record_file_upload()` no longer writes `uploaded_files.api_key`; only `api_key_hash` is persisted for new uploads. `api_key` is now nullable (was `NOT NULL`)
+  - All ownership checks (`FileProcessingService.get_file()`/`delete_file()`/`reprocess_file()`, and the `/api/files/*` routes) now compare via the new `FileMetadataStore.verify_ownership()` helper (HMAC hash + constant-time compare) instead of equality against the raw stored key
+  - No startup migration — per the v2.0 clean-schema policy, a database created before this version must be recreated. A pre-v2.2 row keeps its plain-text `api_key` value until the table is recreated
 - **v2.1** (2026-10-06): `system_state.value_text` column (breaking change; matches Postgres v2.1)
   - Added `system_state.value_text` (TEXT) so `api_key_service.py` can persist the `ORBIT_API_KEY_PEPPER` fingerprint without colliding with `value`'s `INTEGER` type — harmless on SQLite's dynamic typing, but the Postgres backend rejected the hex string with `invalid input syntax for type integer` on every reload/restart
   - No startup migration — per the v2.0 clean-schema policy, a database created before this version must be recreated

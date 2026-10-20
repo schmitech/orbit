@@ -1,9 +1,12 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.19.0] - 2026-10-20
 
 ### Core Features
 - **OpenAI decision model provider**: Added `openai` as a third `decision_model` provider alongside Ollama and TypeSafe, calling OpenAI's hosted Decisions API (`gpt-6-luna`) over plain HTTP. ORBIT converts the shared `choice`/`noul`/`score` question and answer shape to and from OpenAI's own wire format, so an adapter can switch providers by changing one line. Configured in `config/decision.yaml` (`decision_models.openai`, using the existing `OPENAI_API_KEY`); a `ticket-triage-openai` example adapter is included.
+
+### Security
+- **Uploaded files no longer stored with a plaintext API key**: File ownership and storage paths previously kept the raw uploader API key around in the database and on disk. Both now use a one-way hash instead, closing an at-rest exposure in the file upload feature (GHSA-mqqp-549x-j92q).
 
 ## [2.18.7] - 2026-10-19
 

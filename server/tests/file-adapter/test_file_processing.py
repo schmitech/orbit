@@ -465,7 +465,7 @@ async def test_list_files(processing_service):
 
     assert len(files) == 3
     for file_info in files:
-        assert file_info["api_key"] == api_key
+        assert processing_service.metadata_store.verify_ownership(file_info, api_key) is True
 
 
 @pytest.mark.asyncio
@@ -644,9 +644,11 @@ async def test_storage_key_generation(processing_service):
     # Check metadata for storage key
     file_info = await processing_service.metadata_store.get_file_info(file_id)
 
-    # Storage key should contain api_key, file_id, and filename
+    # Storage key should contain a non-reversible namespace for the api_key
+    # (never the raw key itself), plus file_id and filename
     storage_key = file_info["storage_key"]
-    assert api_key in storage_key
+    assert api_key not in storage_key
+    assert processing_service._storage_key_namespace(api_key) in storage_key
     assert file_id in storage_key
     assert filename in storage_key
 

@@ -299,7 +299,7 @@ class SQLiteService(DatabaseService):
             'uploaded_files': '''
                 CREATE TABLE IF NOT EXISTS uploaded_files (
                     id TEXT PRIMARY KEY,
-                    api_key TEXT NOT NULL,
+                    api_key TEXT,
                     api_key_hash TEXT,
                     filename TEXT NOT NULL,
                     mime_type TEXT,

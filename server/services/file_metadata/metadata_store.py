@@ -7,6 +7,7 @@ Uses the main backend database (SQLite or MongoDB) for persistence,
 configured via internal_services.backend in config.yaml.
 """
 
+import hmac
 import logging
 import json
 from typing import Any, Optional
@@ -114,7 +115,6 @@ class FileMetadataStore:
 
             document = {
                 '_id': file_id,
-                'api_key': api_key,
                 'api_key_hash': hash_api_key_for_storage(api_key, self.config),
                 'filename': filename,
                 'mime_type': mime_type,
@@ -276,6 +276,29 @@ class FileMetadataStore:
         except Exception as e:  # noqa: BLE001 - pluggable SQLite/MongoDB backend call with no fixed exception surface; must not crash the caller
             logger.error(f"Error getting file info: {e}")
             return None
+
+    def verify_ownership(self, file_info: dict[str, Any], api_key: str) -> bool:
+        """
+        Check whether `api_key` is the key that uploaded this file.
+
+        Compares against the stored HMAC hash only - the raw key is never
+        persisted for files uploaded after SQLite v2.2/Postgres v2.2. A
+        legacy row written before `api_key_hash` existed has no hash to
+        compare against and is treated as not owned (see Phase 2 gap note
+        in docs/roadmap/complete/admin-api-security-hardening.md).
+
+        Args:
+            file_info: File metadata as returned by get_file_info()/
+                _convert_to_legacy_format()
+            api_key: Caller's raw API key
+
+        Returns:
+            True if api_key matches the file's recorded owner
+        """
+        stored_hash = file_info.get('api_key_hash')
+        if not stored_hash:
+            return False
+        return hmac.compare_digest(hash_api_key_for_storage(api_key, self.config), stored_hash)
 
     async def list_files(self, api_key: str) -> list[dict[str, Any]]:
         """

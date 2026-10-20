@@ -294,7 +294,7 @@ class PipelineChatService:
             mime_type = f"image/{fmt}"
             image_bytes = _base64.b64decode(context.image)
             api_key = context.api_key or "_generated"
-            storage_key = f"{api_key}/{file_id}/{filename}"
+            storage_key = f"{self.file_processing_service._storage_key_namespace(api_key)}/{file_id}/{filename}"
 
             await self.file_processing_service.storage.put_file(
                 file_data=image_bytes,
@@ -328,7 +328,7 @@ class PipelineChatService:
             mime_type = f"video/{fmt}"
             video_bytes = _base64.b64decode(context.video)
             api_key = context.api_key or "_generated"
-            storage_key = f"{api_key}/{file_id}/{filename}"
+            storage_key = f"{self.file_processing_service._storage_key_namespace(api_key)}/{file_id}/{filename}"
 
             await self.file_processing_service.storage.put_file(
                 file_data=video_bytes,
@@ -363,7 +363,7 @@ class PipelineChatService:
             mime_type = MIME_TYPES.get(fmt, "application/octet-stream")
             document_bytes = _base64.b64decode(context.document)
             api_key = context.api_key or "_generated"
-            storage_key = f"{api_key}/{file_id}/{filename}"
+            storage_key = f"{self.file_processing_service._storage_key_namespace(api_key)}/{file_id}/{filename}"
 
             await self.file_processing_service.storage.put_file(
                 file_data=document_bytes,
@@ -397,7 +397,7 @@ class PipelineChatService:
             mime_type = f"audio/{fmt}"
             audio_bytes = _base64.b64decode(context.generated_audio)
             api_key = context.api_key or "_generated"
-            storage_key = f"{api_key}/{file_id}/{filename}"
+            storage_key = f"{self.file_processing_service._storage_key_namespace(api_key)}/{file_id}/{filename}"
 
             await self.file_processing_service.storage.put_file(
                 file_data=audio_bytes,

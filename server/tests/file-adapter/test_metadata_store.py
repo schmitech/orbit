@@ -91,7 +91,9 @@ async def test_record_file_upload(metadata_store):
     file_info = await metadata_store.get_file_info("file_123")
     assert file_info is not None
     assert file_info["file_id"] == "file_123"
-    assert file_info["api_key"] == "test_api_key"
+    assert file_info.get("api_key") is None
+    assert metadata_store.verify_ownership(file_info, "test_api_key") is True
+    assert metadata_store.verify_ownership(file_info, "wrong_key") is False
     assert file_info["filename"] == "document.pdf"
     assert file_info["mime_type"] == "application/pdf"
     assert file_info["file_size"] == 1024
@@ -272,7 +274,7 @@ async def test_list_files(metadata_store):
 
     assert len(files) == 3
     for file_info in files:
-        assert file_info["api_key"] == api_key
+        assert metadata_store.verify_ownership(file_info, api_key) is True
 
 
 @pytest.mark.asyncio
@@ -555,8 +557,8 @@ async def test_record_file_upload_writes_api_key_hash(metadata_store):
 
     raw_row = await metadata_store._db_service.find_one('uploaded_files', {'_id': 'hashed_file'})
     assert raw_row["api_key_hash"] == hash_api_key_for_storage("test_api_key", metadata_store.config)
-    # Legacy raw column is still written alongside the hash in this phase.
-    assert raw_row["api_key"] == "test_api_key"
+    # The raw key is no longer persisted at all - only its hash.
+    assert raw_row.get("api_key") is None
 
 
 @pytest.mark.asyncio

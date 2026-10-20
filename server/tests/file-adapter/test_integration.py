@@ -251,12 +251,12 @@ async def test_multi_tenancy_isolation(integrated_system):
     # Verify tenant 1 can only see their files
     files_1 = await service.list_files(api_key_1)
     assert len(files_1) == 1
-    assert files_1[0]["api_key"] == api_key_1
+    assert service.metadata_store.verify_ownership(files_1[0], api_key_1) is True
 
     # Verify tenant 2 can only see their files
     files_2 = await service.list_files(api_key_2)
     assert len(files_2) == 1
-    assert files_2[0]["api_key"] == api_key_2
+    assert service.metadata_store.verify_ownership(files_2[0], api_key_2) is True
 
     # Verify tenant 1 cannot access tenant 2's file
     with pytest.raises(PermissionError):
@@ -478,9 +478,12 @@ async def test_storage_path_structure(integrated_system):
 
     file_id = result["file_id"]
 
-    # Verify file is stored in correct location
-    expected_path = storage_root / api_key / file_id / "test.txt"
+    # Verify file is stored under a non-reversible namespace for the api_key,
+    # never the raw key itself
+    namespace = service._storage_key_namespace(api_key)
+    expected_path = storage_root / namespace / file_id / "test.txt"
     assert expected_path.exists()
+    assert not (storage_root / api_key).exists()
 
     # Verify metadata sidecar exists
     metadata_path = expected_path.parent / f"{expected_path.name}.metadata.json"
