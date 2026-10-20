@@ -91,8 +91,10 @@ Use `orbitchat` below when you want the browser UI instead.
   design.
 
 **Security:** these images ship a default database and API key for first-run
-convenience. Rotate the default API key/admin password (`ORBIT_DEFAULT_ADMIN_PASSWORD`)
-before exposing ORBIT beyond localhost. Set `ORBIT_ALLOW_DEFAULT_CREDENTIALS=true`
+convenience. On first boot, the container generates a random admin password and
+prints it once to the container log — it is not baked into the image. Set
+`ORBIT_DEFAULT_ADMIN_PASSWORD` to supply your own instead, and rotate the default
+API key before exposing ORBIT beyond localhost. Set `ORBIT_ALLOW_DEFAULT_CREDENTIALS=true`
 to silence the startup warning once you've done so.
 
 **Building/publishing these images** (maintainers) — see
@@ -283,7 +285,7 @@ Set these in `docker-compose.yml` under the `orbit` service:
 - `OLLAMA_HOST` - Ollama service address (default: `ollama:11434`)
   - Use host:port such as `ollama:11434`; `http://` and `https://` URLs are also accepted.
   - Use `host.docker.internal:11434` to reach an Ollama server running on the Docker host.
-- `ORBIT_DEFAULT_ADMIN_PASSWORD` - Admin password for CLI access (default: `ChangeMe!2026`)
+- `ORBIT_DEFAULT_ADMIN_PASSWORD` - Admin password for CLI access (default: randomly generated on first boot and printed once to the container log)
 - `ORBIT_ALLOW_DEFAULT_CREDENTIALS` - Set to `true` to acknowledge and silence the startup warning about the bundled default database/API key.
   - Leave unset for the warning to print on each start.
   - Rotate the default API key/admin password before exposing ORBIT beyond localhost.
@@ -581,8 +583,9 @@ docker run -d --name orbit-2.18.7-openai \
   schmitech/orbit:2.18.7-openai
 ```
 
-The Docker image defaults `ORBIT_DEFAULT_ADMIN_PASSWORD` to `ChangeMe!2026` for
-first-run convenience. Override it before exposing ORBIT beyond localhost.
+If `ORBIT_DEFAULT_ADMIN_PASSWORD` isn't set, the container generates a random
+admin password on first boot and prints it once to the container log. Set the
+variable yourself to supply your own instead.
 
 Advanced builds can override the runtime user and CUDA wheel channel:
 

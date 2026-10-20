@@ -42,10 +42,75 @@ mkdir -p "$RUNTIME_CONFIG_DIR"
 find "$RUNTIME_CONFIG_DIR" -mindepth 1 -delete
 cp -a "$CONFIG_SOURCE_DIR/." "$RUNTIME_CONFIG_DIR/"
 
-if [ ! -f /orbit/data/orbit.db ]; then
+ORBIT_DB_FILE=/orbit/data/orbit.db
+
+if [ ! -f "$ORBIT_DB_FILE" ]; then
     echo "Initializing database from bundled default seed"
-    cp /orbit/orbit.db.default /orbit/data/orbit.db
-    chmod 660 /orbit/data/orbit.db
+    cp /orbit/orbit.db.default "$ORBIT_DB_FILE"
+    chmod 660 "$ORBIT_DB_FILE"
+fi
+
+# Detect and remove a seeded/known-default admin row: either the bundled seed
+# just copied in above, or (on an upgrade) a data volume from an older image
+# that still carries the vulnerable ChangeMe!2026 admin. A new admin account
+# is then created fresh on first boot using ORBIT_DEFAULT_ADMIN_PASSWORD.
+ORBIT_ADMIN_RESET=0
+if python3 -c "
+import sqlite3, base64, hashlib, sys
+conn = sqlite3.connect('$ORBIT_DB_FILE')
+row = conn.execute(\"SELECT password FROM users WHERE username = 'admin'\").fetchone()
+removed = False
+if row:
+    try:
+        raw = base64.b64decode(row[0])
+        salt, digest = raw[:16], raw[16:]
+        if hashlib.pbkdf2_hmac('sha256', b'ChangeMe!2026', salt, 600000) == digest:
+            conn.execute(\"DELETE FROM users WHERE username = 'admin'\")
+            conn.commit()
+            removed = True
+    except Exception:
+        pass
+conn.close()
+sys.exit(0 if removed else 1)
+"; then
+    ORBIT_ADMIN_RESET=1
+fi
+
+ORBIT_ADMIN_MISSING=0
+if ! python3 -c "
+import sqlite3, sys
+conn = sqlite3.connect('$ORBIT_DB_FILE')
+row = conn.execute(\"SELECT 1 FROM users WHERE username = 'admin'\").fetchone()
+conn.close()
+sys.exit(0 if row else 1)
+"; then
+    ORBIT_ADMIN_MISSING=1
+fi
+
+if { [ "$ORBIT_ADMIN_RESET" = "1" ] || [ "$ORBIT_ADMIN_MISSING" = "1" ]; } && [ -z "${ORBIT_DEFAULT_ADMIN_PASSWORD:-}" ]; then
+    # Build a password that satisfies the default policy (upper/lower/digit/symbol);
+    # secrets.token_urlsafe's alphabet has no guaranteed symbol character.
+    ORBIT_DEFAULT_ADMIN_PASSWORD="$(python3 -c "
+import secrets, string
+pools = [string.ascii_uppercase, string.ascii_lowercase, string.digits, '!@#%^&*-_=+?']
+alphabet = string.ascii_letters + string.digits + '!@#%^&*-_=+?'
+chars = [secrets.choice(p) for p in pools] + [secrets.choice(alphabet) for _ in range(20)]
+secrets.SystemRandom().shuffle(chars)
+print(''.join(chars))
+")"
+    export ORBIT_DEFAULT_ADMIN_PASSWORD
+    echo ""
+    echo "Generated a one-time admin password for this deployment (not stored anywhere else):"
+    echo "  username: admin"
+    echo "  password: ${ORBIT_DEFAULT_ADMIN_PASSWORD}"
+    echo ""
+fi
+
+# The server requires ORBIT_DEFAULT_ADMIN_PASSWORD to resolve to a non-empty
+# value even when the admin account already exists and this value goes
+# unused (restarts with an operator-managed admin password already in place).
+if [ -z "${ORBIT_DEFAULT_ADMIN_PASSWORD:-}" ]; then
+    export ORBIT_DEFAULT_ADMIN_PASSWORD="unused-$(python3 -c 'import secrets; print(secrets.token_hex(16))')"
 fi
 
 echo "Resolving profile: $ORBIT_PROFILE"
