@@ -41,6 +41,8 @@ def test_each_example_adapter_is_valid():
         "skill-router",
         "sentiment-analysis",
         "sentiment-analysis-local",
+        "lane-choice",
+        "lane-choice-openai",
     }
 
 

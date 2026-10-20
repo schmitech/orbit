@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Decision Car Simulation — ORBIT</title>
+  <link rel="stylesheet" href="src/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">🚗</div>
+        <div>
+          <small>ORBIT</small>
+          <strong>Decision Car Simulation</strong>
+        </div>
+      </div>
+      <span id="bridge-pill" class="bridge-pill warn"><i></i>CONNECTING</span>
+      <div class="controls">
+        <button id="btn-start" class="btn">Start (space)</button>
+        <button id="btn-panel" class="icon-button" title="Presenter panel (P)">⚙</button>
+      </div>
+    </div>
+
+    <div class="arena">
+      <section class="panel road-panel">
+        <h2 id="question-title">Which lane should the car choose?</h2>
+        <div class="road-wrap">
+          <canvas id="road" width="320" height="420"></canvas>
+          <div id="overlay" class="road-overlay" hidden>
+            <strong id="overlay-label"></strong>
+            <p id="overlay-detail"></p>
+            <button id="btn-overlay-action" class="btn" hidden></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel decision-panel">
+        <h2>Latest AI decision <span id="deciding" class="deciding" hidden>updating…</span></h2>
+        <div id="lane-bars" class="lane-bars">
+          <div class="bar-row" data-lane="lane_1">
+            <span class="label">Lane 1</span>
+            <span class="bar-track"><span class="bar-fill"></span></span>
+            <span class="count">—</span>
+          </div>
+          <div class="bar-row" data-lane="lane_2">
+            <span class="label">Lane 2</span>
+            <span class="bar-track"><span class="bar-fill"></span></span>
+            <span class="count">—</span>
+          </div>
+          <div class="bar-row" data-lane="lane_3">
+            <span class="label">Lane 3</span>
+            <span class="bar-track"><span class="bar-fill"></span></span>
+            <span class="count">—</span>
+          </div>
+        </div>
+        <p id="risk" class="empty"></p>
+
+        <h2>Scene sent to ORBIT</h2>
+        <pre id="scene-text" class="scene-text">—</pre>
+
+        <div class="hud-row">
+          <div class="hud-stat"><dt>Score</dt><dd id="stat-score">0</dd></div>
+          <div class="hud-stat"><dt>Best</dt><dd id="stat-best">0</dd></div>
+          <div class="hud-stat"><dt>Lives</dt><dd id="stat-lives">3</dd></div>
+          <div class="hud-stat"><dt>Latency</dt><dd id="stat-latency">—</dd></div>
+        </div>
+        <p class="empty">Provider: <span id="stat-provider">—</span></p>
+      </section>
+    </div>
+
+    <div id="panel" class="side-panel" hidden>
+      <div class="panel-head">
+        <span>Presenter panel</span>
+        <button id="panel-close" class="icon-button">×</button>
+      </div>
+      <label>
+        Bridge URL
+        <input id="input-bridge-url" type="text" />
+      </label>
+      <label>
+        Adapter override
+        <select id="select-adapter"><option value="">(use API key's adapter)</option></select>
+      </label>
+      <p class="health">
+        <span>Broker: <strong id="health-broker">—</strong></span>
+        <span>Worker: <strong id="health-worker">—</strong></span>
+        <span>Key adapter: <strong id="health-key-adapter">—</strong></span>
+      </p>
+      <button id="btn-reset-score" class="reset">Reset best score</button>
+    </div>
+  </div>
+
+  <script src="src/app.js"></script>
+</body>
+</html>

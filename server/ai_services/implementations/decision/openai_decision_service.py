@@ -61,7 +61,24 @@ def _to_openai_questions(questions: dict[str, dict[str, Any]]) -> list[dict[str,
     return converted
 
 
-def _from_openai_answers(answers: list[dict[str, Any]]) -> dict[str, Any]:
+def _refused_answer(question_type: Optional[str]) -> dict[str, Any]:
+    """
+    A degraded answer for a question OpenAI refused, shaped like a normal answer of
+    the question's own declared type so existing consumers (chat response, bridges,
+    callers reading `.choice`/`.noul`/`.score`) don't need special-case handling for
+    a provider-specific "refusal" concept ORBIT's System One wire format otherwise
+    doesn't have. `refused: True` lets a caller that does want to detect it do so.
+    """
+    if question_type == "choice":
+        return {"type": "choice", "choice": None, "probabilities": {}, "confidence": 0.0, "refused": True}
+    if question_type == "score":
+        return {"type": "score", "score": None, "legend": {}, "probabilities": {}, "confidence": 0.0, "refused": True}
+    return {"type": "noul", "noul": None, "refused": True}
+
+
+def _from_openai_answers(
+    answers: list[dict[str, Any]], questions: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
     """Convert OpenAI's answers array into ORBIT's System One answer shape, keyed by name."""
     converted = {}
     for answer in answers:
@@ -90,7 +107,10 @@ def _from_openai_answers(answers: list[dict[str, Any]]) -> dict[str, Any]:
                 "confidence": answer.get("confidence"),
             }
         elif atype == "refusal":
-            raise ValueError(f"OpenAI decision refused to answer question '{name}'")
+            # A real, documented possibility (e.g. a safety filter on the input text),
+            # not a transport error — degrade this one question rather than failing
+            # the whole decision and every other question answered in the same call.
+            converted[name] = _refused_answer((questions.get(name) or {}).get("type"))
         else:
             raise ValueError(f"OpenAI decision returned unsupported answer type {atype!r} for '{name}'")
     return converted
@@ -171,9 +191,12 @@ class OpenAIDecisionService(DecisionService):
 
             if not isinstance(data, dict) or not isinstance(data.get("answers"), list):
                 raise ValueError(f"OpenAI decision response did not include answers: {data!r}")
+            refused = [a["name"] for a in data["answers"] if a.get("type") == "refusal"]
+            if refused:
+                self.logger.warning(f"OpenAI decision refused to answer: {', '.join(refused)}")
             return {
                 "model": data.get("model") or payload["model"],
-                "answers": _from_openai_answers(data["answers"]),
+                "answers": _from_openai_answers(data["answers"], questions),
                 "usage": data.get("usage") or {},
             }
 

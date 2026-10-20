@@ -266,6 +266,67 @@ adapters:
           instructions: "What is the author's stance on shipping or delivery?"
           criteria: { positive: "Fast or on time", negative: "Late, lost or damaged", not_mentioned: "Delivery has no clear stance or isn't discussed" }
 
+  # Lane-choice driving decisions for the Decision Car Simulation demo
+  # (examples/decision-car-simulation/). The game describes each lane's hazards as plain
+  # text; the model picks a lane and flags high collision risk.
+  - name: "lane-choice"
+    enabled: true
+    type: "decision_model"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    decision_provider: "ollama"
+    model: "tev1:0.8b"
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_session_tracking: false
+    config:
+      state_key: "scene"
+      allow_question_override: false
+      questions:
+        lane:
+          type: "choice"
+          instructions: "A car is driving down a 3-lane road. Given the car's current lane, speed, and the hazard ahead in each lane, which lane should the car move to next to avoid a collision?"
+          criteria:
+            lane_1: "Move to (or stay in) the left lane"
+            lane_2: "Move to (or stay in) the center lane"
+            lane_3: "Move to (or stay in) the right lane"
+        collision_risk:
+          type: "noul"
+          instructions: "Is the car at high risk of a collision if it does not change lanes immediately?"
+
+  # Same lane-choice questions answered by OpenAI's Decisions API — the featured example
+  # for the `openai` decision provider.
+  - name: "lane-choice-openai"
+    enabled: true
+    type: "decision_model"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    decision_provider: "openai"
+    model: "gpt-6-luna"
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_session_tracking: false
+    config:
+      state_key: "scene"
+      allow_question_override: false
+      questions:
+        lane:
+          type: "choice"
+          instructions: "A car is driving down a 3-lane road. Given the car's current lane, speed, and the hazard ahead in each lane, which lane should the car move to next to avoid a collision?"
+          criteria:
+            lane_1: "Move to (or stay in) the left lane"
+            lane_2: "Move to (or stay in) the center lane"
+            lane_3: "Move to (or stay in) the right lane"
+        collision_risk:
+          type: "noul"
+          instructions: "Is the car at high risk of a collision if it does not change lanes immediately?"
+
   # Skill routing: pick which ORBIT skill should handle a query, in a few milliseconds.
   # Config-only example — it is not wired into the skill router; call it as a pre-routing step.
   - name: "skill-router"

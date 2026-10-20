@@ -347,6 +347,7 @@ Decision services are cached per provider and preloaded when an adapter sets `de
 | `Decision provider 'typesafe' is unavailable` right after startup | `typesafe-sdk` isn't installed, or `decision_models.typesafe.enabled` is `false` |
 | `Decision provider 'openai' is unavailable: OpenAI API key not configured` | Set `OPENAI_API_KEY` in `.env` and restart |
 | `OpenAI decision error (HTTP 404): ...` | The Decisions API isn't enabled for the account yet, or the model name isn't `gpt-6-luna` |
+| An `openai` answer comes back with `"refused": true` and a null `choice`/`noul`/`score` | OpenAI's Decisions API refused that one question (for example a safety filter on the input text) — a documented possibility, not an error. ORBIT logs a warning and degrades just that question to an empty answer of its own declared type; the other questions in the same call are unaffected. Treat a low/zero-confidence `refused` answer like any other low-confidence one (e.g. route to a person) |
 | `Choice question 'x' requires a non-empty 'criteria' mapping…` | Fix the question definition (see [Question Types](#question-types)) |
 | Request questions are ignored | Set `allow_question_override: true` on the adapter |
 

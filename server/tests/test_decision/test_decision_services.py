@@ -347,10 +347,30 @@ class TestOpenAIQuestionAnswerConversion:
             ],
         }]
 
-        converted = _from_openai_answers(answers)
+        converted = _from_openai_answers(answers, QUESTIONS)
 
         assert converted["urgency"]["legend"] == {"0": "Routine", "1": "Soon", "2": "Urgent"}
         assert converted["urgency"]["probabilities"] == {"0": 0.1, "1": 0.2, "2": 0.7}
+
+    def test_refusal_degrades_to_the_questions_own_declared_type(self):
+        # A refusal is a real, documented OpenAI answer shape, not a transport error.
+        # Degrading it per-question (instead of raising) keeps the other questions in
+        # the same call usable, and keeps consumers from needing a new answer shape.
+        answers = [
+            {"name": "team", "type": "refusal"},
+            {"name": "refund", "type": "refusal"},
+            {"name": "urgency", "type": "refusal"},
+        ]
+
+        converted = _from_openai_answers(answers, QUESTIONS)
+
+        assert converted["team"] == {
+            "type": "choice", "choice": None, "probabilities": {}, "confidence": 0.0, "refused": True,
+        }
+        assert converted["refund"] == {"type": "noul", "noul": None, "refused": True}
+        assert converted["urgency"] == {
+            "type": "score", "score": None, "legend": {}, "probabilities": {}, "confidence": 0.0, "refused": True,
+        }
 
 
 class TestOpenAIDecisionService:
@@ -442,18 +462,23 @@ class TestOpenAIDecisionService:
         assert result["answers"]["team"]["choice"] == "billing"
         assert len(session.calls) == 2
 
-    async def test_refusal_answer_raises(self, monkeypatch):
+    async def test_refusal_degrades_instead_of_failing_the_whole_call(self, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         service = OpenAIDecisionService(_config("openai", api_key="sk-test"))
         await service.initialize()
         session = _FakeSession(_FakeResponse(200, {
             "model": "gpt-6-luna",
-            "answers": [{"name": "team", "type": "refusal"}],
+            "answers": [{"name": "team", "type": "refusal"}, {"name": "refund", "type": "predicate", "probability": 0.997}],
         }))
         service.connection_manager.get_session = AsyncMock(return_value=session)
 
-        with pytest.raises(ValueError, match="refused"):
-            await service.decide({"q": "x"}, QUESTIONS)
+        result = await service.decide({"q": "x"}, QUESTIONS)
+
+        assert result["answers"]["team"] == {
+            "type": "choice", "choice": None, "probabilities": {}, "confidence": 0.0, "refused": True,
+        }
+        # Other questions answered in the same call are unaffected.
+        assert result["answers"]["refund"] == {"type": "noul", "noul": 0.997}
 
     async def test_missing_answers_raises(self, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
