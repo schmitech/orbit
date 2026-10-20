@@ -40,8 +40,12 @@ class FilesystemStorage(FileStorageBackend):
         logger.info(f"Initialized FilesystemStorage at {self.storage_root}")
     
     def _get_file_path(self, key: str) -> Path:
-        """Convert storage key to filesystem path."""
-        return self.storage_root / key
+        """Convert storage key to a filesystem path, rejecting any key that escapes storage_root."""
+        root = self.storage_root.resolve()
+        candidate = (root / key).resolve()
+        if candidate != root and root not in candidate.parents:
+            raise ValueError(f"Storage key escapes storage root: {key!r}")
+        return candidate
     
     def _get_metadata_path(self, key: str) -> Path:
         """Get path to metadata sidecar file."""
@@ -171,7 +175,7 @@ class FilesystemStorage(FileStorageBackend):
             # Skip metadata files and directories
             if file_path.is_file() and not file_path.name.endswith(".metadata.json"):
                 # Convert back to storage key format
-                relative_path = file_path.relative_to(self.storage_root)
+                relative_path = file_path.relative_to(self.storage_root.resolve())
                 files.append(str(relative_path).replace(os.sep, "/"))
         
         logger.debug(f"Listed {len(files)} files with prefix {prefix}")

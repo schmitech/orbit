@@ -7,6 +7,7 @@
 
 ### Security
 - **Uploaded files no longer stored with a plaintext API key**: File ownership and storage paths previously kept the raw uploader API key around in the database and on disk. Both now use a one-way hash instead, closing an at-rest exposure in the file upload feature (GHSA-mqqp-549x-j92q).
+- **File upload no longer accepts path traversal in filenames**: An uploaded file's name is now reduced to a safe basename before use, and the storage layer rejects any path that would land outside the uploads directory, closing a write-outside-storage-root issue in the file upload feature (GHSA-f946-p3h8-h2f2).
 
 ## [2.18.7] - 2026-10-19
 

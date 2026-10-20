@@ -6,6 +6,7 @@ Provides endpoints for uploading, querying, and managing files.
 
 import logging
 import mimetypes
+import re
 from typing import Optional, Any
 from fastapi import APIRouter, UploadFile, File, HTTPException, Header, Depends, Request, BackgroundTasks, Form
 from fastapi.responses import JSONResponse
@@ -35,6 +36,25 @@ def get_processing_service(request: Request) -> FileProcessingService:
     if not processing_service:
         raise HTTPException(status_code=503, detail="File processing service not available")
     return processing_service
+
+
+def _sanitize_upload_filename(filename: Optional[str]) -> str:
+    """
+    Reduce a client-supplied multipart filename to a safe basename.
+
+    The raw filename is later embedded in the storage_key used to build a
+    filesystem path (see FilesystemStorage._get_file_path), so it must not be
+    able to carry directory separators or traversal segments (GHSA-f946-p3h8-h2f2).
+    """
+    candidate = (filename or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
+    if not candidate or candidate in {".", ".."} or ".." in candidate:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    candidate = re.sub(r"[^A-Za-z0-9._-]", "_", candidate).lstrip(".")
+    if not candidate:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    return candidate[:255]
 
 
 # Request/Response Models
@@ -143,20 +163,24 @@ def create_file_router() -> APIRouter:
             
             # Read file data
             file_data = await file.read()
-            
+
+            # Reduce the client-supplied filename to a safe basename before it
+            # is used anywhere downstream (MIME sniffing, storage key, response).
+            safe_filename = _sanitize_upload_filename(file.filename)
+
             # Determine MIME type
             # First try the provided content_type
             mime_type = file.content_type
-            
+
             # If content_type is missing or generic, try to detect from filename
             if not mime_type or mime_type == 'application/octet-stream':
-                if file.filename:
-                    guessed_type, _ = mimetypes.guess_type(file.filename)
+                if safe_filename:
+                    guessed_type, _ = mimetypes.guess_type(safe_filename)
                     if guessed_type:
                         mime_type = guessed_type
                     else:
                         # Fallback for common file extensions
-                        ext = file.filename.lower().split('.')[-1] if '.' in file.filename else ''
+                        ext = safe_filename.lower().split('.')[-1] if '.' in safe_filename else ''
                         extension_map = {
                             'md': 'text/markdown',
                             'txt': 'text/plain',
@@ -210,21 +234,21 @@ def create_file_router() -> APIRouter:
             
             # Log MIME type detection for debugging
             if mime_type == 'application/octet-stream':
-                logger.warning(f"Could not determine MIME type for file: {file.filename}")
+                logger.warning(f"Could not determine MIME type for file: {safe_filename}")
 
             mime_type = processing_service.inspect_upload(
                 file_data=file_data,
-                filename=file.filename,
+                filename=safe_filename,
                 claimed_mime_type=mime_type,
             )
-            
+
             # Store the file and return immediately; extraction/chunking/indexing
             # (which can be slow for large documents or vision/audio API calls)
             # runs in the background so the client gets a file_id to poll and
             # cancel against right away, instead of blocking the request.
             file_id = await processing_service.quick_upload(
                 file_data=file_data,
-                filename=file.filename,
+                filename=safe_filename,
                 mime_type=mime_type,
                 api_key=x_api_key,
                 current_user_id=current_user_id,
@@ -235,7 +259,7 @@ def create_file_router() -> APIRouter:
                 processing_service.process_file_content,
                 file_id=file_id,
                 file_data=file_data,
-                filename=file.filename,
+                filename=safe_filename,
                 mime_type=mime_type,
                 api_key=x_api_key,
                 vision_prompt=prompt if mime_type.startswith('image/') else None,
@@ -247,7 +271,7 @@ def create_file_router() -> APIRouter:
 
             return UploadResponse(
                 file_id=file_id,
-                filename=file.filename,
+                filename=safe_filename,
                 mime_type=mime_type,
                 file_size=len(file_data),
                 status='processing',
