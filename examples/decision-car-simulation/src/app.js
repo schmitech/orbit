@@ -22,9 +22,21 @@ const UNSAFE_DISTANCE = CAR_H / 2 + HAZARD_H / 2; // collision threshold, in px 
 
 const START_LIVES = 3;
 const START_SPEED = 95; // px/s
-const MAX_SPEED = 400;
-const SPEED_RAMP_PER_SEC = 3.2; // how fast the road speeds up the longer you survive
+// Capped so a hazard's spawn-to-unsafe window (roughly (400-39)/MAX_SPEED seconds)
+// stays comfortably longer than a real hosted decision model's worst-case round trip
+// (network + inference, commonly a few hundred ms) plus the ~0.2s steer time —
+// otherwise the car can still be mid-reaction when it reaches the hazard.
+const MAX_SPEED = 220;
+const SPEED_RAMP_PER_SEC = 1.8; // how fast the road speeds up the longer you survive
 const STEER_SPEED = 480; // px/s the car can move laterally toward its recommended lane
+// Defensive braking: when the car's own (current) lane has a hazard inside this
+// distance, slow down instead of holding the ramped cruising speed — this buys the
+// in-progress lane change (steering + whatever decision reply is still in flight)
+// extra time to land before the hazard reaches the collision window.
+const BRAKE_TRIGGER_DISTANCE = 170;
+const BRAKE_SPEED = 35; // px/s floor while braking
+const BRAKE_DECEL = 700; // px/s^2 slowing down
+const BRAKE_ACCEL = 260; // px/s^2 returning to cruising speed once the lane is clear
 const SPAWN_INTERVAL_START_MS = 1100;
 const SPAWN_INTERVAL_MIN_MS = 520;
 const DECISION_INTERVAL_MS = 350; // how often a fresh lane-choice request is fired, at minimum
@@ -161,7 +173,9 @@ let gameOn = false; // the player pressed Start and hasn't paused/game-overed
 let gameOver = false;
 let score = 0;
 let lives = START_LIVES;
-let speed = START_SPEED;
+let speed = START_SPEED; // ramped cruising speed, always increasing
+let currentSpeed = START_SPEED; // actual effective speed (dips while braking)
+let braking = false;
 let elapsedMs = 0;
 let spawnAccumulatorMs = 0;
 let decisionAccumulatorMs = 0;
@@ -181,6 +195,8 @@ function resetGame() {
   score = 0;
   lives = START_LIVES;
   speed = START_SPEED;
+  currentSpeed = START_SPEED;
+  braking = false;
   elapsedMs = 0;
   spawnAccumulatorMs = 0;
   decisionAccumulatorMs = 0;
@@ -232,6 +248,10 @@ function endGame() {
 
 function laneLabel(i) { return `Lane ${i + 1}`; }
 
+function carLaneIndex() {
+  return Math.round((carX - LANE_X[0]) / (LANE_X[1] - LANE_X[0]));
+}
+
 function nearestHazardDistance(laneIndex) {
   let nearest = null;
   for (const hazard of hazards) {
@@ -242,12 +262,12 @@ function nearestHazardDistance(laneIndex) {
 }
 
 function sceneText() {
-  const currentLaneIndex = Math.round((carX - LANE_X[0]) / (LANE_X[1] - LANE_X[0]));
   const lines = LANES.map((_, i) => {
     const distance = nearestHazardDistance(i);
     return `${laneLabel(i)}: ${distance === null ? "clear" : `hazard ${Math.round(distance)}px ahead`}.`;
   });
-  return [`The car is currently in ${laneLabel(currentLaneIndex).toLowerCase()} at ${Math.round(speed)} px/s.`, ...lines].join("\n");
+  const speedLine = `The car is currently in ${laneLabel(carLaneIndex()).toLowerCase()} at ${Math.round(currentSpeed)} px/s.`;
+  return [braking ? `${speedLine} The car is braking for the hazard in its own lane.` : speedLine, ...lines].join("\n");
 }
 
 function maybeRequestDecision(dt) {
@@ -341,12 +361,14 @@ function spawnWave(dt) {
   if (spawnAccumulatorMs < interval) return;
   spawnAccumulatorMs = 0;
 
-  // Each lane independently gets a hazard ~50% of the time. Re-roll an "every lane
-  // blocked at once" result most of the time, so the game mostly stays winnable.
+  // Each lane independently gets a hazard ~50% of the time. Always re-roll an "every
+  // lane blocked at once" result: with no way to stop dead in time for a wave that's
+  // unavoidable from the moment it spawns, every wave must leave at least one lane
+  // clear, so braking (below) always has somewhere to actually steer the car toward.
   let lanesToSpawn;
   do {
     lanesToSpawn = LANES.map(() => Math.random() < 0.5);
-  } while (lanesToSpawn.every(Boolean) && Math.random() < 0.8);
+  } while (lanesToSpawn.every(Boolean));
 
   // A new wave is the moment that matters most: force the next tick's decision
   // check to fire immediately instead of waiting out the rest of the periodic
@@ -362,11 +384,24 @@ function spawnWave(dt) {
 
 function updatePhysics(dt) {
   const dtSec = dt / 1000;
-  speed = Math.min(MAX_SPEED, speed + SPEED_RAMP_PER_SEC * dtSec);
+  speed = Math.min(MAX_SPEED, speed + SPEED_RAMP_PER_SEC * dtSec); // ramped cruising speed
   elapsedMs += dt;
-  score += speed * dtSec * 0.05;
 
   spawnWave(dt);
+
+  // Defensive braking: a hazard in the car's own lane, inside the trigger distance,
+  // means the car needs to actually get out of this lane before it arrives. Slowing
+  // down (instead of holding the full cruising speed) buys the in-progress lane
+  // change more real time to land, rather than relying on steering speed alone.
+  const laneHazardDistance = nearestHazardDistance(carLaneIndex());
+  braking = laneHazardDistance !== null && laneHazardDistance <= BRAKE_TRIGGER_DISTANCE;
+  const targetSpeed = braking ? BRAKE_SPEED : speed;
+  const accelRate = targetSpeed < currentSpeed ? BRAKE_DECEL : BRAKE_ACCEL;
+  const maxSpeedStep = accelRate * dtSec;
+  const speedDiff = targetSpeed - currentSpeed;
+  currentSpeed += Math.abs(speedDiff) <= maxSpeedStep ? speedDiff : Math.sign(speedDiff) * maxSpeedStep;
+
+  score += currentSpeed * dtSec * 0.05;
 
   const targetX = LANE_X[recommendedLaneIndex];
   const maxStep = STEER_SPEED * dtSec;
@@ -380,7 +415,7 @@ function updatePhysics(dt) {
   // through a hazard that's still visually overlapping the car with no collision check.
   const survivors = [];
   for (const hazard of hazards) {
-    hazard.distance -= speed * dtSec;
+    hazard.distance -= currentSpeed * dtSec;
     if (hazard.distance <= -UNSAFE_DISTANCE) {
       score += 10; // passed safely
       continue;
@@ -481,7 +516,14 @@ function drawScene() {
     drawHazard(LANE_X[hazard.laneIndex], y);
   }
 
-  drawCar(carX, CAR_Y);
+  drawCar(carX, CAR_Y, braking);
+
+  if (braking) {
+    ctx.fillStyle = "#f5b85a";
+    ctx.font = "bold 12px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("BRAKING", carX, CAR_Y + CAR_H / 2 + 20);
+  }
 
   if (performance.now() < crashFlashUntil) {
     ctx.fillStyle = "rgba(255,92,95,.25)";
@@ -530,7 +572,7 @@ function drawHazard(cx, cy) {
   ctx.restore();
 }
 
-function drawCar(cx, cy) {
+function drawCar(cx, cy, isBraking = false) {
   const w = CAR_W, h = CAR_H;
   ctx.save();
   ctx.translate(cx, cy);
@@ -584,10 +626,18 @@ function drawCar(cx, cy) {
   ctx.ellipse(-w * 0.3, -h / 2 + 5, 2.6, 3.4, 0, 0, Math.PI * 2);
   ctx.ellipse(w * 0.3, -h / 2 + 5, 2.6, 3.4, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#ff5c5f";
+  // Taillights glow brighter and bigger while braking, like a real brake-light cue.
+  if (isBraking) {
+    ctx.fillStyle = "rgba(255,92,95,.35)";
+    ctx.beginPath();
+    ctx.ellipse(-w * 0.3, h / 2 - 5, 6, 7, 0, 0, Math.PI * 2);
+    ctx.ellipse(w * 0.3, h / 2 - 5, 6, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = isBraking ? "#ff2a2e" : "#ff5c5f";
   ctx.beginPath();
-  ctx.ellipse(-w * 0.3, h / 2 - 5, 2.2, 2.8, 0, 0, Math.PI * 2);
-  ctx.ellipse(w * 0.3, h / 2 - 5, 2.2, 2.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(-w * 0.3, h / 2 - 5, isBraking ? 3 : 2.2, isBraking ? 3.6 : 2.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(w * 0.3, h / 2 - 5, isBraking ? 3 : 2.2, isBraking ? 3.6 : 2.8, 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();

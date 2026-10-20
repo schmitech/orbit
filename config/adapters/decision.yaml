@@ -327,6 +327,35 @@ adapters:
           type: "noul"
           instructions: "Is the car at high risk of a collision if it does not change lanes immediately?"
 
+  # Same lane-choice questions answered by TypeSafe's hosted jev-latest model.
+  - name: "lane-choice-typesafe"
+    enabled: true
+    type: "decision_model"
+    datasource: "none"
+    adapter: "multimodal"
+    implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
+    decision_provider: "typesafe"
+    model: "jev-latest"
+    capabilities:
+      retrieval_behavior: "none"
+      formatting_style: "clean"
+      supports_threading: false
+      supports_session_tracking: false
+    config:
+      state_key: "scene"
+      allow_question_override: false
+      questions:
+        lane:
+          type: "choice"
+          instructions: "A car is driving down a 3-lane road. Given the car's current lane, speed, and the hazard ahead in each lane, which lane should the car move to next to avoid a collision?"
+          criteria:
+            lane_1: "Move to (or stay in) the left lane"
+            lane_2: "Move to (or stay in) the center lane"
+            lane_3: "Move to (or stay in) the right lane"
+        collision_risk:
+          type: "noul"
+          instructions: "Is the car at high risk of a collision if it does not change lanes immediately?"
+
   # Skill routing: pick which ORBIT skill should handle a query, in a few milliseconds.
   # Config-only example — it is not wired into the skill router; call it as a pre-routing step.
   - name: "skill-router"

@@ -43,6 +43,7 @@ def test_each_example_adapter_is_valid():
         "sentiment-analysis-local",
         "lane-choice",
         "lane-choice-openai",
+        "lane-choice-typesafe",
     }
 
 
