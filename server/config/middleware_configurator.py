@@ -17,6 +17,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Any
 
+from utils.ip_utils import extract_ip, parse_trusted_networks
+
 _logger = logging.getLogger(__name__)
 
 
@@ -116,7 +118,7 @@ class MiddlewareConfigurator:
         MiddlewareConfigurator._configure_mcp_host_validation_middleware(app, config)
 
         # Configure request logging middleware (logger captured in closure)
-        MiddlewareConfigurator._configure_logging_middleware(app, logger)
+        MiddlewareConfigurator._configure_logging_middleware(app, config, logger)
 
         # Configure metrics middleware (if available)
         MiddlewareConfigurator._configure_metrics_middleware(app)
@@ -284,24 +286,28 @@ class MiddlewareConfigurator:
         _logger.info("MCP Host/Origin validation middleware configured (allowed hosts: localhost + %s)", allowed_hosts)
 
     @staticmethod
-    def _configure_logging_middleware(app: FastAPI, logger: logging.Logger) -> None:
+    def _configure_logging_middleware(app: FastAPI, config: dict[str, Any], logger: logging.Logger) -> None:
         """
         Configure request logging middleware.
 
         logger is captured in the log_requests closure and used at request
         handling time, so it cannot be replaced with the module-level _logger.
         """
+        rate_cfg = ((config or {}).get("security", {}) or {}).get("rate_limiting", {}) or {}
+        trust_proxy = rate_cfg.get("trust_proxy_headers", False)
+        trusted_networks = parse_trusted_networks(rate_cfg.get("trusted_proxies", []))
+
         @app.middleware("http")
         async def log_requests(request: Request, call_next):
             start_time = time.time()
             response = await call_next(request)
             process_time = time.time() - start_time
 
-            client_ip = request.headers.get("X-Forwarded-For")
-            if client_ip:
-                client_ip = client_ip.split(',')[0].strip()
-            else:
-                client_ip = request.client.host if request.client else "unknown"
+            client_ip, _ip_metadata = extract_ip(
+                request,
+                trust_proxy=trust_proxy,
+                trusted_networks=trusted_networks,
+            )
 
             logger.info(
                 f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]} - "

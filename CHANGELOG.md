@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.19.1] - 2026-10-21
+
+### Security
+- **Chat audit trail no longer trusts a client-supplied IP**: The chat endpoints now resolve the client IP the same trusted way the rate limiter and admin IP allowlist already do, instead of taking it from a header the caller controls. This keeps audit logs, request logs, and chat history attributing requests to the real client rather than whatever address was sent in (GHSA-vmr6-q95v-7f9q).
+
 ## [2.19.0] - 2026-10-20
 
 ### Core Features

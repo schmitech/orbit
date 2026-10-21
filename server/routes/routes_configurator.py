@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from utils import is_true_value
 from utils.text_utils import hash_api_key
+from utils.ip_utils import extract_ip, parse_trusted_networks
 from services.stream_registry import stream_registry
 from ai_services.services.inference_service import OpenAIResponseFormatter
 from services.chat_handlers.streaming_events import (
@@ -59,6 +60,10 @@ class RouteConfigurator:
         """
         self.config = config
         self.logger = logger
+        # Reuse the rate limiter's proxy-trust configuration exactly, so the
+        # chat audit trail can't disagree with the rate limiter and admin IP
+        # allowlist about who a request actually came from.
+        self._rate_limit_cfg = ((config or {}).get("security", {}) or {}).get("rate_limiting", {}) or {}
     
     def configure_routes(self, app: FastAPI) -> None:
         """
@@ -503,7 +508,16 @@ class RouteConfigurator:
             The fastmcp library will expose it as an MCP tool.
             """
             adapter_name, system_prompt_id = api_key_result
-            client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+            client_ip, ip_metadata = extract_ip(
+                request,
+                trust_proxy=self._rate_limit_cfg.get("trust_proxy_headers", False),
+                trusted_networks=parse_trusted_networks(self._rate_limit_cfg.get("trusted_proxies", [])),
+            )
+            if ip_metadata.get("type") == "local":
+                # extract_ip() normalizes loopback to the string "localhost", which
+                # downstream audit/log storage (e.g. Elasticsearch ip-mapped fields)
+                # rejects. Store the numeric loopback address instead.
+                client_ip = ip_metadata.get("originalValue", client_ip)
             api_key = self._resolve_api_key(request)
 
             last_user_message, payload_kwargs = _prepare_chat_parameters(chat_request)
@@ -599,7 +613,16 @@ class RouteConfigurator:
             Python SDK (and other compatible clients) can talk to ORBIT.
             """
             adapter_name, system_prompt_id = api_key_result
-            client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown")
+            client_ip, ip_metadata = extract_ip(
+                request,
+                trust_proxy=self._rate_limit_cfg.get("trust_proxy_headers", False),
+                trusted_networks=parse_trusted_networks(self._rate_limit_cfg.get("trusted_proxies", [])),
+            )
+            if ip_metadata.get("type") == "local":
+                # extract_ip() normalizes loopback to the string "localhost", which
+                # downstream audit/log storage (e.g. Elasticsearch ip-mapped fields)
+                # rejects. Store the numeric loopback address instead.
+                client_ip = ip_metadata.get("originalValue", client_ip)
             api_key = self._resolve_api_key(request)
 
             last_user_message, payload_kwargs = _prepare_chat_parameters(chat_request)
