@@ -24,13 +24,11 @@
 </p>
 
 <p align="center">
-  <strong>Real-time AI-powered decisions</strong>
+  <strong>ORBIT control plane</strong>
   <br />
-  <img width="700" alt="Decision Car Simulation showing ORBIT-powered lane choices in an arcade driving game" src="https://github.com/user-attachments/assets/cc4d9839-263b-4632-b0a2-770b90121e57" />
+  <img width="700" alt="ORBIT admin panel in action: resource monitoring, API keys, users, audit logs, and MCP tools" src="https://github.com/user-attachments/assets/9d56a174-fbf1-4caa-887b-691c4f1b07a7" />
   <br />
-  <sub>ORBIT chooses lanes and assesses collision risk—the same decision-model adapters can power routing, triage, and moderation.</sub>
-  <br />
-  <a href="examples/decision-car-simulation/">Run the car simulation</a>
+  <sub>Monitor resources, manage API keys and users, review audit logs, and configure MCP tools—all in one place.</sub>
 </p>
 
 <br/>
@@ -48,11 +46,13 @@
 <br/>
 
 <p align="center">
-  <strong>ORBIT control plane</strong>
+  <strong>Real-time AI-powered decisions</strong>
   <br />
-  <img width="700" alt="ORBIT admin panel in action: resource monitoring, API keys, users, audit logs, and MCP tools" src="https://github.com/user-attachments/assets/6adf3f49-434c-4915-b2c1-ca6c44c0beee" />
+  <img width="700" alt="Decision Car Simulation showing ORBIT-powered lane choices in an arcade driving game" src="https://github.com/user-attachments/assets/cc4d9839-263b-4632-b0a2-770b90121e57" />
   <br />
-  <sub>Monitor resources, manage API keys and users, review audit logs, and configure MCP tools—all in one place.</sub>
+  <sub>ORBIT chooses lanes and assesses collision risk—the same decision-model adapters can power routing, triage, and moderation.</sub>
+  <br />
+  <a href="examples/decision-car-simulation/">Run the car simulation</a>
 </p>
 
 ## Why ORBIT
