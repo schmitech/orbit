@@ -40,7 +40,6 @@
   <br />
   <sub>Ask questions about your documents and images through one conversational interface.</sub>
   <br />
-  <a href="docs/adapters/file-adapter-guide.md">Explore file chat</a>
 </p>
 
 <br/>
@@ -52,7 +51,17 @@
   <br />
   <sub>ORBIT chooses lanes and assesses collision risk—the same decision-model adapters can power routing, triage, and moderation.</sub>
   <br />
-  <a href="examples/decision-car-simulation/">Run the car simulation</a>
+</p>
+
+<br/>
+
+<p align="center">
+  <strong>MCP Tools Calling</strong>
+  <br />
+  <img width="700" alt="MCP Tool Calling" src="https://github.com/user-attachments/assets/2e3ea9a0-d0fa-4592-a8fd-7a210fccfdc5"" />
+  <br />
+  <sub>Configure MCP servers in one place, then call MCP tools from your ORBIT client.</sub>
+  <br />
 </p>
 
 ## Why ORBIT
