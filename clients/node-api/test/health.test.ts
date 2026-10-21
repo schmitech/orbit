@@ -109,6 +109,14 @@ describe('Health and metrics endpoints', () => {
       const [url] = (global.fetch as any).mock.calls[0];
       expect(url).toBe(`${TEST_API_URL}/metrics/json`);
     });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ requests_total: 42 }) });
+      await client.getMetricsJson('admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
+    });
   });
 
   describe('getPrometheusMetrics', () => {
@@ -121,6 +129,14 @@ describe('Health and metrics endpoints', () => {
       expect(result).toContain('requests_total');
       const [url] = (global.fetch as any).mock.calls[0];
       expect(url).toBe(`${TEST_API_URL}/metrics`);
+    });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, text: () => Promise.resolve('requests_total 42\n') });
+      await client.getPrometheusMetrics('admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
     });
 
     it('should throw on HTTP error', async () => {

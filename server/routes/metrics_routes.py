@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, Request
 from fastapi.responses import Response
 
-from routes.auth_helpers import authenticate_websocket_admin
+from routes.auth_helpers import authenticate_websocket_admin, require_metrics_auth
 
 logger = logging.getLogger(__name__)
 
@@ -274,13 +274,19 @@ def create_metrics_router() -> APIRouter:
                 pass
 
     @router.get("/metrics")
-    async def get_prometheus_metrics(metrics_service=Depends(get_metrics_service_for_prometheus)):
+    async def get_prometheus_metrics(
+        metrics_service=Depends(get_metrics_service_for_prometheus),
+        _user=Depends(require_metrics_auth),
+    ):
         """Prometheus metrics endpoint"""
         metrics_data = metrics_service.get_prometheus_metrics()
         return Response(content=metrics_data, media_type="text/plain")
 
     @router.get("/metrics/json")
-    async def get_json_metrics(metrics_service=Depends(get_metrics_service)):
+    async def get_json_metrics(
+        metrics_service=Depends(get_metrics_service),
+        _user=Depends(require_metrics_auth),
+    ):
         """JSON metrics endpoint for custom integrations"""
         return metrics_service.get_dashboard_metrics()
 

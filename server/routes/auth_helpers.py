@@ -471,3 +471,49 @@ async def authenticate_websocket_admin(websocket: WebSocket) -> bool:
         return False
 
     return True
+
+
+async def require_metrics_auth(request: Request) -> dict[str, Any]:
+    """HTTP counterpart to `authenticate_websocket_admin`: require a session
+    cookie or HTTP Basic credentials with the `metrics.read` permission.
+
+    Keeps the HTTP /metrics and /metrics/json endpoints gated the same way as
+    the /ws/metrics WebSocket channel, rather than leaving them open to any
+    caller.
+    """
+    auth_service = getattr(request.app.state, 'auth_service', None)
+    if not auth_service:
+        raise HTTPException(status_code=503, detail="Authentication service not available")
+
+    if not getattr(auth_service, "_initialized", True):
+        await auth_service.initialize()
+
+    token = request.cookies.get("dashboard_token")
+    if token:
+        valid, user_info = await auth_service.validate_token(token)
+        if valid and user_info and has_permission(user_info, "metrics.read"):
+            return user_info
+
+    auth_header = request.headers.get('authorization')
+    if auth_header and auth_header.lower().startswith('bearer '):
+        bearer_user = await resolve_authenticated_user(request)
+        if bearer_user and has_permission(bearer_user, "metrics.read"):
+            return bearer_user
+
+    if auth_header and auth_header.lower().startswith('basic '):
+        try:
+            decoded = base64.b64decode(auth_header.split(' ', 1)[1]).decode('utf-8')
+            username, password = decoded.split(':', 1)
+        except (binascii.Error, UnicodeDecodeError, ValueError):
+            raise HTTPException(
+                status_code=401, detail="Invalid basic auth header",
+                headers={"WWW-Authenticate": 'Basic realm="orbit-metrics"'},
+            )
+        success, user_info = await auth_service.verify_credentials(username, password)
+        if success and user_info and has_permission(user_info, "metrics.read"):
+            return user_info
+
+    raise HTTPException(
+        status_code=401, detail="Authentication required",
+        headers={"WWW-Authenticate": 'Basic realm="orbit-metrics"'},
+    )

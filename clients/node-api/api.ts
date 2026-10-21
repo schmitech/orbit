@@ -1266,8 +1266,11 @@ export class ApiClient {
     return url.toString();
   }
 
-  public async getPrometheusMetrics(): Promise<string> {
-    const response = await this.fetchWithNetworkErrorHandling(`${this.apiUrl}/metrics`, this.getFetchOptions({ method: 'GET' }));
+  public async getPrometheusMetrics(authToken?: string): Promise<string> {
+    const response = await this.fetchWithNetworkErrorHandling(
+      `${this.apiUrl}/metrics`,
+      this.getFetchOptions({ method: 'GET', headers: this.withBearerAuth({}, authToken) })
+    );
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Failed to fetch Prometheus metrics: ${response.status} ${errorText}`);
@@ -1275,11 +1278,12 @@ export class ApiClient {
     return await response.text();
   }
 
-  public async getMetricsJson(): Promise<any> {
+  public async getMetricsJson(authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/metrics/json`,
       {
-        method: 'GET'
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to get dashboard metrics'
     );

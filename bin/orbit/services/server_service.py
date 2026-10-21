@@ -963,7 +963,7 @@ class ServerService:
 
     def _add_service_metrics(self, result: dict[str, Any]) -> None:
         """Add traffic, readiness and adapter sections to a report, in place."""
-        metrics = self._probe("/metrics/json")
+        metrics = self._probe("/metrics/json", authenticated=True)
         if metrics is None:
             result["unavailable"].append("metrics")
         else:

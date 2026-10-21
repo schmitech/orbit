@@ -4,6 +4,7 @@
 
 ### Security
 - **Chat audit trail no longer trusts a client-supplied IP**: The chat endpoints now resolve the client IP the same trusted way the rate limiter and admin IP allowlist already do, instead of taking it from a header the caller controls. This keeps audit logs, request logs, and chat history attributing requests to the real client rather than whatever address was sent in (GHSA-vmr6-q95v-7f9q).
+- **Metrics endpoints now require admin authentication**: `/metrics` and `/metrics/json` previously returned resource usage, request/error rates, and internal endpoint paths to anyone, with no login required. They now require the same admin session or credentials already used elsewhere in the dashboard, matching the real-time metrics WebSocket, which was already protected (GHSA-8vxv-44px-mpw4).
 
 ## [2.19.0] - 2026-10-20
 
