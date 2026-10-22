@@ -69,7 +69,7 @@
 | | What you get |
 | :--- | :--- |
 | **Your data, connected** | Files, SQL, NoSQL, vector stores, APIs, and MCP tools through YAML-configured adapters. |
-| **Your choice of models** | Switch between local and hosted providers behind one OpenAI-compatible API. |
+| **Your choice of models** | Switch between local and hosted providers behind one OpenAI-compatible API, or let an adapter auto-select a model per request based on how much capability it needs. |
 | **Your infrastructure** | Self-host on-premises or in a private cloud, use local models for air-gapped deployments. |
 | **Operations built in** | Authentication, quotas, audit logs, provider fallbacks, monitoring, and an admin UI. |
 
@@ -276,7 +276,7 @@ OrbitChat opens at [http://localhost:5173](http://localhost:5173). See the [exam
 | **Learn ORBIT** | [Tutorial](docs/tutorial.md) · [First chat](docs/tutorial/first-chat.md) · [HTTP APIs](docs/tutorial/http-apis.md) |
 | **Connect private data** | [Files](docs/adapters/file-adapter-guide.md) · [Vector stores](docs/vector-stores/vector_store_integration_guide.md) · [SQL](docs/sql-retriever-architecture.md) · [Intent templates](examples/intent-templates/) · [Adapter system overview](docs/adapters/adapters.md) |
 | **Build agents** | [MCP tools](docs/tutorial/mcp-tool-calling.md) · [Automatic skill routing](docs/tutorial/auto-skill-routing.md) · [A2A](docs/a2a-protocol.md) · [Adapter creation](docs/adapters/adapter-creation.md) |
-| **Make real-time decisions** | [Decision models](docs/adapters/decision-models.md) · [Triage Rush demo](examples/triage-rush-game/) · [Sentiment Pulse](examples/sentiment-pulse/) |
+| **Make real-time decisions** | [Decision models](docs/adapters/decision-models.md) · [Automatic model selection](docs/adapters/auto-model-selection.md) · [Triage Rush demo](examples/triage-rush-game/) · [Sentiment Pulse](examples/sentiment-pulse/) |
 | **Run in production** | [Authentication](docs/authentication.md) · [Cost tracking](docs/token-usage-and-cost-tracking.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
 | **Use a client** | [OrbitChat](clients/orbitchat/) · [Realtime Voice](clients/realtime-voice/) · [Node.js SDK](clients/node-api/) · [Python API example](examples/openai-compatible-api/chat_completions.py) |
 
