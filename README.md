@@ -171,6 +171,14 @@ Once startup completes, open [OrbitChat](http://localhost:5173) to chat or uploa
 
 View startup progress with `docker logs -f orbit`. Data persists in `orbit-data`; the Ollama flavor also stores downloaded models in `orbit-models`.
 
+To sign in to the [admin dashboard](http://localhost:3000/admin), grab the one-time generated admin password from the container log (it's not baked into the image):
+
+```bash
+docker logs orbit | grep -A3 "one-time admin password"
+```
+
+Log in with `admin` and that password.
+
 See the [Docker guide](docker/README.md#flavor-images-recommended-pull-and-run) for more details.
 
 </details>

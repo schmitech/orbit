@@ -96,10 +96,17 @@ Use `orbitchat` below when you want the browser UI instead.
 
 **Security:** these images ship a default database and API key for first-run
 convenience. On first boot, the container generates a random admin password and
-prints it once to the container log — it is not baked into the image. Set
-`ORBIT_DEFAULT_ADMIN_PASSWORD` to supply your own instead, and rotate the default
-API key before exposing ORBIT beyond localhost. Set `ORBIT_ALLOW_DEFAULT_CREDENTIALS=true`
-to silence the startup warning once you've done so.
+prints it once to the container log — it is not baked into the image. Retrieve it with:
+
+```bash
+docker logs orbit | grep -A3 "one-time admin password"
+```
+
+Log in to the [admin dashboard](http://localhost:3000/admin) with `admin` and that
+password. Set `ORBIT_DEFAULT_ADMIN_PASSWORD` to supply your own instead, and rotate
+the default API key before exposing ORBIT beyond localhost. Set
+`ORBIT_ALLOW_DEFAULT_CREDENTIALS=true` to silence the startup warning once you've
+done so.
 
 **Building/publishing these images** (maintainers) — see
 [Building and Publishing Flavor Images](#building-and-publishing-flavor-images)
