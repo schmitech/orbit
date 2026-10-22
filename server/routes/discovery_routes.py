@@ -184,6 +184,7 @@ async def list_adapter_models(
     if adapter_config is None:
         raise HTTPException(status_code=404, detail=f"Adapter '{resolved_name}' not found")
 
+    skill_has_own_llm = False
     if skill:
         capabilities_cfg = adapter_config.get('capabilities', {}) or {}
         available_skills = capabilities_cfg.get('available_skills', [])
@@ -240,6 +241,12 @@ async def list_adapter_models(
             for m in allowed
             if m.get('name') and m.get('provider') and m.get('model')
         ]
+        # Advertise the reserved "auto" sentinel (see docs/adapters/auto-model-selection.md)
+        # only in the two branches where model="auto" is actually honored at request
+        # time — never for a skill with its own LLM.
+        auto_cfg = adapter_config.get('capabilities', {}).get('auto_model_selection') or {}
+        if auto_cfg.get('enabled') and not (skill and skill_has_own_llm):
+            models = [{"name": "auto", "provider": None, "model": None, "auto": True}] + models
         return {
             "adapter_name": resolved_name,
             "has_restrictions": True,

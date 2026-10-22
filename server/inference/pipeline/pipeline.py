@@ -13,7 +13,7 @@ from utils.block_aware_streamer import BlockAwareStreamer
 from .base import ProcessingContext, PipelineStep
 from .service_container import ServiceContainer
 from .monitoring import PipelineMonitor
-from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, IntentClarificationStep, IntentNoMatchStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, AudioGenerationStep, MCPAgentStep, FetchStep, WebSearchStep, DecisionModelStep
+from .steps import SafetyFilterStep, LanguageDetectionStep, ContextRetrievalStep, IntentClarificationStep, IntentNoMatchStep, DocumentRerankingStep, LLMInferenceStep, ResponseValidationStep, ImageGenerationStep, VideoGenerationStep, DocumentGenerationStep, AudioGenerationStep, MCPAgentStep, FetchStep, WebSearchStep, DecisionModelStep, ModelSelectionStep
 
 logger = logging.getLogger(__name__)
 
@@ -428,6 +428,11 @@ class InferencePipelineBuilder:
 
         # Decision model — executes instead of LLM for decision_model adapters
         steps.append(DecisionModelStep(container))
+
+        # Model selection ("auto" routing) — picks an allowed_models entry via a
+        # decision model before the main LLM call, when requested (see
+        # docs/adapters/auto-model-selection.md)
+        steps.append(ModelSelectionStep(container))
 
         # LLM inference is always needed (skips image/video/document/audio/fetch generation adapters)
         steps.append(LLMInferenceStep(container))

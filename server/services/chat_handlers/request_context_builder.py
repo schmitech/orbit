@@ -118,6 +118,15 @@ class RequestContextBuilder:
             # No allowed_models list — silently ignore the override
             return None, None, None
 
+        if requested_model == "auto":
+            # Always a no-op override here, regardless of whether auto_model_selection
+            # is actually enabled for this adapter (or this branch excludes it, e.g. a
+            # skill with its own LLM — see build_context()). Whether ModelSelectionStep
+            # runs is controlled separately by auto_select_requested; this function must
+            # never reject "auto" as an unrecognized name, or a disabled/ineligible
+            # adapter would raise instead of silently falling back to its default model.
+            return None, None, None
+
         match = next((m for m in allowed if m.get('name') == requested_model), None)
         if match is None:
             # OpenAI-compatible clients (e.g. LiteLLM) echo the adapter name back as
@@ -529,6 +538,12 @@ class RequestContextBuilder:
         runtime_video_param_overrides = None
         runtime_audio_param_overrides = None
         runtime_search_provider_overrides = None
+        # Auto model selection only applies to the chat-style branch below
+        # (see docs/adapters/auto-model-selection.md) — image/video/audio/
+        # search adapters have their own allowed_*_models lists and no
+        # "auto" concept.
+        auto_select_requested = False
+        model_routing_adapter_name = None
 
         if final_cfg.get('type') == 'image_generation':
             # Image-generation adapters have their own allowed_image_models list
@@ -608,13 +623,32 @@ class RequestContextBuilder:
                         raise
                     runtime_provider, runtime_model_name, runtime_param_overrides = None, None, None
                 inference_provider = skill_inference_provider
+                # Auto model selection (see docs/adapters/auto-model-selection.md) is
+                # excluded for a skill with its own LLM in v1: conversation history for
+                # this turn was already fetched against the CALLING adapter, before skill
+                # detection ever ran, so there's no static baseline the config-load-time
+                # budget guard (AdapterConfigManager) could have validated this skill
+                # adapter's allowed_models tiers against. Always degrade silently to the
+                # skill's normal default model rather than route.
+                auto_select_requested = False
+                model_routing_adapter_name = None
             else:
                 # Resolve runtime model override from the adapter's allowed_models. For a
                 # skill with no LLM of its own (e.g. fetch), this stays the CALLING
                 # adapter's override, since that adapter's LLM processes the result.
+                model_routing_adapter_name = original_adapter_name or adapter_name
                 runtime_provider, runtime_model_name, runtime_param_overrides = (
                     self.resolve_runtime_model_override(
-                        original_adapter_name or adapter_name, requested_model
+                        model_routing_adapter_name, requested_model
+                    )
+                )
+                routing_cfg = self.get_adapter_config(model_routing_adapter_name)
+                auto_select_requested = (
+                    requested_model == "auto"
+                    and bool(
+                        routing_cfg.get('capabilities', {})
+                        .get('auto_model_selection', {})
+                        .get('enabled')
                     )
                 )
 
@@ -655,6 +689,8 @@ class RequestContextBuilder:
             runtime_search_provider_overrides=runtime_search_provider_overrides,
             requested_skill=requested_skill,
             original_adapter_name=original_adapter_name,
+            auto_select_requested=auto_select_requested,
+            model_routing_adapter_name=model_routing_adapter_name,
             web_search=web_search,
             mcp_tools=mcp_tools,
             mcp_servers_allowlist=mcp_servers_allowlist,

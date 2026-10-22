@@ -143,6 +143,21 @@ class ProcessingContext:
     # Decision model output: {model, answers, usage} from a decision_model adapter
     decision: Optional[dict[str, Any]] = None
 
+    # Auto model selection ("auto" routing, see docs/adapters/auto-model-selection.md).
+    # True only when the client requested model="auto" AND the adapter whose
+    # allowed_models was resolved (model_routing_adapter_name) has
+    # capabilities.auto_model_selection.enabled.
+    auto_select_requested: bool = False
+    # The adapter whose allowed_models/auto_model_selection config govern routing
+    # for this request — may differ from adapter_name for a skill with no LLM of
+    # its own (see request_context_builder.build_context()). None when auto
+    # selection isn't applicable for this request's branch (e.g. a skill with its
+    # own LLM, excluded in v1).
+    model_routing_adapter_name: Optional[str] = None
+    # The allowed_models 'name' ModelSelectionStep actually picked, or None if
+    # routing didn't run or fell through to the adapter's normal default model.
+    auto_selected_model: Optional[str] = None
+
     def has_error(self) -> bool:
         """Check if the context has an error."""
         return self.is_blocked or self.error is not None

@@ -65,9 +65,10 @@ export interface AdapterInfo {
 }
 
 export interface AllowedModel {
-  name: string;      // Client-facing identifier (sent as "model" in request body)
-  provider: string;  // Internal provider key
-  model: string;     // Actual model name passed to the provider
+  name: string;               // Client-facing identifier (sent as "model" in request body)
+  provider: string | null;    // Internal provider key; null for the reserved "auto" entry
+  model: string | null;       // Actual model name passed to the provider; null for "auto"
+  auto?: boolean;              // True for the reserved "auto" entry (see docs/adapters/auto-model-selection.md)
 }
 
 export interface AdapterModelsResponse {

@@ -8,10 +8,70 @@ import logging
 from typing import Any, Optional
 
 from adapters.capabilities import AdapterCapabilities
+from services.provider_metadata import get_provider_context_window_info
 
 from .config_change_detector import ConfigChangeDetector
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_preset(provider: str, provider_config: dict[str, Any], global_config: dict[str, Any]) -> dict[str, Any]:
+    """Merge preset values (e.g. llama_cpp use_preset) into provider_config, adapter/override keys winning."""
+    use_preset = provider_config.get('use_preset')
+    if not use_preset:
+        return provider_config
+    preset = global_config.get(f"{provider}_presets", {}).get(use_preset, {})
+    if not preset:
+        return provider_config
+    return {**preset, **{k: v for k, v in provider_config.items() if k != 'use_preset'}}
+
+
+def _effective_history_budget(
+    provider_name: Optional[str],
+    overrides: dict[str, Any],
+    adapter_config: dict[str, Any],
+    global_config: dict[str, Any],
+) -> int:
+    """
+    Mirror ChatHistoryService._calculate_max_token_budget()'s reserved-token math,
+    without instantiating ChatHistoryService (which would open a database
+    connection) — used only to validate auto_model_selection's routing_tier
+    entries at config-load time (see docs/adapters/auto-model-selection.md).
+
+    Layering, matching the real request path (runtime > adapter > inference.yaml,
+    same as DynamicAdapterManager.get_overridden_provider()): `overrides` (a
+    routing_tier entry's own context_window/max_tokens, or {} for the adapter's
+    own baseline) wins over `adapter_config`'s own settings, which win over the
+    provider's inference.yaml/preset defaults.
+    """
+    provider_name = provider_name or adapter_config.get('inference_provider') or \
+        global_config.get('general', {}).get('inference_provider', 'ollama')
+    inference_config = dict(global_config.get('inference', {}).get(provider_name, {}))
+    inference_config = _resolve_preset(provider_name, inference_config, global_config)
+
+    provider_info = get_provider_context_window_info(provider_name)
+    for source in (adapter_config, overrides):
+        if source.get('context_window') is not None:
+            inference_config['context_window'] = source['context_window']
+            if provider_info.context_window_param != 'context_window':
+                inference_config[provider_info.context_window_param] = source['context_window']
+        if source.get('max_tokens') is not None:
+            inference_config['max_tokens'] = source['max_tokens']
+
+    context_window = (
+        inference_config.get(provider_info.context_window_param)
+        or inference_config.get('context_window')
+        or inference_config.get('max_context_length')
+        or inference_config.get('context_length')
+        or provider_info.default_context_window
+    )
+    max_output_tokens = (
+        inference_config.get('max_tokens')
+        or inference_config.get('num_predict')
+        or 1024
+    )
+    overhead_tokens = global_config.get('history', {}).get('system_overhead_tokens', 1200)
+    return max(0, context_window - (max_output_tokens + overhead_tokens))
 
 
 class AdapterConfigManager:
@@ -61,6 +121,83 @@ class AdapterConfigManager:
                     logger.debug(f"Skipping disabled adapter: {adapter_name}")
 
         logger.debug(f"Loaded {enabled_count} enabled adapter configurations ({disabled_count} disabled)")
+
+        self._validate_auto_model_selection(self._adapter_configs)
+
+    def _validate_auto_model_selection(self, adapter_configs: dict[str, dict[str, Any]]) -> None:
+        """
+        Validate auto_model_selection's routing_tier invariants (see
+        docs/adapters/auto-model-selection.md) for every adapter in
+        `adapter_configs`, disabling the capability in place (never raising —
+        auto_model_selection is an optional, best-effort feature) when:
+          - two allowed_models entries share the same routing_tier, or
+          - no allowed_models entry carries a routing_tier at all, or
+          - a routing_tier entry's effective history budget is smaller than
+            the adapter's own baseline (would overflow the selected model's
+            real context window, since history is sized before routing runs).
+
+        Called from both _load_configs() and reload_from_config() since they
+        don't share a code path.
+        """
+        for adapter_name, adapter_config in adapter_configs.items():
+            capabilities = adapter_config.get('capabilities') or {}
+            auto_cfg = capabilities.get('auto_model_selection')
+            if not auto_cfg or not auto_cfg.get('enabled'):
+                continue
+
+            allowed_models = adapter_config.get('allowed_models') or []
+            tiered = [m for m in allowed_models if m.get('routing_tier')]
+
+            seen_tiers: dict[str, str] = {}
+            duplicate = None
+            for entry in tiered:
+                tier = entry['routing_tier']
+                if tier in seen_tiers:
+                    duplicate = tier
+                    break
+                seen_tiers[tier] = entry.get('name', '<unnamed>')
+
+            if not tiered:
+                logger.error(
+                    f"Disabling auto_model_selection for adapter '{adapter_name}': "
+                    f"no allowed_models entry declares a routing_tier"
+                )
+                auto_cfg['enabled'] = False
+                continue
+
+            if duplicate:
+                logger.error(
+                    f"Disabling auto_model_selection for adapter '{adapter_name}': "
+                    f"more than one allowed_models entry declares routing_tier '{duplicate}'"
+                )
+                auto_cfg['enabled'] = False
+                continue
+
+            try:
+                baseline = _effective_history_budget(None, {}, adapter_config, self.config)
+                violation = next(
+                    (
+                        entry for entry in tiered
+                        if _effective_history_budget(
+                            entry.get('provider'), entry, adapter_config, self.config,
+                        ) < baseline
+                    ),
+                    None,
+                )
+            except Exception as e:  # noqa: BLE001 - validation itself must never break adapter loading
+                logger.warning(f"Could not validate auto_model_selection budget for '{adapter_name}': {e}")
+                violation = None
+
+            if violation:
+                logger.error(
+                    f"Disabling auto_model_selection for adapter '{adapter_name}': "
+                    f"routing_tier '{violation.get('routing_tier')}' entry "
+                    f"'{violation.get('name')}' has a smaller effective history budget "
+                    f"than the adapter's own baseline — conversation history is fetched "
+                    f"before routing runs, so this could overflow the selected model's "
+                    f"real context window"
+                )
+                auto_cfg['enabled'] = False
 
     def get(self, adapter_name: str) -> Optional[dict[str, Any]]:
         """
@@ -166,6 +303,8 @@ class AdapterConfigManager:
         for name in list(self._adapter_configs.keys()):
             if name not in new_adapter_configs:
                 removed.append(name)
+
+        self._validate_auto_model_selection(new_adapter_configs)
 
         # Update the internal config store
         self._adapter_configs = new_adapter_configs

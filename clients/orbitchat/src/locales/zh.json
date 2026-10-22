@@ -430,7 +430,9 @@
     "modelCountHint": "{{filtered}} / {{total}} 个模型",
     "selectModel": "选择模型",
     "tryAnotherSearch": "尝试搜索模型名称或提供商",
-    "keyboardHint": "↑↓ 导航 · Enter 选择"
+    "keyboardHint": "↑↓ 导航 · Enter 选择",
+    "autoLabel": "自动",
+    "autoHint": "自动选择模型"
   },
   "skillPicker": {
     "noSkillsAvailable": "此适配器没有可用技能。",

@@ -430,7 +430,9 @@
     "modelCountHint": "{{filtered}} von {{total}} Modellen",
     "selectModel": "Modell auswählen",
     "tryAnotherSearch": "Versuche einen Modell- oder Anbieternamen",
-    "keyboardHint": "↑↓ navigieren · Enter auswählen"
+    "keyboardHint": "↑↓ navigieren · Enter auswählen",
+    "autoLabel": "Auto",
+    "autoHint": "Wählt automatisch ein Modell aus"
   },
   "skillPicker": {
     "noSkillsAvailable": "Für diesen Adapter sind keine Skills verfügbar.",

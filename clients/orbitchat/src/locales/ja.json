@@ -430,7 +430,9 @@
     "modelCountHint": "{{total}} 件中 {{filtered}} 件のモデル",
     "selectModel": "モデルを選択",
     "tryAnotherSearch": "モデル名またはプロバイダー名で検索してください",
-    "keyboardHint": "↑↓ 移動 · Enter 選択"
+    "keyboardHint": "↑↓ 移動 · Enter 選択",
+    "autoLabel": "自動",
+    "autoHint": "モデルを自動的に選択します"
   },
   "skillPicker": {
     "noSkillsAvailable": "このアダプターで利用できるスキルはありません。",

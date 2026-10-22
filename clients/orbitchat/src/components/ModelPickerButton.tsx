@@ -51,7 +51,7 @@ export function ModelPickerButton({
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) return availableModels;
     return availableModels.filter(model =>
-      `${model.name} ${model.provider} ${model.model}`.toLowerCase().includes(normalizedQuery)
+      `${model.name} ${model.provider ?? ''} ${model.model ?? ''}`.toLowerCase().includes(normalizedQuery)
     );
   }, [availableModels, query]);
 
@@ -257,10 +257,13 @@ export function ModelPickerButton({
                     }`}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">{model.name}</span>
+                      <span className="block truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {model.auto ? t('modelPicker.autoLabel') : model.name}
+                      </span>
                       <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">
-                        {formatProvider(model.provider)}
-                        {model.model !== model.name ? ` · ${model.model}` : ''}
+                        {model.auto
+                          ? t('modelPicker.autoHint')
+                          : `${formatProvider(model.provider ?? '')}${model.model && model.model !== model.name ? ` · ${model.model}` : ''}`}
                       </span>
                     </span>
                     <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
@@ -287,7 +290,7 @@ export function ModelPickerButton({
 
   const label = (
     <span className="min-w-0 flex-1 truncate text-left text-xs font-medium text-gray-800 dark:text-gray-200">
-      {effectiveModel ?? t('modelPicker.selectModel')}
+      {effectiveModel === 'auto' ? t('modelPicker.autoLabel') : (effectiveModel ?? t('modelPicker.selectModel'))}
     </span>
   );
 

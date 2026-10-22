@@ -20,6 +20,7 @@ from .mcp_agent import MCPAgentStep
 from .fetch import FetchStep
 from .web_search import WebSearchStep
 from .decision_model import DecisionModelStep
+from .model_selection import ModelSelectionStep
 
 __all__ = [
     'SafetyFilterStep',
@@ -38,4 +39,5 @@ __all__ = [
     'FetchStep',
     'WebSearchStep',
     'DecisionModelStep',
+    'ModelSelectionStep',
 ]

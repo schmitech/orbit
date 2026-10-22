@@ -122,6 +122,13 @@ class AdapterCapabilities:
     custom_should_execute: Optional[Callable[[Any], bool]] = None
     custom_format_context: Optional[Callable[[list, Optional[dict]], str]] = None
 
+    # Auto model selection ("auto" routing): a decision model picks which
+    # allowed_models entry (by routing_tier) handles the turn. See
+    # docs/adapters/auto-model-selection.md. Shape:
+    # {enabled, decision_provider?, decision_model?, instructions, criteria,
+    #  min_confidence?, state_key?, context_messages?}
+    auto_model_selection: Optional[dict[str, Any]] = None
+
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> 'AdapterCapabilities':
         """
@@ -174,6 +181,7 @@ class AdapterCapabilities:
             skill_description=capabilities_config.get('skill_description', ''),
             auto_skill_routing=capabilities_config.get('auto_skill_routing', False),
             routing_examples=capabilities_config.get('routing_examples', []),
+            auto_model_selection=capabilities_config.get('auto_model_selection'),
         )
 
     @classmethod

@@ -12,6 +12,9 @@ ORBIT exposes these models through the `decision_model` adapter type, with three
 
 All three speak the same `choice` / `noul` / `score` question shape at the adapter level — ORBIT translates to and from each provider's own wire format (OpenAI's Decisions API calls `noul` a `predicate`, and uses `choices` / `levels` instead of `criteria`) — so an adapter can switch providers by changing one line.
 
+A decision model can also pick which *chat* model handles a turn — see
+[Automatic Model Selection](auto-model-selection.md) ("auto" routing).
+
 ---
 
 ## Quick Comparison with Chat Adapters

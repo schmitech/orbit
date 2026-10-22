@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.20.0] - 2026-10-22
+
+### Core Features
+- **Automatic model selection ("Auto" routing)**: Adapters can now offer an "Auto" option in the model picker, alongside their regular model choices. When selected, ORBIT uses a lightweight decision model to judge how much reasoning a request needs and automatically routes it to a cheaper/faster or more capable model accordingly — similar to GitHub Copilot's "Auto" model picker. If routing can't make a confident decision for any reason, the request just uses the adapter's normal default model, so it never fails or hangs the request. See `docs/adapters/auto-model-selection.md`.
+
 ## [2.19.1] - 2026-10-21
 
 ### Security

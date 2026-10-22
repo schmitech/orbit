@@ -1024,6 +1024,7 @@ class PipelineChatService:
                 generated_audio_format=context.generated_audio_format,
                 generated_audio_revised_prompt=context.generated_audio_revised_prompt,
                 decision=context.decision,
+                auto_selected_model=context.auto_selected_model,
             )
 
             if cache_key and not audio_data:
@@ -1440,6 +1441,7 @@ class PipelineChatService:
             generated_audio_format=context.generated_audio_format,
             generated_audio_revised_prompt=context.generated_audio_revised_prompt,
             decision=context.decision,
+            auto_selected_model=context.auto_selected_model,
         )
 
     async def _process_post_stream(

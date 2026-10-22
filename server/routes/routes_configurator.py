@@ -671,6 +671,8 @@ class RouteConfigurator:
                                 extra["total_audio_chunks"] = event.total_audio_chunks
                             if event.decision is not None:
                                 extra["decision"] = event.decision
+                            if event.auto_selected_model is not None:
+                                extra["auto_selected_model"] = event.auto_selected_model
                             orbit_extension = formatter.build_orbit_extension(
                                 sources=event.sources,
                                 metadata=event.metadata,
@@ -738,7 +740,16 @@ class RouteConfigurator:
                 audio=result.get("audio"),
                 audio_format=result.get("audio_format"),
                 threading=result.get("threading"),
-                extra={"decision": result["decision"]} if result.get("decision") is not None else None
+                extra=(
+                    {
+                        **({"decision": result["decision"]} if result.get("decision") is not None else {}),
+                        **(
+                            {"auto_selected_model": result["auto_selected_model"]}
+                            if result.get("auto_selected_model") is not None
+                            else {}
+                        ),
+                    } or None
+                )
             )
 
     def _configure_stop_endpoint(self, app: FastAPI) -> None:

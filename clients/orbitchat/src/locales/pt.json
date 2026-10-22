@@ -430,7 +430,9 @@
     "modelCountHint": "{{filtered}} de {{total}} modelos",
     "selectModel": "Selecionar modelo",
     "tryAnotherSearch": "Tente um modelo ou provedor",
-    "keyboardHint": "↑↓ navegar · Enter selecionar"
+    "keyboardHint": "↑↓ navegar · Enter selecionar",
+    "autoLabel": "Auto",
+    "autoHint": "Escolhe automaticamente um modelo"
   },
   "skillPicker": {
     "noSkillsAvailable": "Nenhuma habilidade disponível para este adaptador.",

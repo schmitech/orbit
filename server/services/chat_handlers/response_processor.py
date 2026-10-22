@@ -403,6 +403,7 @@ class ResponseProcessor:
         generated_audio_format: Optional[str] = None,
         generated_audio_revised_prompt: Optional[str] = None,
         decision: Optional[dict[str, Any]] = None,
+        auto_selected_model: Optional[str] = None,
     ) -> dict[str, Any]:
         """
         Build the final result dictionary.
@@ -496,6 +497,11 @@ class ResponseProcessor:
         # Add typed decision-model answers if present
         if decision is not None:
             result["decision"] = decision
+
+        # Add which allowed_models entry "auto" routing picked, if it ran (see
+        # docs/adapters/auto-model-selection.md)
+        if auto_selected_model is not None:
+            result["auto_selected_model"] = auto_selected_model
 
         return result
     
