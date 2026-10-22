@@ -18,6 +18,10 @@ Each cloud flavor uses the **same provider for chat, vision, and embeddings**
 — one credential powers the entire multimodal stack, never a silent fallback
 to a different provider or to local Ollama.
 
+Each image is also published with a version tag (e.g.
+`schmitech/orbit-ollama:2.19.1`) alongside `:latest`, if you want to pin to a
+specific release.
+
 ```bash
 # Local, no API key
 docker pull schmitech/orbit-ollama:latest

@@ -110,6 +110,8 @@ Choose **one** flavor:
 | **OpenRouter** | `schmitech/orbit-openrouter:latest` | `OPENROUTER_API_KEY` exported in your shell. Free models. |
 | **Cohere** | `schmitech/orbit-cohere:latest` | `COHERE_API_KEY` exported in your shell. |
 
+Each image is also published with a version tag (e.g. `schmitech/orbit-ollama:2.19.1`) if you want to pin to a specific release instead of `:latest`.
+
 **Ollama**
 
 ```bash
