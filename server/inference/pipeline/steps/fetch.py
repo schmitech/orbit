@@ -40,14 +40,13 @@ def _is_private_host(url: str) -> bool:
         if not hostname:
             return True
         addr = ipaddress.ip_address(socket.gethostbyname(hostname))
-        return (
-            addr.is_loopback
-            or addr.is_private
-            or addr.is_link_local
-            or addr.is_reserved
-            or addr.is_unspecified
-            or addr.is_multicast
-        )
+        # is_global excludes loopback/private/link-local/reserved/unspecified
+        # AND carrier-grade NAT (100.64.0.0/10), which covers cloud metadata
+        # endpoints that live there (e.g. Alibaba Cloud's 100.100.100.200),
+        # in addition to the well-known 169.254.169.254 link-local one.
+        # It does NOT exclude multicast (e.g. 224.0.0.1 is_global=True), so
+        # that still needs an explicit check.
+        return (not addr.is_global) or addr.is_multicast
     except (socket.gaierror, ValueError, OSError):
         return True
 

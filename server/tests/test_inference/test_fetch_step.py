@@ -120,6 +120,20 @@ class TestIsPrivateHost:
         # 93.184.216.34 is example.com — public, must not be blocked
         assert _is_private_host("http://93.184.216.34/") is False
 
+    def test_cgnat_range(self):
+        # 100.64.0.0/10 (RFC 6598 carrier-grade NAT, shared address space)
+        assert _is_private_host("http://100.64.0.1/") is True
+
+    def test_cgnat_alibaba_metadata(self):
+        # Alibaba Cloud instance metadata endpoint lives in the CGNAT block
+        assert _is_private_host("http://100.100.100.200/") is True
+
+    def test_ipv4_mapped_ipv6_metadata(self):
+        assert _is_private_host("http://[::ffff:169.254.169.254]/") is True
+
+    def test_ipv4_multicast(self):
+        assert _is_private_host("http://224.0.0.1/") is True
+
     def test_public_ip_8_8_8_8(self):
         assert _is_private_host("http://8.8.8.8/") is False
 
