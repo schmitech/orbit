@@ -4,6 +4,12 @@
 target-version = "py311"
 line-length = 120
 
+[lint.flake8-bugbear]
+# FastAPI's dependency-injection idiom (Depends(...), Body(...), Query(...), etc.
+# as argument defaults) triggers B008 even though the call result is immutable
+# and evaluated once per request by design, not a mutable-default bug.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Body", "fastapi.Query", "fastapi.Path", "fastapi.Header", "fastapi.Cookie", "fastapi.Form", "fastapi.File", "fastapi.Security"]
+
 [lint.per-file-ignores]
 # Test files often import conftest or use late imports for fixtures
 # BLE001: unit test fixtures/cleanup scripts routinely swallow arbitrary

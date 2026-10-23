@@ -5,6 +5,9 @@
 ### Security
 - **Health endpoints now require admin authentication**: `/health` exposed eleven endpoints with no credential required, including two that changed server state — resetting an adapter's circuit breaker and toggling thread-pool log verbosity — plus nine read endpoints disclosing adapter topology, circuit-breaker history, and cache/thread-pool statistics to anyone. Only the bare liveness check (`GET /health/`) remains anonymous; every other endpoint now requires the same admin session or credentials used elsewhere in the dashboard. Error responses on these endpoints no longer leak raw exception text, and the surface is no longer excluded from rate limiting (GHSA-5wx2-h979-qq6w).
 
+### Maintenance
+- **Resolved ruff B008 warnings across the route layer**: FastAPI's `Depends(...)`/`Body(...)` argument-default idiom was tripping bugbear's mutable-default-argument check in 131 places across the admin and auth routes. `ruff.toml` now lists these as immutable calls (`extend-immutable-calls`) so the pattern no longer flags, with no changes to route code itself.
+
 ## [2.20.0] - 2026-10-22
 
 ### Core Features
