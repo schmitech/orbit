@@ -24,9 +24,7 @@
 </p>
 
 <p align="center">
-  <strong>Building AI on your own terms?</strong><br />
-  <a href="https://github.com/schmitech/orbit">⭐ Star ORBIT on GitHub</a> to save it for later and help others discover the project.<br />
-  <sub>Click the Star button at the top of this repository.</sub>
+  <a href="https://github.com/schmitech/orbit">⭐ Star ORBIT</a> to help others discover the project.<br />
 </p>
 
 <p align="center">
