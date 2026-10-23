@@ -11,6 +11,7 @@
 
 ### Bug Fixes
 - **Streaming sentence detector no longer splits sentences on words that end like abbreviations**: The TTS sentence boundary check matched any text ending in a known abbreviation suffix (e.g. `ed.`, `ms.`, `co.`), so sentences ending in words like "finished.", "items.", or "Mexico." were never flagged as complete and got merged with the following sentence. The check now compares the whole last word (stripped of leading punctuation such as quotes, brackets, or dashes) against the abbreviation list instead.
+- **Markdown clean-up no longer rewrites code inside fenced code blocks**: Chat response formatting applied its list-marker, bold/italic, and heading fixes to the entire message, including fenced code blocks, so code like `a * b * c` was mangled into `a *b* c`. List-marker spacing was also too broad, inserting a space into `**bold**`/`*italic*` markers, `---` rules, and negative numbers like `-5` as if they were list items. Prose fixes now skip fenced code blocks entirely, and the list-marker fix only applies before a letter.
 
 ## [2.20.0] - 2026-10-22
 
