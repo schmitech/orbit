@@ -325,6 +325,52 @@ class TestBlockAwareStreamer:
         assert streamer.is_in_code_block()
 
 
+def _stream(text, per_char=True):
+    """Feed text to a streamer and return its chunks, plain runs merged."""
+    streamer = BlockAwareStreamer()
+    chunks = []
+    for piece in (text if per_char else [text]):
+        chunks += streamer.add_text(piece)
+    last = streamer.flush()
+    if last:
+        chunks.append(last)
+    merged = []
+    for c in chunks:
+        if merged and not c.is_code_block and not merged[-1][0]:
+            merged[-1] = (False, None, merged[-1][2] + c.content)
+        else:
+            merged.append((c.is_code_block, c.language, c.content))
+    return merged
+
+
+class TestFenceLength:
+    """The closing fence must be at least as long as the opening one."""
+
+    def test_longer_fence_keeps_a_quoted_code_block_inside(self):
+        text = "Here:\n````markdown\n```python\nx = 1\n```\n````\nDone.\n"
+        code = [c for c in _stream(text) if c[0]]
+        assert code == [(True, "markdown", "````markdown\n```python\nx = 1\n```\n````")]
+
+    def test_shorter_run_or_info_string_does_not_close(self):
+        text = "````\n```\n```js\n````\n"
+        code = [c for c in _stream(text, per_char=False) if c[0]]
+        assert code == [(True, None, "````\n```\n```js\n````\n")]
+
+    def test_language_with_symbols(self):
+        assert _stream("```c++\nint x;\n```\n", per_char=False) == [(True, "c++", "```c++\nint x;\n```\n")]
+        assert _stream("```objective-c\nx\n```\n", per_char=False)[0][1] == "objective-c"
+
+    def test_whole_block_in_one_call_is_emitted_right_away(self):
+        streamer = BlockAwareStreamer()
+        chunks = streamer.add_text("a\n```python\nprint(1)\n```\nb\n")
+        assert [(c.is_code_block, c.content) for c in chunks] == [
+            (False, "a\n"),
+            (True, "```python\nprint(1)\n```\n"),
+            (False, "b\n"),
+        ]
+        assert not streamer.is_in_code_block()
+
+
 class TestStreamChunk:
     """Test StreamChunk dataclass."""
 
