@@ -1,5 +1,11 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Bug Fixes
+- **Content chunker now uses a CommonMark-style fence matcher for code blocks**: The chunker's fenced-code-block detection naively paired up any triple-backtick lines, so an inline ```` ``` ```` mentioned in prose, a shorter fence nested inside a longer one, or a tilde (`~~~`) fence could mis-detect block boundaries. It now tracks each fence's character and length, requires a closing fence to match type and be at least as long with no trailing info string, and still extends an unmatched fence to end-of-document.
+- **Streaming block-aware chunker now handles fences longer than three backticks**: The streaming code-block detector assumed every fence was exactly three backticks, so a fence opened with four or more backticks (used to quote a block that itself contains a triple-backtick fence) could be closed early by an inner triple-backtick line. It now tracks the opening fence's length and only accepts a closing fence that is at least as long with no trailing info string, matching CommonMark semantics.
+
 ## [2.20.1] - 2026-10-23
 
 ### Security
