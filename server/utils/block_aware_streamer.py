@@ -58,6 +58,8 @@ class BlockAwareStreamer:
         self.buffer = ""
         self.mode = StreamerMode.NORMAL
         self.code_block_language: Optional[str] = None
+        # Backticks in the opening fence; the closing fence needs at least as many
+        self.code_block_fence_len = 3
         self.max_buffer_size = max_buffer_size
 
     def add_text(self, new_text: str) -> list[StreamChunk]:
@@ -92,16 +94,22 @@ class BlockAwareStreamer:
             self.buffer = ""
             self.mode = StreamerMode.NORMAL
             self.code_block_language = None
+            self.code_block_fence_len = 3
             return chunks
 
         # Process buffer based on current mode
         while True:
+            mode_before = self.mode
             if self.mode == StreamerMode.NORMAL:
                 result = self._process_normal_mode()
             else:
                 result = self._process_code_block_mode()
 
             if result is None:
+                # Entering a code block yields nothing yet, but the rest of the
+                # buffer may already hold the whole block: keep going.
+                if self.mode != mode_before:
+                    continue
                 break
             chunks.append(result)
 
@@ -139,9 +147,10 @@ class BlockAwareStreamer:
 
             # Extract language specifier (if any)
             opening_line = self.buffer[:newline_idx]
-            match = re.match(r'^```(\w*)', opening_line)
+            match = re.match(r'^(`{3,})[ \t]*([^\s`]*)', opening_line)
             if match:
-                self.code_block_language = match.group(1) if match.group(1) else None
+                self.code_block_fence_len = len(match.group(1))
+                self.code_block_language = match.group(2) or None
                 self.mode = StreamerMode.CODE_BLOCK
                 # Don't yield anything yet - continue buffering the code block
                 return None
@@ -209,9 +218,9 @@ class BlockAwareStreamer:
             # Still buffering code block
             return None
 
-        # Found closing ``` - extract complete code block
-        # Include the closing ``` and any trailing newline
-        end_idx = closing_idx + 3
+        # Found the closing fence - extract complete code block
+        # Include the closing fence and any trailing newline
+        end_idx = closing_idx + re.match(r'`+[ \t]*', self.buffer[closing_idx:]).end()
 
         # Check if there's a newline after closing ```
         if end_idx < len(self.buffer) and self.buffer[end_idx] == '\n':
@@ -224,6 +233,7 @@ class BlockAwareStreamer:
         self.mode = StreamerMode.NORMAL
         language = self.code_block_language
         self.code_block_language = None
+        self.code_block_fence_len = 3
 
         return StreamChunk(
             content=code_block,
@@ -275,9 +285,15 @@ class BlockAwareStreamer:
             if idx == -1:
                 return None
 
-            # Verify closing ``` is at line start
+            # A closing fence starts a line, has at least as many backticks as
+            # the opening one and nothing after them: a shorter run, or one with
+            # an info string, is content (e.g. a ``` block quoted in a ```` block).
             if idx == 0 or self.buffer[idx - 1] == '\n':
-                return idx
+                line_end = self.buffer.find('\n', idx)
+                line = self.buffer[idx:] if line_end == -1 else self.buffer[idx:line_end]
+                run = len(line) - len(line.lstrip('`'))
+                if run >= self.code_block_fence_len and not line[run:].strip():
+                    return idx
 
             search_start = idx + 1
 
@@ -303,6 +319,7 @@ class BlockAwareStreamer:
         self.buffer = ""
         self.mode = StreamerMode.NORMAL
         self.code_block_language = None
+        self.code_block_fence_len = 3
 
         return chunk
 
@@ -319,3 +336,4 @@ class BlockAwareStreamer:
         self.buffer = ""
         self.mode = StreamerMode.NORMAL
         self.code_block_language = None
+        self.code_block_fence_len = 3
