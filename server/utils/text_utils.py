@@ -136,41 +136,61 @@ def clean_markdown_response(text: str) -> str:
     
     return text
 
+_CODE_FENCE_RE = re.compile(r'```(\w*)[ \t]*\n?(.*?)```', re.DOTALL)
+
+
 def _fix_markdown_syntax(text: str) -> str:
-    """Fix common markdown syntax issues"""
-    # Fix code block formatting - ensure proper newlines around triple backticks
-    text = re.sub(r'```(\w*)\s*\n?([^`]*?)```', r'```\1\n\2\n```', text, flags=re.DOTALL)
-    
+    """Fix common markdown syntax issues.
+
+    Fenced code blocks only get their fences normalized; the prose fixes below
+    must not rewrite code (``a * b * c`` became ``a *b* c``).
+    """
+    parts = []
+    last = 0
+    for m in _CODE_FENCE_RE.finditer(text):
+        parts.append(_fix_markdown_prose(text[last:m.start()]))
+        # Ensure proper newlines around the fence, without adding a blank line
+        # before the closing one or dropping the first line's indentation.
+        parts.append(f"```{m.group(1)}\n{m.group(2).strip(chr(10))}\n```")
+        last = m.end()
+    parts.append(_fix_markdown_prose(text[last:]))
+
+    # Remove leading/trailing whitespace from the entire text
+    return ''.join(parts).strip()
+
+
+def _fix_markdown_prose(text: str) -> str:
+    """The markdown fixes for text outside fenced code blocks."""
     # Fix inline code formatting - remove extra spaces inside backticks
     text = re.sub(r'`\s+([^`]+?)\s+`', r'`\1`', text)
-    
-    # Fix list formatting - ensure proper spacing after list markers
-    text = re.sub(r'^(\s*[-*+])\s*([^\s])', r'\1 \2', text, flags=re.MULTILINE)
-    text = re.sub(r'^(\s*\d+\.)\s*([^\s])', r'\1 \2', text, flags=re.MULTILINE)
-    
+
+    # Fix list formatting - ensure a space after a list marker glued to a word
+    # ("-item" -> "- item"). Only before a letter: "*" also opens bold/italic
+    # ("**Note:**", "*word*"), and "---", "-5" and "3.14" are not list items.
+    text = re.sub(r'^(\s*[-+])(?=[^\W\d_])', r'\1 ', text, flags=re.MULTILINE)
+    text = re.sub(r'^(\s*\d+\.)(?=[^\W\d_])', r'\1 ', text, flags=re.MULTILINE)
+
     # Fix heading formatting - ensure space after hash symbols
     text = re.sub(r'^(#{1,6})([^\s#])', r'\1 \2', text, flags=re.MULTILINE)
-    
+
     # Fix bold/italic formatting - remove extra spaces inside markers
     text = re.sub(r'\*\*\s+([^*]+?)\s+\*\*', r'**\1**', text)
     text = re.sub(r'(?<!\*)\*\s+([^*]+?)\s+\*(?!\*)', r'*\1*', text)
     text = re.sub(r'__\s+([^_]+?)\s+__', r'__\1__', text)
     text = re.sub(r'(?<!_)_\s+([^_]+?)\s+_(?!_)', r'_\1_', text)
-    
+
     # Fix link formatting - ensure proper spacing around links
     text = re.sub(r'\[\s+([^\]]+?)\s+\]', r'[\1]', text)
-    
+
     # Clean up excessive whitespace while preserving intentional formatting
     # Remove trailing spaces at end of lines
     text = re.sub(r' +$', '', text, flags=re.MULTILINE)
-    
+
     # Normalize multiple blank lines to maximum of 2
     text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
-    
-    # Remove leading/trailing whitespace from the entire text
-    text = text.strip()
-    
+
     return text
+
 
 def sanitize_error_message(message: str) -> str:
     """Sanitize error messages to remove sensitive information"""
