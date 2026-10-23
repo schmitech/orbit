@@ -19,7 +19,7 @@ Each cloud flavor uses the **same provider for chat, vision, and embeddings**
 to a different provider or to local Ollama.
 
 Each image is also published with a version tag (e.g.
-`schmitech/orbit-ollama:2.20.0`) alongside `:latest`, if you want to pin to a
+`schmitech/orbit-ollama:2.20.1`) alongside `:latest`, if you want to pin to a
 specific release.
 
 ```bash
@@ -492,19 +492,19 @@ chmod +x publish.sh
 ./publish.sh --build
 
 # Build from a specific stable release tarball
-./publish.sh --build --tag v2.20.0
+./publish.sh --build --tag v2.20.1
 
-# Build a targeted OpenAI image from release v2.20.0 with custom config
-./publish.sh --build --tag 2.20.0-openai --config-dir ../deploy/openai
+# Build a targeted OpenAI image from release v2.20.1 with custom config
+./publish.sh --build --tag 2.20.1-openai --config-dir ../deploy/openai
 
 # Build and publish to Docker Hub
 ./publish.sh --publish
 
 # Build and publish the default Ollama/basic image with version tags
-./publish.sh --publish --tag v2.20.0
+./publish.sh --publish --tag v2.20.1
 
 # Build and publish a targeted OpenAI image
-./publish.sh --publish --tag 2.20.0-openai --config-dir ../deploy/openai
+./publish.sh --publish --tag 2.20.1-openai --config-dir ../deploy/openai
 ```
 
 The build creates a lean server-only image with no Ollama, no Node.js, and no
@@ -515,7 +515,7 @@ For development or release testing only, you can opt into local sources:
 
 ```bash
 # Build from a local release-style tarball generated from this checkout
-./publish.sh --build --source local-tarball --tag v2.20.0
+./publish.sh --build --source local-tarball --tag v2.20.1
 
 # Build directly from this checkout
 ./publish.sh --build --source checkout
@@ -543,19 +543,19 @@ deploy/openai/
 Example targeted images:
 
 ```bash
-./publish.sh --build --tag 2.20.0-openai --config-dir ../deploy/openai
-./publish.sh --build --tag 2.20.0-gemini --config-dir ../deploy/gemini
-./publish.sh --build --tag 2.20.0-ollama --config-dir ../deploy/ollama
+./publish.sh --build --tag 2.20.1-openai --config-dir ../deploy/openai
+./publish.sh --build --tag 2.20.1-gemini --config-dir ../deploy/gemini
+./publish.sh --build --tag 2.20.1-ollama --config-dir ../deploy/ollama
 ```
 
-For release builds, tags like `2.20.0-openai` automatically resolve the source
-tarball from release `v2.20.0`. Use `--release-tag v2.20.0` when you want to be
+For release builds, tags like `2.20.1-openai` automatically resolve the source
+tarball from release `v2.20.1`. Use `--release-tag v2.20.1` when you want to be
 explicit.
 
 Custom config builds require `--tag` and do not update the generic `latest` or
 `basic` tags. They create the targeted tag, such as
-`schmitech/orbit:2.20.0-openai`, plus the compatibility tag
-`schmitech/orbit:basic-2.20.0-openai`.
+`schmitech/orbit:2.20.1-openai`, plus the compatibility tag
+`schmitech/orbit:basic-2.20.1-openai`.
 
 ### Runtime Environment Variables
 
@@ -577,21 +577,21 @@ DATASOURCE_POSTGRES_PASSWORD=...
 Run a targeted image with those values:
 
 ```bash
-docker pull schmitech/orbit:2.20.0-openai
-docker run -d --name orbit-2.20.0-openai \
+docker pull schmitech/orbit:2.20.1-openai
+docker run -d --name orbit-2.20.1-openai \
   --env-file ./orbit.env \
   -p 3000:3000 \
-  schmitech/orbit:2.20.0-openai
+  schmitech/orbit:2.20.1-openai
 ```
 
 Single variables can also be passed directly:
 
 ```bash
-docker run -d --name orbit-2.20.0-openai \
+docker run -d --name orbit-2.20.1-openai \
   -e ORBIT_DEFAULT_ADMIN_PASSWORD="change-this-admin-password" \
   -e OPENAI_API_KEY="$OPENAI_API_KEY" \
   -p 3000:3000 \
-  schmitech/orbit:2.20.0-openai
+  schmitech/orbit:2.20.1-openai
 ```
 
 If `ORBIT_DEFAULT_ADMIN_PASSWORD` isn't set, the container generates a random
@@ -611,11 +611,11 @@ docker build -f docker/Dockerfile .. \
 
 ```bash
 ./publish.sh --build              # Build the Docker image
-./publish.sh --build --tag v2.20.0  # Build from a specific release tarball
-./publish.sh --build --tag 2.20.0-openai --config-dir ../deploy/openai
+./publish.sh --build --tag v2.20.1  # Build from a specific release tarball
+./publish.sh --build --tag 2.20.1-openai --config-dir ../deploy/openai
 ./publish.sh --publish            # Build and push to Docker Hub
-./publish.sh --publish --tag v2.20.0  # Build, push, and tag default image
-./publish.sh --publish --tag 2.20.0-openai --config-dir ../deploy/openai
+./publish.sh --publish --tag v2.20.1  # Build, push, and tag default image
+./publish.sh --publish --tag 2.20.1-openai --config-dir ../deploy/openai
 ./publish.sh --build --source checkout  # Development/testing only
 ./publish.sh --help               # Show help
 ```
