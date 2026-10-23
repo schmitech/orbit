@@ -42,7 +42,8 @@ from utils.embedding_budget import EmbeddingBudget, resolve_embedding_budget
 
 logger = logging.getLogger(__name__)
 
-_FENCE_MARKER_PATTERN = re.compile(r"```")
+# A fence line: up to three spaces, then three or more backticks or tildes (CommonMark)
+_FENCE_LINE_PATTERN = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$", re.MULTILINE)
 _HEADER_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)$", re.MULTILINE)
 _PARAGRAPH_SPLIT_PATTERN = r"\n\s*\n"
 _SENTENCE_SPLIT_PATTERN = r"(?<=[.!?])\s+"
@@ -50,20 +51,25 @@ _WORD_BOUNDARY_CHARS = " \n\t.,;:!?"
 
 
 def _fenced_code_spans(content: str) -> list[tuple[int, int]]:
-    """Pair up ``` markers into fenced-code spans. An unmatched opening
-    fence (truncated/scraped content with no closing ```) extends through
-    end-of-document, matching how Markdown renders it."""
-    markers = list(_FENCE_MARKER_PATTERN.finditer(content))
+    """Find fenced-code spans the way Markdown does. A fence opens on a line
+    of its own and closes at the next fence line of the same character that
+    is at least as long and has nothing after it, so ``` written in a
+    sentence or a shorter fence quoted inside a longer one is text. An
+    unmatched opening fence (truncated/scraped content with no closing
+    fence) extends through end-of-document, matching how Markdown renders it."""
     spans: list[tuple[int, int]] = []
-    i = 0
-    while i < len(markers):
-        start = markers[i].start()
-        if i + 1 < len(markers):
-            spans.append((start, markers[i + 1].end()))
-            i += 2
-        else:
-            spans.append((start, len(content)))
-            i += 1
+    opening: tuple[int, str, int] | None = None   # (start, fence char, fence length)
+    for m in _FENCE_LINE_PATTERN.finditer(content):
+        fence, rest = m.group(1), m.group(2)
+        if opening is None:
+            if fence[0] == "`" and "`" in rest:
+                continue   # a backtick fence's info string cannot contain backticks
+            opening = (m.start(), fence[0], len(fence))
+        elif fence[0] == opening[1] and len(fence) >= opening[2] and not rest.strip():
+            spans.append((opening[0], m.end()))
+            opening = None
+    if opening is not None:
+        spans.append((opening[0], len(content)))
     return spans
 
 

@@ -10,7 +10,7 @@ import re
 
 import pytest
 
-from utils.content_chunker import ContentChunker
+from utils.content_chunker import ContentChunker, _fenced_code_spans
 from utils.embedding_budget import resolve_embedding_budget
 
 
@@ -91,6 +91,62 @@ def test_fenced_code_heading_is_not_treated_as_section():
 
     assert all(c["section"] != "Not A Real Heading" for c in chunks)
     assert _reconstruct(content, chunks) == _normalize(content)
+
+
+def test_inline_triple_backticks_do_not_open_a_fence():
+    # ``` mentioned in a sentence used to pair with the next real fence,
+    # flipping which text counted as code for the rest of the document.
+    content = (
+        "# Intro\n\nUse ``` to open a code block. " + "Intro text goes on. " * 15 + "\n\n"
+        "```python\n# not a heading\nx = 1\n```\n\n"
+        "# Real Section\n\n" + "Text that belongs to the real section. " * 15 + "\n"
+    )
+    chunker = ContentChunker(budget=_budget(chunk_target=40, overlap=0))
+    chunks = chunker.chunk_markdown(content, metadata={"url": "https://example.com"})
+
+    sections = {c["section"] for c in chunks}
+    assert "not a heading" not in sections
+    assert "Real Section" in sections
+    assert _reconstruct(content, chunks) == _normalize(content)
+
+
+def test_shorter_fence_inside_a_longer_one_is_code():
+    content = (
+        "# A\n\n" + "Text under A. " * 15 + "\n\n````markdown\n```python\n# inner comment\n```\n````\n\n"
+        "# B\n\n" + "Text under B. " * 15 + "\n"
+    )
+    chunker = ContentChunker(budget=_budget(chunk_target=40, overlap=0))
+    chunks = chunker.chunk_markdown(content, metadata={"url": "https://example.com"})
+
+    sections = {c["section"] for c in chunks}
+    assert "inner comment" not in sections
+    assert "B" in sections
+    assert _reconstruct(content, chunks) == _normalize(content)
+
+
+def test_tilde_fence_heading_is_not_treated_as_section():
+    content = ("# A\n\n" + "Text under A. " * 15 + "\n\n~~~\n# tilde code\n~~~\n\n"
+               "# B\n\n" + "Text under B. " * 15 + "\n")
+    chunker = ContentChunker(budget=_budget(chunk_target=40, overlap=0))
+    chunks = chunker.chunk_markdown(content, metadata={"url": "https://example.com"})
+
+    assert all(c["section"] != "tilde code" for c in chunks)
+    assert _reconstruct(content, chunks) == _normalize(content)
+
+
+def test_fenced_code_spans_follow_markdown_fence_rules():
+    def code(content):
+        return [content[s:e] for s, e in _fenced_code_spans(content)]
+
+    # a ``` inside a sentence is text, not a fence
+    assert code("Use ``` here.\n```py\nx\n```\nafter\n") == ["```py\nx\n```"]
+    # a shorter fence inside a longer one is part of the code
+    nested = "````md\n```py\nx\n```\n````"
+    assert code("a\n" + nested + "\nb\n") == [nested]
+    # tilde fences, and a closing fence must match the opening character
+    assert code("~~~\n# c\n```\n~~~\n") == ["~~~\n# c\n```\n~~~"]
+    # an unclosed fence still runs to the end of the document
+    assert code("x\n```\n# c\n") == ["```\n# c\n"]
 
 
 def test_table_and_long_unbroken_string_are_preserved():
