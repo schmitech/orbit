@@ -9,6 +9,9 @@
 ### Maintenance
 - **Resolved ruff B008 warnings across the route layer**: FastAPI's `Depends(...)`/`Body(...)` argument-default idiom was tripping bugbear's mutable-default-argument check in 131 places across the admin and auth routes. `ruff.toml` now lists these as immutable calls (`extend-immutable-calls`) so the pattern no longer flags, with no changes to route code itself.
 
+### Bug Fixes
+- **Streaming sentence detector no longer splits sentences on words that end like abbreviations**: The TTS sentence boundary check matched any text ending in a known abbreviation suffix (e.g. `ed.`, `ms.`, `co.`), so sentences ending in words like "finished.", "items.", or "Mexico." were never flagged as complete and got merged with the following sentence. The check now compares the whole last word (stripped of leading punctuation such as quotes, brackets, or dashes) against the abbreviation list instead.
+
 ## [2.20.0] - 2026-10-22
 
 ### Core Features

@@ -94,11 +94,14 @@ class SentenceDetector:
         Returns:
             True if it's likely a false positive (abbreviation)
         """
-        # Check for common abbreviations (only periods, not ! or ?)
+        # Check for common abbreviations (only periods, not ! or ?). Compare the
+        # whole last word: a suffix match took "finished." for "ed.", "items." for
+        # "ms." and "Mexico." for "co.", so those sentences were never split.
         if text and text[-1] == '.':
-            text_lower = text.lower()
-            for abbrev in self.ABBREVIATIONS:
-                if text_lower.endswith(abbrev):
+            words = text.split()
+            if words:
+                last_word = re.sub(r'^\W+', '', words[-1].lower())
+                if last_word in self.ABBREVIATIONS:
                     return True
 
         # Check for numbers followed by periods (e.g., "1. Introduction")
