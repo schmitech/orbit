@@ -8,6 +8,8 @@ import logging
 from fastapi import APIRouter, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 
+from routes.auth_dependencies import require_admin
+
 logger = logging.getLogger(__name__)
 
 def get_adapter_manager(request: Request):
@@ -55,7 +57,7 @@ def create_health_router() -> APIRouter:
         return {"status": "healthy"}
     
     @router.get("/adapters")
-    async def get_adapter_health(adapter_manager = Depends(get_adapter_manager)):
+    async def get_adapter_health(adapter_manager = Depends(get_adapter_manager), _admin = Depends(require_admin)):
         """Get adapter health status"""
         try:
             # Get health status from the adapter manager
@@ -77,11 +79,11 @@ def create_health_router() -> APIRouter:
             logger.error(f"Error getting adapter health: {e}")
             return JSONResponse(
                 status_code=500,
-                content={"error": str(e)}
+                content={"error": "internal error"}
             )
-    
+
     @router.post("/adapters/{adapter_name}/reset")
-    async def reset_adapter_circuit(adapter_name: str, adapter_manager = Depends(get_adapter_manager)):
+    async def reset_adapter_circuit(adapter_name: str, adapter_manager = Depends(get_adapter_manager), _admin = Depends(require_admin)):
         """Reset circuit breaker for a specific adapter"""
         try:
             # Try to reset circuit breaker through different paths
@@ -111,7 +113,7 @@ def create_health_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e))
     
     @router.get("/embedding-services")
-    async def get_embedding_service_stats():
+    async def get_embedding_service_stats(_admin = Depends(require_admin)):
         """Get statistics about cached embedding services"""
         try:
             from embeddings.base import EmbeddingServiceFactory
@@ -121,11 +123,11 @@ def create_health_router() -> APIRouter:
             logger.error(f"Error getting embedding service stats: {e}")
             return JSONResponse(
                 status_code=500,
-                content={"error": str(e)}
+                content={"error": "internal error"}
             )
-    
+
     @router.get("/mongodb-services")
-    async def get_mongodb_service_stats():
+    async def get_mongodb_service_stats(_admin = Depends(require_admin)):
         """Get statistics about cached MongoDB services"""
         try:
             from services.mongodb_service import MongoDBService
@@ -135,11 +137,11 @@ def create_health_router() -> APIRouter:
             logger.error(f"Error getting MongoDB service stats: {e}")
             return JSONResponse(
                 status_code=500,
-                content={"error": str(e)}
+                content={"error": "internal error"}
             )
-    
+
     @router.get("/ready")
-    async def readiness_check(adapter_manager = Depends(get_adapter_manager_optional)):
+    async def readiness_check(adapter_manager = Depends(get_adapter_manager_optional), _admin = Depends(require_admin)):
         """Simple readiness check for load balancers - returns UP/DOWN status"""
         try:
             if not adapter_manager:
@@ -197,11 +199,11 @@ def create_health_router() -> APIRouter:
             logger.error(f"Error in readiness check: {e}")
             return JSONResponse(
                 status_code=503,
-                content={"ready": False, "reason": f"Error: {e!s}"}
+                content={"ready": False, "reason": "internal error"}
             )
-    
+
     @router.get("/system")
-    async def get_system_status(adapter_manager = Depends(get_adapter_manager_optional)):
+    async def get_system_status(adapter_manager = Depends(get_adapter_manager_optional), _admin = Depends(require_admin)):
         """Get overall system status"""
         try:
             status = {
@@ -234,11 +236,11 @@ def create_health_router() -> APIRouter:
             logger.error(f"Error getting system status: {e}")
             return JSONResponse(
                 status_code=500,
-                content={"status": "error", "message": str(e)}
+                content={"status": "error", "message": "internal error"}
             )
-    
+
     @router.get("/adapters/{adapter_name}/history")
-    async def get_adapter_history(adapter_name: str, adapter_manager = Depends(get_adapter_manager)):
+    async def get_adapter_history(adapter_name: str, adapter_manager = Depends(get_adapter_manager), _admin = Depends(require_admin)):
         """
         Get detailed circuit breaker history for a specific adapter.
         
@@ -315,7 +317,7 @@ def create_health_router() -> APIRouter:
             )
     
     @router.get("/adapters/{adapter_name}/history/full")
-    async def get_adapter_full_history(adapter_name: str, adapter_manager = Depends(get_adapter_manager)):
+    async def get_adapter_full_history(adapter_name: str, adapter_manager = Depends(get_adapter_manager), _admin = Depends(require_admin)):
         """
         Get complete circuit breaker history for a specific adapter (admin/debug use).
         
@@ -388,7 +390,7 @@ def create_health_router() -> APIRouter:
             )
     
     @router.get("/thread-pools")
-    async def get_thread_pool_stats(request: Request):
+    async def get_thread_pool_stats(request: Request, _admin = Depends(require_admin)):
         """Get thread pool statistics"""
         # Get thread pool manager from application state
         thread_pool_manager = getattr(request.app.state, 'thread_pool_manager', None)
@@ -423,7 +425,7 @@ def create_health_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e))
     
     @router.post("/thread-pools/log-status")
-    async def log_thread_pool_status(request: Request):
+    async def log_thread_pool_status(request: Request, _admin = Depends(require_admin)):
         """Trigger logging of current thread pool status"""
         # Get thread pool manager from application state
         thread_pool_manager = getattr(request.app.state, 'thread_pool_manager', None)

@@ -19,6 +19,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
 from routes.health_routes import create_health_router, get_adapter_manager, get_adapter_manager_optional
+from routes.auth_dependencies import require_admin
 from services.parallel_adapter_executor import SimpleCircuitBreaker
 
 
@@ -31,6 +32,9 @@ class TestHealthRoutes:
         app = FastAPI()
         health_router = create_health_router()
         app.include_router(health_router)
+        # Admin auth is enforced on every endpoint except the bare liveness
+        # check; tests here exercise the business logic, not auth, so stub it.
+        app.dependency_overrides[require_admin] = lambda: {"id": "test-admin", "role": "admin"}
         return app
 
     @pytest.fixture

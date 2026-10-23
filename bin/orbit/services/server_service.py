@@ -974,13 +974,13 @@ class ServerService:
             result["cpu_series"] = (metrics.get("time_series") or {}).get("cpu") or []
 
         # 503 carries a meaningful "not ready" body, so accept it too.
-        readiness = self._probe("/health/ready", accept_codes=(200, 503))
+        readiness = self._probe("/health/ready", authenticated=True, accept_codes=(200, 503))
         if readiness is None:
             result["unavailable"].append("readiness")
         else:
             result["readiness"] = readiness
 
-        system = self._probe("/health/system")
+        system = self._probe("/health/system", authenticated=True)
         if system is None:
             result["unavailable"].append("adapters")
         else:

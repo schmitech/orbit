@@ -120,7 +120,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Exclude paths
         self.exclude_paths = rate_config.get('exclude_paths', [
-            '/health', '/favicon.ico', '/metrics', '/static'
+            '/health/', '/favicon.ico', '/metrics', '/static'
         ])
 
         # Response configuration

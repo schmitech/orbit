@@ -1148,92 +1148,101 @@ export class ApiClient {
     );
   }
 
-  public async getHealthAdapters(): Promise<any> {
+  public async getHealthAdapters(authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/health/adapters`,
       {
-        method: 'GET'
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to get adapter health'
     );
   }
 
-  public async resetAdapterCircuit(adapterName: string): Promise<any> {
+  public async resetAdapterCircuit(adapterName: string, authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/health/adapters/${adapterName}/reset`,
       {
-        method: 'POST'
+        method: 'POST',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to reset adapter circuit'
     );
   }
 
-  public async getEmbeddingServiceStats(): Promise<any> {
+  public async getEmbeddingServiceStats(authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/health/embedding-services`,
       {
-        method: 'GET'
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to get embedding service stats'
     );
   }
 
-  public async getMongoDbServiceStats(): Promise<any> {
+  public async getMongoDbServiceStats(authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/health/mongodb-services`,
       {
-        method: 'GET'
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to get MongoDB service stats'
     );
   }
 
-  public async getReadiness(): Promise<any> {
+  public async getReadiness(authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/health/ready`,
       {
-        method: 'GET'
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to get readiness status'
     );
   }
 
-  public async getSystemStatus(): Promise<any> {
+  public async getSystemStatus(authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/health/system`,
       {
-        method: 'GET'
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to get system status'
     );
   }
 
-  public async getAdapterHistory(adapterName: string, full: boolean = false): Promise<any> {
+  public async getAdapterHistory(adapterName: string, full: boolean = false, authToken?: string): Promise<any> {
     const suffix = full ? '/history/full' : '/history';
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/health/adapters/${adapterName}${suffix}`,
       {
-        method: 'GET'
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to get adapter history'
     );
   }
 
-  public async getThreadPoolStats(): Promise<any> {
+  public async getThreadPoolStats(authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/health/thread-pools`,
       {
-        method: 'GET'
+        method: 'GET',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to get thread pool stats'
     );
   }
 
-  public async logThreadPoolStatus(): Promise<any> {
+  public async logThreadPoolStatus(authToken?: string): Promise<any> {
     return await this.requestJsonOrThrow<any>(
       `${this.apiUrl}/health/thread-pools/log-status`,
       {
-        method: 'POST'
+        method: 'POST',
+        headers: this.withBearerAuth({}, authToken)
       },
       'Failed to log thread pool status'
     );

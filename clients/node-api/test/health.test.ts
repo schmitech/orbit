@@ -34,6 +34,14 @@ describe('Health and metrics endpoints', () => {
       const [url] = (global.fetch as any).mock.calls[0];
       expect(url).toBe(`${TEST_API_URL}/health/adapters`);
     });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ adapters: [] }) });
+      await client.getHealthAdapters('admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
+    });
   });
 
   describe('resetAdapterCircuit', () => {
@@ -43,6 +51,14 @@ describe('Health and metrics endpoints', () => {
       const [url, opts] = (global.fetch as any).mock.calls[0];
       expect(url).toBe(`${TEST_API_URL}/health/adapters/hr/reset`);
       expect(opts.method).toBe('POST');
+    });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ status: 'reset' }) });
+      await client.resetAdapterCircuit('hr', 'admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
     });
   });
 
@@ -54,6 +70,14 @@ describe('Health and metrics endpoints', () => {
       const [url] = (global.fetch as any).mock.calls[0];
       expect(url).toBe(`${TEST_API_URL}/health/ready`);
     });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ ready: true }) });
+      await client.getReadiness('admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
+    });
   });
 
   describe('getSystemStatus', () => {
@@ -63,6 +87,14 @@ describe('Health and metrics endpoints', () => {
       expect(result).toHaveProperty('cpu');
       const [url] = (global.fetch as any).mock.calls[0];
       expect(url).toBe(`${TEST_API_URL}/health/system`);
+    });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ cpu: 0.1 }) });
+      await client.getSystemStatus('admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
     });
   });
 
@@ -80,6 +112,14 @@ describe('Health and metrics endpoints', () => {
       const [url] = (global.fetch as any).mock.calls[0];
       expect(url).toBe(`${TEST_API_URL}/health/adapters/hr/history/full`);
     });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ history: [] }) });
+      await client.getAdapterHistory('hr', false, 'admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
+    });
   });
 
   describe('getThreadPoolStats', () => {
@@ -88,6 +128,68 @@ describe('Health and metrics endpoints', () => {
       await client.getThreadPoolStats();
       const [url] = (global.fetch as any).mock.calls[0];
       expect(url).toBe(`${TEST_API_URL}/health/thread-pools`);
+    });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ pools: [] }) });
+      await client.getThreadPoolStats('admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
+    });
+  });
+
+  describe('getEmbeddingServiceStats', () => {
+    it('should GET /health/embedding-services', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ cached: 1 }) });
+      const result = await client.getEmbeddingServiceStats();
+      expect(result.cached).toBe(1);
+      const [url] = (global.fetch as any).mock.calls[0];
+      expect(url).toBe(`${TEST_API_URL}/health/embedding-services`);
+    });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ cached: 1 }) });
+      await client.getEmbeddingServiceStats('admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
+    });
+  });
+
+  describe('getMongoDbServiceStats', () => {
+    it('should GET /health/mongodb-services', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ cached: 1 }) });
+      const result = await client.getMongoDbServiceStats();
+      expect(result.cached).toBe(1);
+      const [url] = (global.fetch as any).mock.calls[0];
+      expect(url).toBe(`${TEST_API_URL}/health/mongodb-services`);
+    });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ cached: 1 }) });
+      await client.getMongoDbServiceStats('admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
+    });
+  });
+
+  describe('logThreadPoolStatus', () => {
+    it('should POST to /health/thread-pools/log-status', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ message: 'logged' }) });
+      await client.logThreadPoolStatus();
+      const [url, opts] = (global.fetch as any).mock.calls[0];
+      expect(url).toBe(`${TEST_API_URL}/health/thread-pools/log-status`);
+      expect(opts.method).toBe('POST');
+    });
+
+    it('should send an admin bearer token alongside the API key', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ message: 'logged' }) });
+      await client.logThreadPoolStatus('admin-token');
+      const [, opts] = (global.fetch as any).mock.calls[0];
+      expect(opts.headers.Authorization).toBe('Bearer admin-token');
+      expect(opts.headers['X-API-Key']).toBe(TEST_API_KEY);
     });
   });
 
