@@ -24,29 +24,23 @@ source of most of this list).
 Safe to do without touching shared services; each is contained to the route
 file(s) named. Good first bites.
 
-- [ ] **Collapse `reload_adapters_async`/`reload_templates_async`.**
-      `server/routes/admin/adapters.py` (~1289-1320, ~1412-1443) — identical
-      "create job → await an async reload handler inside `asyncio.create_task`
-      → map `HTTPException`/`Exception` to failed status" boilerplate, differing
-      only in job type/message strings and which handler to await
-      (`reload_adapters`/`reload_templates`, both `async def`). Extract one
-      `_run_admin_job_async(request, job_type, running_message, handler)` that
-      accepts an async callable, awaits it, and maps the same two exception
-      branches to job status — preserving each endpoint's existing response
-      shape (`result.model_dump()` when available) and failure behavior
-      exactly, just de-duplicating the wrapper around it.
-- [ ] **Factor the reload-generation-propagation tail.**
-      `adapters.py` already has `_propagate_adapter_generation` (~line 453) for
-      this exact pattern, but `reload_adapters` (~1245-1256) and
-      `reload_templates` (~1374-1383) each re-inline the raw
-      `os.environ.get("ORBIT_SUPERVISOR_PID")` / `adapter_reload_state.bump_generation`
-      / `last_seen` sequence instead of reusing it. Extend the existing helper
-      to take a `kind` key and call it from both reload paths.
-- [ ] **api_keys.py `activate`/`deactivate` handlers.** ~404-431 — structurally
-      identical (`{action}_api_key_by_id`, same 404/log/response shape).
-      Collapse into one parameterized internal handler if it doesn't complicate
-      the route signatures.
-- [ ] **Audit source queries.** Already fixed to run concurrently
+- [x] **Collapse `reload_adapters_async`/`reload_templates_async`.**
+      `server/routes/admin/jobs.py` now has `run_admin_job_async(request,
+      job_type, target, running_message, handler, failure_log_message)`,
+      taking an async callable; both wrappers in `adapters.py` call it with
+      their respective `async def` reload handler instead of each hand-rolling
+      the create-job/await/map-exceptions-to-status sequence.
+- [x] **Factor the reload-generation-propagation tail.**
+      `_propagate_adapter_generation` now delegates to a new
+      `_propagate_reload_generation(request, kind, action)`; `reload_adapters`
+      and `reload_templates` call it directly with `"adapter_config"`/
+      `"templates"` instead of re-inlining the `ORBIT_SUPERVISOR_PID`/
+      `bump_generation`/`last_seen` sequence.
+- [x] **api_keys.py `activate`/`deactivate` handlers.** Both routes now
+      delegate to a shared `_set_api_key_active_state(api_key_id,
+      api_key_service, active=bool)`; the two public endpoints, their
+      docstrings, and response shapes are unchanged.
+- [x] **Audit source queries.** Already fixed to run concurrently
       (`asyncio.gather`) as part of this session's cleanup — no further action,
       listed here only as a dependency note for Phase 2's shared-infra item
       below (both queries still hit different backends directly from the

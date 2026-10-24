@@ -3,7 +3,6 @@ Adapter capabilities, config file CRUD, creation via the adapter SDK, and hot re
 """
 
 import logging
-import asyncio
 import importlib
 import textwrap
 import yaml
@@ -30,7 +29,7 @@ from adapter_sdk.validator import validate_answers, validate_providers, validate
 from routes.admin._shared import (
     adapters_auth,
 )
-from routes.admin.jobs import _create_admin_job, _update_admin_job
+from routes.admin.jobs import run_admin_job_async
 from routes.admin._yaml_config import (
     _find_adapter_block, _find_adapter_file, _get_adapters_dir,
     _locate_adapter_block_or_404, _validate_adapter_filename, _write_adapter_config,
@@ -429,24 +428,33 @@ def _enabled_config_section_names(config: dict[str, Any], key: str, default_enab
     }
 
 
-async def _propagate_adapter_generation(request: Request, action: str) -> None:
-    """Bump the cross-worker adapter-config generation counter, if running under
-    a multi-worker supervisor. `create_adapter`/`import_adapter`/`delete_adapter`
-    each apply their change to the worker that served the request only — under
-    `performance.workers > 1`, sibling workers only pick it up once this counter
-    changes (see server/services/adapter_reload_state.py). `action` is just for
-    the warning log line (e.g. "creation", "import", "deletion")."""
+async def _propagate_reload_generation(request: Request, kind: str, action: str) -> None:
+    """Bump the cross-worker generation counter for `kind`, if running under a
+    multi-worker supervisor. The adapter create/import/delete/reload and
+    template-reload endpoints each apply their change to the worker that served
+    the request only — under `performance.workers > 1`, sibling workers only
+    pick it up once this counter changes (see
+    server/services/adapter_reload_state.py). `kind` is the generation key
+    (e.g. "adapter_config", "templates"); `action` is just for the warning log
+    line (e.g. "creation", "import", "deletion", "reload")."""
     import os
     if not os.environ.get("ORBIT_SUPERVISOR_PID"):
         return
     from services import adapter_reload_state
-    new_generation = await adapter_reload_state.bump_generation(request.app.state, "adapter_config")
+    new_generation = await adapter_reload_state.bump_generation(request.app.state, kind)
     if new_generation is None:
-        logger.warning(f"Failed to propagate adapter {action} to other workers")
+        logger.warning(f"Failed to propagate {kind} {action} to other workers")
         return
     last_seen = getattr(request.app.state, "_adapter_reload_last_seen", None)
     if last_seen is not None:
-        last_seen["adapter_config"] = new_generation
+        last_seen[kind] = new_generation
+
+
+async def _propagate_adapter_generation(request: Request, action: str) -> None:
+    """Bump the cross-worker adapter-config generation counter. See
+    `_propagate_reload_generation` — this is the `adapter_config` case used by
+    create/import/delete."""
+    await _propagate_reload_generation(request, "adapter_config", action)
 
 
 def _find_skill_name_owner(adapters_dir: Path, skill_name: str, exclude_name: Optional[str] = None) -> Optional[str]:
@@ -1219,20 +1227,9 @@ async def reload_adapters(
 
         # Under performance.workers > 1, this only reloaded the worker that
         # served this request - bump the durable generation counter so
-        # sibling workers pick up the change on their next poll tick (see
-        # services/adapter_reload_state.py). No-op in single-process mode.
-        import os
-        if os.environ.get('ORBIT_SUPERVISOR_PID'):
-            from services import adapter_reload_state
-            new_generation = await adapter_reload_state.bump_generation(request.app.state, "adapter_config")
-            if new_generation is not None:
-                last_seen = getattr(request.app.state, "_adapter_reload_last_seen", None)
-                if last_seen is not None:
-                    # Avoid this same worker redundantly reloading itself again
-                    # on its own next poll tick.
-                    last_seen["adapter_config"] = new_generation
-            else:
-                logger.warning("Failed to propagate adapter reload to other workers")
+        # sibling workers pick up the change on their next poll tick. No-op in
+        # single-process mode.
+        await _propagate_reload_generation(request, "adapter_config", "reload")
 
         # Generate appropriate message
         if adapter_name:
@@ -1271,26 +1268,14 @@ async def reload_adapters_async(
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload"),
 ):
     """Start adapter reload as a background admin job."""
-    job = _create_admin_job(request, "reload_adapters", adapter_name)
-
-    async def run_job():
-        _update_admin_job(request, job["job_id"], status="running", message="Reloading adapters")
-        try:
-            result = await reload_adapters(request=request, adapter_name=adapter_name)
-            _update_admin_job(
-                request,
-                job["job_id"],
-                status="completed",
-                message=result.message,
-                result=result.model_dump() if hasattr(result, "model_dump") else result,
-            )
-        except HTTPException as exc:
-            _update_admin_job(request, job["job_id"], status="failed", message=str(exc.detail), error=str(exc.detail))
-        except Exception as exc:
-            logger.error(f"Async adapter reload failed: {exc}", exc_info=True)
-            _update_admin_job(request, job["job_id"], status="failed", message=str(exc), error=str(exc))
-
-    asyncio.create_task(run_job())
+    job = run_admin_job_async(
+        request,
+        job_type="reload_adapters",
+        target=adapter_name,
+        running_message="Reloading adapters",
+        handler=lambda: reload_adapters(request=request, adapter_name=adapter_name),
+        failure_log_message="Async adapter reload failed",
+    )
     return {
       "status": "accepted",
       "job_id": job["job_id"],
@@ -1348,18 +1333,9 @@ async def reload_templates(
 
         # Under performance.workers > 1, this only reloaded the worker that
         # served this request - bump the durable generation counter so
-        # sibling workers pick up the change on their next poll tick (see
-        # services/adapter_reload_state.py). No-op in single-process mode.
-        import os
-        if os.environ.get('ORBIT_SUPERVISOR_PID'):
-            from services import adapter_reload_state
-            new_generation = await adapter_reload_state.bump_generation(request.app.state, "templates")
-            if new_generation is not None:
-                last_seen = getattr(request.app.state, "_adapter_reload_last_seen", None)
-                if last_seen is not None:
-                    last_seen["templates"] = new_generation
-            else:
-                logger.warning("Failed to propagate template reload to other workers")
+        # sibling workers pick up the change on their next poll tick. No-op in
+        # single-process mode.
+        await _propagate_reload_generation(request, "templates", "reload")
 
         # Generate appropriate message
         if adapter_name:
@@ -1394,26 +1370,14 @@ async def reload_templates_async(
     adapter_name: Optional[str] = Query(None, description="Optional name of specific adapter to reload templates for"),
 ):
     """Start template reload as a background admin job."""
-    job = _create_admin_job(request, "reload_templates", adapter_name)
-
-    async def run_job():
-        _update_admin_job(request, job["job_id"], status="running", message="Reloading templates")
-        try:
-            result = await reload_templates(request=request, adapter_name=adapter_name)
-            _update_admin_job(
-                request,
-                job["job_id"],
-                status="completed",
-                message=result.message,
-                result=result.model_dump() if hasattr(result, "model_dump") else result,
-            )
-        except HTTPException as exc:
-            _update_admin_job(request, job["job_id"], status="failed", message=str(exc.detail), error=str(exc.detail))
-        except Exception as exc:
-            logger.error(f"Async template reload failed: {exc}", exc_info=True)
-            _update_admin_job(request, job["job_id"], status="failed", message=str(exc), error=str(exc))
-
-    asyncio.create_task(run_job())
+    job = run_admin_job_async(
+        request,
+        job_type="reload_templates",
+        target=adapter_name,
+        running_message="Reloading templates",
+        handler=lambda: reload_templates(request=request, adapter_name=adapter_name),
+        failure_log_message="Async template reload failed",
+    )
     return {
       "status": "accepted",
       "job_id": job["job_id"],

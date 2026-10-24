@@ -403,19 +403,27 @@ async def renew_api_key(
     return {"status": "success", "message": "API key renewed successfully", **result}
 
 
+async def _set_api_key_active_state(api_key_id: str, api_key_service, *, active: bool) -> dict:
+    """Shared implementation for the activate/deactivate endpoints below."""
+    action = "activate" if active else "deactivate"
+    service_method = getattr(api_key_service, f"{action}_api_key_by_id")
+    success = await service_method(api_key_id)
+
+    if not success:
+        raise HTTPException(status_code=404, detail="API key not found")
+
+    verb = f"{action[:-1]}ed".capitalize()  # "activate"/"deactivate" -> "Activated"/"Deactivated"
+    logger.info(f"{verb} API key: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
+    return {"status": "success", "message": f"API key {action}d"}
+
+
 @router.post("/api-keys/{api_key_id}/deactivate", dependencies=[apikeys_auth])
 async def deactivate_api_key(
     api_key_id: str,
     api_key_service = Depends(get_api_key_service),
 ):
     """Deactivate an API key by record ID."""
-    success = await api_key_service.deactivate_api_key_by_id(api_key_id)
-
-    if not success:
-        raise HTTPException(status_code=404, detail="API key not found")
-
-    logger.info(f"Deactivated API key: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
-    return {"status": "success", "message": "API key deactivated"}
+    return await _set_api_key_active_state(api_key_id, api_key_service, active=False)
 
 
 @router.post("/api-keys/{api_key_id}/activate", dependencies=[apikeys_auth])
@@ -424,13 +432,7 @@ async def activate_api_key(
     api_key_service = Depends(get_api_key_service),
 ):
     """Activate an API key by record ID."""
-    success = await api_key_service.activate_api_key_by_id(api_key_id)
-
-    if not success:
-        raise HTTPException(status_code=404, detail="API key not found")
-
-    logger.info(f"Activated API key: {mask_api_key(api_key_id, show_last=True, prefix='***')}")
-    return {"status": "success", "message": "API key activated"}
+    return await _set_api_key_active_state(api_key_id, api_key_service, active=True)
 
 
 @router.delete("/api-keys/{api_key_id}", dependencies=[apikeys_auth])
