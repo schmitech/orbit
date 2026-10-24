@@ -59,6 +59,11 @@ class TestOpenAIAudioService:
         assert service.tts_voice == "alloy"
         assert service.tts_format == "mp3"
 
+    def test_stt_model_attribute_exists_when_model_is_not_configured(self):
+        service = OpenAIAudioService({"stt_providers": {"openai": {}}})
+
+        assert service.stt_model == "whisper-1"
+
     @pytest.mark.asyncio
     async def test_text_to_speech(self, service):
         """Test text-to-speech conversion."""

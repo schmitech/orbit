@@ -1885,10 +1885,7 @@ async def test_log_extraction_usage_skips_when_not_reported(tmp_path):
 
 @pytest.mark.asyncio
 async def test_extract_audio_content_requests_verbose_json_for_usage_reporting(tmp_path):
-    """A usage-reporting-capable STT service must be asked for
-    response_format="verbose_json" — that's the only way OpenAI's
-    transcription response carries an authoritative `duration`; without it,
-    the STT audit row is always skipped as unreported."""
+    """Whisper-1 needs verbose_json to return an authoritative duration."""
     from unittest.mock import AsyncMock, Mock, patch
 
     config, test_db_path = create_test_config(tmp_path, db_name="test_stt_verbose.db")
@@ -1897,6 +1894,7 @@ async def test_extract_audio_content_requests_verbose_json_for_usage_reporting(t
     mock_audio_service = Mock()
     mock_audio_service.SUPPORTS_USAGE_REPORTING = True
     mock_audio_service.initialized = True
+    mock_audio_service.stt_model = "whisper-1"
 
     async def fake_transcribe(audio, language, filename, mime_type, usage_sink=None, **kwargs):
         assert kwargs.get("response_format") == "verbose_json"
@@ -1922,6 +1920,43 @@ async def test_extract_audio_content_requests_verbose_json_for_usage_reporting(t
     kwargs = mock_audit.log_conversation.call_args.kwargs
     assert kwargs["usage"]["usage_unit"] == "audio_seconds"
     assert kwargs["usage"]["usage_quantity"] == 12.5
+
+    cleanup_metadata_store(test_db_path)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stt_model", [
+    "gpt-4o-mini-transcribe", "gpt-4o-mini-transcribe-api-ev3", "gpt-4o-transcribe",
+])
+async def test_extract_audio_content_uses_default_format_for_newer_openai_models(tmp_path, stt_model):
+    from unittest.mock import AsyncMock, Mock, patch
+
+    config, test_db_path = create_test_config(tmp_path, db_name="test_stt_default_format.db")
+    service = FileProcessingService(config)
+
+    mock_audio_service = Mock()
+    mock_audio_service.SUPPORTS_USAGE_REPORTING = True
+    mock_audio_service.initialized = True
+    mock_audio_service.stt_model = stt_model
+    mock_audio_service.transcribe = AsyncMock(return_value="hello world")
+
+    mock_audit = Mock()
+    mock_audit.chat_events_enabled = True
+    mock_audit.log_conversation = AsyncMock()
+    service.app_state = Mock(audit_service=mock_audit, pricing_service=None)
+
+    with patch.object(service, '_get_audio_provider_for_api_key', AsyncMock(return_value="openai")), \
+         patch('ai_services.AIServiceFactory.create_service', return_value=mock_audio_service):
+        text, metadata = await service._extract_audio_content(
+            file_data=b"fake-audio-bytes", filename="clip.mp3", mime_type="audio/mpeg", api_key="key1",
+        )
+
+    assert text == "hello world"
+    assert metadata["transcribed_text"] == "hello world"
+    kwargs = mock_audio_service.transcribe.call_args.kwargs
+    assert "response_format" not in kwargs
+    assert kwargs["usage_sink"] == {}
+    mock_audit.log_conversation.assert_not_awaited()
 
     cleanup_metadata_store(test_db_path)
 

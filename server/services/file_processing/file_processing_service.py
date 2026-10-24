@@ -1077,18 +1077,18 @@ class FileProcessingService:
             supports_usage = getattr(audio_service, "SUPPORTS_USAGE_REPORTING", False)
             try:
                 if supports_usage:
-                    # verbose_json is what makes an authoritative `duration`
-                    # available on the response at all (see
-                    # OpenAIAudioService.speech_to_text) — without requesting
-                    # it explicitly, the default response carries no duration
-                    # and this audit row would always be skipped as unreported.
+                    # Only whisper-1 supports verbose_json, which supplies an
+                    # authoritative duration for usage reporting. Other STT
+                    # models use the default JSON response format.
+                    transcription_kwargs = {"usage_sink": usage_sink}
+                    if getattr(audio_service, "stt_model", None) == "whisper-1":
+                        transcription_kwargs["response_format"] = "verbose_json"
                     transcribed_text = await audio_service.transcribe(
                         audio=file_data,
                         language=transcription_language,
                         filename=filename,
                         mime_type=mime_type,
-                        usage_sink=usage_sink,
-                        response_format="verbose_json",
+                        **transcription_kwargs,
                     )
                 else:
                     transcribed_text = await audio_service.transcribe(
