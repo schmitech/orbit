@@ -8,7 +8,6 @@ for speech-to-text and TTS-1 API for text-to-speech.
 from typing import Any, Optional, Union
 from collections.abc import AsyncIterator
 from io import BytesIO
-import wave
 
 from ...base import ServiceType
 from ...providers import OpenAIBaseService
@@ -161,18 +160,7 @@ class OpenAIAudioService(UsageReportingMixin, AudioService, OpenAIBaseService):
         Returns:
             WAV file as bytes
         """
-        num_channels = 1  # Mono
-        sample_width = 2  # 16-bit = 2 bytes
-
-        wav_buffer = BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
-            wav_file.setnchannels(num_channels)
-            wav_file.setsampwidth(sample_width)
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(pcm_bytes)
-
-        wav_buffer.seek(0)
-        return wav_buffer.read()
+        return self._wrap_pcm_in_wav(pcm_bytes, sample_rate)
 
     async def speech_to_text(
         self,

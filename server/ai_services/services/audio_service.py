@@ -9,6 +9,8 @@ regardless of the underlying provider.
 from abc import abstractmethod
 from typing import Any, Optional, Union
 from collections.abc import AsyncIterator
+from io import BytesIO
+import wave
 
 from ..base import ProviderAIService, ServiceType
 
@@ -59,6 +61,24 @@ class AudioService(ProviderAIService):
         if merged:
             return merged
         return super()._compute_provider_config()
+
+    @staticmethod
+    def _wrap_pcm_in_wav(
+        pcm_bytes: bytes,
+        sample_rate: int,
+        num_channels: int = 1,
+        sample_width: int = 2,
+    ) -> bytes:
+        """Wrap raw PCM bytes in an in-memory WAV container."""
+        wav_buffer = BytesIO()
+        with wave.open(wav_buffer, 'wb') as wav_file:
+            wav_file.setnchannels(num_channels)
+            wav_file.setsampwidth(sample_width)
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(pcm_bytes)
+
+        wav_buffer.seek(0)
+        return wav_buffer.read()
 
     @abstractmethod
     async def text_to_speech(

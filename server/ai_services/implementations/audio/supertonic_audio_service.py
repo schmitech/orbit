@@ -14,11 +14,9 @@ Requires: pip install supertonic
 """
 
 from typing import Any, Optional, Union
-from io import BytesIO
 import asyncio
 import logging
 import os
-import wave
 
 from ...services import AudioService
 from ...connection import ConnectionManager, RetryHandler
@@ -160,15 +158,7 @@ class SupertonicAudioService(AudioService):
         audio = np.clip(audio, -1.0, 1.0)
         audio_int16 = (audio * 32767).astype(np.int16)
 
-        # Pack as WAV in memory
-        buf = BytesIO()
-        with wave.open(buf, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(SAMPLE_RATE)
-            wf.writeframes(audio_int16.tobytes())
-        buf.seek(0)
-        return buf.read()
+        return self._wrap_pcm_in_wav(audio_int16.tobytes(), SAMPLE_RATE)
 
     # ------------------------------------------------------------------
     # AudioService lifecycle

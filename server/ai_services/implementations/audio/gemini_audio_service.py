@@ -13,8 +13,6 @@ Requirements:
 import logging
 from typing import Any, Optional, Union
 import asyncio
-import wave
-from io import BytesIO
 
 from ...base import ServiceType
 from ...providers import GoogleBaseService
@@ -97,18 +95,7 @@ class GeminiAudioService(AudioService, GoogleBaseService):
 
     def _wrap_in_wav(self, pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
         """Wrap raw PCM bytes in WAV format."""
-        num_channels = 1  # Mono
-        sample_width = 2  # 16-bit = 2 bytes
-
-        wav_buffer = BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
-            wav_file.setnchannels(num_channels)
-            wav_file.setsampwidth(sample_width)
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(pcm_bytes)
-
-        wav_buffer.seek(0)
-        return wav_buffer.read()
+        return self._wrap_pcm_in_wav(pcm_bytes, sample_rate)
 
     def _normalize_voice_name(self, voice: str) -> str:
         """Normalize and map voice names to valid Gemini voices."""

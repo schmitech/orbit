@@ -276,9 +276,19 @@ class ProviderAIService(AIService[T]):
         # Use default endpoint
         return default_endpoint
 
-    def _get_timeout_config(self) -> dict[str, int]:
+    def _get_timeout_config(
+        self,
+        default_connect: int = 10000,
+        default_total: int = 60000,
+        default_warmup: int = 45000,
+    ) -> dict[str, int]:
         """
         Get timeout configuration from provider config.
+
+        Args:
+            default_connect: Default connect timeout (ms) if not configured.
+            default_total: Default total timeout (ms) if not configured.
+            default_warmup: Default warmup timeout (ms) if not configured.
 
         Returns:
             Dictionary with timeout settings (connect, total, warmup)
@@ -287,14 +297,17 @@ class ProviderAIService(AIService[T]):
         timeout_config = provider_config.get('timeout', {})
 
         return {
-            'connect': timeout_config.get('connect', 10000),  # 10s default
-            'total': timeout_config.get('total', 60000),      # 60s default
-            'warmup': timeout_config.get('warmup', 45000)     # 45s default
+            'connect': timeout_config.get('connect', default_connect),
+            'total': timeout_config.get('total', default_total),
+            'warmup': timeout_config.get('warmup', default_warmup)
         }
 
-    def _get_retry_config(self) -> dict[str, Any]:
+    def _get_retry_config(self, default_enabled: bool = False) -> dict[str, Any]:
         """
         Get retry configuration from provider config.
+
+        Args:
+            default_enabled: Default for 'enabled' if not configured.
 
         Returns:
             Dictionary with retry settings
@@ -303,7 +316,7 @@ class ProviderAIService(AIService[T]):
         retry_config = provider_config.get('retry', {})
 
         return {
-            'enabled': retry_config.get('enabled', False),
+            'enabled': retry_config.get('enabled', default_enabled),
             'max_retries': retry_config.get('max_retries', 3),
             'initial_wait_ms': retry_config.get('initial_wait_ms', 1000),
             'max_wait_ms': retry_config.get('max_wait_ms', 30000),

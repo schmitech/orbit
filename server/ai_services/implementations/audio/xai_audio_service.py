@@ -7,8 +7,6 @@ currently expose text-to-speech or audio translation through this service.
 
 import mimetypes
 import os
-import wave
-from io import BytesIO
 from typing import Any, Optional, Union
 from urllib.parse import urlparse
 
@@ -486,12 +484,4 @@ class XAIAudioService(AudioService):
 
     def _wrap_in_wav(self, pcm_bytes: bytes, sample_rate: int) -> bytes:
         """Wrap raw 16-bit mono PCM bytes in a WAV container."""
-        wav_buffer = BytesIO()
-        with wave.open(wav_buffer, "wb") as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(pcm_bytes)
-
-        wav_buffer.seek(0)
-        return wav_buffer.read()
+        return self._wrap_pcm_in_wav(pcm_bytes, sample_rate)

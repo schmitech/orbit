@@ -264,8 +264,15 @@ class TestAudioServiceDisabled:
             audio_providers = available_services.get('audio', [])
             assert len(audio_providers) == 0
 
-    def test_missing_tts_stt_config_defaults_to_enabled(self):
-        """Test that missing tts/stt global config defaults to enabled."""
+    def test_missing_tts_stt_config_defaults_to_disabled(self):
+        """Test that missing global tts/stt sections default to disabled.
+
+        `register_audio_services` defaults the global `tts.enabled`/
+        `stt.enabled` flags to False specifically so that an app config which
+        never imported tts.yaml/stt.yaml doesn't silently register every
+        audio provider. Per-provider `tts_providers`/`stt_providers` entries
+        are irrelevant until at least one of the global sections is enabled.
+        """
         config = {
             "tts_providers": {
                 "openai": {"enabled": True}
@@ -273,7 +280,8 @@ class TestAudioServiceDisabled:
             "stt_providers": {
                 "openai": {"enabled": True}
             }
-            # No global "tts"/"stt" sections: defaults should be enabled
+            # No global "tts"/"stt" sections: both default to disabled, so no
+            # audio services should register regardless of per-provider config.
         }
 
         # Mock the import
@@ -286,13 +294,13 @@ class TestAudioServiceDisabled:
                 else __import__(name, *args, **kwargs)
             )
 
-            # Register services - should work (backward compatibility)
             register_audio_services(config)
 
-            # Verify services are registered
+            # Verify no services were registered
             available_services = AIServiceFactory.list_available_services()
             audio_providers = available_services.get('audio', [])
-            assert 'openai' in audio_providers
+            assert 'openai' not in audio_providers
+            assert len(audio_providers) == 0
 
 
 class TestAudioCacheManagerDisabled:

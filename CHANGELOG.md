@@ -3,7 +3,7 @@
 ## [UNRELEASED]
 
 ### Maintenance
-- **AI services cleanup**: Removed dead code and duplicated logic in the vLLM audio service and OpenAI embedding service, and continued a phased cleanup of the broader `ai_services` provider layer — including safer concurrent batching for Gemini embeddings and OpenAI reranking, and offloading a few blocking calls (Google Translate, image file reads, video-generation polling) so they no longer tie up the event loop or a thread-pool worker. See `docs/roadmap/ai-services-implementations-cleanup.md`. No intended behavior changes.
+- **AI services cleanup**: Removed dead code and duplicated logic in the vLLM audio service and OpenAI embedding service, and completed a phased cleanup of the broader `ai_services` provider layer — safer concurrent batching for Gemini embeddings and OpenAI reranking, offloading a few blocking calls (Google Translate, image file reads, video-generation polling) so they no longer tie up the event loop or a thread-pool worker, and deduplicating WAV-header-writing and timeout/retry config boilerplate across audio providers. See `docs/roadmap/complete/ai-services-implementations-cleanup.md`; remaining lower-priority/riskier items tracked in `docs/roadmap/ai-services-implementations-cleanup-deferred.md`. No intended behavior changes.
 
 ## [2.20.2] - 2026-10-24
 

@@ -213,14 +213,24 @@ but each touches more than one file and deserves its own PR + test pass.
 Smaller wins, fine to fold into unrelated future PRs touching the same files
 rather than scheduling dedicated work.
 
-- [ ] **Dedupe the repeated WAV-header-writing helper.** Six TTS provider
-      files (`openai_audio_service.py:168`, `vllm_audio_service.py:406`,
-      `gemini_audio_service.py:104`, `xai_audio_service.py:490`,
-      `coqui_audio_service.py:431`, `supertonic_audio_service.py:165`) each
-      build a WAV file via `wave.open(io.BytesIO(...), 'wb')` with the same
-      ~10-line header-writing logic. Not a perf issue (in-memory), just
-      maintenance duplication — factor into one shared helper when next
-      touching any of these files.
+- [x] **Dedupe the repeated WAV-header-writing helper.** Added a shared
+      `AudioService._wrap_pcm_in_wav(pcm_bytes, sample_rate, num_channels=1,
+      sample_width=2)` static method (`services/audio_service.py`), and
+      updated all six TTS files (`openai_audio_service.py`,
+      `vllm_audio_service.py`, `gemini_audio_service.py`,
+      `xai_audio_service.py`, `coqui_audio_service.py`,
+      `supertonic_audio_service.py`) to call it instead of hand-rolling
+      `wave.open(BytesIO(...), 'wb')`. Each file's own `_wrap_in_wav`/
+      `_to_wav_bytes`/`_synthesize` wrapper method is kept where it existed
+      (for its sample-rate default or call-site naming), now just delegating
+      to the shared helper. Removed the `wave`/`BytesIO` imports that became
+      unused in each file. Verified: all six files still parse; the four
+      without optional native deps (openai, vllm, gemini, xai) still import
+      cleanly; `pytest -k "audio or embedding or rerank or gemini or vllm"`
+      shows the same pass/fail set before and after (13 pre-existing
+      failures, unrelated — missing `vllm_provider` module, live-connection
+      tests, and two already-failing config/placeholder tests untouched by
+      this change).
 - [ ] **Share one `genai.Client()` across Gemini-backed service types.**
       `inference/gemini_inference_service.py`, `embedding/gemini_embedding_service.py`,
       `ocr/gemini_ocr_service.py`, `vision/gemini_vision_service.py`,
@@ -228,16 +238,20 @@ rather than scheduling dedicated work.
       each lazily build and cache their own `genai.Client()` per service
       instance (fine on its own), but a deployment enabling multiple
       Gemini-backed capabilities gets a separate client/connection pool per
-      capability. Low urgency — revisit only if running several Gemini
-      service types concurrently in one process becomes a real deployment
-      pattern worth optimizing for.
-- [ ] **`vllm_audio_service.py` timeout/retry config overrides.**
-      `_get_timeout_config`/`_get_retry_config` overrides (lines ~981-1000)
-      re-implement the base's dict-building logic verbatim just to change two
-      default numbers. Low urgency since it's one file — if `base.py`'s
-      methods are touched for another reason, add
-      `default_connect`/`default_total` parameters so this override can
-      shrink to passing two numbers instead of recopying the method body.
+      capability. Not applied — left as-is per the item's own wording, since
+      no deployment running several Gemini service types concurrently in one
+      process has actually surfaced as a real pattern worth optimizing for.
+- [x] **`vllm_audio_service.py` timeout/retry config overrides.** Added
+      `default_connect`/`default_total`/`default_warmup` params to
+      `ProviderAIService._get_timeout_config` and a `default_enabled` param to
+      `_get_retry_config` (`base.py`), both defaulting to the prior hardcoded
+      values so every other caller is unaffected. `vllm_audio_service.py`'s
+      overrides now each shrink to a one-line `super()...(...)` call passing
+      just the two/one numbers that actually differ (15s/120s timeouts, retry
+      enabled by default) instead of recopying the dict-building logic. Note:
+      the base's `_get_timeout_config` always includes a `warmup` key that the
+      old vLLM override omitted — harmless, since the only consumer
+      (`ConnectionManager`) only reads `timeout_config['total']`.
 
 ---
 

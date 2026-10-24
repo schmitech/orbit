@@ -10,11 +10,9 @@ Compare with: server/ai_services/implementations/vllm_inference_service.py
 import logging
 from typing import Any, Optional, Union
 from collections.abc import AsyncIterator
-from io import BytesIO
 import base64
 import asyncio
 import re
-import wave
 
 from openai import AsyncOpenAI
 import httpx
@@ -418,19 +416,7 @@ class VLLMAudioService(AudioService):
             WAV file as bytes
         """
         # SNAC produces 24kHz, 16-bit mono audio
-        sample_rate = 24000
-        num_channels = 1
-        sample_width = 2  # 16-bit = 2 bytes
-
-        wav_buffer = BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
-            wav_file.setnchannels(num_channels)
-            wav_file.setsampwidth(sample_width)
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(pcm_bytes)
-
-        wav_buffer.seek(0)
-        return wav_buffer.read()
+        return self._wrap_pcm_in_wav(pcm_bytes, sample_rate=24000)
 
     async def initialize(self) -> bool:
         """Initialize the vLLM audio service."""
@@ -893,22 +879,9 @@ class VLLMAudioService(AudioService):
                 raise e from fallback_error
 
     def _get_timeout_config(self) -> dict[str, int]:
-        """Get timeout configuration."""
-        provider_config = self._extract_provider_config()
-        timeout_config = provider_config.get('timeout', {})
-        return {
-            'connect': timeout_config.get('connect', 15000),
-            'total': timeout_config.get('total', 120000)  # Longer for audio processing
-        }
+        """Get timeout configuration (longer defaults for audio processing)."""
+        return super()._get_timeout_config(default_connect=15000, default_total=120000)
 
     def _get_retry_config(self) -> dict[str, Any]:
-        """Get retry configuration."""
-        provider_config = self._extract_provider_config()
-        retry_config = provider_config.get('retry', {})
-        return {
-            'enabled': retry_config.get('enabled', True),
-            'max_retries': retry_config.get('max_retries', 3),
-            'initial_wait_ms': retry_config.get('initial_wait_ms', 1000),
-            'max_wait_ms': retry_config.get('max_wait_ms', 30000),
-            'exponential_base': retry_config.get('exponential_base', 2)
-        }
+        """Get retry configuration (retries enabled by default for audio)."""
+        return super()._get_retry_config(default_enabled=True)

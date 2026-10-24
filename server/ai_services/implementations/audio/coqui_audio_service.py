@@ -11,10 +11,8 @@ Requires: pip install TTS
 """
 
 from typing import Any, Optional, Union
-from io import BytesIO
 import asyncio
 import logging
-import wave
 import numpy as np
 
 from ...services import AudioService
@@ -426,16 +424,7 @@ class CoquiAudioService(AudioService):
         audio_array = np.clip(audio_array, -1.0, 1.0)
         audio_int16 = (audio_array * 32767).astype(np.int16)
 
-        # Create WAV file in memory
-        wav_buffer = BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
-            wav_file.setnchannels(1)  # Mono
-            wav_file.setsampwidth(2)  # 16-bit
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(audio_int16.tobytes())
-
-        wav_buffer.seek(0)
-        return wav_buffer.read()
+        return self._wrap_pcm_in_wav(audio_int16.tobytes(), sample_rate)
 
     async def speech_to_text(
         self,
