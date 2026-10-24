@@ -678,25 +678,34 @@ async def list_mcp_servers(request: Request):
     for key, (_coerce, fallback) in overridable.items():
         defaults[key] = block[key] if key in block else fallback
 
+    entries = [e for e in (block.get("servers") or []) if isinstance(e, dict) and e.get("name")]
+
+    async def _oauth_for(entry: dict) -> dict:
+        resolved_entry = manager._server_configs.get(entry["name"]) if manager is not None else None
+        return await _compute_oauth_status(entry, resolved_entry)
+
+    # Each OAuth status does its own file-backed token/fingerprint/error
+    # reads; run the http-transport ones concurrently instead of one at a
+    # time, matching each result back to its entry by list position.
+    http_indices = [i for i, e in enumerate(entries) if e.get("transport", "stdio") == "http"]
+    oauth_results = await asyncio.gather(*(_oauth_for(entries[i]) for i in http_indices))
+    oauth_by_index = dict(zip(http_indices, oauth_results))
+
     servers = []
-    for entry in block.get("servers") or []:
-        if not isinstance(entry, dict) or not entry.get("name"):
-            continue
+    for i, entry in enumerate(entries):
         name = entry["name"]
         overrides = {k: entry[k] for k in overridable if k in entry}
         effective = dict(defaults)
         effective.update(overrides)
         transport = entry.get("transport", "stdio")
         connection = None
-        oauth = None
+        oauth = oauth_by_index.get(i)
         if transport == "http":
             connection = {
                 "url": entry.get("url", ""),
                 "headers": entry.get("headers") or {},
                 "auth": _redact_mcp_auth(entry.get("auth")),
             }
-            resolved_entry = manager._server_configs.get(name) if manager is not None else None
-            oauth = await _compute_oauth_status(entry, resolved_entry)
         elif transport == "stdio":
             connection = {
                 "command": entry.get("command", ""),

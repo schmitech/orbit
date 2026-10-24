@@ -9,6 +9,7 @@ running server's connection pool (which reads it) — see
 docs: `bin/orbit/commands/mcp.py`, `services/mcp_client_service.py`.
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -101,6 +102,35 @@ def _prepare_token_auth_no_duplicate_client_id(self, data, headers=None):
 _oauth2.OAuthContext.prepare_token_auth = _prepare_token_auth_no_duplicate_client_id
 
 
+# One lock per on-disk token file, shared by every FileTokenStorage instance
+# for that path (a fresh instance is constructed per call, e.g. once per
+# admin oauth-status check) — without it, two concurrent read-modify-write
+# calls on the same server's file (e.g. a token refresh racing an admin
+# status poll) can both read the same stale data and the second write wins,
+# silently dropping the first, and their _write()s both land on the same
+# `.tmp` path. Keyed by resolved path, not server name, so it still works if
+# a caller passes a different `state_dir`.
+_file_locks: dict[Path, asyncio.Lock] = {}
+
+
+def _lock_for(path: Path) -> asyncio.Lock:
+    lock = _file_locks.get(path)
+    if lock is None:
+        lock = asyncio.Lock()
+        _file_locks[path] = lock
+    return lock
+
+
+def _apply_clear_credentials(data: dict) -> None:
+    data.pop("tokens", None)
+    data.pop("expires_at", None)
+    data.pop("client_info", None)
+
+
+def _apply_last_error(data: dict, code: str) -> None:
+    data["last_error"] = {"code": code, "at": time.time()}
+
+
 class FileTokenStorage:
     """Persists OAuth tokens and client registration info for one MCP server."""
 
@@ -135,7 +165,7 @@ class FileTokenStorage:
         os.replace(tmp_path, self._path)
 
     async def get_tokens(self) -> OAuthToken | None:
-        raw = self._read().get("tokens")
+        raw = (await asyncio.to_thread(self._read)).get("tokens")
         return OAuthToken.model_validate(raw) if raw else None
 
     async def get_token_expiry(self) -> float | None:
@@ -151,59 +181,62 @@ class FileTokenStorage:
         permanently valid until the first 401, which then fails because this
         process has no redirect/callback handler for a full re-auth.
         """
-        return self._read().get("expires_at")
+        return (await asyncio.to_thread(self._read)).get("expires_at")
 
     async def set_tokens(self, tokens: OAuthToken) -> None:
-        data = self._read()
-        data["tokens"] = tokens.model_dump(mode="json")
-        data["expires_at"] = time.time() + tokens.expires_in if tokens.expires_in is not None else None
-        if self._fingerprint is not None:
-            data["fingerprint"] = self._fingerprint
-        self._write(data)
+        async with _lock_for(self._path):
+            data = await asyncio.to_thread(self._read)
+            data["tokens"] = tokens.model_dump(mode="json")
+            data["expires_at"] = time.time() + tokens.expires_in if tokens.expires_in is not None else None
+            if self._fingerprint is not None:
+                data["fingerprint"] = self._fingerprint
+            await asyncio.to_thread(self._write, data)
 
     async def get_client_info(self) -> OAuthClientInformationFull | None:
-        raw = self._read().get("client_info")
+        raw = (await asyncio.to_thread(self._read)).get("client_info")
         return OAuthClientInformationFull.model_validate(raw) if raw else None
 
     async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
-        data = self._read()
-        data["client_info"] = client_info.model_dump(mode="json")
-        if self._fingerprint is not None:
-            data["fingerprint"] = self._fingerprint
-        self._write(data)
+        async with _lock_for(self._path):
+            data = await asyncio.to_thread(self._read)
+            data["client_info"] = client_info.model_dump(mode="json")
+            if self._fingerprint is not None:
+                data["fingerprint"] = self._fingerprint
+            await asyncio.to_thread(self._write, data)
 
     async def get_fingerprint(self) -> str | None:
-        return self._read().get("fingerprint")
+        return (await asyncio.to_thread(self._read)).get("fingerprint")
 
     async def get_last_error(self) -> dict | None:
         """Bounded `{code, at}` record of the last credential failure, or
         None. Never holds a raw exception message — see
         docs/roadmap/complete/mcp-oauth-admin-panel.md's "last_error" section."""
-        return self._read().get("last_error")
+        return (await asyncio.to_thread(self._read)).get("last_error")
 
     async def set_last_error(self, code: str) -> None:
-        data = self._read()
-        data["last_error"] = {"code": code, "at": time.time()}
-        self._write(data)
+        async with _lock_for(self._path):
+            data = await asyncio.to_thread(self._read)
+            _apply_last_error(data, code)
+            await asyncio.to_thread(self._write, data)
 
     async def clear_last_error(self) -> None:
         """Called only after a real successful connection — never from the
         pre-warm path, which proves nothing about whether a loaded token
         still works."""
-        data = self._read()
-        if "last_error" in data:
-            del data["last_error"]
-            self._write(data)
+        async with _lock_for(self._path):
+            data = await asyncio.to_thread(self._read)
+            if "last_error" in data:
+                del data["last_error"]
+                await asyncio.to_thread(self._write, data)
 
     async def clear_credentials(self) -> None:
         """Remove token/client_info fields but keep the file (and whatever
         `last_error` is written alongside this) — used when a stored
         credential no longer matches the current fingerprint."""
-        data = self._read()
-        data.pop("tokens", None)
-        data.pop("expires_at", None)
-        data.pop("client_info", None)
-        self._write(data)
+        async with _lock_for(self._path):
+            data = await asyncio.to_thread(self._read)
+            _apply_clear_credentials(data)
+            await asyncio.to_thread(self._write, data)
 
     async def check_and_apply_fingerprint(self) -> None:
         """Call once per load (pre-warm, `mcp login`, `mcp status`) before
@@ -217,31 +250,38 @@ class FileTokenStorage:
         """
         if self._fingerprint is None:
             return
-        data = self._read()
-        stored = data.get("fingerprint")
-        if stored == self._fingerprint:
-            return
-        if "tokens" not in data and "client_info" not in data:
-            # Nothing stored to invalidate — a server that's never been
-            # logged into (or whose credentials were already cleared by an
-            # earlier mismatch) isn't a *new* mismatch just because it also
-            # has no fingerprint on file.
-            return
-        if stored is None:
-            logger.warning(
-                "MCP server '%s': pre-fingerprint OAuth token file found — treating as a "
-                "credential mismatch (one-time migration), clearing stored credentials",
-                self._server_name,
-            )
-        else:
-            logger.warning(
-                "MCP server '%s': stored OAuth credentials no longer match the server's "
-                "current config (url/client_id/scopes/redirect_port changed) — clearing "
-                "stored credentials, login required",
-                self._server_name,
-            )
-        await self.clear_credentials()
-        await self.set_last_error("fingerprint_mismatch")
+        # One locked read-modify-write cycle, not a read followed by separate
+        # locked clear_credentials()/set_last_error() calls — those each
+        # re-read, so a concurrent writer between them could still be
+        # clobbered, and asyncio.Lock isn't reentrant to call them from here
+        # under this same lock.
+        async with _lock_for(self._path):
+            data = await asyncio.to_thread(self._read)
+            stored = data.get("fingerprint")
+            if stored == self._fingerprint:
+                return
+            if "tokens" not in data and "client_info" not in data:
+                # Nothing stored to invalidate — a server that's never been
+                # logged into (or whose credentials were already cleared by an
+                # earlier mismatch) isn't a *new* mismatch just because it also
+                # has no fingerprint on file.
+                return
+            if stored is None:
+                logger.warning(
+                    "MCP server '%s': pre-fingerprint OAuth token file found — treating as a "
+                    "credential mismatch (one-time migration), clearing stored credentials",
+                    self._server_name,
+                )
+            else:
+                logger.warning(
+                    "MCP server '%s': stored OAuth credentials no longer match the server's "
+                    "current config (url/client_id/scopes/redirect_port changed) — clearing "
+                    "stored credentials, login required",
+                    self._server_name,
+                )
+            _apply_clear_credentials(data)
+            _apply_last_error(data, "fingerprint_mismatch")
+            await asyncio.to_thread(self._write, data)
 
     async def get_oauth_metadata(self) -> OAuthMetadata | None:
         """The discovered authorization-server metadata (RFC 8414), notably
@@ -256,13 +296,14 @@ class FileTokenStorage:
         discovery + authorization flow actually runs); restored by
         MCPClientManager._build_oauth_provider before any refresh can occur.
         """
-        raw = self._read().get("oauth_metadata")
+        raw = (await asyncio.to_thread(self._read)).get("oauth_metadata")
         return OAuthMetadata.model_validate(raw) if raw else None
 
     async def set_oauth_metadata(self, metadata: OAuthMetadata) -> None:
-        data = self._read()
-        data["oauth_metadata"] = metadata.model_dump(mode="json")
-        self._write(data)
+        async with _lock_for(self._path):
+            data = await asyncio.to_thread(self._read)
+            data["oauth_metadata"] = metadata.model_dump(mode="json")
+            await asyncio.to_thread(self._write, data)
 
 
 def build_static_client_info(

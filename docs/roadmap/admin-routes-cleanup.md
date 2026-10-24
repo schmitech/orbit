@@ -1,5 +1,10 @@
 # Admin Routes Cleanup — Phased Follow-ups
 
+**Status: Complete.** All three phases below were implemented (or, where a
+phase item's own wording made implementation conditional on a trigger that
+hasn't occurred, explicitly left as-is with that reasoning recorded inline).
+No open items remain.
+
 ## Summary
 
 A `/simplify` pass over `server/routes/admin/` applied the safe, localized
@@ -150,28 +155,45 @@ touches more than one file and deserves its own PR + test pass.
 Smaller wins, fine to fold into unrelated future PRs touching the same files
 rather than scheduling dedicated work.
 
-- [ ] **MCP OAuth status batching.** `mcp.py`'s `list_mcp_servers` (~663-769)
-      awaits `_compute_oauth_status` sequentially per HTTP-transport server;
-      each call does its own file-backed token/fingerprint/error reads.
-      `asyncio.gather` across servers before building the response list.
-- [ ] **MCP config write lock serializes unrelated concurrent saves.**
-      `_mcp_config_lock` (mcp.py ~line 203) serializes the whole
-      read-validate-write critical section across *all* concurrent requests,
-      even when they touch different servers. Only worth revisiting if MCP
-      admin writes become frequent/bulk (e.g. an import flow) — no action
-      needed at current usage levels.
-- [ ] **Cache resolved adapter capability tuples.** Related to the Phase 2
-      capability-registry item above — once capabilities are computed at
-      registration time this becomes moot; listed separately in case the
-      registry work is deferred and a cheaper interim fix (cache
-      `(supports_template_reload, supports_test_query)` per `implementation`
-      path) is wanted first.
-- [ ] **`config.py` section load/parse redundancy within a single write.**
-      `update_config_section` effectively parses the config file 3 times in
-      one call (`_split_config_sections`'s regex pass + two `yaml.safe_load`
-      calls on overlapping content). Only matters if the frontend's
-      section-by-section editor calls this in a tight loop; otherwise
-      acceptable for a single admin write.
+- [x] **MCP OAuth status batching.** `list_mcp_servers` resolves every
+      http-transport server's OAuth status concurrently via `asyncio.gather`
+      (matched back to its entry by list position) before building the
+      response list, instead of awaiting `_compute_oauth_status` one server
+      at a time. The `gather` alone didn't achieve real concurrency, though
+      — `_compute_oauth_status` calls into `FileTokenStorage`, whose
+      `_read`/`_write` do synchronous, blocking file I/O from inside `async
+      def` methods with no yield point, so each gathered task still ran to
+      completion before the next started. Fixed at the root: every
+      `FileTokenStorage` async method (`services/mcp_oauth_token_storage.py`)
+      now runs `_read`/`_write` via `asyncio.to_thread`, so the `await`s
+      actually yield and the `gather` genuinely overlaps file I/O across
+      servers — fixing every caller of `FileTokenStorage`, not just this
+      endpoint. Verified against `test_mcp_oauth_token_storage.py`,
+      `test_mcp_cli_oauth.py`, `test_admin_mcp_connection.py`, and
+      `test_admin_mcp_reload.py` (217 tests, all passing).
+- [x] **MCP config write lock serializes unrelated concurrent saves.** Left
+      as-is, per the roadmap's own conditional: only worth revisiting if MCP
+      admin writes become frequent/bulk, which isn't the case today — no
+      production incident or reported slowness prompted this, and narrowing
+      the lock's granularity without one would be speculative.
+- [x] **Cache resolved adapter capability tuples.** Left as-is. This was
+      explicitly scoped as the cheaper interim fix *if* the Phase 2
+      registry-based caching was deferred — Phase 2 deliberately did **not**
+      cache these on `AdapterCapabilities` (the registry only populates
+      lazily on first chat request; see that item's note), so this interim
+      item is the live fallback, not moot. Not implemented now because
+      there's no evidence of the resolve-from-implementation-path cost (one
+      `importlib.import_module` per uncached adapter per `/adapters/
+      capabilities` call) being a real cost — the endpoint is a low-traffic
+      admin panel load, and the resolution result isn't currently cached
+      anywhere to invalidate correctly on adapter reload, which an
+      unmeasured cache would need to get right. Revisit if this endpoint's
+      latency or call volume actually becomes a concern.
+- [x] **`config.py` section load/parse redundancy within a single write.**
+      Left as-is, per the roadmap's own conditional: `update_config_section`
+      is a single admin write, not a hot path — the triple-parse only matters
+      if the frontend's section editor starts calling it in a tight loop,
+      which it doesn't today.
 
 ---
 
