@@ -149,22 +149,6 @@ class VLLMAudioService(AudioService):
             f"Configured vLLM audio service with TTS model: {self.tts_model} "
             f"at {self.base_url} (max_concurrent_requests: {self.max_concurrent_requests})"
         )
-        
-        # vLLM Server-side optimization recommendations:
-        # For better performance with FP8 quantization and chunked prefill, use:
-        # vllm serve canopylabs/orpheus-3b-0.1-ft \
-        #   --dtype auto \
-        #   --quantization fp8 \
-        #   --enable-chunked-prefill \
-        #   --max_model_len 4096 \
-        #   --gpu-memory-utilization 0.85 \
-        #   --max-num-seqs 8
-        # 
-        # Key parameters:
-        # - --max-num-seqs: CRITICAL for parallel processing (default is 1, causing sequential delays)
-        #   With FP8 quantization, you can typically run 8-12 concurrent sequences
-        # - --gpu-memory-utilization: Increase from 0.7 to 0.85-0.9 for better throughput
-        # - FP8 quantization reduces memory by ~50%, allowing more concurrent requests
         logger.debug(
                 f"vLLM optimization: Add --max-num-seqs {self.max_concurrent_requests}+ to your vLLM server command "
                 f"to enable parallel audio generation (currently missing, causing sequential processing)"
@@ -757,50 +741,6 @@ class VLLMAudioService(AudioService):
                     yield pcm_bytes
             except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.warning(f"Failed to decode final audio tokens: {e}")
-
-    def _construct_tts_prompt(self, text: str, voice: str) -> str:
-        """
-        Construct TTS prompt for Orpheus-style models.
-
-        Args:
-            text: Text to convert to speech
-            voice: Voice identifier
-
-        Returns:
-            Formatted prompt for TTS generation
-        """
-        # Orpheus models use special tokens for TTS
-        # Based on Orpheus source code, the format uses specific token IDs:
-        # - Start token: 128259 (decodes to a special audio start marker)
-        # - End tokens: 128009, 128260, 128261, 128257
-        #
-        # The actual prompt format is: <special_start>voice: text<special_end>
-        # When using vLLM's tokenizer, these become special tokens.
-
-        # Check for Orpheus model pattern
-        if 'orpheus' in self.tts_model.lower():
-            # Orpheus 3B uses this format (based on their _format_prompt code):
-            # The special tokens are part of the Llama-3 extended vocabulary
-            # Token 128259 = start of audio generation
-            # Token 128257 = audio generation control token
-            # Format: voice: text (the tokenizer adds special tokens)
-
-            # For vLLM, we need to use the special token strings
-            # These are typically: <|reserved_special_token_XXX|> in Llama-3
-            # Or custom tokens added by Orpheus
-
-            # The key is to trigger audio token generation mode
-            # Based on Orpheus examples, the format is:
-            # <|begin_of_text|>voice: text
-            # And let the model generate audio tokens after
-
-            # Simplified format that should work with vLLM
-            prompt = f"{voice}: {text}"
-        else:
-            # Generic TTS prompt
-            prompt = f"[Voice: {voice}] {text}"
-
-        return prompt
 
     def _process_tts_response(self, response_text: str, audio_format: str) -> bytes:
         """
