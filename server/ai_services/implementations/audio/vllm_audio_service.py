@@ -158,10 +158,11 @@ class VLLMAudioService(AudioService):
         """
         Extract provider-specific configuration from the config dictionary.
 
-        Override base method to look for 'sounds' (the actual key in sound.yaml)
+        Override base method to look for 'sounds' (used by the documented
+        sounds.vllm configuration path, see docs/audio/vllm-audio-service-guide.md)
         instead of 'audios' (the default plural form).
         """
-        # Try 'sounds' first (as used in config/sound.yaml)
+        # Try 'sounds' first (as used by sounds.vllm deployments)
         sounds_config = self.config.get('sounds', {})
         provider_config = sounds_config.get(self.provider_name, {})
 
@@ -371,6 +372,41 @@ class VLLMAudioService(AudioService):
 
         return audio_bytes
 
+    # Orpheus supported voices: tara, leah, jess, leo, dan, mia, zac, zoe
+    ORPHEUS_VOICES = {'tara', 'leah', 'jess', 'leo', 'dan', 'mia', 'zac', 'zoe'}
+    # Common OpenAI voices that clients might pass by default
+    OPENAI_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'}
+
+    START_AUDIO_TOKEN = "<custom_token_3>"
+    END_AUDIO_TOKENS = "<|eot_id|><custom_token_4><custom_token_5><custom_token_1>"
+
+    def _resolve_tts_voice(self, voice: Optional[str]) -> str:
+        """Resolve a requested voice to a valid Orpheus voice, falling back to the configured default."""
+        if voice and voice.lower() in self.ORPHEUS_VOICES:
+            return voice.lower()
+        if voice and voice.lower() in self.OPENAI_VOICES:
+            logger.debug(
+                f"Using configured Orpheus voice '{self.tts_voice}' instead of OpenAI voice '{voice}'"
+            )
+            return self.tts_voice
+        if voice:
+            logger.warning(
+                f"Voice '{voice}' is not a valid Orpheus voice. "
+                f"Using configured default: {self.tts_voice}"
+            )
+        return self.tts_voice
+
+    def _build_orpheus_prompt(self, text: str, voice: str) -> str:
+        """Build an Orpheus-style prompt wrapping text with the start/end audio tokens."""
+        text_prompt = f"{voice}: {text}"
+        return f"{self.START_AUDIO_TOKEN}{text_prompt}{self.END_AUDIO_TOKENS}"
+
+    def _finalize_audio_chunk(self, pcm_bytes: bytes, audio_format: str, wav_header_sent: bool) -> bytes:
+        """Wrap PCM bytes in a WAV header if this is the first chunk of a wav-format stream."""
+        if audio_format.lower() in ('wav', 'wave') and not wav_header_sent:
+            return self._wrap_in_wav(pcm_bytes)
+        return pcm_bytes
+
     def _wrap_in_wav(self, pcm_bytes: bytes) -> bytes:
         """
         Wrap raw PCM bytes in WAV format.
@@ -536,34 +572,8 @@ class VLLMAudioService(AudioService):
             await self.initialize()
 
         try:
-            # Validate and set voice
-            # Orpheus supported voices: tara, leah, jess, leo, dan, mia, zac, zoe
-            ORPHEUS_VOICES = {'tara', 'leah', 'jess', 'leo', 'dan', 'mia', 'zac', 'zoe'}
-            # Common OpenAI voices that clients might pass by default
-            OPENAI_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'}
-
-            if voice and voice.lower() in ORPHEUS_VOICES:
-                tts_voice = voice.lower()
-            elif voice and voice.lower() in OPENAI_VOICES:
-                # Silently use configured default for OpenAI voices (common client default)
-                tts_voice = self.tts_voice
-                logger.debug(
-                    f"Using configured Orpheus voice '{self.tts_voice}' instead of OpenAI voice '{voice}'"
-                )
-            elif voice and voice.lower() not in ORPHEUS_VOICES:
-                logger.warning(
-                    f"Voice '{voice}' is not a valid Orpheus voice. "
-                    f"Using configured default: {self.tts_voice}"
-                )
-                tts_voice = self.tts_voice
-            else:
-                tts_voice = self.tts_voice
-
+            tts_voice = self._resolve_tts_voice(voice)
             audio_format = format or self.tts_format
-
-            # For Orpheus-style models, construct the prompt with voice specification
-            # The model expects a specific format for TTS
-            text_prompt = f"{tts_voice}: {text}"
 
             # Orpheus requires special token IDs to trigger audio generation
             # Based on Orpheus source code:
@@ -573,23 +583,13 @@ class VLLMAudioService(AudioService):
             # - Token 128261: Audio generation marker
             # - Token 128257: Control token
             #
-            # The prompt format is:
-            # [128259] + tokenized("voice: text") + [128009, 128260, 128261, 128257]
-
-            # Use completions API with prompt_token_ids for precise control
-            # First, we need to get the tokenized version
-            # Since we can't tokenize directly, we'll construct the prompt with special token strings
-
             # The special tokens in Orpheus vocabulary (confirmed via vLLM tokenizer):
             # Token 128259 = <custom_token_3> (start audio generation)
             # Token 128009 = <|eot_id|> (end of turn)
             # Token 128260 = <custom_token_4> (audio end)
             # Token 128261 = <custom_token_5> (generate audio)
             # Token 128257 = <custom_token_1> (control token)
-            START_AUDIO_TOKEN = "<custom_token_3>"
-            END_AUDIO_TOKENS = "<|eot_id|><custom_token_4><custom_token_5><custom_token_1>"
-
-            prompt = f"{START_AUDIO_TOKEN}{text_prompt}{END_AUDIO_TOKENS}"
+            prompt = self._build_orpheus_prompt(text, tts_voice)
 
             # Use completions API (not chat) to avoid chat template interference
             # Orpheus models expect raw prompts without chat template wrapping
@@ -658,25 +658,9 @@ class VLLMAudioService(AudioService):
                 yield audio
                 return
 
-        # Resolve voice (same logic as text_to_speech)
-        ORPHEUS_VOICES = {'tara', 'leah', 'jess', 'leo', 'dan', 'mia', 'zac', 'zoe'}
-        OPENAI_VOICES = {'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse'}
-        if voice and voice.lower() in ORPHEUS_VOICES:
-            tts_voice = voice.lower()
-        elif voice and voice.lower() in OPENAI_VOICES:
-            tts_voice = self.tts_voice
-        elif voice and voice.lower() not in ORPHEUS_VOICES:
-            tts_voice = self.tts_voice
-        else:
-            tts_voice = self.tts_voice
-
+        tts_voice = self._resolve_tts_voice(voice)
         audio_format = format or self.tts_format
-
-        # Build prompt (same as text_to_speech)
-        text_prompt = f"{tts_voice}: {text}"
-        START_AUDIO_TOKEN = "<custom_token_3>"
-        END_AUDIO_TOKENS = "<|eot_id|><custom_token_4><custom_token_5><custom_token_1>"
-        prompt = f"{START_AUDIO_TOKEN}{text_prompt}{END_AUDIO_TOKENS}"
+        prompt = self._build_orpheus_prompt(text, tts_voice)
 
         # How many frames to buffer before decoding and yielding
         # More frames = fewer yields but higher latency; fewer = more responsive
@@ -718,13 +702,10 @@ class VLLMAudioService(AudioService):
 
                     try:
                         pcm_bytes = self._convert_tokens_to_audio(to_decode)
+                        chunk_bytes = self._finalize_audio_chunk(pcm_bytes, audio_format, yielded_wav_header)
                         if audio_format.lower() in ('wav', 'wave') and not yielded_wav_header:
-                            # First chunk: wrap in WAV so the client can detect format
-                            yield self._wrap_in_wav(pcm_bytes)
                             yielded_wav_header = True
-                        else:
-                            # Subsequent chunks: raw PCM (client appends to stream)
-                            yield pcm_bytes
+                        yield chunk_bytes
                     except Exception as e:  # noqa: BLE001 - provider boundary fallback
                         logger.warning(f"Failed to decode streaming audio frame: {e}")
 
@@ -735,10 +716,7 @@ class VLLMAudioService(AudioService):
             to_decode = accumulated_tokens[:decode_count]
             try:
                 pcm_bytes = self._convert_tokens_to_audio(to_decode)
-                if audio_format.lower() in ('wav', 'wave') and not yielded_wav_header:
-                    yield self._wrap_in_wav(pcm_bytes)
-                else:
-                    yield pcm_bytes
+                yield self._finalize_audio_chunk(pcm_bytes, audio_format, yielded_wav_header)
             except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.warning(f"Failed to decode final audio tokens: {e}")
 
@@ -775,13 +753,9 @@ class VLLMAudioService(AudioService):
                 pcm_audio = self._convert_tokens_to_audio(tokens)
                 logger.debug(f"Decoded {len(pcm_audio)} bytes of PCM audio")
 
-                # Wrap in WAV format if requested
-                if audio_format.lower() in ['wav', 'wave']:
-                    return self._wrap_in_wav(pcm_audio)
-                else:
-                    # Return raw PCM for other formats
-                    # In production, you'd convert to mp3/ogg etc.
-                    return pcm_audio
+                # Wrap in WAV format if requested; otherwise return raw PCM
+                # (in production, you'd convert to mp3/ogg etc.)
+                return self._finalize_audio_chunk(pcm_audio, audio_format, wav_header_sent=False)
 
             except Exception as e:  # noqa: BLE001 - provider boundary fallback
                 logger.error(f"Failed to decode audio tokens: {e!s}")

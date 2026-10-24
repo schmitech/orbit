@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Maintenance
+- **AI services cleanup**: Removed dead code and duplicated logic in the vLLM audio service and OpenAI embedding service, and started a phased cleanup of the broader `ai_services` provider layer. See `docs/roadmap/ai-services-implementations-cleanup.md`. No behavior changes.
+
 ## [2.20.2] - 2026-10-24
 
 ### Maintenance

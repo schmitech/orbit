@@ -36,42 +36,46 @@ Reference: review findings were produced by four parallel agent passes
 Safe to do without touching shared services; each is contained to the file(s)
 named. Good first bites.
 
-- [ ] **Remove duplicate double-logging on exception handling.** Several
-      `embedding/*.py` files (`openai_embedding_service.py:85-90`,
-      `cohere_embedding_service.py:82-84`, `mistral_embedding_service.py:76-78`)
-      log the exception once generically (`logger.error(f"Unexpected error...")`)
-      immediately before calling `_handle_*_error`, which logs it again with
-      its own classification. Drop the redundant generic log at each call
-      site; keep the classified log from `_handle_*_error`.
-- [ ] **Collapse vLLM TTS voice-resolution duplication.**
-      `vllm_audio_service.py`'s `text_to_speech` (lines ~557-576) and
-      `text_to_speech_streaming` (lines ~678-687) duplicate the
-      voice-resolution if/elif/elif/else almost verbatim, including a branch
-      that's unreachable as a distinct case by the time it's reached. Extract
-      one `_resolve_tts_voice(voice)` helper used by both methods.
-- [ ] **Factor shared Orpheus prompt/chunk-finalization helpers in
-      `vllm_audio_service.py`.** `text_to_speech` and
-      `text_to_speech_streaming` (lines ~528-759) duplicate prompt
-      construction (voice resolution + START/END token wrapping) and the
-      "wrap final bytes in WAV depending on format" logic (lines ~737-744,
-      ~754-757, and `_process_tts_response` lines ~838-844). Factor a shared
-      `_build_orpheus_prompt(text, voice)` and `_finalize_audio_chunk(pcm_bytes,
-      audio_format, wav_header_sent)`.
-- [ ] **vLLM audio's broad-except boilerplate.** 10+ near-identical
-      `except Exception as e: # noqa: BLE001` blocks in `vllm_audio_service.py`
-      (log-and-reraise or log-and-return-`False`) could collapse to one
-      `@log_and_reraise(...)` decorator or small helper. Scope this to the one
-      file; don't widen it into the Phase 2 error-handling item below.
-- [ ] **vLLM's `_extract_provider_config` override duplicates the
-      `config_section_key` fallback pattern.** `vllm_audio_service.py:173-188`
-      re-implements the "try this key, then fall back to `super()`" logic that
-      `base.py`'s `config_section_key` hook already generalizes. Set
-      `self.config_section_key = 'sounds'` before calling `super().__init__()`
-      instead, and delete the override. (Do **not** touch
-      `_compute_provider_config`/`_extract_provider_config` themselves — see
-      Out of scope below; `AudioService._compute_provider_config` overrides it
-      to merge `tts_providers`/`stt_providers`, so the two-method split is
-      load-bearing, not redundant indirection.)
+- [x] **Remove duplicate double-logging on exception handling.** Only
+      `openai_embedding_service.py:89` actually had the redundant generic
+      `logger.error(f"Unexpected error...")` before calling `_handle_openai_error`
+      — removed. Correction from the original finding: `cohere_embedding_service.py`
+      and `mistral_embedding_service.py` do **not** have this pattern; their
+      `embed_query`/`embed_documents` methods call `_handle_cohere_error`/
+      `_handle_mistral_error` directly with no preceding generic log. Left
+      untouched.
+- [x] **Collapse vLLM TTS voice-resolution duplication.** Added
+      `_resolve_tts_voice(voice)` (class-level `ORPHEUS_VOICES`/`OPENAI_VOICES`
+      sets) to `vllm_audio_service.py`; both `text_to_speech` and
+      `text_to_speech_streaming` now call it instead of duplicating the
+      if/elif/elif/else.
+- [x] **Factor shared Orpheus prompt/chunk-finalization helpers in
+      `vllm_audio_service.py`.** Added `_build_orpheus_prompt(text, voice)`
+      (used by both TTS methods) and `_finalize_audio_chunk(pcm_bytes,
+      audio_format, wav_header_sent)` (used by `text_to_speech_streaming`'s
+      per-chunk and flush paths, and by `_process_tts_response`'s final
+      wrap-or-return-raw step).
+- [ ] **vLLM's `_extract_provider_config` override.** Correction: this item
+      was briefly marked done and the override deleted, on the mistaken
+      premise that no `sounds:` config key exists anywhere in `config/` — that
+      check missed `docs/audio/vllm-audio-service-guide.md`, which documents
+      a `sounds.vllm` deployment path (also referenced at
+      `docs/audio/vllm-audio-service-guide.md:109,464`) that real deployments
+      may use instead of `tts_providers`/`stt_providers`. Deleting the
+      override would have silently dropped those deployments back to default
+      host/port/model/concurrency settings. **Reverted** — the override is
+      restored as-is. Left open as a Phase 1 item: if the `sounds.vllm` path
+      is still wanted, it could be made to compose with `config_section_key`
+      instead of hand-rolling the fallback, but that requires confirming
+      whether `sounds.vllm` is actually used by any deployment today before
+      changing it — not done in this pass.
+- [ ] **vLLM audio's broad-except boilerplate.** Not applied — skipped on
+      inspection. The 14 `except Exception` blocks in `vllm_audio_service.py`
+      have genuinely heterogeneous behavior (log-and-reraise, log-and-return-
+      `False`, log-and-continue inside a loop, log-and-yield-fallback), so
+      collapsing them into one decorator/helper risks silently changing
+      control flow for at least one call site. Still a reasonable follow-up,
+      but needs a per-site behavior audit, not a mechanical sweep.
 
 ## Phase 2 — Shared-infrastructure generalization
 

@@ -86,7 +86,6 @@ class OpenAIEmbeddingService(UsageReportingMixin, EmbeddingService, OpenAIBaseSe
             return response.data[0].embedding
 
         except Exception as e:
-            logger.error(f"Unexpected error during embedding query: {e}")
             self._handle_openai_error(e, "embedding query")
             raise
 
