@@ -4,6 +4,7 @@ Cohere vision service implementation using unified architecture.
 This implementation provides vision capabilities using Cohere's multimodal models.
 """
 
+import asyncio
 from typing import Any, Union
 from PIL import Image
 from io import BytesIO
@@ -89,8 +90,8 @@ class CohereVisionService(VisionService, CohereBaseService):
             await self.initialize()
 
         try:
-            # Convert image to base64
-            image_base64 = self._image_to_base64(image)
+            # Convert image to base64 (file read is blocking, offload to a thread)
+            image_base64 = await asyncio.to_thread(self._image_to_base64, image)
             
             # Get image MIME type
             mime_type = self._get_image_mime_type(image)
@@ -242,8 +243,8 @@ class CohereVisionService(VisionService, CohereBaseService):
             await self.initialize()
 
         try:
-            # Convert image to base64
-            image_base64 = self._image_to_base64(image)
+            # Convert image to base64 (file read is blocking, offload to a thread)
+            image_base64 = await asyncio.to_thread(self._image_to_base64, image)
             
             # Get image MIME type
             mime_type = self._get_image_mime_type(image)

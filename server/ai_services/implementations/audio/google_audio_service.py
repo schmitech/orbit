@@ -5,6 +5,7 @@ This implementation provides audio capabilities using Google Cloud
 Speech-to-Text and Text-to-Speech APIs.
 """
 
+import asyncio
 import logging
 from typing import Any, Optional, Union
 
@@ -48,6 +49,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
         # Initialize clients lazily
         self._speech_client = None
         self._tts_client = None
+        self._translate_client = None
 
     async def initialize(self) -> bool:
         """Initialize the Google audio service and clients."""
@@ -225,16 +227,17 @@ class GoogleAudioService(AudioService, GoogleBaseService):
             # Then translate using Google Cloud Translation API
             # Note: This requires google-cloud-translate library
             try:
-                from google.cloud import translate_v2 as translate
-                
-                translate_client = translate.Client()
-                
-                # Translate text
-                result = translate_client.translate(
+                if self._translate_client is None:
+                    from google.cloud import translate_v2 as translate
+                    self._translate_client = translate.Client()
+
+                # Translate text (synchronous client call, offloaded to a thread)
+                result = await asyncio.to_thread(
+                    self._translate_client.translate,
                     transcript,
                     target_language=target_language
                 )
-                
+
                 return result['translatedText']
             except ImportError:
                 # Fallback: return transcript if translation library not available
@@ -257,5 +260,7 @@ class GoogleAudioService(AudioService, GoogleBaseService):
         
         if self._tts_client:
             self._tts_client = None
-        
+
+        self._translate_client = None
+
         await super().close()

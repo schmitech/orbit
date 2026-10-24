@@ -7,7 +7,6 @@ Requires a Veo model which is available via Google AI Studio API key.
 
 import asyncio
 import os
-import time
 from typing import Any
 
 from ...base import ServiceType
@@ -69,7 +68,7 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
         duration = kwargs.get("duration", self.duration)
         person_generation = kwargs.get("person_generation", self.person_generation)
 
-        def _run_sync() -> tuple[bytes, str]:
+        def _submit() -> Any:
             from google.genai import types as genai_types
 
             client = self._get_client()
@@ -83,15 +82,17 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
             if person_generation:
                 config_kwargs["person_generation"] = person_generation
 
-            operation = client.models.generate_videos(
+            return client.models.generate_videos(
                 model=model,
                 prompt=prompt,
                 config=genai_types.GenerateVideosConfig(**config_kwargs),
             )
 
-            while not operation.done:
-                time.sleep(5)
-                operation = client.operations.get(operation)
+        def _poll(operation: Any) -> Any:
+            return self._get_client().operations.get(operation)
+
+        def _finalize(operation: Any) -> tuple[bytes, str]:
+            client = self._get_client()
 
             generated = (operation.response or operation.result or {})
             videos = getattr(generated, 'generated_videos', None) or []
@@ -109,7 +110,16 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
             return video_bytes, fmt
 
         try:
-            video_bytes, fmt = await asyncio.to_thread(_run_sync)
+            operation = await asyncio.to_thread(_submit)
+
+            # Poll with a plain async sleep between calls instead of blocking a
+            # thread-pool worker for the whole wait — each poll only occupies
+            # the worker for the duration of the network call itself.
+            while not operation.done:
+                await asyncio.sleep(5)
+                operation = await asyncio.to_thread(_poll, operation)
+
+            video_bytes, fmt = await asyncio.to_thread(_finalize, operation)
             return {
                 "video_bytes": video_bytes,
                 "format": fmt,

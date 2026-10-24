@@ -84,6 +84,16 @@ helper, then updating multiple call sites together. Single coherent changes,
 but each touches more than one file and deserves its own PR + test pass.
 
 - [ ] **Centralize provider error classification behind `raise_sanitized`.**
+      Investigated, not applied — the 8 `_handle_*_error` implementations
+      diverge more than the finding assumed: `huggingface_base.py` and
+      `anthropic_base.py` classify by `isinstance` against SDK exception
+      classes (not string matching), and `azure_base.py`/`zai_base.py`/
+      `google_base.py` log provider-specific categories (quota, deployment,
+      permission) that a generic 4-bucket helper (auth/rate-limit/connection/
+      timeout) would drop. A shared helper is still worth building, but it
+      needs a category table expressive enough to keep each provider's
+      diagnostic log detail, which is a design task on its own — deferred
+      rather than forcing a lossy version through now.
       8 files under `server/ai_services/providers/*_base.py`
       (`cohere_base.py`, `mistral_base.py`, `zai_base.py`, `azure_base.py`,
       `huggingface_base.py`, `jina_base.py`, `google_base.py`,
@@ -119,6 +129,11 @@ but each touches more than one file and deserves its own PR + test pass.
       (including multi-step fallback logic like OpenAI-compatible's), not
       assume every provider reduces to one `await probe()`.
 - [ ] **Add a shared reasoning-model/temperature-support capability hook.**
+      Not applied this pass — deferred alongside the error-classification item
+      above since it's a similarly-scoped shared-base-class design task; also
+      includes fixing real behavior drift (xAI's missing `effort` kwarg strip,
+      Azure's unconditional `max_completion_tokens`), which deserves its own
+      test pass rather than being bundled into this cleanup session.
       `openai_inference_service.py` (`_supports_reasoning_effort` +
       `_resolve_reasoning_effort` override), `mistral_inference_service.py`,
       `xai_inference_service.py`, `openai_vision_service.py`
@@ -138,34 +153,47 @@ but each touches more than one file and deserves its own PR + test pass.
       Mistral's do, and `azure_openai_inference_service.py` hardcodes
       `max_completion_tokens` unconditionally where `openai_vision_service.py`
       gates on model name for the same quirk.
-- [ ] **Parallelize independent batch calls instead of sequential awaits.**
-      `embedding/gemini_embedding_service.py:92-116` (`embed_documents`) loops
-      over batches sequentially with a hardcoded `await asyncio.sleep(0.5)`
-      between each; `reranking/openai_reranking_service.py:100-105` awaits
-      `_score_batch` one batch at a time. Both are independent I/O calls per
-      batch — replace with `asyncio.gather` (bounded by a `Semaphore` if the
-      provider's rate limits require it).
-- [ ] **Cache long-lived clients instead of building them per request.**
-      `audio/google_audio_service.py:230`'s `translate()` builds a new
-      `google.cloud.translate_v2.Client()` on every call and invokes its
-      synchronous `.translate()` directly on the event loop. Build the client
-      once in `initialize()` (matching how `_speech_client`/`_tts_client`
-      already work in the same file) and wrap the blocking call in
-      `asyncio.to_thread`.
-- [ ] **Wrap blocking file read in `vision/cohere_vision_service.py`.**
-      `cohere_vision_service.py:44-48` uses synchronous `open(image, 'rb')`
-      inside an async method, blocking the event loop during disk I/O for
-      local file-based requests. Wrap in `asyncio.to_thread` or switch to
-      `aiofiles`.
-- [ ] **Move the video-generation poll loop off a borrowed thread-pool
-      worker.** `video/gemini_video_service.py:93`'s polling loop
-      (`while not operation.done: time.sleep(5); ...`) runs inside
-      `asyncio.to_thread`, pinning a default-executor worker thread for the
-      full poll duration (video gen can take minutes); concurrent requests
-      can exhaust the thread pool and serialize unrelated async work.
-      Investigate the async Gemini operations API, or poll with
-      `await asyncio.sleep(5)` directly in an async method instead of a
-      blocking sync thread.
+- [x] **Parallelize independent batch calls instead of sequential awaits.**
+      `gemini_embedding_service.py`'s `embed_documents` now builds the batch
+      list up front and runs them concurrently via `asyncio.gather`, bounded
+      by a `Semaphore(3)` in place of the old sequential `await
+      asyncio.sleep(0.5)` between batches. `openai_reranking_service.py`'s
+      `rerank` does the same for `_score_batch` calls (also `Semaphore(3)`),
+      merging each batch's usage into `usage_sink` as soon as that batch
+      succeeds rather than after all batches finish. Both use explicit
+      `asyncio.create_task` + `gather` instead of bare `gather`, and on
+      failure cancel and await the remaining in-flight tasks before
+      re-raising — review feedback caught that a bare `gather` lets batches
+      still in flight keep making billable provider requests in the
+      background after the failure is reported, and that collecting
+      reranking usage only after `gather` returns would drop usage already
+      earned by batches that *did* succeed when a later one failed. Further
+      review feedback caught that cancelling an `asyncio.create_task` wrapping
+      `await asyncio.to_thread(...)` doesn't stop the underlying synchronous
+      SDK call once it's started — cancellation only interrupts the awaiting
+      coroutine, not the thread-pool work item. `gemini_embedding_service.py`
+      now uses a `failed` `asyncio.Event()` instead: a started batch always
+      runs to completion, but once any batch fails the event is set and
+      batches still waiting on the semaphore return early without making a
+      request, then `gather(..., return_exceptions=True)` collects everything
+      and the first exception found is re-raised.
+- [x] **Cache long-lived clients instead of building them per request.**
+      `google_audio_service.py`'s `translate()` now caches the
+      `google.cloud.translate_v2.Client()` on `self._translate_client` (built
+      once, lazily, on first use — matching the ImportError-fallback
+      structure already there) instead of constructing one per call, and the
+      synchronous `.translate()` call is wrapped in `asyncio.to_thread`.
+- [x] **Wrap blocking file read in `vision/cohere_vision_service.py`.**
+      Both call sites of `_image_to_base64` (`analyze_image`,
+      `multimodal_inference`) now invoke it via `asyncio.to_thread` instead of
+      awaiting the enclosing method directly over the synchronous file read.
+- [x] **Move the video-generation poll loop off a borrowed thread-pool
+      worker.** `gemini_video_service.py`'s `generate_video` now splits the
+      single long-running `_run_sync` (with an in-thread `time.sleep(5)` poll
+      loop) into three short `asyncio.to_thread` calls — `_submit`, `_poll`,
+      `_finalize` — with `await asyncio.sleep(5)` between poll attempts in the
+      async method itself. Each thread-pool borrow now lasts only as long as
+      one network call, not the whole wait.
 - [ ] **Migrate `bitnet_inference_service.py` onto
       `OpenAICompatibleBaseService`.** `bitnet_inference_service.py:116`
       constructs `AsyncOpenAI(...)` directly against its own ~285-line
@@ -176,7 +204,9 @@ but each touches more than one file and deserves its own PR + test pass.
       perplexity, together, venice, xai, scaleway, moonshot, nearai,
       deepinfra, minimax, zai). First confirm there's no genuine BitNet API
       incompatibility forcing the bespoke path; if none, migrate it like the
-      others and delete `bitnet_base.py`.
+      others and delete `bitnet_base.py`. Not attempted this pass — the
+      "confirm no incompatibility" step means reading and testing against
+      BitNet's actual API surface, not a code-only change.
 
 ## Phase 3 — Opportunistic / low-urgency
 

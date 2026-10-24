@@ -6,6 +6,7 @@ This approach leverages the language understanding capabilities of GPT models
 to assess document relevance.
 """
 
+import asyncio
 import logging
 from typing import Any, Optional
 import json
@@ -94,15 +95,35 @@ class OpenAIRerankingService(RerankingService, OpenAIBaseService):
             top_n = self.top_n_default
 
         try:
-            # Score documents in batches to avoid token limits
+            # Score document batches concurrently (bounded, to avoid hammering the API)
             batch_size = self.batch_size
-            all_results = []
+            semaphore = asyncio.Semaphore(3)
 
-            for i in range(0, len(documents), batch_size):
-                batch_docs = documents[i:i + batch_size]
-                batch_usage = {}
-                batch_scores = await self._score_batch(query, batch_docs, i, batch_usage)
-                accumulate_usage_sink(usage_sink, batch_usage)
+            async def _score_with_usage(offset: int, batch_docs: list[str]) -> list[dict[str, Any]]:
+                async with semaphore:
+                    batch_usage: dict[str, Any] = {}
+                    batch_scores = await self._score_batch(query, batch_docs, offset, batch_usage)
+                    # Merge usage as soon as this batch succeeds, so a later
+                    # batch's failure doesn't lose already-billed usage.
+                    accumulate_usage_sink(usage_sink, batch_usage)
+                    return batch_scores
+
+            tasks = [
+                asyncio.create_task(_score_with_usage(i, documents[i:i + batch_size]))
+                for i in range(0, len(documents), batch_size)
+            ]
+            try:
+                batch_runs = await asyncio.gather(*tasks)
+            except Exception:
+                # Don't let batches still in flight keep consuming billable
+                # tokens in the background after we've decided to fail.
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                raise
+
+            all_results = []
+            for batch_scores in batch_runs:
                 all_results.extend(batch_scores)
 
             # Sort by score descending
