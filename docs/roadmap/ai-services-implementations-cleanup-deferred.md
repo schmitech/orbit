@@ -20,7 +20,25 @@ appetite for the one that's most valuable at the time.
 
 ## Items
 
-- [ ] **Centralize provider error classification behind `raise_sanitized`.**
+- [x] **Centralize provider error classification behind `raise_sanitized`.**
+      Done — added `ErrorCategory` and `log_and_raise_sanitized(logger, error,
+      provider, operation, category, message=None, error_text=None,
+      message_fields=None, level=None)` to `errors.py`, and migrated all 12
+      files that actually duplicated classification (`anthropic_base.py`,
+      `openai_base.py`, `openai_compatible_base.py`, `shimmy_base.py`,
+      `azure_base.py`, `cohere_base.py`, `jina_base.py`, `mistral_base.py`,
+      `zai_base.py`, `google_base.py`, `huggingface_base.py`, `aws_base.py`)
+      onto it — each keeps its own classification logic, only the log-level/
+      message/`raise_sanitized` tail is shared. The 9 pure one-line delegators
+      (`airllm`, `bitnet`, `llama_cpp`, `nvidia`, `replicate`, `tensorrt`,
+      `transformers`, `vllm`, `watson`) were left untouched, nothing to
+      centralize there. Caught and fixed during review: a format-string
+      injection bug (provider error text, error codes, or a configured base
+      URL containing literal `{`/`}` could crash `.format()` instead of
+      raising the sanitized error — fixed via `error_text`/`message_fields`
+      substitution args instead of baking dynamic text into templates), an
+      Azure quota severity regression (now explicit `level=logging.ERROR`),
+      and two branding regressions (OpenAI/Hugging Face capitalization).
       8 files under `server/ai_services/providers/*_base.py`
       (`cohere_base.py`, `mistral_base.py`, `zai_base.py`, `azure_base.py`,
       `huggingface_base.py`, `jina_base.py`, `google_base.py`,

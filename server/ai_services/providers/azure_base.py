@@ -11,7 +11,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 
 
 
@@ -256,27 +256,29 @@ class AzureBaseService(ProviderAIService):
             error: The exception that occurred
             operation: Description of the operation that failed
         """
-        error_str = str(error)
+        error_str = str(error).lower()
+        level = None
 
-        if "authentication" in error_str.lower() or "unauthorized" in error_str.lower():
-            logger.error(
-                f"Azure authentication failed during {operation}: Invalid credentials"
-            )
-        elif "rate limit" in error_str.lower() or "throttl" in error_str.lower():
-            logger.warning(
-                f"Azure rate limit exceeded during {operation}"
-            )
-        elif "quota" in error_str.lower():
-            logger.error(
-                f"Azure quota exceeded during {operation}: {error_str}"
-            )
-        elif "deployment" in error_str.lower():
-            logger.error(
-                f"Azure deployment error during {operation}: {error_str}"
-            )
+        if "authentication" in error_str or "unauthorized" in error_str:
+            category = ErrorCategory.AUTH
+            message = "{provider} authentication failed during {operation}: Invalid credentials"
+        elif "rate limit" in error_str or "throttl" in error_str:
+            category = ErrorCategory.RATE_LIMIT
+            message = None
+        elif "quota" in error_str:
+            category = ErrorCategory.QUOTA
+            message = None
+            # Unlike the generic quota category (logged as a warning), Azure
+            # quota errors were always logged at error level — preserve that.
+            level = logging.ERROR
+        elif "deployment" in error_str:
+            category = ErrorCategory.DEPLOYMENT
+            message = None
         else:
-            logger.error(
-                f"Azure error during {operation}: {error_str}"
-            )
+            category = ErrorCategory.API
+            message = "{provider} error during {operation}: {error}"
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation,
+            category=category, message=message, level=level,
+        )

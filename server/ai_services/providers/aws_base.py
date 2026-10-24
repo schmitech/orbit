@@ -13,7 +13,7 @@ from botocore.exceptions import ClientError
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 
 
 
@@ -250,31 +250,40 @@ class AWSBaseService(ProviderAIService):
             error: The exception that occurred
             operation: Description of the operation that failed
         """
+        message = None
+        error_text = None
+        message_fields = None
+
         if isinstance(error, ClientError):
             error_code = error.response['Error']['Code']
-            error_message = error.response['Error']['Message']
+            # error_message is attacker/upstream-controlled free text (may
+            # contain braces, e.g. an embedded JSON body) — pass it via
+            # error_text so it's substituted into {error} verbatim rather
+            # than being baked into the template string before .format().
+            error_text = error.response['Error']['Message']
 
             if error_code == 'UnrecognizedClientException':
-                logger.error(
-                    f"AWS authentication failed during {operation}: Invalid credentials"
-                )
+                category = ErrorCategory.AUTH
+                message = "AWS authentication failed during {operation}: Invalid credentials"
+                error_text = None
             elif error_code == 'ThrottlingException':
-                logger.warning(
-                    f"AWS rate limit exceeded during {operation}: {error_message}"
-                )
+                category = ErrorCategory.RATE_LIMIT
+                message = "AWS rate limit exceeded during {operation}: {error}"
             elif error_code == 'ModelNotReadyException':
-                logger.error(
-                    f"AWS model not ready during {operation}: {error_message}"
-                )
+                category = ErrorCategory.MODEL_NOT_READY
+                message = "AWS model not ready during {operation}: {error}"
             elif error_code == 'ValidationException':
-                logger.error(
-                    f"AWS validation error during {operation}: {error_message}"
-                )
+                category = ErrorCategory.VALIDATION
+                message = "AWS validation error during {operation}: {error}"
             else:
-                logger.error(
-                    f"AWS Bedrock error [{error_code}] during {operation}: {error_message}"
-                )
+                category = ErrorCategory.API
+                message = "AWS Bedrock error [{error_code}] during {operation}: {error}"
+                message_fields = {"error_code": error_code}
         else:
-            logger.error(f"Unexpected error during {operation}: {error!s}")
+            category = ErrorCategory.UNEXPECTED
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation,
+            category=category, message=message, error_text=error_text,
+            message_fields=message_fields,
+        )

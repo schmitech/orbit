@@ -12,7 +12,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 
 
 
@@ -225,16 +225,24 @@ class ZaiBaseService(ProviderAIService):
         """
         # Z.AI SDK error handling - check for common error types
         error_str = str(error).lower()
-        
-        if "authentication" in error_str or "unauthorized" in error_str or "api key" in error_str:
-            logger.error(f"Z.AI authentication failed during {operation}: Invalid API key")
-        elif "rate limit" in error_str or "quota" in error_str:
-            logger.warning(f"Z.AI rate limit exceeded during {operation}")
-        elif "connection" in error_str or "network" in error_str or "timeout" in error_str:
-            logger.error(f"Z.AI connection error during {operation}: {error!s}")
-        elif "api" in error_str:
-            logger.error(f"Z.AI API error during {operation}: {error!s}")
-        else:
-            logger.error(f"Unexpected error during {operation}: {error!s}")
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        if "authentication" in error_str or "unauthorized" in error_str or "api key" in error_str:
+            category = ErrorCategory.AUTH
+            message = "Z.AI authentication failed during {operation}: Invalid API key"
+        elif "rate limit" in error_str or "quota" in error_str:
+            category = ErrorCategory.RATE_LIMIT
+            message = "Z.AI rate limit exceeded during {operation}"
+        elif "connection" in error_str or "network" in error_str or "timeout" in error_str:
+            category = ErrorCategory.CONNECTION
+            message = "Z.AI connection error during {operation}: {error}"
+        elif "api" in error_str:
+            category = ErrorCategory.API
+            message = "Z.AI API error during {operation}: {error}"
+        else:
+            category = ErrorCategory.UNEXPECTED
+            message = None
+
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation,
+            category=category, message=message,
+        )

@@ -10,7 +10,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 
 
 
@@ -146,23 +146,22 @@ class GoogleBaseService(ProviderAIService):
             error: The exception that occurred
             operation: Description of the operation that failed
         """
-        error_str = str(error)
+        error_str = str(error).lower()
+        message = None
 
-        if "authentication" in error_str.lower() or "credential" in error_str.lower():
-            logger.error(
-                f"{self.provider_name.title()} authentication failed during {operation}: Invalid credentials"
-            )
-        elif "quota" in error_str.lower():
-            logger.warning(
-                f"{self.provider_name.title()} quota exceeded during {operation}"
-            )
-        elif "permission" in error_str.lower():
-            logger.error(
-                f"{self.provider_name.title()} permission error during {operation}: {error_str}"
-            )
+        if "authentication" in error_str or "credential" in error_str:
+            category = ErrorCategory.AUTH
+            message = "{provider} authentication failed during {operation}: Invalid credentials"
+        elif "quota" in error_str:
+            category = ErrorCategory.QUOTA
+            message = "{provider} quota exceeded during {operation}"
+        elif "permission" in error_str:
+            category = ErrorCategory.PERMISSION
         else:
-            logger.error(
-                f"{self.provider_name.title()} error during {operation}: {error_str}"
-            )
+            category = ErrorCategory.API
+            message = "{provider} error during {operation}: {error}"
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation,
+            category=category, message=message,
+        )

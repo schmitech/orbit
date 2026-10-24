@@ -14,7 +14,7 @@ import cohere
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 
 logger = logging.getLogger(__name__)
 # Suppress Cohere Pydantic deprecation warnings
@@ -239,15 +239,20 @@ class CohereBaseService(ProviderAIService):
             error: The exception that occurred
             operation: Description of the operation that failed
         """
-        error_str = str(error)
+        error_str = str(error).lower()
+        message = None
 
-        if "api_key" in error_str.lower() or "unauthorized" in error_str.lower():
-            logger.error(f"Cohere authentication failed during {operation}: Invalid API key")
-        elif "rate limit" in error_str.lower():
-            logger.warning(f"Cohere rate limit exceeded during {operation}")
-        elif "connection" in error_str.lower():
-            logger.error(f"Cohere connection error during {operation}: {error!s}")
+        if "api_key" in error_str or "unauthorized" in error_str:
+            category = ErrorCategory.AUTH
+        elif "rate limit" in error_str:
+            category = ErrorCategory.RATE_LIMIT
+        elif "connection" in error_str:
+            category = ErrorCategory.CONNECTION
         else:
-            logger.error(f"Cohere error during {operation}: {error!s}")
+            category = ErrorCategory.API
+            message = "{provider} error during {operation}: {error}"
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation,
+            category=category, message=message,
+        )

@@ -10,7 +10,7 @@ from typing import Any
 import logging
 
 from ..base import ServiceType
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 from .openai_compatible_base import OpenAICompatibleBaseService
 
 logger = logging.getLogger(__name__)
@@ -74,15 +74,23 @@ class OpenAIBaseService(OpenAICompatibleBaseService):
         """Handle OpenAI errors. The openai package is guaranteed to be importable here."""
         from openai import APIError, APIConnectionError, RateLimitError, AuthenticationError
 
+        message = None
         if isinstance(error, AuthenticationError):
-            logger.error(f"OpenAI authentication failed during {operation}: Invalid API key")
+            category = ErrorCategory.AUTH
+            message = "OpenAI authentication failed during {operation}: Invalid API key"
         elif isinstance(error, RateLimitError):
-            logger.warning(f"OpenAI rate limit exceeded during {operation}")
+            category = ErrorCategory.RATE_LIMIT
+            message = "OpenAI rate limit exceeded during {operation}"
         elif isinstance(error, APIConnectionError):
-            logger.error(f"OpenAI connection error during {operation}: {error!s}")
+            category = ErrorCategory.CONNECTION
+            message = "OpenAI connection error during {operation}: {error}"
         elif isinstance(error, APIError):
-            logger.error(f"OpenAI API error during {operation}: {error!s}")
+            category = ErrorCategory.API
+            message = "OpenAI API error during {operation}: {error}"
         else:
-            logger.error(f"Unexpected error during {operation}: {error!s}")
+            category = ErrorCategory.UNEXPECTED
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation,
+            category=category, message=message,
+        )

@@ -12,7 +12,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import ConnectionManager, RetryHandler
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 
 
 
@@ -275,14 +275,16 @@ class AnthropicBaseService(ProviderAIService):
         )
 
         if isinstance(error, AuthenticationError):
-            logger.error(f"Anthropic authentication failed during {operation}: Invalid API key")
+            category = ErrorCategory.AUTH
         elif isinstance(error, RateLimitError):
-            logger.warning(f"Anthropic rate limit exceeded during {operation}")
+            category = ErrorCategory.RATE_LIMIT
         elif isinstance(error, APIConnectionError):
-            logger.error(f"Anthropic connection error during {operation}: {error!s}")
+            category = ErrorCategory.CONNECTION
         elif isinstance(error, APIError):
-            logger.error(f"Anthropic API error during {operation}: {error!s}")
+            category = ErrorCategory.API
         else:
-            logger.error(f"Unexpected error during {operation}: {error!s}")
+            category = ErrorCategory.UNEXPECTED
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation, category=category
+        )

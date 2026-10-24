@@ -19,7 +19,7 @@ import logging
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 
 
 
@@ -420,6 +420,10 @@ class OpenAICompatibleBaseService(ProviderAIService):
             error: The exception that occurred
             operation: Description of the operation that failed
         """
+        # This base serves many providers (groq, mistral, azure_openai, xai, ...),
+        # so the fallback branches below must name the provider explicitly —
+        # the generic UNEXPECTED default message doesn't mention one at all.
+        message = None
         try:
             from openai import (
                 APIError,
@@ -428,35 +432,23 @@ class OpenAICompatibleBaseService(ProviderAIService):
                 AuthenticationError
             )
 
-            provider_title = self.provider_name.title()
-
             if isinstance(error, AuthenticationError):
-                logger.error(
-                    f"{provider_title} authentication failed during {operation}: "
-                    f"Invalid API key"
-                )
+                category = ErrorCategory.AUTH
             elif isinstance(error, RateLimitError):
-                logger.warning(
-                    f"{provider_title} rate limit exceeded during {operation}"
-                )
+                category = ErrorCategory.RATE_LIMIT
             elif isinstance(error, APIConnectionError):
-                logger.error(
-                    f"{provider_title} connection error during {operation}: {error!s}"
-                )
+                category = ErrorCategory.CONNECTION
             elif isinstance(error, APIError):
-                logger.error(
-                    f"{provider_title} API error during {operation}: {error!s}"
-                )
+                category = ErrorCategory.API
             else:
-                logger.error(
-                    f"Unexpected error during {operation} with {provider_title}: "
-                    f"{error!s}"
-                )
+                category = ErrorCategory.UNEXPECTED
+                message = "Unexpected error during {operation} with {provider}: {error}"
         except ImportError:
-            # If openai exceptions aren't available, just log the error
-            logger.error(
-                f"Error during {operation} with {self.provider_name.title()}: "
-                f"{error!s}"
-            )
+            # If openai exceptions aren't available, fall back to a generic log
+            category = ErrorCategory.UNEXPECTED
+            message = "Error during {operation} with {provider}: {error}"
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation,
+            category=category, message=message,
+        )

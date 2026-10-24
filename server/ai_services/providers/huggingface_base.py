@@ -4,7 +4,7 @@ import logging
 from typing import Any
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 
 logger = logging.getLogger(__name__)
 
@@ -85,17 +85,30 @@ class HuggingFaceBaseService(ProviderAIService):
     def _handle_huggingface_error(self, error: Exception, operation: str = "operation") -> None:
         from huggingface_hub.utils import HfHubHTTPError
         error_str = str(error)
+        message = None
+        error_text = None
 
         if isinstance(error, HfHubHTTPError):
             if "401" in error_str or "403" in error_str:
-                logger.error(f"Hugging Face authentication failed during {operation}: check API key")
+                category = ErrorCategory.AUTH
+                message = "Hugging Face authentication failed during {operation}: check API key"
             elif "429" in error_str:
-                logger.warning(f"Hugging Face rate limit exceeded during {operation}")
+                category = ErrorCategory.RATE_LIMIT
+                message = "Hugging Face rate limit exceeded during {operation}"
             elif "404" in error_str:
-                logger.error(f"Hugging Face model not found during {operation}: {self.model}")
+                category = ErrorCategory.NOT_FOUND
+                message = "Hugging Face model not found during {operation}: {error}"
+                # self.model is config, not upstream free text, but route it
+                # through error_text anyway for consistency/safety.
+                error_text = self.model
             else:
-                logger.error(f"Hugging Face HTTP error during {operation}: {error_str}")
+                category = ErrorCategory.API
+                message = "Hugging Face HTTP error during {operation}: {error}"
         else:
-            logger.error(f"Hugging Face error during {operation}: {error_str}")
+            category = ErrorCategory.UNEXPECTED
+            message = "Hugging Face error during {operation}: {error}"
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation,
+            category=category, message=message, error_text=error_text,
+        )

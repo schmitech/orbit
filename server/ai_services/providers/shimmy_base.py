@@ -7,7 +7,7 @@ import httpx
 
 from ..base import ProviderAIService, ServiceType
 from ..connection import RetryHandler
-from ..errors import raise_sanitized
+from ..errors import ErrorCategory, log_and_raise_sanitized
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +149,8 @@ class ShimmyBaseService(ProviderAIService):
             error: The exception that occurred
             operation: Description of the operation that failed
         """
+        message = None
+        message_fields = None
         try:
             from openai import (
                 APIError,
@@ -158,30 +160,29 @@ class ShimmyBaseService(ProviderAIService):
             )
 
             if isinstance(error, AuthenticationError):
-                logger.error(
-                    f"Shimmy authentication failed during {operation}: {error!s}"
-                )
+                category = ErrorCategory.AUTH
+                message = "Shimmy authentication failed during {operation}: {error}"
             elif isinstance(error, RateLimitError):
-                logger.warning(
-                    f"Shimmy rate limit exceeded during {operation}"
-                )
+                category = ErrorCategory.RATE_LIMIT
             elif isinstance(error, APIConnectionError):
-                logger.error(
-                    f"Shimmy connection error during {operation}: {error!s}. "
-                    f"Make sure the Shimmy server is running at {self.base_url}"
+                category = ErrorCategory.CONNECTION
+                message = (
+                    "Shimmy connection error during {operation}: {error}. "
+                    "Make sure the Shimmy server is running at {base_url}"
                 )
+                message_fields = {"base_url": self.base_url}
             elif isinstance(error, APIError):
-                logger.error(
-                    f"Shimmy API error during {operation}: {error!s}"
-                )
+                category = ErrorCategory.API
             else:
-                logger.error(
-                    f"Unexpected error during {operation} with Shimmy: {error!s}"
-                )
+                category = ErrorCategory.UNEXPECTED
+                message = "Unexpected error during {operation} with Shimmy: {error}"
         except ImportError:
-            # If openai exceptions aren't available, just log the error
-            logger.error(
-                f"Error during {operation} with Shimmy: {error!s}"
-            )
+            # If openai exceptions aren't available, fall back to a generic log
+            category = ErrorCategory.UNEXPECTED
+            message = "Error during {operation} with Shimmy: {error}"
 
-        raise_sanitized(error, provider=self.provider_name, operation=operation)
+        log_and_raise_sanitized(
+            logger, error, provider=self.provider_name, operation=operation,
+            category=category, message=message,
+            message_fields=message_fields,
+        )
