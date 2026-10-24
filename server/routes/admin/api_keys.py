@@ -2,6 +2,7 @@
 API key lifecycle, prompt association, and quota management endpoints.
 """
 
+import asyncio
 import logging
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, HTTPException, Query
@@ -16,7 +17,7 @@ from utils.text_utils import mask_api_key
 from middleware.admin_audit_middleware import EXPLICIT_NULL
 from routes.auth_helpers import check_service_availability
 from routes.admin._shared import (
-    _serialize_created_at, get_api_key_service, apikeys_auth,
+    _clamp_pagination, _serialize_created_at, get_api_key_service, apikeys_auth,
 )
 from services.api_key_service import _masked_key_display, count_active_or_total_api_keys
 from services.database_service import DatabaseOperationError
@@ -145,12 +146,7 @@ async def list_api_keys(
     
     try:
         # Validate parameters
-        if limit > 1000:
-            limit = 1000
-        if limit < 1:
-            limit = 100
-        if offset < 0:
-            offset = 0
+        limit, offset = _clamp_pagination(limit, offset)
         
         # Ensure service is initialized
         if not api_key_service._initialized:
@@ -178,13 +174,19 @@ async def list_api_keys(
                 for key in api_keys
                 if key.get("system_prompt_id")
             }
-            for prompt_id in prompt_ids:
+            async def _resolve_prompt_name(prompt_id: str):
                 try:
                     prompt = await prompt_service.get_prompt_by_id(prompt_id)
-                    if prompt:
-                        prompt_names[prompt_id] = prompt.get("name")
+                    return prompt.get("name") if prompt else None
                 except Exception as exc:  # noqa: BLE001 - best-effort prompt-name resolution; must not fail the list response
                     logger.warning(f"Failed to resolve prompt name for API key list prompt {prompt_id}: {exc}")
+                    return None
+
+            prompt_ids = list(prompt_ids)
+            resolved_names = await asyncio.gather(*(_resolve_prompt_name(pid) for pid in prompt_ids))
+            for prompt_id, name in zip(prompt_ids, resolved_names):
+                if name:
+                    prompt_names[prompt_id] = name
 
         # Convert documents to JSON-serializable format
         serialized_keys = []
@@ -643,19 +645,16 @@ async def get_quota_usage_report(
             limit=limit
         )
 
-        # Build usage report
+        # Build usage report. Quota storage is keyed by the HMAC hash, never the raw key.
+        keyed_docs = [doc for doc in api_keys if doc.get('api_key_hash')]
+        usage_results, quota_results = await asyncio.gather(
+            asyncio.gather(*(quota_service.get_usage(doc['api_key_hash']) for doc in keyed_docs)),
+            asyncio.gather(*(quota_service.get_quota_config(doc['api_key_hash']) for doc in keyed_docs)),
+        )
+
         report = []
-        for key_doc in api_keys:
-            # Quota storage is keyed by the HMAC hash, never the raw key.
-            key_hash = key_doc.get('api_key_hash')
+        for key_doc, usage_stats, quota_config in zip(keyed_docs, usage_results, quota_results):
             key_suffix = key_doc.get('key_suffix')
-            if not key_hash:
-                continue
-
-            # Get usage for this key
-            usage_stats = await quota_service.get_usage(key_hash)
-            quota_config = await quota_service.get_quota_config(key_hash)
-
             # Mask API key from the non-secret key_suffix — never from the hash
             masked_key = f"***{key_suffix[-4:]}" if key_suffix else "****"
 

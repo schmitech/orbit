@@ -33,7 +33,7 @@ from routes.admin._shared import (
 from routes.admin.jobs import _create_admin_job, _update_admin_job
 from routes.admin._yaml_config import (
     _find_adapter_block, _find_adapter_file, _get_adapters_dir,
-    _validate_adapter_filename, _write_adapter_config,
+    _locate_adapter_block_or_404, _validate_adapter_filename, _write_adapter_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -193,14 +193,7 @@ async def get_adapter_entry(
 ):
     """Return just the YAML block for a single adapter (preserves comments)."""
     adapters_dir = _get_adapters_dir(request)
-    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
-    if not file_path:
-        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found in any config file")
-
-    lines = content.split("\n")
-    start, end = _find_adapter_block(lines, adapter_name)
-    if start < 0:
-        raise HTTPException(status_code=404, detail=f"Adapter block '{adapter_name}' not found")
+    file_path, lines, start, end = _locate_adapter_block_or_404(adapters_dir, adapter_name)
 
     block = "\n".join(lines[start:end])
     return {"content": block, "filename": file_path.name, "adapter_name": adapter_name}
@@ -223,14 +216,7 @@ async def save_adapter_entry(
         raise HTTPException(status_code=422, detail=f"Invalid YAML: {exc}")
 
     adapters_dir = _get_adapters_dir(request)
-    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
-    if not file_path:
-        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found in any config file")
-
-    lines = content.split("\n")
-    start, end = _find_adapter_block(lines, adapter_name)
-    if start < 0:
-        raise HTTPException(status_code=404, detail=f"Adapter block '{adapter_name}' not found")
+    file_path, lines, start, end = _locate_adapter_block_or_404(adapters_dir, adapter_name)
 
     new_lines = lines[:start] + new_block.split("\n") + lines[end:]
     new_content = "\n".join(new_lines)
@@ -252,14 +238,7 @@ async def toggle_adapter_enabled(
         raise HTTPException(status_code=422, detail="Missing 'enabled' field")
 
     adapters_dir = _get_adapters_dir(request)
-    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
-    if not file_path:
-        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found in any config file")
-
-    lines = content.split("\n")
-    start, end = _find_adapter_block(lines, adapter_name)
-    if start < 0:
-        raise HTTPException(status_code=404, detail=f"Adapter block '{adapter_name}' not found")
+    file_path, lines, start, end = _locate_adapter_block_or_404(adapters_dir, adapter_name)
 
     enabled_str = "true" if enabled else "false"
     found_enabled = False

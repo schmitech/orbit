@@ -15,10 +15,14 @@ from fastapi import HTTPException, Request
 logger = logging.getLogger(__name__)
 
 
+def _get_config_path(request: Request) -> Path:
+    """Resolve the main config.yaml path from app state."""
+    return Path(getattr(request.app.state, 'config_path', 'config/config.yaml'))
+
+
 def _get_adapters_dir(request: Request) -> Path:
     """Resolve the adapters config directory from app state."""
-    config_path = Path(getattr(request.app.state, 'config_path', 'config/config.yaml'))
-    return config_path.parent / "adapters"
+    return _get_config_path(request).parent / "adapters"
 
 
 def _validate_adapter_filename(filename: str, adapters_dir: Path | None = None) -> None:
@@ -101,3 +105,20 @@ def _write_adapter_config(file_path: Path, new_content: str) -> None:
     logger.info("Adapter config updated: %s", file_path)
     from config.config_manager import clear_config_cache
     clear_config_cache()
+
+
+def _locate_adapter_block_or_404(adapters_dir: Path, adapter_name: str):
+    """Find an adapter's source file and its YAML block, or raise 404.
+
+    Returns (file_path, lines, start, end).
+    """
+    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
+    if not file_path:
+        raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found in any config file")
+
+    lines = content.split("\n")
+    start, end = _find_adapter_block(lines, adapter_name)
+    if start < 0:
+        raise HTTPException(status_code=404, detail=f"Adapter block '{adapter_name}' not found")
+
+    return file_path, lines, start, end

@@ -20,7 +20,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException, Body
 from models.schema import ToolSkillCreate, ToolSkillUpdate, ToolSkillResponse
 from routes.auth_helpers import check_service_availability
 from routes.admin._shared import (
-    _serialize_created_at, get_tool_skill_service, config_auth,
+    _clamp_pagination, _serialize_created_at, get_tool_skill_service, config_auth,
 )
 
 logger = logging.getLogger(__name__)
@@ -115,12 +115,7 @@ async def list_skills(
     """List all tool skills with optional filtering and pagination."""
     check_service_availability(tool_skill_service, "Tool skill service")
 
-    if limit > 1000:
-        limit = 1000
-    if limit < 1:
-        limit = 100
-    if offset < 0:
-        offset = 0
+    limit, offset = _clamp_pagination(limit, offset)
 
     docs = await tool_skill_service.list_skills(name_filter=name_filter, limit=limit, offset=offset)
     return [_to_response(doc) for doc in docs]

@@ -25,6 +25,18 @@ def get_tool_skill_service(request: Request):
     return getattr(request.app.state, 'tool_skill_service', None)
 
 
+def _clamp_pagination(limit: int, offset: int, max_limit: int = 1000, default_limit: int = 100) -> tuple[int, int]:
+    """Clamp limit/offset query params to a sane range, matching the long-standing
+    convention of these admin list endpoints."""
+    if limit > max_limit:
+        limit = max_limit
+    if limit < 1:
+        limit = default_limit
+    if offset < 0:
+        offset = 0
+    return limit, offset
+
+
 def _serialize_created_at(value) -> Optional[float]:
     """Normalize a created_at value (datetime or ISO string) to a Unix timestamp float."""
     if value is None:

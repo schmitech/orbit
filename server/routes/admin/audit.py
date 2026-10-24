@@ -2,6 +2,7 @@
 Admin and auth audit event query endpoint.
 """
 
+import asyncio
 import logging
 from typing import Optional
 from fastapi import APIRouter, Request, HTTPException, Query
@@ -162,27 +163,32 @@ async def list_admin_audit_events(
 
     rows: list[dict] = []
     try:
-        if source in ("all", "admin") and admin_enabled:
-            admin_rows = await audit_service.query_admin_events(
-                filters=native_admin_filters,
-                limit=fetch_limit,
-                offset=0,
-                sort_by="timestamp",
-                sort_order=-1,
-                search=q,
-            )
-            rows.extend(_normalize_admin(row) for row in admin_rows)
+        fetch_admin = source in ("all", "admin") and admin_enabled
+        fetch_chat = source in ("all", "chat") and chat_enabled
 
-        if source in ("all", "chat") and chat_enabled:
-            chat_rows = await audit_service.query_audit_logs(
-                filters=native_chat_filters,
-                limit=fetch_limit,
-                offset=0,
-                sort_by="timestamp",
-                sort_order=-1,
-                search=q,
-            )
-            rows.extend(_normalize_chat(row) for row in chat_rows)
+        admin_coro = audit_service.query_admin_events(
+            filters=native_admin_filters,
+            limit=fetch_limit,
+            offset=0,
+            sort_by="timestamp",
+            sort_order=-1,
+            search=q,
+        ) if fetch_admin else None
+        chat_coro = audit_service.query_audit_logs(
+            filters=native_chat_filters,
+            limit=fetch_limit,
+            offset=0,
+            sort_by="timestamp",
+            sort_order=-1,
+            search=q,
+        ) if fetch_chat else None
+
+        results = await asyncio.gather(*(c for c in (admin_coro, chat_coro) if c is not None))
+        results_iter = iter(results)
+        if fetch_admin:
+            rows.extend(_normalize_admin(row) for row in next(results_iter))
+        if fetch_chat:
+            rows.extend(_normalize_chat(row) for row in next(results_iter))
     except Exception as exc:  # noqa: BLE001 - route handler must convert an unexpected audit-backend failure to a 500
         logger.error(f"Failed to query audit events: {exc}")
         raise HTTPException(status_code=500, detail="Failed to query audit events")

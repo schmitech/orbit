@@ -14,7 +14,7 @@ from models.schema import (
 
 from routes.auth_helpers import check_service_availability
 from routes.admin._shared import (
-    _serialize_created_at, get_prompt_service,
+    _clamp_pagination, _serialize_created_at, get_prompt_service,
     prompts_auth,
 )
 
@@ -98,12 +98,7 @@ async def list_prompts(
         offset: Number of prompts to skip for pagination (default: 0)
     """
     # Validate parameters
-    if limit > 1000:
-        limit = 1000
-    if limit < 1:
-        limit = 100
-    if offset < 0:
-        offset = 0
+    limit, offset = _clamp_pagination(limit, offset)
     
     return await prompt_service.list_prompts(name_filter=name_filter, limit=limit, offset=offset)
 

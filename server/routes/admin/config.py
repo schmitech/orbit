@@ -11,6 +11,7 @@ from fastapi import APIRouter, Request, HTTPException, Body
 from routes.admin._shared import (
     config_auth, system_auth,
 )
+from routes.admin._yaml_config import _get_config_path
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ async def get_config(
     Returns the raw file text so that comments, env var references,
     and import directives are preserved.
     """
-    config_path = Path(getattr(request.app.state, 'config_path', 'config/config.yaml'))
+    config_path = _get_config_path(request)
     if not config_path.is_file():
         raise HTTPException(status_code=404, detail=f"Config file not found: {config_path}")
     content = config_path.read_text(encoding='utf-8')
@@ -84,7 +85,7 @@ async def update_config(
     except yaml.YAMLError as exc:
         raise HTTPException(status_code=422, detail=f"Invalid YAML: {exc}")
 
-    config_path = Path(getattr(request.app.state, 'config_path', 'config/config.yaml'))
+    config_path = _get_config_path(request)
     if not config_path.is_file():
         raise HTTPException(status_code=404, detail=f"Config file not found: {config_path}")
 
@@ -134,7 +135,7 @@ def _split_config_sections(content: str):
 
 
 def _load_config_sections(request: Request):
-    config_path = Path(getattr(request.app.state, 'config_path', 'config/config.yaml'))
+    config_path = _get_config_path(request)
     if not config_path.is_file():
         raise HTTPException(status_code=404, detail=f"Config file not found: {config_path}")
     content = config_path.read_text(encoding='utf-8')
