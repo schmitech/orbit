@@ -53,30 +53,32 @@ These require adding or extending a shared helper/service method, then
 updating multiple call sites together. Each is a single coherent change, but
 touches more than one file and deserves its own PR + test pass.
 
-- [ ] **Spike: find genuinely shared primitives across the comment-preserving
-      YAML editors before committing to one editor.** `_yaml_config.py`
-      (`_find_adapter_block` — locates a `- name:` list entry and replaces the
-      whole block), `mcp.py` (~958-1258: `_last_key_line`,
-      `_patch_yaml_scalars`, `_find_block_header`, `_patch_yaml_map`,
-      `_patch_yaml_auth`, `_patch_yaml_list`, `_insert_mcp_server`,
-      `_remove_mcp_server` — patches individual scalar/map/list *fields inside*
-      a server entry, in place), and `config.py`
-      (`_split_config_sections`/`_load_config_sections` — replaces an entire
-      top-level config section wholesale) are not the same problem solved
-      three times: `config.py` operates at whole-section granularity,
-      `mcp.py` at field granularity within an entry, `_yaml_config.py` at
-      whole-entry granularity. Don't assume one shared editor covers all
-      three — first spike what's actually common (e.g. "find a block's start/
-      end line range by key", "re-indent a replacement block to match") vs.
-      what's genuinely field-patching-specific to `mcp.py`, and only then
-      decide whether a shared primitive is worth extracting, and for which
-      subset. Any extraction still needs round-trip tests against real
-      `config/adapters/*.yaml` and `config/mcp_clients.yaml` content, since
-      comment-preservation must stay byte-identical.
-      - Alternative considered: replace the hand-rolled line-splicing with
-        `ruamel.yaml` (comment-preserving by design) instead of a bespoke
-        unification. Worth comparing output fidelity against the current
-        approach as part of the same spike.
+- [x] **Spike: find genuinely shared primitives across the comment-preserving
+      YAML editors before committing to one editor.** Findings — no code
+      change made; this was explicitly scoped as investigation-only:
+      - The one primitive genuinely shared across files — "find a `- name:`
+        list entry's start/end line range by key" — is already factored out
+        as `_find_adapter_block` (`_yaml_config.py`) and already reused by
+        `mcp.py`'s `_remove_mcp_server` and by `create_mcp_server`'s block
+        lookups. Nothing further to extract here.
+      - `config.py`'s `_split_config_sections` solves a different problem at
+        a different granularity (regex-matched top-level keys at column 0,
+        whole-section replacement) and shares no logic with the list-entry
+        finder — confirmed by reading both; not a duplication, as the
+        original finding already suspected.
+      - `mcp.py`'s field-patching helpers (`_patch_yaml_scalars`,
+        `_find_block_header`, `_patch_yaml_map`, `_patch_yaml_auth`,
+        `_patch_yaml_list`, `_last_key_line`) patch individual scalar/map/
+        list fields *inside* an already-located entry. `_yaml_config.py` has
+        no equivalent — it only ever replaces a whole entry — so there's
+        nothing on the other side to unify these with.
+      - Conclusion: the three files are not the same problem solved three
+        times; they're one shared primitive (already shared) plus two
+        genuinely different patching strategies. No further unification is
+        warranted. The `ruamel.yaml` alternative wasn't evaluated, since
+        there's no longer an unification decision it would be weighed
+        against — revisit only if a fourth comment-preserving editor
+        appears and the duplication becomes real.
 - [x] **Deduplicate repeated adapters-directory scans.** Added
       `_scan_adapter_dir(adapters_dir)` (`_yaml_config.py`), parsing every
       `*.yaml` file once into `(path, content, parsed)` tuples.
@@ -93,23 +95,38 @@ touches more than one file and deserves its own PR + test pass.
       `_scan_adapter_dir` call in each of the three hot paths above is now
       wrapped in `asyncio.to_thread(...)` — one offload per request instead of
       per duplicate scan.
-- [ ] **Push adapter-reference-field knowledge into the adapter/config layer.**
-      `adapters.py`'s `_adapter_reference_kinds`/`_ADAPTER_REF_LIST_KEYS`/
-      `_ADAPTER_REF_SCALAR_KEYS` (~1006-1024) hand-maintain which config keys
-      let one adapter reference another, purely so `delete_adapter` can warn
-      about referrers. Expose `find_references(adapters_config, name)` from the
-      adapter manager/config schema module instead, so a new reference-style
-      field is a schema change, not a second place in the route file to
-      remember to update.
-- [ ] **Promote adapter capability checks out of the route layer.**
-      `_supports_template_reload`/`_supports_test_query` (`adapters.py`
-      ~44-91) reach into `retrievers.base.*` with `isinstance`/`hasattr`
-      checks, duplicated again inline in `test_adapter_query` (~line 1475).
-      Add `supports_template_reload`/`supports_test_query` as declared
-      capabilities in `AdapterCapabilities`/`AdapterCapabilityRegistry`
-      (`server/adapters/capabilities.py`), computed once at registration, and
-      have routes query capabilities instead of re-deriving them from class
-      hierarchy in multiple places.
+- [x] **Push adapter-reference-field knowledge into the adapter/config layer.**
+      Added `ADAPTER_REF_LIST_KEYS`/`ADAPTER_REF_SCALAR_KEYS`/
+      `_adapter_reference_kinds`/`find_references(entries, name)` to
+      `services/config/adapter_config_manager.py` (the adapter-config schema
+      module). `adapters.py`'s `_find_adapter_referrers` now calls
+      `find_references(parsed.get("adapters", []), name)` per scanned file
+      instead of hand-maintaining the key lists and kind-detection logic
+      itself; a new reference-style field is now a one-place schema change.
+- [x] **Promote adapter capability checks out of the route layer.** Moved
+      `_supports_template_reload`/`_supports_test_query` to
+      `server/adapters/capabilities.py` as `supports_template_reload`/
+      `supports_test_query`, sharing a new `_resolve_implementation_class`
+      helper; `test_adapter_query`'s inline duplicate of the same isinstance
+      check now calls `supports_test_query(adapter_instance=adapter)` too.
+      Decision recorded here since it diverges from the original wording:
+      **not** cached on `AdapterCapabilities`/computed at registration, after
+      checking how the registry is actually populated — `register_from_config`
+      only runs lazily, the first time `context_retrieval.py`'s pipeline step
+      handles a chat request for that adapter (`inference/pipeline/steps/
+      context_retrieval.py`). The admin `/adapters/capabilities` endpoint this
+      code serves is specifically designed to answer for adapters that
+      haven't been registered yet (it already branches on a cached vs.
+      uncached instance) — tying it to the registry would mean either forcing
+      registration as a side effect of a read endpoint, or still falling back
+      to the from-config resolution path for every uncached adapter, which is
+      most of what the registry would have saved. So: deduplicated as plain
+      functions in the capabilities module, not folded into the
+      registration-time-cached capability model. The Phase 3 "cache resolved
+      adapter capability tuples" item is the right place to revisit caching,
+      if the resolve-from-implementation-path cost (one `importlib.
+      import_module` per uncached adapter per request) ever shows up as a
+      real cost.
 - [x] **Label API-key groups by targeted lookup, not full-collection scan.**
       `observability.py`'s `_label_api_key_groups` now splits the group keys
       present into `_id` candidates and masked-`key_suffix` candidates and

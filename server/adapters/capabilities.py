@@ -8,6 +8,7 @@ Instead of checking if an adapter is "multimodal" or "file-document-qa",
 pipeline steps query adapter capabilities to determine behavior.
 """
 
+import importlib
 from dataclasses import dataclass, field
 from typing import Any, Optional
 from collections.abc import Callable
@@ -362,3 +363,56 @@ _global_registry = AdapterCapabilityRegistry()
 def get_capability_registry() -> AdapterCapabilityRegistry:
     """Get the global capability registry."""
     return _global_registry
+
+
+def _resolve_implementation_class(adapter_config: Optional[dict[str, Any]]):
+    """Import and return an adapter's `implementation` class from config,
+    without instantiating it. None if unresolvable."""
+    implementation_path = (adapter_config or {}).get('implementation')
+    if not implementation_path or '.' not in implementation_path:
+        return None
+    try:
+        module_path, class_name = implementation_path.rsplit('.', 1)
+        module = importlib.import_module(module_path)
+        return getattr(module, class_name)
+    except (ImportError, AttributeError, ValueError):
+        return None
+
+
+def supports_template_reload(adapter_instance: Any = None, adapter_config: Optional[dict[str, Any]] = None) -> bool:
+    """Whether an adapter's implementation exposes reload_templates().
+
+    Checks the live instance when given; otherwise resolves the
+    implementation class from config without instantiating it, so an
+    uncached adapter still reports accurately instead of always False.
+    These checks are deliberately not cached on `AdapterCapabilities` —
+    unlike config-declared capabilities, admin callers need an answer for
+    adapters the capability registry hasn't registered yet (it's only
+    populated lazily, the first time an adapter handles a chat request).
+    """
+    if adapter_instance is not None:
+        return hasattr(adapter_instance, 'reload_templates')
+    adapter_class = _resolve_implementation_class(adapter_config)
+    return adapter_class is not None and hasattr(adapter_class, 'reload_templates')
+
+
+def supports_test_query(adapter_instance: Any = None, adapter_config: Optional[dict[str, Any]] = None) -> bool:
+    """Whether an adapter is an intent/composite retriever eligible for /test-query.
+
+    Same cached-instance-or-resolve-from-config pattern as
+    `supports_template_reload` — see its docstring for why this isn't cached
+    on `AdapterCapabilities` instead.
+    """
+    from retrievers.base.intent_sql_base import IntentSQLRetriever
+    from retrievers.base.intent_http_base import IntentHTTPRetriever
+    from retrievers.base.intent_composite_base import CompositeIntentRetriever
+
+    intent_bases = (IntentSQLRetriever, IntentHTTPRetriever, CompositeIntentRetriever)
+
+    if adapter_instance is not None:
+        return isinstance(adapter_instance, intent_bases)
+    adapter_class = _resolve_implementation_class(adapter_config)
+    try:
+        return adapter_class is not None and issubclass(adapter_class, intent_bases)
+    except TypeError:
+        return False

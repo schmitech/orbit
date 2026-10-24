@@ -4,7 +4,6 @@ Adapter capabilities, config file CRUD, creation via the adapter SDK, and hot re
 
 import asyncio
 import logging
-import importlib
 import textwrap
 import yaml
 from datetime import datetime
@@ -16,7 +15,9 @@ from models.schema import (
     AdapterReloadResponse,
     TemplateReloadResponse, TemplateTestRequest, TemplateFeedbackRequest,
 )
+from adapters.capabilities import supports_template_reload, supports_test_query
 from config.config_manager import reload_adapters_config
+from services.config.adapter_config_manager import find_references
 from services.mcp_auth_policy import apply_mcp_auth_policy
 
 # Adapter SDK — generates new adapter configs from spec + answers
@@ -41,56 +42,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _supports_template_reload(adapter_instance, adapter_config: dict) -> bool:
-    """Whether an adapter's implementation exposes reload_templates().
-
-    Checks the live instance when cached; otherwise resolves the implementation
-    class from config without instantiating it, so uncached adapters report
-    accurately instead of always False.
-    """
-    if adapter_instance is not None:
-        return hasattr(adapter_instance, 'reload_templates')
-
-    implementation_path = (adapter_config or {}).get('implementation')
-    if not implementation_path or '.' not in implementation_path:
-        return False
-    try:
-        module_path, class_name = implementation_path.rsplit('.', 1)
-        module = importlib.import_module(module_path)
-        adapter_class = getattr(module, class_name)
-        return hasattr(adapter_class, 'reload_templates')
-    except (ImportError, AttributeError, ValueError):
-        return False
-
-
-def _supports_test_query(adapter_instance, adapter_config: dict) -> bool:
-    """Whether an adapter is an intent/composite retriever eligible for /test-query.
-
-    Mirrors the isinstance check in test_adapter_query() itself. Checks the live
-    instance when cached; otherwise resolves the implementation class from config
-    without instantiating it, so uncached adapters report accurately.
-    """
-    from retrievers.base.intent_sql_base import IntentSQLRetriever
-    from retrievers.base.intent_http_base import IntentHTTPRetriever
-    from retrievers.base.intent_composite_base import CompositeIntentRetriever
-
-    intent_bases = (IntentSQLRetriever, IntentHTTPRetriever, CompositeIntentRetriever)
-
-    if adapter_instance is not None:
-        return isinstance(adapter_instance, intent_bases)
-
-    implementation_path = (adapter_config or {}).get('implementation')
-    if not implementation_path or '.' not in implementation_path:
-        return False
-    try:
-        module_path, class_name = implementation_path.rsplit('.', 1)
-        module = importlib.import_module(module_path)
-        adapter_class = getattr(module, class_name)
-        return issubclass(adapter_class, intent_bases)
-    except (ImportError, AttributeError, ValueError, TypeError):
-        return False
-
-
 @router.get("/adapters/capabilities", dependencies=[adapters_auth])
 async def get_adapter_capabilities(
     request: Request,
@@ -113,8 +64,8 @@ async def get_adapter_capabilities(
                 "name": adapter_name,
                 "adapter_type": (adapter_config or {}).get("adapter"),
                 "cached": bool(adapter_instance),
-                "supports_template_reload": _supports_template_reload(adapter_instance, adapter_config),
-                "supports_test_query": _supports_test_query(adapter_instance, adapter_config),
+                "supports_template_reload": supports_template_reload(adapter_instance, adapter_config),
+                "supports_test_query": supports_test_query(adapter_instance, adapter_config),
             })
 
         return {"adapters": capabilities}
@@ -984,35 +935,6 @@ async def create_adapter(
     }
 
 
-# Config keys through which one adapter names another. These are resolved through the
-# adapter manager at runtime, so a dangling name breaks the referring adapter rather
-# than the deleted one: composite adapters fail to initialize, realtime adapters lose
-# grounding. Skill lists are the third way and live under `capabilities`.
-_ADAPTER_REF_LIST_KEYS = ("child_adapters",)
-_ADAPTER_REF_SCALAR_KEYS = ("grounding_adapter",)
-
-
-def _adapter_reference_kinds(entry: dict, name: str) -> list[str]:
-    """Which of `entry`'s reference fields point at `name`."""
-    kinds = []
-
-    caps = entry.get("capabilities") or {}
-    if name in (caps.get("available_skills") or []) or name in (caps.get("auto_routable_skills") or []):
-        kinds.append("skills")
-
-    config = entry.get("config") or {}
-    if not isinstance(config, dict):
-        return kinds
-    for key in _ADAPTER_REF_LIST_KEYS:
-        if name in (config.get(key) or []):
-            kinds.append(key)
-    for key in _ADAPTER_REF_SCALAR_KEYS:
-        if config.get(key) == name:
-            kinds.append(key)
-
-    return kinds
-
-
 async def _find_adapter_referrers(
     request: Request, adapters_dir: Path, name: str, scanned: Optional[list] = None
 ) -> list[str]:
@@ -1041,11 +963,8 @@ async def _find_adapter_referrers(
             )
 
     for _yaml_file, _content, parsed in (scanned if scanned is not None else _scan_adapter_dir(adapters_dir)):
-        for entry in parsed.get("adapters", []) or []:
-            if not isinstance(entry, dict) or entry.get("name") == name:
-                continue
-            for kind in _adapter_reference_kinds(entry, name):
-                referrers.append(f"adapter '{entry.get('name')}' ({kind})")
+        for ref_name, kind in find_references(parsed.get("adapters", []) or [], name):
+            referrers.append(f"adapter '{ref_name}' ({kind})")
 
     return referrers
 
@@ -1412,11 +1331,7 @@ async def test_adapter_query(
         raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found")
 
     # Verify adapter is an intent or composite retriever
-    from retrievers.base.intent_sql_base import IntentSQLRetriever
-    from retrievers.base.intent_http_base import IntentHTTPRetriever
-    from retrievers.base.intent_composite_base import CompositeIntentRetriever
-
-    if not isinstance(adapter, (IntentSQLRetriever, IntentHTTPRetriever, CompositeIntentRetriever)):
+    if not supports_test_query(adapter_instance=adapter):
         raise HTTPException(
             status_code=400,
             detail=f"Adapter '{adapter_name}' is type '{type(adapter).__name__}', not an intent retriever. "

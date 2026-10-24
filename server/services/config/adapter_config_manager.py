@@ -5,7 +5,7 @@ Provides centralized configuration management for adapters.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 from adapters.capabilities import AdapterCapabilities
 from services.provider_metadata import get_provider_context_window_info
@@ -13,6 +13,52 @@ from services.provider_metadata import get_provider_context_window_info
 from .config_change_detector import ConfigChangeDetector
 
 logger = logging.getLogger(__name__)
+
+# Config keys through which one adapter names another by name. These are resolved
+# through the adapter manager at runtime, so a dangling name breaks the referring
+# adapter rather than the deleted one (composite adapters fail to initialize,
+# realtime adapters lose grounding). Skill lists are the third way and live under
+# `capabilities`. Centralized here, not in the admin route layer, so a new
+# reference-style field is a schema change in one place, not a second list a
+# route has to remember to keep in sync.
+ADAPTER_REF_LIST_KEYS = ("child_adapters",)
+ADAPTER_REF_SCALAR_KEYS = ("grounding_adapter",)
+
+
+def _adapter_reference_kinds(entry: dict[str, Any], name: str) -> list[str]:
+    """Which of `entry`'s reference fields point at `name`."""
+    kinds = []
+
+    caps = entry.get("capabilities") or {}
+    if name in (caps.get("available_skills") or []) or name in (caps.get("auto_routable_skills") or []):
+        kinds.append("skills")
+
+    config = entry.get("config") or {}
+    if not isinstance(config, dict):
+        return kinds
+    for key in ADAPTER_REF_LIST_KEYS:
+        if name in (config.get(key) or []):
+            kinds.append(key)
+    for key in ADAPTER_REF_SCALAR_KEYS:
+        if config.get(key) == name:
+            kinds.append(key)
+
+    return kinds
+
+
+def find_references(entries: Iterable[dict[str, Any]], name: str) -> list[tuple[str, str]]:
+    """`(referring_adapter_name, kind)` for every entry in `entries` that
+    references `name` — as a skill or as a runtime dependency. `name`'s own
+    entry is excluded. `entries` is a list of raw adapter config dicts (the
+    `adapters:` list from a config file, or `AdapterConfigManager.
+    get_all_configs().values()`)."""
+    referrers = []
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("name") == name:
+            continue
+        for kind in _adapter_reference_kinds(entry, name):
+            referrers.append((entry.get("name"), kind))
+    return referrers
 
 
 def _resolve_preset(provider: str, provider_config: dict[str, Any], global_config: dict[str, Any]) -> dict[str, Any]:
