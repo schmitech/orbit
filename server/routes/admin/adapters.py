@@ -2,6 +2,7 @@
 Adapter capabilities, config file CRUD, creation via the adapter SDK, and hot reload.
 """
 
+import asyncio
 import logging
 import importlib
 import textwrap
@@ -32,7 +33,7 @@ from routes.admin._shared import (
 from routes.admin.jobs import run_admin_job_async
 from routes.admin._yaml_config import (
     _find_adapter_block, _find_adapter_file, _get_adapters_dir,
-    _locate_adapter_block_or_404, _validate_adapter_filename, _write_adapter_config,
+    _locate_adapter_block_or_404, _scan_adapter_dir, _validate_adapter_filename, _write_adapter_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -457,20 +458,17 @@ async def _propagate_adapter_generation(request: Request, action: str) -> None:
     await _propagate_reload_generation(request, "adapter_config", action)
 
 
-def _find_skill_name_owner(adapters_dir: Path, skill_name: str, exclude_name: Optional[str] = None) -> Optional[str]:
+def _find_skill_name_owner(
+    adapters_dir: Path, skill_name: str, exclude_name: Optional[str] = None, scanned: Optional[list] = None
+) -> Optional[str]:
     """The adapter name already using `skill_name`, if any (other than `exclude_name`).
 
     Skill routing is ambiguous once two adapters share a `capabilities.skill_name`
     — clients invoke it as `skill=<name>` and auto-routing keys off it — so this
-    is checked before a new/edited adapter can claim one.
+    is checked before a new/edited adapter can claim one. Pass `scanned` (from
+    `_scan_adapter_dir`) to reuse an already-done directory scan.
     """
-    for yaml_file in adapters_dir.glob("*.yaml"):
-        try:
-            parsed = yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {}
-        except yaml.YAMLError:
-            continue
-        if not isinstance(parsed, dict):
-            continue
+    for _yaml_file, _content, parsed in (scanned if scanned is not None else _scan_adapter_dir(adapters_dir)):
         for entry in parsed.get("adapters", []):
             if not isinstance(entry, dict):
                 continue
@@ -790,7 +788,9 @@ async def import_adapter(
     if (adapters_dir / filename).exists() and not overwrite:
         raise HTTPException(status_code=409, detail=f"Adapter file '{filename}' already exists")
 
-    existing_file, _ = _find_adapter_file(adapters_dir, name)
+    scanned = await asyncio.to_thread(_scan_adapter_dir, adapters_dir)
+
+    existing_file, _ = _find_adapter_file(adapters_dir, name, scanned=scanned)
     if existing_file and existing_file.name != filename:
         raise HTTPException(
             status_code=409,
@@ -799,7 +799,7 @@ async def import_adapter(
 
     skill_name = (entry.get("capabilities") or {}).get("skill_name")
     if skill_name:
-        owner = _find_skill_name_owner(adapters_dir, skill_name, exclude_name=name)
+        owner = _find_skill_name_owner(adapters_dir, skill_name, exclude_name=name, scanned=scanned)
         if owner:
             raise HTTPException(
                 status_code=409,
@@ -904,7 +904,9 @@ async def create_adapter(
     # different file would silently shadow this one at load time. `overwrite` waives
     # the target-file check above, never this one — otherwise it would be a way to
     # create exactly the duplicate definition this guard exists to prevent.
-    existing_file, _ = _find_adapter_file(adapters_dir, name)
+    scanned = await asyncio.to_thread(_scan_adapter_dir, adapters_dir)
+
+    existing_file, _ = _find_adapter_file(adapters_dir, name, scanned=scanned)
     if existing_file and existing_file.name != filename:
         raise HTTPException(
             status_code=409,
@@ -913,7 +915,7 @@ async def create_adapter(
 
     skill_name = (rendered_entry.get("capabilities") or {}).get("skill_name")
     if skill_name:
-        owner = _find_skill_name_owner(adapters_dir, skill_name, exclude_name=name)
+        owner = _find_skill_name_owner(adapters_dir, skill_name, exclude_name=name, scanned=scanned)
         if owner:
             raise HTTPException(
                 status_code=409,
@@ -1011,9 +1013,12 @@ def _adapter_reference_kinds(entry: dict, name: str) -> list[str]:
     return kinds
 
 
-async def _find_adapter_referrers(request: Request, adapters_dir: Path, name: str) -> list[str]:
+async def _find_adapter_referrers(
+    request: Request, adapters_dir: Path, name: str, scanned: Optional[list] = None
+) -> list[str]:
     """Things that would break if `name` disappeared: API keys bound to it, and other
-    adapters that name it — as a skill or as a runtime dependency."""
+    adapters that name it — as a skill or as a runtime dependency. Pass `scanned`
+    (from `_scan_adapter_dir`) to reuse an already-done directory scan."""
     referrers: list[str] = []
 
     api_key_service = getattr(request.app.state, "api_key_service", None)
@@ -1035,13 +1040,7 @@ async def _find_adapter_referrers(request: Request, adapters_dir: Path, name: st
                 detail=f"Could not check whether adapter '{name}' is still referenced: {exc}"
             )
 
-    for yaml_file in sorted(adapters_dir.glob("*.yaml")):
-        try:
-            parsed = yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {}
-        except yaml.YAMLError:
-            continue
-        if not isinstance(parsed, dict):
-            continue
+    for _yaml_file, _content, parsed in (scanned if scanned is not None else _scan_adapter_dir(adapters_dir)):
         for entry in parsed.get("adapters", []) or []:
             if not isinstance(entry, dict) or entry.get("name") == name:
                 continue
@@ -1067,12 +1066,14 @@ async def delete_adapter(
     if not adapters_dir.is_dir():
         raise HTTPException(status_code=500, detail=f"Adapters directory not found: {adapters_dir}")
 
-    file_path, content = _find_adapter_file(adapters_dir, adapter_name)
+    scanned = await asyncio.to_thread(_scan_adapter_dir, adapters_dir)
+
+    file_path, content = _find_adapter_file(adapters_dir, adapter_name, scanned=scanned)
     if not file_path:
         raise HTTPException(status_code=404, detail=f"Adapter '{adapter_name}' not found")
 
     if not force:
-        referrers = await _find_adapter_referrers(request, adapters_dir, adapter_name)
+        referrers = await _find_adapter_referrers(request, adapters_dir, adapter_name, scanned=scanned)
         if referrers:
             raise HTTPException(
                 status_code=409,

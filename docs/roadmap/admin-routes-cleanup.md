@@ -77,24 +77,22 @@ touches more than one file and deserves its own PR + test pass.
         `ruamel.yaml` (comment-preserving by design) instead of a bespoke
         unification. Worth comparing output fidelity against the current
         approach as part of the same spike.
-- [ ] **Deduplicate repeated adapters-directory scans.** `_find_adapter_file`
-      (`_yaml_config.py`), `_find_adapter_referrers`, and
-      `_find_skill_name_owner` (`adapters.py`) each independently glob and
-      `yaml.safe_load` every file in `adapters_dir`. A single
-      `create`/`delete`/`import` request re-reads and re-parses the whole
-      directory 2-3 times. Parse once into `(path, content, parsed)` tuples and
-      pass that into the referrer/skill-owner/file-lookup checks. Compounds
-      with the next item (adapter config is also reloaded 3+ times end to end
-      via `reload_adapters_config`) — worth scoping both together since
-      they share the same request paths (`create_adapter`, `import_adapter`,
-      `delete_adapter`).
-- [ ] **Offload blocking directory scans to a thread.** The same
-      scan-and-parse helpers above use synchronous `Path.read_text()`/
-      `yaml.safe_load()` inside `async def` route handlers with no
-      `asyncio.to_thread`. Blocks the event loop on every adapter CRUD request
-      when the adapters directory is large. Wrap in `asyncio.to_thread(...)`
-      once the scan is consolidated (previous item) rather than wrapping each
-      of the three duplicate call sites separately.
+- [x] **Deduplicate repeated adapters-directory scans.** Added
+      `_scan_adapter_dir(adapters_dir)` (`_yaml_config.py`), parsing every
+      `*.yaml` file once into `(path, content, parsed)` tuples.
+      `_find_adapter_file`, `_find_skill_name_owner`, and
+      `_find_adapter_referrers` now take an optional `scanned` param and reuse
+      it instead of re-globbing/re-parsing when a caller passes one.
+      `create_adapter`, `import_adapter`, and `delete_adapter` each scan the
+      directory once and pass the result to both checks they need (existing-file
+      + skill-owner, or file-lookup + referrers), instead of two independent
+      scans per request. `reload_adapters_config`'s own end-to-end reload is
+      unrelated to this (it reloads already-committed config, not a directory
+      scan) and is left as-is.
+- [x] **Offload blocking directory scans to a thread.** The consolidated
+      `_scan_adapter_dir` call in each of the three hot paths above is now
+      wrapped in `asyncio.to_thread(...)` — one offload per request instead of
+      per duplicate scan.
 - [ ] **Push adapter-reference-field knowledge into the adapter/config layer.**
       `adapters.py`'s `_adapter_reference_kinds`/`_ADAPTER_REF_LIST_KEYS`/
       `_ADAPTER_REF_SCALAR_KEYS` (~1006-1024) hand-maintain which config keys
@@ -112,21 +110,23 @@ touches more than one file and deserves its own PR + test pass.
       (`server/adapters/capabilities.py`), computed once at registration, and
       have routes query capabilities instead of re-deriving them from class
       hierarchy in multiple places.
-- [ ] **Label API-key groups by targeted lookup, not full-collection scan.**
-      `observability.py`'s `_label_api_key_groups` (~35-49) pages through the
-      entire `active: True` api_keys collection to build both an id→name map
-      *and* a masked-suffix→names map (the latter preserving collision
-      detection — the same suffix can belong to multiple keys, so a group can
-      resolve to several candidate names), even though it only needs to label
-      the ≤100 group keys actually present. A group's `key` is either an
-      exact `_id` or a masked `key_suffix`, so a plain
-      `_id: {"$in": [...]}` query alone would correctly label id-keyed groups
-      but silently drop labels for every suffix-keyed group. Narrow the scan
-      to a targeted query that still returns both the ids and the suffixes
-      present in `groups` (e.g. `{"$or": [{"_id": {"$in": [...]}}, {"key_suffix":
-      {"$in": [...]}}]}`), and keep building both lookup maps — including the
-      suffix collision list — from that narrowed result set rather than
-      dropping the collision handling.
+- [x] **Label API-key groups by targeted lookup, not full-collection scan.**
+      `observability.py`'s `_label_api_key_groups` now splits the group keys
+      present into `_id` candidates and masked-`key_suffix` candidates and
+      runs two separate targeted queries (`{"active": True, "_id": {"$in":
+      [...]}}` and `{"active": True, "key_suffix": {"$in": [...]}}}`), each
+      fully paginated, instead of paging through the whole collection. Two
+      queries rather than one `$or` of both: `MongoDBService.
+      _convert_string_ids_to_objectid` only converts `_id` string candidates
+      to ObjectId when `_id` is a top-level query key, not nested inside an
+      `$or` list, so a single `$or` query silently failed to match any
+      id-keyed group on MongoDB. Pagination matters because a suffix can
+      match more active keys than there are suffix candidates. Both lookup
+      maps — including the suffix collision list (`masked_to_names`,
+      `ambiguous` flag) — are still built from the full matched result set,
+      deduplicated by `_id` (a key present in both the id and suffix query
+      results is counted once, not as a spurious second match), so collision
+      handling is unchanged.
 
 ## Phase 3 — Opportunistic / low-urgency
 

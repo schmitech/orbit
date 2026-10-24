@@ -83,8 +83,16 @@ def _find_adapter_block(lines: list[str], adapter_name: str) -> tuple[int, int]:
     return start, end
 
 
-def _find_adapter_file(adapters_dir: Path, adapter_name: str):
-    """Locate which .yaml file contains an adapter by name. Returns (path, content)."""
+def _scan_adapter_dir(adapters_dir: Path) -> list[tuple[Path, str, dict]]:
+    """Read and parse every adapter YAML file once.
+
+    Returns (path, raw_content, parsed) tuples, skipping files that fail to
+    parse or don't parse to a dict. A caller that needs more than one
+    directory-wide check (e.g. find-file-by-name plus skill-owner lookup)
+    should scan once with this and pass the result to each check, instead of
+    letting each one glob and re-parse the directory on its own.
+    """
+    entries = []
     for yaml_file in sorted(adapters_dir.glob("*.yaml")):
         content = yaml_file.read_text(encoding="utf-8")
         try:
@@ -93,6 +101,17 @@ def _find_adapter_file(adapters_dir: Path, adapter_name: str):
             continue
         if not isinstance(parsed, dict):
             continue
+        entries.append((yaml_file, content, parsed))
+    return entries
+
+
+def _find_adapter_file(adapters_dir: Path, adapter_name: str, scanned: list | None = None):
+    """Locate which .yaml file contains an adapter by name. Returns (path, content).
+
+    Pass `scanned` (from `_scan_adapter_dir`) to reuse an already-done scan
+    instead of re-globbing and re-parsing the directory.
+    """
+    for yaml_file, content, parsed in (scanned if scanned is not None else _scan_adapter_dir(adapters_dir)):
         for a in parsed.get("adapters", []):
             if isinstance(a, dict) and a.get("name") == adapter_name:
                 return yaml_file, content

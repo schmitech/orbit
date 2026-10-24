@@ -32,25 +32,54 @@ async def _label_api_key_groups(request: Request, groups: list[dict[str, Any]]) 
     if api_key_service is None or not groups:
         return groups
 
-    page_size = 500
-    active_keys: list[dict[str, Any]] = []
-    try:
+    # A group's `key` is either an exact `_id` or a masked `...<suffix>` value —
+    # narrow the lookup to just the ones actually present instead of scanning
+    # the whole active-keys collection.
+    keys_present = {group.get("key") for group in groups if group.get("key")}
+    id_candidates = [k for k in keys_present if not k.startswith("...")]
+    suffix_candidates = [k[3:] for k in keys_present if k.startswith("...")]
+    if not id_candidates and not suffix_candidates:
+        return groups
+
+    # Two separate `_id`/`key_suffix` queries rather than one `$or` of both —
+    # MongoDBService._convert_string_ids_to_objectid only converts `_id`
+    # string candidates to ObjectId when `_id` is a top-level query key, not
+    # when it's nested inside an `$or` list, so wrapping both in one `$or`
+    # would silently fail to match any id-keyed group on MongoDB. Each query
+    # is paginated in full (not just find_many's default first page) since a
+    # suffix can match more active keys than there are suffix candidates.
+    async def _find_all(query: dict[str, Any]) -> list[dict[str, Any]]:
+        page_size = 500
+        docs: list[dict[str, Any]] = []
         skip = 0
         while True:
             page = await api_key_service.database.find_many(
-                api_key_service.collection_name, {"active": True}, limit=page_size, skip=skip
+                api_key_service.collection_name, query, limit=page_size, skip=skip
             )
-            active_keys.extend(page)
+            docs.extend(page)
             if len(page) < page_size:
                 break
             skip += page_size
+        return docs
+
+    try:
+        matched_by_id: dict[str, dict[str, Any]] = {}
+        if id_candidates:
+            for doc in await _find_all({"active": True, "_id": {"$in": id_candidates}}):
+                matched_by_id[str(doc.get("_id"))] = doc
+        if suffix_candidates:
+            for doc in await _find_all({"active": True, "key_suffix": {"$in": suffix_candidates}}):
+                # A key matching both an id and a suffix candidate (same
+                # document) must be counted once, or the suffix group would
+                # see a spurious second "match" and be flagged ambiguous.
+                matched_by_id[str(doc.get("_id"))] = doc
     except Exception:
         logger.warning("Failed to resolve API key labels for cost aggregation", exc_info=True)
         return groups
 
     id_to_name: dict[str, str] = {}
     masked_to_names: dict[str, list] = {}
-    for doc in active_keys:
+    for doc in matched_by_id.values():
         client_name = doc.get("client_name")
         doc_id = doc.get("_id")
         if doc_id is not None and client_name:

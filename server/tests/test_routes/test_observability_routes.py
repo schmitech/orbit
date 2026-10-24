@@ -237,8 +237,8 @@ def test_observability_usage_api_key_groups_get_client_name_label():
     }
     audit_service = FakeAuditService(aggregate_result=aggregate_result)
     api_key_service = FakeApiKeyService(docs=[
-        {"api_key": "sk-live-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
-        {"api_key": "sk-live-bbb222", "key_suffix": "bbb222", "client_name": "Globex", "active": True},
+        {"_id": "key-aaa", "api_key": "sk-live-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
+        {"_id": "key-bbb", "api_key": "sk-live-bbb222", "key_suffix": "bbb222", "client_name": "Globex", "active": True},
     ])
     app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
     with TestClient(app) as client:
@@ -304,6 +304,37 @@ def test_observability_usage_api_key_id_match_is_exact_even_with_masked_suffix_c
     assert "ambiguous" not in group
 
 
+def test_observability_usage_api_key_label_dedupes_doc_matched_by_both_queries():
+    """A single active key can satisfy both the `_id` and `key_suffix`
+    queries at once (one group keyed by its stable id, another by its masked
+    suffix). The matched document must be deduplicated by `_id` across the
+    two query results, or the suffix-keyed group would see two "matches" for
+    one real key and be flagged ambiguous."""
+    aggregate_result = {
+        "totals": {"requests": 2, "prompt_tokens": 200, "completion_tokens": 40,
+                    "total_tokens": 240, "cost_usd": 0.02,
+                    "unpriced_requests": 0, "unreported_requests": 0},
+        "series": [],
+        "groups": [
+            {"key": "key-id-9", "requests": 1, "total_tokens": 120, "cost_usd": 0.01},
+            {"key": "...xyz999", "requests": 1, "total_tokens": 120, "cost_usd": 0.01},
+        ],
+    }
+    audit_service = FakeAuditService(aggregate_result=aggregate_result)
+    api_key_service = FakeApiKeyService(docs=[
+        {"_id": "key-id-9", "api_key": "sk-live-xyz999", "key_suffix": "xyz999", "client_name": "Acme Corp", "active": True},
+    ])
+    app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
+    with TestClient(app) as client:
+        resp = client.get("/admin/observability/usage?group_by=api_key")
+
+    assert resp.status_code == 200
+    groups = {g["key"]: g for g in resp.json()["groups"]}
+    assert groups["key-id-9"]["label"] == "Acme Corp"
+    assert groups["...xyz999"]["label"] == "Acme Corp"
+    assert "ambiguous" not in groups["...xyz999"]
+
+
 def test_observability_usage_api_key_label_falls_back_when_no_match():
     aggregate_result = {
         "totals": {"requests": 1, "prompt_tokens": 100, "completion_tokens": 20,
@@ -338,8 +369,8 @@ def test_observability_usage_api_key_label_ambiguous_on_suffix_collision():
     audit_service = FakeAuditService(aggregate_result=aggregate_result)
     # Two distinct active keys share the same last-6-character suffix.
     api_key_service = FakeApiKeyService(docs=[
-        {"api_key": "sk-live-1-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
-        {"api_key": "sk-live-2-aaa111", "key_suffix": "aaa111", "client_name": "Globex", "active": True},
+        {"_id": "key-1", "api_key": "sk-live-1-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
+        {"_id": "key-2", "api_key": "sk-live-2-aaa111", "key_suffix": "aaa111", "client_name": "Globex", "active": True},
     ])
     app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
     with TestClient(app) as client:
@@ -364,8 +395,8 @@ def test_observability_usage_api_key_label_ambiguous_even_with_same_client_name(
     }
     audit_service = FakeAuditService(aggregate_result=aggregate_result)
     api_key_service = FakeApiKeyService(docs=[
-        {"api_key": "sk-live-1-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
-        {"api_key": "sk-live-2-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
+        {"_id": "key-1", "api_key": "sk-live-1-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
+        {"_id": "key-2", "api_key": "sk-live-2-aaa111", "key_suffix": "aaa111", "client_name": "Acme Corp", "active": True},
     ])
     app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
     with TestClient(app) as client:
@@ -389,10 +420,12 @@ def test_observability_usage_api_key_label_paginates_past_first_page():
     }
     audit_service = FakeAuditService(aggregate_result=aggregate_result)
     filler_docs = [
-        {"api_key": f"sk-live-filler-{i:06d}", "key_suffix": f"r{i:05d}", "client_name": f"Filler {i}", "active": True}
+        {"_id": f"key-filler-{i}", "api_key": f"sk-live-filler-{i:06d}", "key_suffix": f"r{i:05d}",
+         "client_name": f"Filler {i}", "active": True}
         for i in range(600)
     ]
-    target_doc = {"api_key": "sk-live-target-zzz999", "key_suffix": "zzz999", "client_name": "Last Page Corp", "active": True}
+    target_doc = {"_id": "key-target", "api_key": "sk-live-target-zzz999", "key_suffix": "zzz999",
+                  "client_name": "Last Page Corp", "active": True}
     api_key_service = FakeApiKeyService(docs=filler_docs + [target_doc])
     app = _build_app(["admin"], audit_service=audit_service, api_key_service=api_key_service)
     with TestClient(app) as client:
