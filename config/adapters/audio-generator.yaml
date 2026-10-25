@@ -7,7 +7,7 @@ adapters:
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    tts_provider: "gemini"    # Optional adapter override; omit to use config/tts.yaml's default provider
+    tts_provider: "openai"    # Optional adapter override; omit to use config/tts.yaml's default provider
     rewrite_provider: "openai"  # Text LLM used to resolve "summarize this", "explain simply", etc.
                                  # against conversation history before speaking. Only used when
                                  # invoked mid-conversation with context; one-shot calls (e.g. curl)

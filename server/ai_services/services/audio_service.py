@@ -62,6 +62,24 @@ class AudioService(ProviderAIService):
             return merged
         return super()._compute_provider_config()
 
+    def _extract_sounds_provider_config(self) -> dict[str, Any]:
+        """
+        Provider config lookup for the legacy `sounds.<provider>` config path
+        (e.g. `config/sound.yaml`, see docs/audio/vllm-audio-service-guide.md),
+        used by some self-hosted audio providers instead of the standard
+        tts_providers/stt_providers split. Checked first; falls back to the
+        standard lookup (`_extract_provider_config`) if no `sounds.<provider>`
+        section is present. Subclasses that support this path call it from
+        their own `_extract_provider_config` override.
+        """
+        sounds_config = self.config.get('sounds', {})
+        provider_config = sounds_config.get(self.provider_name, {})
+
+        if provider_config:
+            return provider_config
+
+        return super()._extract_provider_config()
+
     @staticmethod
     def _wrap_pcm_in_wav(
         pcm_bytes: bytes,

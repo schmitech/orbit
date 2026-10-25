@@ -176,7 +176,7 @@ appetite for the one that's most valuable at the time.
       forcing the bespoke client path — both need a maintainer with BitNet
       access to weigh in before implementation.
 
-- [ ] **vLLM's `_extract_provider_config` override — confirm whether the
+- [x] **vLLM's `_extract_provider_config` override — confirm whether the
       `sounds.vllm` config path is still used.** `vllm_audio_service.py`'s
       `_extract_provider_config` override checks a `sounds` top-level config
       key before falling back to the standard `tts_providers`/`stt_providers`
@@ -186,16 +186,27 @@ appetite for the one that's most valuable at the time.
       belief that no `sounds:` key exists anywhere in `config/`, and had to
       revert that.
 
-      **Why deferred:** the override itself hand-rolls the same "try this key,
-      then fall back to `super()`" pattern that `base.py`'s
-      `config_section_key` hook already generalizes, so it could in principle
-      shrink to `self.config_section_key = 'sounds'`. But composing it that
-      way would reorder precedence relative to `AudioService`'s
-      `tts_providers`/`stt_providers` merge (see
-      `services/audio_service.py:_compute_provider_config`), which is a real
-      behavior change for anyone currently relying on `sounds.vllm`. Needs
-      confirmation of whether that config path is actually used by any
-      current deployment before changing how it's resolved.
+      **Resolution:** `coqui_audio_service.py` turned out to have the exact
+      same override, byte-for-byte identical body (confirmed by diff) — this
+      wasn't vLLM-specific duplication, it's a shared legacy `sounds.<provider>`
+      pattern used by at least two self-hosted audio providers. Extracted the
+      shared body into `AudioService._extract_sounds_provider_config()`
+      (`services/audio_service.py`); both subclasses' `_extract_provider_config`
+      now just call it. No precedence or behavior change — `sounds.<provider>`
+      is still checked first, falling back to the standard
+      `tts_providers`/`stt_providers` lookup exactly as before, verified by
+      direct instantiation tests of both classes and
+      `pytest tests/ -k "vllm_audio or coqui or audio" -q` (169 passed).
+
+      Did **not** adopt `config_section_key` (the originally-considered
+      option): confirmed by reading `AudioService._compute_provider_config`
+      that it doesn't call the `config_section_key` hook at all — it overrides
+      `_compute_provider_config` entirely with the tts/stt merge, falling back
+      to `super()` only when that merge is empty. So setting
+      `self.config_section_key = 'sounds'` would not reproduce today's
+      behavior; it would make `tts_providers`/`stt_providers` take priority
+      over `sounds.<provider>` instead of the other way around. That option is
+      correctly dead — the extraction above avoids it entirely.
 
 - [ ] **vLLM audio's broad-except boilerplate.** 14 near-identical
       `except Exception as e:  # noqa: BLE001` blocks in

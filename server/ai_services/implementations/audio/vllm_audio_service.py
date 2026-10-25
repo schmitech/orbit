@@ -156,19 +156,11 @@ class VLLMAudioService(AudioService):
         """
         Extract provider-specific configuration from the config dictionary.
 
-        Override base method to look for 'sounds' (used by the documented
-        sounds.vllm configuration path, see docs/audio/vllm-audio-service-guide.md)
-        instead of 'audios' (the default plural form).
+        Looks for 'sounds' (used by the documented sounds.vllm configuration
+        path, see docs/audio/vllm-audio-service-guide.md) before falling back
+        to the standard tts_providers/stt_providers lookup.
         """
-        # Try 'sounds' first (as used by sounds.vllm deployments)
-        sounds_config = self.config.get('sounds', {})
-        provider_config = sounds_config.get(self.provider_name, {})
-
-        if provider_config:
-            return provider_config
-
-        # Fallback to base class logic
-        return super()._extract_provider_config()
+        return self._extract_sounds_provider_config()
 
     def _initialize_snac(self) -> bool:
         """Initialize SNAC decoder for audio token decoding."""

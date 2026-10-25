@@ -123,18 +123,10 @@ class CoquiAudioService(AudioService):
         """
         Extract provider-specific configuration from the config dictionary.
 
-        Override base method to look for 'sounds' (the actual key in sound.yaml)
-        instead of 'audios' (the default plural form).
+        Looks for 'sounds' (the actual key in sound.yaml) before falling back
+        to the standard tts_providers/stt_providers lookup.
         """
-        # Try 'sounds' first (as used in config/sound.yaml)
-        sounds_config = self.config.get('sounds', {})
-        provider_config = sounds_config.get(self.provider_name, {})
-
-        if provider_config:
-            return provider_config
-
-        # Fallback to base class logic
-        return super()._extract_provider_config()
+        return self._extract_sounds_provider_config()
 
     def _initialize_tts(self) -> bool:
         """Initialize Coqui TTS model."""
