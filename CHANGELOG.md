@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.20.3] - 2026-10-25
 
 ### Maintenance
 - **AI service reliability**: Improved concurrent batching for Gemini embeddings and OpenAI reranking, and moved blocking translation, image, and video work off the event loop.
