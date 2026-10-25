@@ -2,7 +2,7 @@
 
 ## Summary
 
-Split off from `docs/roadmap/ai-services-implementations-cleanup-deferred.md`'s
+Split off from `docs/roadmap/complete/ai-services-implementations-cleanup-deferred.md`'s
 "Add a shared reasoning-model/temperature-support capability hook" item once
 its reasoning-effort half was done (see that doc's completed entry). This
 plan covers the remaining half: the duplicated model-capability checks that

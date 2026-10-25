@@ -29,25 +29,10 @@ class GeminiEmbeddingService(EmbeddingService, GoogleBaseService):
         self.dimensions = self._get_dimensions_config() or 3072
         self.batch_size = self._get_batch_size(default=10)
 
-        self._genai_client = None
-
         logger.debug(
             f"GeminiEmbeddingService initialized: model={self.model}, "
             f"dimensions={self.dimensions}, batch_size={self.batch_size}"
         )
-
-    def _get_client(self):
-        """Get or create the Google GenAI client."""
-        if self._genai_client is None:
-            from google import genai
-            import os
-
-            api_key = self._resolve_api_key("GOOGLE_API_KEY")
-            if api_key:
-                os.environ["GOOGLE_API_KEY"] = api_key
-
-            self._genai_client = genai.Client()
-        return self._genai_client
 
     async def embed_query(self, text: str) -> list[float]:
         """Generate embeddings for a single query text."""

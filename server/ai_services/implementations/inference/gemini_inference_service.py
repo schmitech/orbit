@@ -39,21 +39,6 @@ class GeminiInferenceService(UsageReportingMixin, InferenceService, GoogleBaseSe
         self.top_k = self._get_top_k(default=40)
         self.disable_safety = config.get('disable_safety', False)
 
-        self._genai_client = None
-
-    def _get_client(self):
-        """Get or create the Google GenAI client."""
-        if self._genai_client is None:
-            from google import genai
-            import os
-
-            api_key = self._resolve_api_key("GOOGLE_API_KEY")
-            if api_key:
-                os.environ["GOOGLE_API_KEY"] = api_key
-
-            self._genai_client = genai.Client()
-        return self._genai_client
-
     def _build_config(self, system_instruction: Optional[str] = None, web_search: bool = False, **kwargs):
         """Build GenerateContentConfig from parameters."""
         from google.genai import types

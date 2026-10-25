@@ -72,27 +72,6 @@ class GeminiAudioService(AudioService, GoogleBaseService):
         self.tts_voice = provider_config.get('tts_voice', 'Puck')
         self.tts_format = provider_config.get('tts_format', 'wav')
 
-        self._genai_client = None
-
-    def _get_client(self):
-        """Get or create the Google GenAI client."""
-        if self._genai_client is None:
-            try:
-                from google import genai
-                import os
-
-                api_key = self._resolve_api_key("GOOGLE_API_KEY")
-                if api_key:
-                    os.environ["GOOGLE_API_KEY"] = api_key
-
-                self._genai_client = genai.Client()
-            except ImportError:
-                raise ImportError(
-                    "google-genai package is required for Gemini audio. "
-                    "Install it with: pip install google-genai"
-                )
-        return self._genai_client
-
     def _wrap_in_wav(self, pcm_bytes: bytes, sample_rate: int = 24000) -> bytes:
         """Wrap raw PCM bytes in WAV format."""
         return self._wrap_pcm_in_wav(pcm_bytes, sample_rate)

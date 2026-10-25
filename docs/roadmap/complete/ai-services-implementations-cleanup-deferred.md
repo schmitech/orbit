@@ -138,7 +138,7 @@ appetite for the one that's most valuable at the time.
       support, but across two unrelated base classes (not one extraction).
       Split into its own plan doc with the full current-state audit, proposed
       approach, and test plan:
-      [`docs/roadmap/temperature-token-parameter-capability-hooks.md`](./temperature-token-parameter-capability-hooks.md).
+      [`docs/roadmap/temperature-token-parameter-capability-hooks.md`](../temperature-token-parameter-capability-hooks.md).
 
       **Why still deferred (temperature/token-parameter half only):** a
       shared-base-class redesign spanning two unrelated hierarchies rather
@@ -149,32 +149,10 @@ appetite for the one that's most valuable at the time.
       being bundled into a cleanup session.
 
 - [ ] **Migrate BitNet's API mode onto `OpenAICompatibleBaseService`
-      (direct mode stays as-is).** `bitnet_inference_service.py:116`
-      constructs `AsyncOpenAI(...)` directly against its own ~285-line
-      `providers/bitnet_base.py`, duplicating client construction, error
-      handling, and `verify_connection` that `OpenAICompatibleBaseService`
-      already provides to 19 sibling inference providers (groq, mistral,
-      azure_openai, cerebras, deepseek, fireworks, nebius, openrouter,
-      perplexity, together, venice, xai, scaleway, moonshot, nearai,
-      deepinfra, minimax, zai) — but only for API mode.
-      `BitNetBaseService` (`providers/bitnet_base.py:18`) also supports a
-      **direct mode** (`mode == "direct"` branches through
-      `_setup_direct_mode`, `_load_direct_model`, and local-model cleanup in
-      `close()`) that has no equivalent in `OpenAICompatibleBaseService`,
-      which only ever talks to an OpenAI-compatible HTTP endpoint — so this
-      is not a drop-in replacement for the whole service, and
-      `providers/bitnet_base.py` can't simply be deleted. Direct mode's local
-      model loading, execution, and cleanup logic needs a home either way
-      (a slimmed-down `bitnet_base.py` that only handles direct mode, or
-      moved into `bitnet_inference_service.py` itself) — that split is a
-      design decision of its own, separate from the API-mode migration.
-
-      **Why deferred:** the API-mode client construction/error-handling/
-      `verify_connection` duplication is still real and likely worth fixing,
-      but it needs the direct-mode/API-mode split decided first, on top of
-      confirming that API mode has no genuine BitNet-specific incompatibility
-      forcing the bespoke client path — both need a maintainer with BitNet
-      access to weigh in before implementation.
+      (direct mode stays as-is).** Moved to its own doc with the full
+      investigation (including a dead-code discovery that changes the
+      original premise) since it needed more room than this item format
+      gives: [`docs/roadmap/bitnet-api-mode-migration.md`](../bitnet-api-mode-migration.md).
 
 - [x] **vLLM's `_extract_provider_config` override — confirm whether the
       `sounds.vllm` config path is still used.** `vllm_audio_service.py`'s
@@ -208,30 +186,174 @@ appetite for the one that's most valuable at the time.
       over `sounds.<provider>` instead of the other way around. That option is
       correctly dead — the extraction above avoids it entirely.
 
-- [ ] **vLLM audio's broad-except boilerplate.** 14 near-identical
+- [x] **vLLM audio's broad-except boilerplate.** ~~14 near-identical
       `except Exception as e:  # noqa: BLE001` blocks in
-      `vllm_audio_service.py` could collapse to a decorator or small helper.
+      `vllm_audio_service.py` could collapse to a decorator or small
+      helper.~~
 
-      **Why deferred:** the blocks have genuinely heterogeneous behavior
-      (log-and-reraise, log-and-return-`False`, log-and-continue inside a
-      loop, log-and-yield-fallback-audio), so a mechanical sweep risks
-      silently changing control flow at one or more call sites. Needs a
-      per-site behavior audit — list out what each block actually needs to do
-      on failure — before a shared helper's shape can be designed.
+      **Resolution: won't do.** Did the per-site audit the original note
+      asked for. Behavior at each of the 14 sites, by line:
 
-- [ ] **Share one `genai.Client()` across Gemini-backed service types.**
+      | Line | Behavior |
+      |------|----------|
+      | 222 | log error → return `False` |
+      | 294 | log warning → `continue` (inside a token-parsing loop) |
+      | 448 | log error → return `False` |
+      | 464 | silent swallow → fall through to an alternate probe (no log) |
+      | 480 | log error → return `False` |
+      | 492 | log **warning** (not error) → set a state flag; `finally` resets another flag |
+      | 596 | log error → **re-raise** |
+      | 687 | log warning → continue (inside a streaming decode loop, no return/raise) |
+      | 698 | log warning → no raise (single post-loop flush, not in a loop) |
+      | 738 | log error → **re-raise** |
+      | 753 | silent swallow (bare `except Exception: pass`) → falls through to a different error path |
+      | 810 | log error → **re-raise** |
+      | 864 | log error → attempt a fallback call, chain-raise original on fallback failure |
+      | 869 | log error → `raise e from fallback_error` |
+
+      At least 6 distinct control-flow shapes (return `False` / re-raise /
+      continue-in-loop / silent-swallow-then-fallback / warn-not-error /
+      chained-exception-fallback), two of which (294 vs. 687/698) look
+      superficially similar but aren't interchangeable — one is inside a
+      `for` loop, the other isn't. A decorator or shared helper would have to
+      special-case most of these individually, which doesn't actually remove
+      duplication, just relocates it into decorator configuration. Only 3
+      sites (222, 448, 480) are byte-identical ("log error, return `False`"),
+      and collapsing just those three into a one-line local helper wasn't
+      judged worth the indirection for a 2-line body. No code changes.
+
+- [x] **Share one `genai.Client()` across Gemini-backed service types.**
       `inference/gemini_inference_service.py`,
       `embedding/gemini_embedding_service.py`, `ocr/gemini_ocr_service.py`,
-      `vision/gemini_vision_service.py`, `image/gemini_image_service.py`, and
-      `video/gemini_video_service.py` each lazily build and cache their own
+      `vision/gemini_vision_service.py`, `image/gemini_image_service.py`,
+      `video/gemini_video_service.py`, and `audio/gemini_audio_service.py`
+      (one more than originally listed — same pattern, just missed in the
+      original survey) each lazily built and cached their own
       `genai.Client()` per service instance (fine on its own), but a
-      deployment enabling multiple Gemini-backed capabilities gets a separate
+      deployment enabling multiple Gemini-backed capabilities got a separate
       client/connection pool per capability.
 
-      **Why deferred:** low urgency, not complexity — genuinely fine to leave
-      until a deployment running several Gemini service types concurrently in
-      one process actually surfaces this as a real cost worth optimizing for.
-      Listed here mainly so it isn't forgotten entirely.
+      **Resolution:** all seven had byte-for-byte identical `_get_client`
+      bodies (all resolve the API key via the same
+      `self._resolve_api_key("GOOGLE_API_KEY")` call, since all seven pass
+      `provider_name="gemini"`), and all seven already inherit
+      `GoogleBaseService`. Moved `_get_client` onto `GoogleBaseService`
+      itself, backed by a class-level `_shared_genai_clients` dict keyed by
+      resolved API key — every Gemini-backed instance that resolves to the
+      same key now reuses one `genai.Client()` instead of building its own.
+      Deleted the 7 duplicate `_get_client` overrides and their redundant
+      `self._genai_client = None` init lines (now set once in
+      `GoogleBaseService.__init__`); `close()` still resets the instance's
+      own `_genai_client` reference to `None` where it did before (image/video
+      services) without tearing down the shared client other instances may
+      still be using. Also folded `gemini_audio_service.py`'s
+      friendlier `ImportError` message ("google-genai package is required...")
+      into the shared helper, generalized to "for Gemini services" so all
+      seven now get it, not just audio.
+
+      Verified: a standalone test with `google.genai` mocked confirmed two
+      instances resolving the same API key share one client object (single
+      `genai.Client()` construction across 3 service-type instances), and
+      `pytest tests/ -k "gemini" -q --ignore=tests/vllm` (32 passed, 1
+      skipped). `GoogleBaseService`'s other subclass, `vertexai_inference_service.py`,
+      doesn't define `_get_client`/use `genai.Client()` at all (different SDK), so
+      it's unaffected. `google_audio_service.py` also doesn't use this pattern
+      (different Google Cloud TTS SDK), unaffected.
+
+      One pre-existing, unchanged quirk worth noting: `_get_client` sets
+      `os.environ["GOOGLE_API_KEY"]` as a side effect of resolving the key, so
+      if two Gemini-backed services were ever configured with genuinely
+      different API keys in the same process, the second one to initialize
+      would silently win process-wide (env var checked before config on the
+      next resolve) — this was already true before this change (each
+      instance mutated the same env var even with separate clients); this
+      change doesn't introduce or worsen it.
+
+      **Follow-up fix (code review caught two real bugs in the first cut):**
+
+      1. *Leak on shutdown.* The class-level cache had no release path — once
+         a client was cached it lived for the process's lifetime, so
+         `close()`/`AIServiceFactory.close_all_services()` no longer actually
+         released the connection pool the way each instance's own client used
+         to. Fixed by reference-counting: `_get_client` increments
+         `_shared_genai_client_refcounts[cache_key]`, and a new
+         `_release_client()` (called from `GoogleBaseService.close()`, and
+         from `gemini_image_service.py`/`gemini_video_service.py`'s own
+         `close()` overrides, which previously just dropped the instance's
+         local reference without releasing it) decrements it, closing the
+         client via `genai.Client.close()` and evicting it from the cache
+         once the count reaches zero.
+      2. *Unsynchronized concurrent first use.* Two instances (e.g. two
+         concurrent video-generation requests, each resolving `_get_client()`
+         inside their own `asyncio.to_thread` worker *thread*, not just an
+         asyncio task) could both observe a cache miss and each construct
+         their own `genai.Client()`, with one silently overwritten in the
+         cache while still in use elsewhere. Fixed with a `threading.Lock`
+         (not `asyncio.Lock`, since this crosses real OS threads) around a
+         double-checked-locking pattern in `_get_client`: check
+         `self._genai_client` outside the lock for the fast path once
+         already resolved, recheck inside the lock before creating, so only
+         one thread ever builds the client for a given key and no instance
+         can double-increment its own refcount.
+
+      Verified: a mocked-`genai.Client` test confirmed (a) a client is closed
+      and evicted only once its refcount reaches zero across multiple
+      `close()` calls, and (b) 20 threads racing `_get_client()` for a fresh
+      key produce exactly 1 `genai.Client()` construction and a refcount of
+      20. `pytest tests/ -k gemini -q --ignore=tests/vllm` still passes (32
+      passed, 1 skipped).
+
+      **Second follow-up fix (code review caught one more race in the
+      refcounting fix above):** `_release_client()` was reading
+      `self._genai_client_cache_key` and clearing `self._genai_client`/
+      `self._genai_client_cache_key` to `None` *before* taking the lock. A
+      `_get_client()` call on the same instance landing in that window could
+      acquire a fresh reference (incrementing the shared refcount) that the
+      in-flight `_release_client()` call would then overwrite back to `None`
+      without ever decrementing it — permanently leaking one reference on the
+      shared client, since no later `close()` could find a cache key to
+      release.
+
+      Fixed by moving the entire check-and-mutate sequence (reading/clearing
+      `self._genai_client`/`self._genai_client_cache_key`) inside the same
+      `_genai_client_lock` that `_get_client` uses, in both methods — not just
+      the dict bookkeeping — so a `_get_client()`/`close()` pair racing on the
+      same instance can no longer interleave; whichever one acquires the lock
+      first runs to completion (and is correctly counted) before the other
+      starts.
+
+      Verified with a stress test: 500 rounds of `_get_client()` and
+      `close()` fired concurrently (separate threads) against the *same*
+      instance — refcounts and the shared client cache always ended up
+      perfectly clean (no stray leaked reference, no orphaned cache entry).
+      `pytest tests/ -k gemini -q --ignore=tests/vllm` still passes (32
+      passed, 1 skipped).
+
+      **Third follow-up fix (code review caught one more shutdown-ordering
+      case the lock alone didn't cover):** the lock above makes `_get_client`
+      and `_release_client` atomic relative to each other, but it doesn't
+      stop a strict *ordering* problem: if `close()` runs to completion
+      first — e.g. a pending worker on this instance hasn't reached
+      `_get_client()` yet when `AIServiceFactory.close_all_services()` closes
+      and drops the instance from its cache — that worker can still call
+      `_get_client()` afterward, build (or acquire a reference to) a client,
+      and increment the refcount, with no `close()` ever coming again for
+      this instance to release it. A clean lock handoff isn't enough here;
+      the instance needs to actively refuse to hand out new references once
+      it's closed.
+
+      Fixed with a `_genai_client_closed` flag, set under the same lock
+      inside `_release_client`, and checked under that same lock at the top
+      of `_get_client`: once an instance has been closed, any later
+      `_get_client()` call raises `RuntimeError` instead of silently building
+      a reference nothing will ever release.
+
+      Verified: a test that calls `close()` to completion and then calls
+      `_get_client()` on the same (now-closed) instance confirms it's
+      refused with `RuntimeError` rather than creating a leaked reference,
+      and the shared cache/refcount dicts stay empty afterward. `pytest
+      tests/ -k gemini -q --ignore=tests/vllm` still passes (32 passed, 1
+      skipped).
 
 ---
 

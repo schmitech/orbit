@@ -35,21 +35,6 @@ class GeminiVisionService(UsageReportingMixin, VisionService, GoogleBaseService)
 
         self.temperature = self._get_temperature(default=0.0)
 
-        self._genai_client = None
-
-    def _get_client(self):
-        """Get or create the Google GenAI client."""
-        if self._genai_client is None:
-            from google import genai
-            import os
-
-            api_key = self._resolve_api_key("GOOGLE_API_KEY")
-            if api_key:
-                os.environ["GOOGLE_API_KEY"] = api_key
-
-            self._genai_client = genai.Client()
-        return self._genai_client
-
     async def analyze_image(
         self,
         image: Union[str, bytes, Image.Image],

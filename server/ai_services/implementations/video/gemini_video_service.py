@@ -6,7 +6,6 @@ Requires a Veo model which is available via Google AI Studio API key.
 """
 
 import asyncio
-import os
 from typing import Any
 
 from ...base import ServiceType
@@ -32,23 +31,13 @@ class GeminiVideoService(VideoGenerationService, GoogleBaseService):
         # reject "allow_adult" for text-to-video with a 400 INVALID_ARGUMENT; only set
         # this if your account/model combination is confirmed to accept a specific value.
         self.person_generation = provider_config.get("person_generation")
-        self._genai_client = None
-
-    def _get_client(self):
-        if self._genai_client is None:
-            from google import genai
-            api_key = self._resolve_api_key("GOOGLE_API_KEY")
-            if api_key:
-                os.environ["GOOGLE_API_KEY"] = api_key
-            self._genai_client = genai.Client()
-        return self._genai_client
 
     async def initialize(self) -> bool:
         self.initialized = True
         return True
 
     async def close(self) -> None:
-        self._genai_client = None
+        self._release_client()
 
     async def verify_connection(self) -> bool:
         try:

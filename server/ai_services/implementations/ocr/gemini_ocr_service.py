@@ -34,20 +34,6 @@ class GeminiOcrService(UsageReportingMixin, OcrService, GoogleBaseService):
         # Default to a fast Gemini model rather than the vision-service default.
         self.model = self._get_model("gemini-3.6-flash")
         self.prompt = (config.get("ai_document", {}) or {}).get("prompt") or _DEFAULT_OCR_PROMPT
-        self._genai_client = None
-
-    def _get_client(self):
-        """Get or create the Google GenAI client."""
-        if self._genai_client is None:
-            from google import genai
-            import os
-
-            api_key = self._resolve_api_key("GOOGLE_API_KEY")
-            if api_key:
-                os.environ["GOOGLE_API_KEY"] = api_key
-
-            self._genai_client = genai.Client()
-        return self._genai_client
 
     async def extract_document(
         self,
