@@ -84,6 +84,7 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   'application/json': 'json'
 };
 
+const MAX_TEXTAREA_HEIGHT = 240; // ~10-12 lines before internal scrolling kicks in
 const DEFAULT_TEXTAREA_VERTICAL_PADDING = 4;
 const VERTICAL_ALIGNMENT_OFFSET = 3;
 const PLACEHOLDER_VERTICAL_OFFSET = 0;
@@ -480,31 +481,53 @@ export function MessageInput({
   const isUploadProgressOnly = !showFileUpload && (isUploading || pasteUploadingFiles.size > 0);
   const shouldShowFileUploadControl = showFileUpload || (isUploading && pasteUploadingFiles.size === 0);
 
+  // Resizes the textarea to fit its content, capped at the CSS max-height
+  // (`min(MAX_TEXTAREA_HEIGHTpx, 40vh)`). Reading the resolved cap from
+  // computed style keeps this in sync with the viewport, rather than always
+  // growing to the fixed pixel cap regardless of available space.
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    // Mobile Safari can retain the previous scrollHeight for a textarea
+    // immediately after its value is cleared. Explicitly restore the
+    // single-line height so a previously expanded composer cannot linger.
+    if (textarea.value.length === 0) {
+      textarea.style.height = '32px';
+      textarea.style.overflowY = 'hidden';
+      adjustTextareaVerticalAlignment();
+      return;
+    }
+
+    textarea.style.height = 'auto';
+    const scrollHeight = textarea.scrollHeight;
+    const resolvedMaxHeight = parseFloat(window.getComputedStyle(textarea).maxHeight) || MAX_TEXTAREA_HEIGHT;
+    // Set height to scrollHeight, but cap it at resolvedMaxHeight
+    textarea.style.height = `${Math.min(scrollHeight, resolvedMaxHeight)}px`;
+    // Enable overflow-y when content exceeds max height
+    textarea.style.overflowY = scrollHeight > resolvedMaxHeight ? 'auto' : 'hidden';
+    adjustTextareaVerticalAlignment();
+  }, [adjustTextareaVerticalAlignment]);
+
   // Auto-resize textarea with maximum height limit
   useLayoutEffect(() => {
-    if (textareaRef.current) {
-      const textarea = textareaRef.current;
-      const maxHeight = 120; // Maximum height in pixels (about 4-5 lines)
+    resizeTextarea();
+  }, [message, resizeTextarea]);
 
-      // Mobile Safari can retain the previous scrollHeight for a textarea
-      // immediately after its value is cleared. Explicitly restore the
-      // single-line height so a previously expanded composer cannot linger.
-      if (message.length === 0) {
-        textarea.style.height = '32px';
-        textarea.style.overflowY = 'hidden';
-        adjustTextareaVerticalAlignment();
-        return;
-      }
-
-      textarea.style.height = 'auto';
-      const scrollHeight = textarea.scrollHeight;
-      // Set height to scrollHeight, but cap it at maxHeight
-      textarea.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
-      // Enable overflow-y when content exceeds max height
-      textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
-      adjustTextareaVerticalAlignment();
+  // The 40vh cap in the composer's max-height means an already-expanded
+  // textarea can go stale when the viewport shrinks without the message
+  // changing (keyboard opening, orientation rotation) — re-clamp it then.
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
     }
-  }, [message, adjustTextareaVerticalAlignment]);
+    window.addEventListener('resize', resizeTextarea);
+    return () => {
+      window.removeEventListener('resize', resizeTextarea);
+    };
+  }, [resizeTextarea]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') {
@@ -1642,7 +1665,12 @@ export function MessageInput({
               className="relative z-10 flex-1 w-full min-w-0 resize-none bg-transparent py-0 text-base md:text-sm text-[#353740] placeholder-transparent focus:outline-none dark:text-[#ececf1] dark:placeholder-transparent"
               style={{
                 minHeight: '24px',
-                maxHeight: '120px',
+                // 40vh keeps the composer from outgrowing a short viewport
+                // (e.g. phone in landscape with the keyboard open), where
+                // ChatInterface's overflow-hidden layout would otherwise clip
+                // the top of a fixed-height composer.
+                maxHeight: `min(${MAX_TEXTAREA_HEIGHT}px, 40vh)`,
+                transition: 'height 120ms ease-out',
                 paddingTop: `${textareaVerticalPadding.top}px`,
                 paddingBottom: `${textareaVerticalPadding.bottom}px`,
                 paddingLeft: `${TEXTAREA_HORIZONTAL_PADDING}px`,
