@@ -370,6 +370,19 @@ class OpenAICompatibleBaseService(ProviderAIService):
         provider_config = self._extract_provider_config()
         return provider_config.get('top_p', default)
 
+    def _supports_reasoning_effort(self) -> bool:
+        """
+        Return whether the current model supports the reasoning_effort parameter.
+
+        Default True: most OpenAI-compatible providers host a wide range of
+        models under one API with no reliable way to tell reasoning-capable
+        ones apart generically, so it's the caller's responsibility to only
+        set this for a reasoning-capable model (e.g. gpt-oss, DeepSeek-R1,
+        Qwen3 thinking variants). Providers whose models do need gating by
+        name (OpenAI, Mistral, xAI) override this with their own prefix table.
+        """
+        return True
+
     def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
         """
         Resolve the reasoning effort level for the current request, popping it
@@ -377,12 +390,15 @@ class OpenAICompatibleBaseService(ProviderAIService):
 
         Accepts either the native ``reasoning_effort`` kwarg or the
         provider-agnostic ``effort`` override (shared with allowed_models
-        overrides), falling back to the same keys in inference.yaml. Not
-        gated by model name — these providers host a wide range of models
-        under one API, so it's the caller's responsibility to only set this
-        for a reasoning-capable model (e.g. gpt-oss, DeepSeek-R1, Qwen3
-        thinking variants). Left unset, nothing is sent.
+        overrides), falling back to the same keys in inference.yaml. Returns
+        None when ``_supports_reasoning_effort()`` says the current model
+        doesn't support it.
         """
+        if not self._supports_reasoning_effort():
+            kwargs.pop("reasoning_effort", None)
+            kwargs.pop("effort", None)
+            return None
+
         reasoning_effort = kwargs.pop("reasoning_effort", None)
         if reasoning_effort is None:
             reasoning_effort = kwargs.pop("effort", None)

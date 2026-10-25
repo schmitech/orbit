@@ -367,27 +367,3 @@ class XAIInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibl
             "grok-4.20",
         )
         return model_name.startswith(supported_prefixes)
-
-    def _resolve_reasoning_effort(self, kwargs: dict[str, Any]) -> Any:
-        """
-        Resolve the reasoning effort level for the current request.
-
-        Accepts either the native ``reasoning_effort`` kwarg or the
-        provider-agnostic ``effort`` override (shared with allowed_models
-        overrides), falling back to the same keys in inference.yaml. Returns
-        None when the current model doesn't support reasoning effort. xAI
-        nests this under ``reasoning: {"effort": ...}`` rather than as a
-        top-level parameter.
-        """
-        if not self._supports_reasoning_effort():
-            kwargs.pop("reasoning_effort", None)
-            kwargs.pop("effort", None)
-            return None
-
-        reasoning_effort = kwargs.pop("reasoning_effort", None)
-        if reasoning_effort is None:
-            reasoning_effort = kwargs.pop("effort", None)
-        if reasoning_effort is None:
-            provider_config = self._extract_provider_config()
-            reasoning_effort = provider_config.get("reasoning_effort") or provider_config.get("effort")
-        return reasoning_effort

@@ -107,45 +107,44 @@ appetite for the one that's most valuable at the time.
       passed; 3 unrelated `test_openai_streaming.py` failures are live-network
       flakiness, confirmed pre-existing in an earlier session).
 
-- [ ] **Add a shared reasoning-model/temperature-support capability hook.**
-      Inheritance, checked against the actual code:
-      `OpenAIInferenceService`/`OpenAIVisionService` inherit `OpenAIBaseService`;
-      `MistralInferenceService`/`XAIInferenceService` inherit
-      `OpenAICompatibleBaseService` directly (`OpenAIBaseService` is itself a
-      subclass of `OpenAICompatibleBaseService`); `AzureVisionService`/
-      `AzureOpenAIInferenceService` inherit `AzureBaseService`, a sibling that
-      extends `ProviderAIService` directly and shares no base with either of
-      the above.
+- [x] **Add a shared reasoning-model capability hook** (reasoning-effort half
+      done; temperature/token-parameter half still deferred — see below).
+      `openai_inference_service.py`, `mistral_inference_service.py`, and
+      `xai_inference_service.py` each had their own `_resolve_reasoning_effort`
+      override that only differed from `OpenAICompatibleBaseService`'s version
+      by adding the same pop/fallback gate around their own
+      `_supports_reasoning_effort()` prefix check. Added a
+      `_supports_reasoning_effort(self) -> bool` hook (default `True`) to
+      `OpenAICompatibleBaseService`, and moved the gate into its
+      `_resolve_reasoning_effort` so it calls the hook instead of being
+      unconditional. `OpenAIBaseService` inherits from
+      `OpenAICompatibleBaseService`, so this covers all three; each subclass
+      now keeps only its `_supports_reasoning_effort` prefix-table override
+      and no longer duplicates `_resolve_reasoning_effort` at all. Other
+      `OpenAICompatibleBaseService` subclasses that call
+      `_resolve_reasoning_effort` without overriding the hook are unaffected
+      (default `True` matches the prior unconditional behavior exactly);
+      `fugu_inference_service.py`, `nvidia_inference_service.py`, and
+      `vllm_inference_service.py` already had their own fully independent
+      `_resolve_reasoning_effort` overrides unrelated to this duplication and
+      were left untouched. Verified by comparing resolved values against the
+      pre-refactor behavior for supported/unsupported models on all three
+      migrated providers, and running the relevant test subset (123 passed,
+      excluding the pre-existing-broken `tests/vllm` and known-flaky
+      `test_openai_streaming.py`).
 
-      `openai_inference_service.py` (`_supports_reasoning_effort` +
-      `_resolve_reasoning_effort` override), `mistral_inference_service.py`,
-      and `xai_inference_service.py` each hand-maintain their own
-      `model_name.startswith((...))` prefix tuple to detect reasoning-capable
-      models, then re-implement the same pop/fallback resolution logic around
-      that one boolean. Add a `_reasoning_effort_supported(model) -> bool`
-      hook (default `True`) to
-      `OpenAICompatibleBaseService._resolve_reasoning_effort` — this correctly
-      covers all three, since `OpenAIBaseService` inherits from
-      `OpenAICompatibleBaseService`.
+      Separately, `openai_vision_service.py`/`azure_vision_service.py`
+      duplicate a similar model-prefix check for temperature/token-parameter
+      support, but across two unrelated base classes (not one extraction).
+      Split into its own plan doc with the full current-state audit, proposed
+      approach, and test plan:
+      [`docs/roadmap/temperature-token-parameter-capability-hooks.md`](./temperature-token-parameter-capability-hooks.md).
 
-      Separately, `openai_vision_service.py` (`_supports_temperature`,
-      `_get_token_parameter_name`) and `azure_vision_service.py`
-      (`_supports_temperature`) duplicate a similar model-prefix check for
-      temperature/token-parameter support, but they **don't share a base** —
-      a single hook on `OpenAIBaseService` would cover
-      `openai_vision_service.py` but not reach `azure_vision_service.py` or
-      `azure_openai_inference_service.py` at all. This needs two separate
-      hooks: `_supports_temperature(model)` / `_get_token_parameter_name(model)`
-      on `OpenAIBaseService` (covering `openai_inference_service.py`/
-      `openai_vision_service.py`), and an equivalent pair on `AzureBaseService`
-      (covering `azure_vision_service.py`/`azure_openai_inference_service.py`),
-      each checking a config override first, then its own shared prefix table.
-      Not one extraction — two, on two unrelated base classes.
-
-      **Why deferred:** a shared-base-class redesign spanning two unrelated
-      hierarchies rather than one, and it changes real request-construction
-      behavior (token-parameter naming, which kwargs get sent) for live model
-      calls. Deserves its own test pass (ideally against real or recorded API
+      **Why still deferred (temperature/token-parameter half only):** a
+      shared-base-class redesign spanning two unrelated hierarchies rather
+      than one, and it changes real request-construction behavior
+      (token-parameter naming, which kwargs get sent) for live model calls.
+      Deserves its own test pass (ideally against real or recorded API
       responses for each affected provider/model combination) rather than
       being bundled into a cleanup session.
 
