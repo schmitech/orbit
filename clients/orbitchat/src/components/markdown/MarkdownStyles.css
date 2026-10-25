@@ -249,7 +249,7 @@
   border-radius: 6px;
   background-color: var(--md-code-bg);
   border: 1px solid var(--md-code-border);
-  font-size: 0.9em;
+  font-size: 0.95em;
   font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   max-height: 500px; /* Set a reasonable max height with scrolling */
   word-wrap: break-word;
@@ -266,7 +266,7 @@
   border-radius: 6px;
   background-color: var(--md-code-bg);
   border: 1px solid var(--md-code-border);
-  font-size: 0.9em;
+  font-size: 0.95em;
   font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   white-space: pre-wrap;
   word-wrap: break-word;

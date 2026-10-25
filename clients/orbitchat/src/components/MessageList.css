@@ -38,16 +38,16 @@
   min-width: 0;
   margin-left: 0;
   margin-right: 0;
-  font-size: clamp(1rem, 0.97rem + 0.22vw, 1.125rem);
-  line-height: 1.75;
+  font-size: clamp(0.9rem, 0.875rem + 0.18vw, 1rem);
+  line-height: 1.65;
   /* Avoid container-level horizontal scrollbar; let child content own overflow */
   overflow-x: visible;
   -webkit-overflow-scrolling: touch;
 }
 
 .message-list .message-bubble.message-bubble-user .message-markdown {
-  font-size: clamp(0.98rem, 0.95rem + 0.16vw, 1.0625rem);
-  line-height: 1.7;
+  font-size: clamp(0.875rem, 0.85rem + 0.14vw, 0.9375rem);
+  line-height: 1.6;
 }
 
 /* The bubble background is always the blue accent, in both themes, so
@@ -109,7 +109,7 @@
 .message-list .message-bubble-assistant .message-markdown p,
 .message-list .message-bubble-assistant .message-markdown li,
 .message-list .message-bubble-assistant .message-markdown blockquote {
-  max-width: 84ch;
+  max-width: 72ch;
 }
 
 .message-list .message-markdown h1,

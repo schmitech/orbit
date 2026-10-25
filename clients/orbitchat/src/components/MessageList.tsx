@@ -165,7 +165,7 @@ export function MessageList({
       onScroll={handleScroll}
     >
       <div className="mx-auto w-full min-w-0 max-w-[96rem] px-3 sm:px-5 md:px-6 lg:px-8 xl:px-10">
-        <div className={`message-list__rail mx-auto w-full min-w-0 space-y-7 ${contentMaxWidthClass}`}>
+        <div className={`message-list__rail mx-auto w-full min-w-0 space-y-5 ${contentMaxWidthClass}`}>
           {topLevelMessages.map((message) => (
             <div
               key={message.id}
