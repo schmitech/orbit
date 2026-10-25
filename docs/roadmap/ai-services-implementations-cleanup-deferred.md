@@ -81,25 +81,31 @@ appetite for the one that's most valuable at the time.
       fidelity or require one-off category tables per provider anyway,
       defeating the point.
 
-- [ ] **Share the `verify_connection` try/log/return-bool scaffolding across
+- [x] **Share the `verify_connection` try/log/return-bool scaffolding across
       provider bases — but keep each provider's actual probe logic intact.**
-      All 23 files in `server/ai_services/providers/*.py` reimplement the same
-      surrounding try/log/return-bool skeleton, but the probe itself varies in
-      more than just "which cheap call" — e.g.
-      `openai_compatible_base.py:248`'s `verify_connection` falls back from
-      listing models to issuing an actual completion request when listing
-      isn't supported, it isn't a single cheap probe call. A shared
-      `_verify_connection_via(coro)` helper should wrap only the common
-      try/log/return-bool shell and accept an arbitrary async probe callable
-      (including multi-step fallback logic like OpenAI-compatible's), not
-      assume every provider reduces to one `await probe()`.
-
-      **Why deferred:** needs a full survey of all 23 files' actual probe
-      logic (not just the one example above) before the helper's shape can be
-      pinned down — some probes may have other fallback patterns, different
-      exception handling needs, or side effects (like resetting cached state)
-      that a generic wrapper would need to account for. That survey plus the
-      helper plus the 23-site migration is a full PR on its own.
+      Done — surveyed all 23 `verify_connection` implementations and found
+      three shapes: (1) trivial attribute checks with no try/except at all
+      (`airllm`, `transformers`, `nvidia`, `replicate`, `watson`) — nothing to
+      share, left untouched; (2) mode-branching direct/API dual-probe logic
+      with per-branch exception handling (`bitnet`, `llama_cpp`, `tensorrt`,
+      `vllm`) and AWS's structured `ClientError` code/message extraction —
+      genuinely provider-specific shells, left untouched; (3) 11 files whose
+      `verify_connection` is exactly "run a probe, log success, catch any
+      exception, log it, return False" — `anthropic_base.py`, `cohere_base.py`,
+      `mistral_base.py`, `azure_base.py`, `zai_base.py`, `openai_base.py`,
+      `google_base.py`, `jina_base.py`, `ollama_base.py`, `shimmy_base.py`
+      (multi-step models-list-then-chat-completion fallback), and
+      `openai_compatible_base.py` (same fallback, shared by 19 sibling
+      providers) — migrated onto a new `verify_connection_via(logger, probe,
+      *, provider)` helper in `base.py`. Each provider keeps its probe as a
+      local `_probe()` closure with its own debug/error logging and
+      multi-step fallback logic exactly as before; the helper owns only the
+      outer exception boundary (log at ERROR, return False). Verified by
+      diffing rendered log output against the pre-refactor originals for
+      both success and exception paths, and running the full test suite
+      minus the pre-existing-broken `tests/vllm` collection errors (250
+      passed; 3 unrelated `test_openai_streaming.py` failures are live-network
+      flakiness, confirmed pre-existing in an earlier session).
 
 - [ ] **Add a shared reasoning-model/temperature-support capability hook.**
       Inheritance, checked against the actual code:

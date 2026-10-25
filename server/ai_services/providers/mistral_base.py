@@ -9,7 +9,7 @@ and error handling.
 from typing import Any, Optional
 import logging
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 from ..connection import ConnectionManager, RetryHandler
 from ..errors import ErrorCategory, log_and_raise_sanitized
 
@@ -130,7 +130,7 @@ class MistralBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             # Basic validation: check if API key has the correct format
             if not self.api_key or len(self.api_key) < 10:
                 logger.error("Invalid Mistral API key format")
@@ -139,9 +139,7 @@ class MistralBaseService(ProviderAIService):
             logger.debug("Mistral connection verified successfully")
             return True
 
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(f"Mistral connection verification failed: {e!s}")
-            return False
+        return await verify_connection_via(logger, _probe, provider="Mistral")
 
     async def close(self) -> None:
         """

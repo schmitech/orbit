@@ -7,7 +7,7 @@ moderation, reranking, vision, and audio services.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional, TypeVar, Generic
+from typing import Any, Awaitable, Callable, Optional, TypeVar, Generic
 import logging
 import sys
 from enum import Enum
@@ -17,6 +17,31 @@ sys.modules.setdefault('ai_services.base', sys.modules[__name__])
 sys.modules.setdefault('server.ai_services.base', sys.modules[__name__])
 
 T = TypeVar('T')
+
+
+async def verify_connection_via(
+    logger: logging.Logger,
+    probe: Callable[[], Awaitable[bool]],
+    *,
+    provider: str,
+) -> bool:
+    """
+    Run a provider's connection probe inside the common try/log/return-bool
+    shell that most `verify_connection` implementations re-derive by hand.
+
+    `probe` does the actual provider-specific check — listing models, a
+    minimal completion request, validating config, falling back between
+    multiple strategies, whatever that provider needs — and returns its own
+    bool, including any of its own debug/error logging for expected negative
+    results. This function only owns the exception boundary: on any
+    exception from `probe`, log it at ERROR and return False rather than
+    letting it propagate.
+    """
+    try:
+        return await probe()
+    except Exception as e:  # noqa: BLE001 - provider boundary fallback
+        logger.error(f"{provider} connection verification failed: {e!s}")
+        return False
 
 
 class ServiceType(Enum):

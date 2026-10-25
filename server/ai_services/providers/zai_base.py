@@ -10,7 +10,7 @@ from typing import Any
 from zai import ZaiClient
 import logging
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 from ..connection import ConnectionManager, RetryHandler
 from ..errors import ErrorCategory, log_and_raise_sanitized
 
@@ -136,7 +136,7 @@ class ZaiBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             # Test with a simple chat completion call
             await self.client.chat.completions.create(
                 model=self.model,
@@ -145,9 +145,8 @@ class ZaiBaseService(ProviderAIService):
             )
             logger.debug("Z.AI connection verified successfully")
             return True
-        except Exception as e:  # noqa: BLE001 - LLM provider client boundary, must fail safe
-            logger.error(f"Z.AI connection verification failed: {e!s}")
-            return False
+
+        return await verify_connection_via(logger, _probe, provider="Z.AI")
 
     async def close(self) -> None:
         """

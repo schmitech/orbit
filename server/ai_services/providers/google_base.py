@@ -8,7 +8,7 @@ consolidating common functionality like credential management and client initial
 from typing import Any
 import logging
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 from ..connection import RetryHandler
 from ..errors import ErrorCategory, log_and_raise_sanitized
 
@@ -101,7 +101,7 @@ class GoogleBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             # Basic validation
             if self.provider_name == "vertexai" and not self.project_id:
                 logger.error("Vertex AI requires project_id")
@@ -109,9 +109,8 @@ class GoogleBaseService(ProviderAIService):
 
             logger.debug(f"{self.provider_name.title()} connection verified")
             return True
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(f"{self.provider_name.title()} connection verification failed: {e!s}")
-            return False
+
+        return await verify_connection_via(logger, _probe, provider=self.provider_name.title())
 
     async def close(self) -> None:
         """Close the Google Cloud service and release resources."""

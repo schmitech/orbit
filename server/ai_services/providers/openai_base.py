@@ -9,7 +9,7 @@ lives in one place.
 from typing import Any
 import logging
 
-from ..base import ServiceType
+from ..base import ServiceType, verify_connection_via
 from ..errors import ErrorCategory, log_and_raise_sanitized
 from .openai_compatible_base import OpenAICompatibleBaseService
 
@@ -59,16 +59,15 @@ class OpenAIBaseService(OpenAICompatibleBaseService):
 
     async def verify_connection(self) -> bool:
         """OpenAI always supports the /models endpoint; no chat-completion fallback needed."""
-        try:
+        async def _probe() -> bool:
             if not self.client:
                 logger.error("OpenAI client is not initialized. Cannot verify connection.")
                 return False
             await self.client.models.list()
             logger.debug("OpenAI connection verified successfully")
             return True
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(f"OpenAI connection verification failed: {e!s}")
-            return False
+
+        return await verify_connection_via(logger, _probe, provider="OpenAI")
 
     def _handle_openai_error(self, error: Exception, operation: str = "operation") -> None:
         """Handle OpenAI errors. The openai package is guaranteed to be importable here."""

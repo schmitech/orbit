@@ -17,7 +17,7 @@ from openai import AsyncOpenAI
 import httpx
 import logging
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 from ..connection import RetryHandler
 from ..errors import ErrorCategory, log_and_raise_sanitized
 
@@ -255,14 +255,14 @@ class OpenAICompatibleBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             # Check if client is initialized
             if not self.client:
                 logger.error(
                     f"{self.provider_name.title()} client is not initialized. Cannot verify connection."
                 )
                 return False
-            
+
             # Try to list models (some providers support this)
             try:
                 await self.client.models.list()
@@ -293,11 +293,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
 
                 return False
 
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(
-                f"{self.provider_name.title()} connection verification failed: {e!s}"
-            )
-            return False
+        return await verify_connection_via(logger, _probe, provider=self.provider_name.title())
 
     async def _run_connection_verification(self) -> None:
         """Run connection verification without blocking the caller."""

@@ -5,7 +5,7 @@ import logging
 from openai import AsyncOpenAI
 import httpx
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 from ..connection import RetryHandler
 from ..errors import ErrorCategory, log_and_raise_sanitized
 
@@ -98,11 +98,11 @@ class ShimmyBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             if not self.client:
                 logger.error("Shimmy client is not initialized. Cannot verify connection.")
                 return False
-            
+
             # Try to list models (Shimmy supports /v1/models endpoint)
             try:
                 await self.client.models.list()
@@ -113,7 +113,7 @@ class ShimmyBaseService(ProviderAIService):
                 logger.debug(
                     f"Shimmy models endpoint not available, trying test request: {models_error!s}"
                 )
-                
+
                 # Make a minimal test request
                 response = await self.client.chat.completions.create(
                     model=self.model,
@@ -121,16 +121,14 @@ class ShimmyBaseService(ProviderAIService):
                     max_tokens=1,
                     temperature=0
                 )
-                
+
                 if response and response.choices:
                     logger.debug("Shimmy connection verified via test request")
                     return True
-                
+
                 return False
-                
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(f"Shimmy connection verification failed: {e!s}")
-            return False
+
+        return await verify_connection_via(logger, _probe, provider="Shimmy")
 
     async def close(self) -> None:
         """Close the Shimmy service and release resources."""

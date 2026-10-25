@@ -12,7 +12,7 @@ import logging
 
 import cohere
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 from ..connection import ConnectionManager, RetryHandler
 from ..errors import ErrorCategory, log_and_raise_sanitized
 
@@ -155,7 +155,7 @@ class CohereBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             # Basic validation: check if API key has the correct format
             if not self.api_key or len(self.api_key) < 10:
                 logger.error("Invalid Cohere API key format")
@@ -164,9 +164,7 @@ class CohereBaseService(ProviderAIService):
             logger.debug("Cohere connection verified successfully")
             return True
 
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(f"Cohere connection verification failed: {e!s}")
-            return False
+        return await verify_connection_via(logger, _probe, provider="Cohere")
 
     async def close(self) -> None:
         """

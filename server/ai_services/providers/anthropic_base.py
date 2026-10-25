@@ -10,7 +10,7 @@ from typing import Any
 from anthropic import AsyncAnthropic
 import logging
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 from ..connection import ConnectionManager, RetryHandler
 from ..errors import ErrorCategory, log_and_raise_sanitized
 
@@ -131,7 +131,7 @@ class AnthropicBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             # Basic validation: check if API key has the correct format
             if not self.api_key.startswith("sk-ant-"):
                 logger.error("Invalid Anthropic API key format")
@@ -141,9 +141,7 @@ class AnthropicBaseService(ProviderAIService):
             logger.debug("Anthropic connection verified successfully")
             return True
 
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(f"Anthropic connection verification failed: {e!s}")
-            return False
+        return await verify_connection_via(logger, _probe, provider="Anthropic")
 
     async def close(self) -> None:
         """

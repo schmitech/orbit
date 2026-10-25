@@ -8,7 +8,7 @@ consolidating common functionality and integrating with existing Ollama utilitie
 from typing import Any, Optional
 import logging
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 
 
 logger = logging.getLogger(__name__)
@@ -205,11 +205,10 @@ class OllamaBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             return await self.connection_verifier.verify_connection(check_model=True)
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(f"Ollama connection verification failed: {e!s}")
-            return False
+
+        return await verify_connection_via(logger, _probe, provider="Ollama")
 
     async def close(self) -> None:
         """

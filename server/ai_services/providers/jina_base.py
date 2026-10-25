@@ -11,7 +11,7 @@ import aiohttp
 import asyncio
 import logging
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 from ..connection import ConnectionManager, RetryHandler
 from ..errors import ErrorCategory, log_and_raise_sanitized
 
@@ -159,7 +159,7 @@ class JinaBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             session = await self._get_session()
             url = f"{self.base_url}{self.endpoint}"
 
@@ -193,9 +193,7 @@ class JinaBaseService(ProviderAIService):
                     logger.error(f"Unexpected response structure from Jina API: {data}")
                     return False
 
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(f"Jina connection verification failed: {e!s}")
-            return False
+        return await verify_connection_via(logger, _probe, provider="Jina")
 
     async def close(self) -> None:
         """

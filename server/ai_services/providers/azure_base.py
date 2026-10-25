@@ -9,7 +9,7 @@ and error handling for Azure services.
 from typing import Any
 import logging
 
-from ..base import ProviderAIService, ServiceType
+from ..base import ProviderAIService, ServiceType, verify_connection_via
 from ..connection import RetryHandler
 from ..errors import ErrorCategory, log_and_raise_sanitized
 
@@ -135,7 +135,7 @@ class AzureBaseService(ProviderAIService):
         Returns:
             True if the connection is working, False otherwise
         """
-        try:
+        async def _probe() -> bool:
             # Test with a minimal request
             # Reasoning models (e.g. gpt-5.x) spend part of max_completion_tokens on
             # internal reasoning before emitting visible output, so a value of 1
@@ -153,9 +153,8 @@ class AzureBaseService(ProviderAIService):
 
             logger.debug("Azure AI connection verified successfully")
             return True
-        except Exception as e:  # noqa: BLE001 - provider boundary fallback
-            logger.error(f"Azure AI connection verification failed: {e!s}")
-            return False
+
+        return await verify_connection_via(logger, _probe, provider="Azure AI")
 
     async def close(self) -> None:
         """
