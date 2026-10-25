@@ -6,6 +6,7 @@
 - **AI service reliability**: Improved concurrent batching for Gemini embeddings and OpenAI reranking, and moved blocking translation, image, and video work off the event loop.
 - **Provider cleanup**: Consolidated common error logging, connection checks, reasoning settings, audio configuration lookup, and other duplicated code without changing provider-specific behavior. Provider errors containing braces no longer disrupt error handling.
 - **Gemini client sharing**: Gemini services using the same API key now share a client, with safe concurrent creation and cleanup when services close.
+- **Shared temperature/token-parameter capability hooks**: The OpenAI and Azure vision providers' duplicated logic for picking the right token-count parameter (`max_tokens`/`max_completion_tokens`/`max_output_tokens`) and for deciding whether a model accepts a custom `temperature` now lives on `OpenAIBaseService`/`AzureBaseService` instead of being copied per service. No behavior change; `azure_openai_inference_service.py`'s own hardcoded parameters are intentionally left as-is pending a separate decision.
 
 ## [2.20.2] - 2026-10-24
 

@@ -206,6 +206,71 @@ class AzureBaseService(ProviderAIService):
         provider_config = self._extract_provider_config()
         return provider_config.get('top_p', default)
 
+    def _get_token_parameter_name(self) -> str:
+        """
+        Return the correct token-count parameter name for the active
+        deployment. Azure deployment names are user-defined and can't be
+        reliably sniffed like OpenAI's own model ids (e.g. a Foundry Model
+        Catalog deployment such as "mistral-ocr-4-0" uses the legacy
+        max_tokens parameter, not max_completion_tokens), so this defaults
+        to the legacy name unless explicitly configured or the deployment
+        name itself signals a modern GPT-4o/GPT-5/o-series model.
+        """
+        provider_config = self._extract_provider_config()
+
+        configured_name = provider_config.get("token_parameter_name") or provider_config.get("token_parameter")
+        if isinstance(configured_name, str):
+            configured_name = configured_name.strip()
+            if configured_name:
+                return configured_name
+
+        deployment_name = (self.deployment or "").lower()
+        modern_prefixes = ("gpt-4.1", "gpt-4o", "gpt-5", "o1", "o2", "o3")
+        if deployment_name.startswith(modern_prefixes):
+            return "max_completion_tokens"
+
+        return "max_tokens"
+
+    def _resolve_token_value(self, token_param: str, kwargs: dict[str, Any]) -> int:
+        """Determine the token limit value while respecting caller overrides, and
+        strip every token-parameter variant out of kwargs so callers passing
+        e.g. max_completion_tokens never collide with the key set below."""
+        overrides = {
+            "max_tokens": kwargs.pop("max_tokens", None),
+            "max_completion_tokens": kwargs.pop("max_completion_tokens", None),
+            "max_output_tokens": kwargs.pop("max_output_tokens", None),
+        }
+
+        param_override = overrides.get(token_param)
+        if param_override is not None:
+            return param_override
+
+        for value in overrides.values():
+            if value is not None:
+                return value
+
+        return self.max_tokens
+
+    def _supports_temperature(self) -> bool:
+        """
+        Return whether the active deployment accepts a non-default
+        temperature. Newer reasoning-style models (GPT-5/o-series, and
+        third-party Foundry Catalog deployments like GPT-5.6 Luna) reject
+        any temperature other than their default (1.0) with an
+        unsupported_value error — mirrors the token-parameter sniffing
+        above: explicit config wins, deployment-name prefix is a
+        best-effort fallback since Azure deployment names are user-defined.
+        """
+        provider_config = self._extract_provider_config()
+
+        configured = provider_config.get("supports_temperature")
+        if isinstance(configured, bool):
+            return configured
+
+        deployment_name = (self.deployment or "").lower()
+        unsupported_prefixes = ("gpt-5", "o1", "o2", "o3")
+        return not deployment_name.startswith(unsupported_prefixes)
+
     def _build_messages(self, prompt: str, messages: list = None) -> tuple[list, str | None]:
         """
         Build messages and system prompt in the format expected by Azure AI.
