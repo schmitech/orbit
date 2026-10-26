@@ -4,8 +4,9 @@ Generate requirements.txt file from dependencies.toml for a specific profile.
 Usage: python generate_requirements.py <profile_name> [output_file]
 """
 
-import sys
 import argparse
+import sys
+
 try:
     import tomllib
 except ImportError:

@@ -211,7 +211,8 @@ def prompt_choice(question, options, default=1):
             print(c(RED, f"  Invalid — enter a number between 1 and {len(options)}"))
 
     # Interactive arrow-key mode
-    import termios, tty  # noqa: PLC0415 (stdlib, available on macOS/Linux)
+    import termios
+    import tty
 
     HINT = f"  {c(YELLOW, '↑/↓ to move · Enter to select · 1–' + str(len(options)) + ' to jump')}"
     # After render(), the cursor rests on the hint line (no trailing \n), which is
@@ -309,7 +310,7 @@ def write_config_yaml(config_dir, provider_key):
 def write_inference_yaml(config_dir, provider_key):
     path = os.path.join(config_dir, "inference.yaml")
     if not os.path.isfile(path):
-        print(c(YELLOW, f"  ⚠  config/inference.yaml not found — skipping"))
+        print(c(YELLOW, "  ⚠  config/inference.yaml not found — skipping"))
         return False
     with open(path) as f:
         text = f.read()
@@ -430,7 +431,7 @@ def main(project_root):
     print()
     if provider["key"] == "ollama":
         print(f"  {c(YELLOW, 'Before starting ORBIT, make sure Ollama is running:')}")
-        print(f"    ollama serve")
+        print("    ollama serve")
         print()
     print(f"  {c(CYAN, 'Start ORBIT:')}")
     print(f"    {c(BOLD, './bin/orbit.sh start')}")

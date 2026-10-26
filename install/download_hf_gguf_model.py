@@ -44,11 +44,12 @@ Requirements:
     pip install requests tqdm
 """
 
-import sys
 import argparse
 import logging
-import requests
+import sys
 from pathlib import Path
+
+import requests
 from tqdm import tqdm
 
 # Configure logging with more detailed format
@@ -231,7 +232,7 @@ def download_file(url, dest_path, file_name):
     except requests.RequestException as e:
         logger.error(f"Download failed: {e}")
         return False
-    except IOError as e:
+    except OSError as e:
         logger.error(f"File write error: {e}")
         return False
 

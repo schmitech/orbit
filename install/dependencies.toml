@@ -124,7 +124,7 @@ dependencies = [
     "mysql-connector-python>=9.6.0",
     "pymssql>=2.3.13",
     "cassandra-driver>=3.29.3",
-    "duckdb>=1.5.1",
+    "duckdb>=2.0.0",
     "pyathena>=3.30.1",
 ]
 
