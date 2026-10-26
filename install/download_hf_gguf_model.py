@@ -376,7 +376,7 @@ def main():
     except KeyboardInterrupt:
         logger.info("\n⏹️ Download cancelled by user")
         return 1
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - top-level CLI guard, must not crash on unanticipated errors
         logger.error(f"❌ Unexpected error: {e}")
         if args.verbose:
             import traceback

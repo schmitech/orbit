@@ -106,7 +106,7 @@ def main():
     except FileNotFoundError as e:
         print(f'Error: File not found - {e}', file=sys.stderr)
         sys.exit(1)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - top-level CLI guard, must not crash on unanticipated errors
         print(f'Error: {e}', file=sys.stderr)
         sys.exit(1)
 
