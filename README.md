@@ -24,8 +24,24 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/schmitech/orbit">⭐ Star ORBIT</a> to help others discover the project.<br />
+  <a href="https://github.com/schmitech/orbit">⭐ Star ORBIT</a> to save it for your next AI project and help others discover it.<br />
 </p>
+
+## Why ORBIT
+
+An AI gateway, retrieval engine, and agent host in one Apache 2.0 project, with no gated features.
+
+| | What you get |
+| :--- | :--- |
+| **Your data, connected** | Query files, SQL, NoSQL, vector stores, and APIs through YAML-configured adapters, with hybrid retrieval and reranking. |
+| **Your choice of models** | Use local or hosted models through one OpenAI-compatible API, with automatic model selection and provider fallbacks. |
+| **Agents that take action** | Connect MCP tools, route requests to specialized skills, and coordinate agents through A2A or async messaging. |
+| **Beyond text chat** | Process documents and images, build voice experiences, and generate images, audio, and video. |
+| **Real-time decisions** | Get structured choices, yes/no answers, and scores with probabilities for routing, triage, and moderation. |
+| **Your infrastructure** | Self-host on-premises or in a private cloud, including air-gapped deployments with local models. |
+| **Security and operations built in** | SSO, role-based access, PII detection, moderation, quotas, audit logs, and cost estimates, plus an admin UI for day-to-day management. |
+
+Explore the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) for a detailed comparison with Open WebUI and LiteLLM.
 
 <p align="center">
   <strong>ORBIT control plane</strong>
@@ -38,11 +54,22 @@
 <br/>
 
 <p align="center">
-  <strong>Chat with files using a multimodal agent</strong>
+  <strong>Chat with your documents and images</strong>
   <br />
-  <img width="700" alt="Chat with files using a multimodal agent" src="https://github.com/user-attachments/assets/8526017b-756c-420d-b880-8ebe1a5dd33e" />
+  <img width="700" alt="ORBIT multimodal agent answering questions about uploaded documents and images" src="https://github.com/user-attachments/assets/8526017b-756c-420d-b880-8ebe1a5dd33e" />
   <br />
-  <sub>Ask questions about your documents and images through one conversational interface.</sub>
+  <sub>Upload files and ask questions in plain language to find answers in your documents and images.</sub>
+  <br />
+</p>
+
+<br/>
+
+<p align="center">
+  <strong>Chat with your data</strong>
+  <br />
+  <img width="700" alt="ORBIT answering questions and analyzing data from connected sources" src="https://github.com/user-attachments/assets/1f6f7cdd-992f-4ba0-93f0-030cfc9fff65" />
+  <br />
+  <sub>Ask questions in plain language to explore your connected data, spot trends, and uncover insights.</sub>
   <br />
 </p>
 
@@ -53,40 +80,28 @@
   <br />
   <img width="700" alt="Decision Car Simulation showing ORBIT-powered lane choices in an arcade driving game" src="https://github.com/user-attachments/assets/cc4d9839-263b-4632-b0a2-770b90121e57" />
   <br />
-  <sub>ORBIT chooses lanes and assesses collision risk—the same decision-model adapters can power routing, triage, and moderation.</sub>
+  <sub>Turn context into fast, structured decisions with probabilities for routing requests, triaging tickets, and moderating content.</sub>
   <br />
 </p>
 
 <br/>
 
 <p align="center">
-  <strong>MCP Tools Calling</strong>
+  <strong>Connect your agents to MCP tools</strong>
   <br />
-  <img width="700" alt="MCP Tool Calling" src="https://github.com/user-attachments/assets/2e3ea9a0-d0fa-4592-a8fd-7a210fccfdc5"" />
+  <img width="700" alt="MCP Tool Calling" src="https://github.com/user-attachments/assets/2e3ea9a0-d0fa-4592-a8fd-7a210fccfdc5" />
   <br />
   <sub>Configure MCP servers in one place, then call MCP tools from your ORBIT client.</sub>
   <br />
 </p>
 
-## Why ORBIT
-
-| | What you get |
-| :--- | :--- |
-| **Your data, connected** | Files, SQL, NoSQL, vector stores, APIs, and MCP tools through YAML-configured adapters. |
-| **Your choice of models** | Switch between local and hosted providers behind one OpenAI-compatible API, or let an adapter auto-select a model per request based on how much capability it needs. |
-| **Your infrastructure** | Self-host on-premises or in a private cloud, use local models for air-gapped deployments. |
-| **Operations built in** | Authentication, quotas, audit logs, provider fallbacks, monitoring, and an admin UI. |
-
-Explore the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) for a detailed comparison.
-
 <details>
-<summary><strong>See ORBIT in action</strong></summary>
+<summary><strong>See other examples</strong></summary>
 
 Explore what you can build with ORBIT, from conversations over private data to voice assistants and tool-using agents.
 
 - [Talk to a municipal assistant in real time](https://github.com/user-attachments/assets/9c6530be-1116-4a14-aa82-321448ea5a8d)
 - [Choose AI models and configure model availability per agent](https://github.com/user-attachments/assets/17b2521c-b65a-4717-a842-074bfea9ffb7)
-- [Call MCP tools from an agent](https://github.com/user-attachments/assets/b177b234-e64f-491a-8c3e-8294774c548c)
 - [Render music and play MIDI](https://github.com/user-attachments/assets/084024e7-5123-4943-8aa4-38d750332cfa)
 - [Query SQL data through a real-time voice conversation](https://github.com/user-attachments/assets/d1214904-267e-4295-8a0c-246dd37b7e56)
 - [Render Mermaid diagrams in OrbitChat](https://github.com/user-attachments/assets/b7eaf342-bfa5-40cd-8fe4-006a26693ef7)
@@ -95,9 +110,13 @@ Explore what you can build with ORBIT, from conversations over private data to v
 
 </details>
 
+<p align="center">
+  See something you’d build with ORBIT? <a href="https://github.com/schmitech/orbit">Give the project a ⭐.</a>
+</p>
+
 ## Quick start
 
-**[Try the ORBIT Sandbox →](https://orbit.schmitech.ca/)** The quickest way to see what ORBIT can do: explore interactive demos in your browser, with no installation or account required.
+<!-- **[Try the ORBIT Sandbox →](https://orbit.schmitech.ca/)** The quickest way to see what ORBIT can do: explore interactive demos in your browser, with no installation or account required. -->
 
 <details>
 <summary><strong>Try with Docker</strong></summary>
