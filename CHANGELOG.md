@@ -6,7 +6,7 @@
 - **Cheaper Inference provider**: Added `cheaperinference` as a new OpenAI-compatible inference provider (disabled by default). See `config/inference.yaml` and `env.example` (`CHEAPERINFERENCE_API_KEY`).
 
 ### Maintenance
-- **Prompt-parsing duplication documented, not yet fixed**: Filed `docs/roadmap/dedupe-prompt-parsing-inference-services.md` to extract the prompt-to-`messages` parsing block duplicated across 11 OpenAI-compatible inference providers into a shared `OpenAICompatibleBaseService` helper. No code change yet.
+- **Deduplicated prompt-parsing across inference providers**: The prompt-to-`messages` parsing block copy-pasted across 11 OpenAI-compatible inference providers (venice, minimax, scaleway, deepinfra, lmstudio, cohere, nebius, groq, moonshot, cheaperinference, cerebras) now lives in one `_build_messages()` helper on `OpenAICompatibleBaseService`. No behavior change; NearAI was left as-is since it already had its own helper plus extra message normalization. `docs/roadmap/complete/dedupe-prompt-parsing-inference-services.md` is now complete.
 
 ## [2.20.3] - 2026-10-25
 

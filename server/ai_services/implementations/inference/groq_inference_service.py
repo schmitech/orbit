@@ -66,23 +66,7 @@ class GroqInferenceService(UsageReportingMixin, InferenceService, OpenAICompatib
             await self.initialize()
 
         try:
-            # Check if we have messages format in kwargs
-            messages = kwargs.pop('messages', None)
-
-            if messages is None:
-                # Traditional format - convert to messages
-                # Groq supports system prompts, so try to extract if present
-                if "\nUser:" in prompt and "Assistant:" in prompt:
-                    parts = prompt.split("\nUser:", 1)
-                    if len(parts) == 2:
-                        system_part = parts[0].strip()
-                        user_part = parts[1].replace("Assistant:", "").strip()
-                        messages = [
-                            {"role": "system", "content": system_part},
-                            {"role": "user", "content": user_part}
-                        ]
-                else:
-                    messages = [{"role": "user", "content": prompt}]
+            messages = self._build_messages(prompt, kwargs)
 
             reasoning_effort = self._resolve_reasoning_effort(kwargs)
 
@@ -132,22 +116,7 @@ class GroqInferenceService(UsageReportingMixin, InferenceService, OpenAICompatib
             await self.initialize()
 
         try:
-            # Check if we have messages format in kwargs
-            messages = kwargs.pop('messages', None)
-
-            if messages is None:
-                # Traditional format - convert to messages
-                if "\nUser:" in prompt and "Assistant:" in prompt:
-                    parts = prompt.split("\nUser:", 1)
-                    if len(parts) == 2:
-                        system_part = parts[0].strip()
-                        user_part = parts[1].replace("Assistant:", "").strip()
-                        messages = [
-                            {"role": "system", "content": system_part},
-                            {"role": "user", "content": user_part}
-                        ]
-                else:
-                    messages = [{"role": "user", "content": prompt}]
+            messages = self._build_messages(prompt, kwargs)
 
             reasoning_effort = self._resolve_reasoning_effort(kwargs)
 

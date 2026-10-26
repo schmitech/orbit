@@ -1,5 +1,9 @@
 # Dedupe Prompt-Parsing Block in Inference Services — Implementation Plan
 
+**Status: Complete.** The shared `_build_messages` helper was added to
+`OpenAICompatibleBaseService` and all 11 in-scope providers were migrated to
+it. NearAI was left as-is per the "separate decision" note below (option 1).
+
 ## Summary
 
 Extract the repeated prompt-to-`messages` parsing block out of the individual

@@ -28,19 +28,7 @@ class LMStudioInferenceService(InferenceService, OpenAICompatibleBaseService):
             await self.initialize()
 
         try:
-            messages = kwargs.pop('messages', None)
-            if messages is None:
-                if "\nUser:" in prompt and "Assistant:" in prompt:
-                    parts = prompt.split("\nUser:", 1)
-                    if len(parts) == 2:
-                        system_part = parts[0].strip()
-                        user_part = parts[1].replace("Assistant:", "").strip()
-                        messages = [
-                            {"role": "system", "content": system_part},
-                            {"role": "user", "content": user_part}
-                        ]
-                else:
-                    messages = [{"role": "user", "content": prompt}]
+            messages = self._build_messages(prompt, kwargs)
 
             params = {
                 "model": self.model,
@@ -63,19 +51,7 @@ class LMStudioInferenceService(InferenceService, OpenAICompatibleBaseService):
             await self.initialize()
 
         try:
-            messages = kwargs.pop('messages', None)
-            if messages is None:
-                if "\nUser:" in prompt and "Assistant:" in prompt:
-                    parts = prompt.split("\nUser:", 1)
-                    if len(parts) == 2:
-                        system_part = parts[0].strip()
-                        user_part = parts[1].replace("Assistant:", "").strip()
-                        messages = [
-                            {"role": "system", "content": system_part},
-                            {"role": "user", "content": user_part}
-                        ]
-                else:
-                    messages = [{"role": "user", "content": prompt}]
+            messages = self._build_messages(prompt, kwargs)
 
             params = {
                 "model": self.model,

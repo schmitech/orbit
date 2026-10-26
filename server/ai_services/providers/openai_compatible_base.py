@@ -409,6 +409,32 @@ class OpenAICompatibleBaseService(ProviderAIService):
             reasoning_effort = provider_config.get("reasoning_effort") or provider_config.get("effort")
         return reasoning_effort
 
+    @staticmethod
+    def _build_messages(prompt: str, kwargs: dict[str, Any]) -> list[dict[str, Any]]:
+        """
+        Pop 'messages' from kwargs if present, else derive it from prompt.
+
+        Return type is list[dict[str, Any]], not list[dict[str, str]]: an
+        explicit 'messages' kwarg passed by a caller may carry non-string
+        content (e.g. multimodal content-block lists), so the value type
+        must not be narrowed to str.
+        """
+        messages = kwargs.pop('messages', None)
+        if messages is not None:
+            return messages
+
+        if "\nUser:" in prompt and "Assistant:" in prompt:
+            parts = prompt.split("\nUser:", 1)
+            if len(parts) == 2:
+                system_part = parts[0].strip()
+                user_part = parts[1].replace("Assistant:", "").strip()
+                return [
+                    {"role": "system", "content": system_part},
+                    {"role": "user", "content": user_part},
+                ]
+
+        return [{"role": "user", "content": prompt}]
+
     def _get_batch_size(self, default: int = 10) -> int:
         """
         Get batch size configuration.
