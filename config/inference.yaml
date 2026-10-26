@@ -721,3 +721,12 @@ inference:
     max_tokens: 4096
     stream: true
     reasoning_effort: "high"  # Options: high, xhigh, max
+  cheaperinference:
+    enabled: false
+    api_key: ${CHEAPERINFERENCE_API_KEY}
+    model: "deepseek-v4-flash"
+    context_window: 32768  # Catalog is a dynamic multi-model marketplace; conservative default, verify per model via GET /v1/models
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true

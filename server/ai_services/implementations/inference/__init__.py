@@ -43,6 +43,7 @@ Available providers:
     - VeniceInferenceService: Venice AI privacy-focused inference
     - ScalewayInferenceService: Scaleway European cloud inference
     - FuguInferenceService: Sakana AI (Fugu) inference
+    - CheaperInferenceInferenceService: Cheaper Inference OpenAI-compatible gateway
 """
 
 import logging
@@ -93,6 +94,7 @@ _implementations = [
     ('venice_inference_service', 'VeniceInferenceService'),
     ('scaleway_inference_service', 'ScalewayInferenceService'),
     ('fugu_inference_service', 'FuguInferenceService'),
+    ('cheaperinference_inference_service', 'CheaperInferenceInferenceService'),
 ]
 
 for module_name, class_name in _implementations:

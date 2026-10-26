@@ -69,6 +69,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "venice": "https://api.venice.ai/api/v1",
         "scaleway": "https://api.scaleway.ai/v1",
         "fugu": "https://api.sakana.ai/v1",
+        "cheaperinference": "https://api.cheaperinference.com/v1",
     }
 
     # Default API key environment variable names
@@ -93,6 +94,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "venice": "VENICE_API_KEY",
         "scaleway": "SCALEWAY_API_KEY",
         "fugu": "FUGU_API_KEY",
+        "cheaperinference": "CHEAPERINFERENCE_API_KEY",
     }
 
     def __init__(

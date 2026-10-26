@@ -124,6 +124,7 @@ def register_inference_services(config: dict[str, Any] = None) -> None:
         ("venice", "VeniceInferenceService", "Venice AI"),
         ("scaleway", "ScalewayInferenceService", "Scaleway"),
         ("fugu", "FuguInferenceService", "Sakana AI (Fugu)"),
+        ("cheaperinference", "CheaperInferenceInferenceService", "Cheaper Inference"),
     ], config=config, config_section='inference', default_enabled=False)
 
 

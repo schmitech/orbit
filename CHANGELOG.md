@@ -1,5 +1,13 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **Cheaper Inference provider**: Added `cheaperinference` as a new OpenAI-compatible inference provider (disabled by default). See `config/inference.yaml` and `env.example` (`CHEAPERINFERENCE_API_KEY`).
+
+### Maintenance
+- **Prompt-parsing duplication documented, not yet fixed**: Filed `docs/roadmap/dedupe-prompt-parsing-inference-services.md` to extract the prompt-to-`messages` parsing block duplicated across 11 OpenAI-compatible inference providers into a shared `OpenAICompatibleBaseService` helper. No code change yet.
+
 ## [2.20.3] - 2026-10-25
 
 ### Maintenance
