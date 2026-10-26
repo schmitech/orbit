@@ -123,6 +123,7 @@ def register_inference_services(config: dict[str, Any] = None) -> None:
         ("nebius", "NebiusInferenceService", "Nebius AI Studio"),
         ("venice", "VeniceInferenceService", "Venice AI"),
         ("scaleway", "ScalewayInferenceService", "Scaleway"),
+        ("cheaperinference", "CheaperInferenceInferenceService", "Cheaper Inference"),
         ("fugu", "FuguInferenceService", "Sakana AI (Fugu)"),
     ], config=config, config_section='inference', default_enabled=False)
 

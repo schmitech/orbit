@@ -42,6 +42,7 @@ Available providers:
     - NebiusInferenceService: Nebius AI Studio inference
     - VeniceInferenceService: Venice AI privacy-focused inference
     - ScalewayInferenceService: Scaleway European cloud inference
+    - CheaperInferenceInferenceService: Cheaper Inference OpenAI-compatible gateway
     - FuguInferenceService: Sakana AI (Fugu) inference
 """
 
@@ -92,6 +93,7 @@ _implementations = [
     ('nebius_inference_service', 'NebiusInferenceService'),
     ('venice_inference_service', 'VeniceInferenceService'),
     ('scaleway_inference_service', 'ScalewayInferenceService'),
+    ('cheaperinference_inference_service', 'CheaperInferenceInferenceService'),
     ('fugu_inference_service', 'FuguInferenceService'),
 ]
 

@@ -718,6 +718,15 @@ inference:
     top_p: 0.8
     max_tokens: 4096
     stream: true
+  cheaperinference:
+    enabled: false
+    api_key: ${CHEAPERINFERENCE_API_KEY}
+    model: "deepseek-v4-flash"
+    context_window: 1000000  # Cheaper Inference public model catalog, fetched 2026-10-26
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true
   fugu:
     enabled: false
     api_key: ${FUGU_API_KEY}
