@@ -1,10 +1,23 @@
 import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { CodeBlockProps } from './types';
 
 type ThemeMode = 'light' | 'dark';
+
+// oneDark's default comment color (hsl(220, 10%, 40%)) sits too close to the
+// code block background to read comfortably. Lighten it, and make sure no
+// background ever sneaks in behind the comment text.
+const CODE_SYNTAX_THEMES: Record<ThemeMode, typeof oneDark> = {
+  light: oneLight,
+  dark: {
+    ...oneDark,
+    comment: { ...oneDark.comment, color: '#8992a4', background: 'transparent' },
+    prolog: { ...oneDark.prolog, color: '#8992a4', background: 'transparent' },
+    cdata: { ...oneDark.cdata, color: '#8992a4', background: 'transparent' },
+  },
+};
 
 const MermaidRenderer = lazy(() =>
   import('./renderers/MermaidRenderer').then((module) => ({ default: module.MermaidRenderer }))
@@ -144,6 +157,34 @@ const LANGUAGE_ALIASES: Record<string, string> = {
   plaintext: 'text',
   text: 'text',
 };
+
+// Display casing for the language label shown in the code block header.
+// Defaults to the raw language string when not listed here.
+const LANGUAGE_LABELS: Record<string, string> = {
+  javascript: 'JavaScript',
+  typescript: 'TypeScript',
+  tsx: 'TSX',
+  jsx: 'JSX',
+  bash: 'Bash',
+  yaml: 'YAML',
+  python: 'Python',
+  ruby: 'Ruby',
+  kotlin: 'Kotlin',
+  markdown: 'Markdown',
+  csharp: 'C#',
+  cpp: 'C++',
+  hcl: 'Terraform',
+  dockerfile: 'Dockerfile',
+  env: 'Env',
+  json: 'JSON',
+  html: 'HTML',
+  css: 'CSS',
+  sql: 'SQL',
+  graphql: 'GraphQL',
+  text: 'Plain text',
+};
+
+const getLanguageLabel = (language: string): string => LANGUAGE_LABELS[language] ?? language;
 
 const extractLanguageFromClassName = (className?: string | null): string => {
   if (!className) return '';
@@ -315,19 +356,21 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
 
   // Use syntax highlighting for regular code blocks
   if (enableSyntaxHighlighting && language) {
-    const style = effectiveTheme === 'light' ? vs : vscDarkPlus;
+    const style = CODE_SYNTAX_THEMES[effectiveTheme];
+    const lineCount = code.split('\n').length;
     return (
-      <div ref={containerRef} className="syntax-highlighted-wrapper code-block-container">
-        <CopyButton code={code} />
+      <div ref={containerRef} className={`code-block code-block--${effectiveTheme}`}>
+        <div className="code-block-header">
+          <span className="code-block-language">{getLanguageLabel(language)}</span>
+          <CopyButton code={code} />
+        </div>
         <SyntaxHighlighter
           language={language}
           style={style}
-          customStyle={{
-            margin: '12px 0',
-            borderRadius: '6px',
-            fontSize: '0.9em',
-          }}
-          showLineNumbers={false}
+          customStyle={{ margin: 0, padding: '14px 16px' }}
+          codeTagProps={{ style: { fontFamily: 'inherit' } }}
+          showLineNumbers={lineCount > 1}
+          lineNumberStyle={{ color: effectiveTheme === 'light' ? '#9d9d9f' : '#5c6370' }}
         >
           {code}
         </SyntaxHighlighter>
@@ -335,12 +378,14 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
     );
   }
 
-  // Fallback: render as normal code block
-  // Use div instead of pre to avoid nesting issues with ReactMarkdown paragraph wrapping
+  // Fallback: render as a plain code block with the same editor-style chrome
   return (
-    <div ref={containerRef} className={`markdown-code-block code-block-container ${className}`.trim()}>
-      <CopyButton code={code} />
-      <pre style={{ margin: 0, padding: 0, background: 'transparent', border: 'none' }}>
+    <div ref={containerRef} className={`code-block code-block--${effectiveTheme} ${className}`.trim()}>
+      <div className="code-block-header">
+        <span className="code-block-language">{getLanguageLabel(language || 'text')}</span>
+        <CopyButton code={code} />
+      </div>
+      <pre className="code-block-body">
         <code>{code}</code>
       </pre>
     </div>

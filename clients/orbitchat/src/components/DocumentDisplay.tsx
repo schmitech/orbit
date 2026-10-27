@@ -336,7 +336,7 @@ export function DocumentDisplay({
         </div>
 
         {canPreviewInline && (
-          <div className="max-h-[460px] overflow-auto bg-gray-50 dark:bg-[#171717]">
+          <div className={`bg-gray-50 dark:bg-[#171717] ${format === 'md' ? '' : 'max-h-[460px] overflow-auto'}`}>
             {format === 'pdf' && blobUrl && (
               <iframe
                 src={blobUrl}

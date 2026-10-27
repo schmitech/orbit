@@ -242,134 +242,157 @@
 /* Code */
 .markdown-content pre {
   overflow: auto;
-  overflow-y: auto;
-  overflow-x: auto;
   padding: 12px 16px;
   margin: 12px 0;
-  border-radius: 6px;
+  border-radius: 10px;
   background-color: var(--md-code-bg);
   border: 1px solid var(--md-code-border);
   font-size: 0.95em;
   font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  max-height: 500px; /* Set a reasonable max height with scrolling */
+  max-height: 500px;
   word-wrap: break-word;
   white-space: pre-wrap;
 }
 
-/* Code block wrapper to avoid paragraph nesting issues */
-.markdown-content .markdown-code-block {
+/* Code block: editor-style chrome with a header bar (language + copy) above the code.
+   Chrome colors are keyed to the --theme modifier (set from the same effectiveTheme
+   that picks the Prism syntax style), not to the page's light/dark context, so the
+   chrome and the token colors can never land on opposite themes. */
+.markdown-content .code-block {
+  margin: 14px 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.markdown-content .code-block--light {
+  background-color: #fafafa;
+  border: 1px solid #e2e2e2;
+}
+
+.markdown-content .code-block--dark {
+  background-color: #282c34;
+  border: 1px solid #3a3f4b;
+}
+
+.markdown-content .code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px 7px 14px;
+  border-bottom: 1px solid;
+}
+
+.markdown-content .code-block--light .code-block-header {
+  background-color: #f0f0f0;
+  border-bottom-color: #e2e2e2;
+}
+
+.markdown-content .code-block--dark .code-block-header {
+  background-color: #21252b;
+  border-bottom-color: #3a3f4b;
+}
+
+.markdown-content .code-block-language {
+  font-size: 0.78em;
+  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.markdown-content .code-block--light .code-block-language {
+  color: #6e6e6e;
+}
+
+.markdown-content .code-block--dark .code-block-language {
+  color: #9199a8;
+}
+
+.markdown-content .code-block pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.markdown-content .code-block-body {
+  padding: 14px 16px;
   overflow: auto;
-  overflow-y: auto;
-  overflow-x: auto;
-  padding: 12px 16px;
-  margin: 12px 0;
-  border-radius: 6px;
-  background-color: var(--md-code-bg);
-  border: 1px solid var(--md-code-border);
-  font-size: 0.95em;
+  max-height: 500px;
+  font-size: 0.9em;
   font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   white-space: pre-wrap;
   word-wrap: break-word;
-  max-height: 500px; /* Set a reasonable max height with scrolling */
 }
 
-/* Code block container with copy button */
-.markdown-content .code-block-container {
-  position: relative;
+.markdown-content .code-block--light .code-block-body {
+  color: #383a42;
 }
 
-/* Copy button for code blocks */
+.markdown-content .code-block--dark .code-block-body {
+  color: #abb2bf;
+}
+
+/* react-syntax-highlighter renders its own <pre>; let it scroll on its own axis */
+.markdown-content .code-block pre {
+  white-space: pre !important;
+  word-wrap: normal !important;
+  overflow-x: auto;
+  max-height: 500px;
+}
+
+/* Copy button, docked in the header bar */
 .markdown-content .code-copy-button {
-  position: absolute;
-  top: 8px;
-  right: 8px;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background-color: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
+  padding: 4px 9px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: 0.78em;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: #333;
-  transition: all 0.2s ease;
-  z-index: 10;
-  opacity: 0;
-  pointer-events: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
 }
 
-.markdown-content .code-block-container:hover .code-copy-button {
-  opacity: 1;
-  pointer-events: auto;
+.markdown-content .code-block--light .code-copy-button {
+  color: #6e6e6e;
 }
 
-/* Always show copy button on touch devices */
-@media (hover: none) and (pointer: coarse) {
-  .markdown-content .code-copy-button {
-    opacity: 1;
-    pointer-events: auto;
-  }
+.markdown-content .code-block--dark .code-copy-button {
+  color: #9199a8;
 }
 
-.markdown-content .code-copy-button:hover {
-  background-color: rgba(255, 255, 255, 1);
-  border-color: rgba(0, 0, 0, 0.25);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.markdown-content .code-block--light .code-copy-button:hover {
+  background-color: #e6e6e6;
+  border-color: #e2e2e2;
+  color: #383a42;
 }
 
-.markdown-content .code-copy-button:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+.markdown-content .code-block--dark .code-copy-button:hover {
+  background-color: #3a3f4b;
+  border-color: #3a3f4b;
+  color: #abb2bf;
+}
+
+.markdown-content .code-block--light .code-copy-button:active {
+  background-color: #dcdcdc;
+}
+
+.markdown-content .code-block--dark .code-copy-button:active {
+  background-color: #454b59;
 }
 
 .markdown-content .code-copy-button svg {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .markdown-content .code-copy-button-text {
   white-space: nowrap;
   font-weight: 500;
-}
-
-/* Dark theme support for copy button */
-@media (prefers-color-scheme: dark) {
-  .markdown-content .code-copy-button {
-    background-color: rgba(30, 30, 30, 0.9);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #e0e0e0;
-  }
-
-  .markdown-content .code-copy-button:hover {
-    background-color: rgba(40, 40, 40, 1);
-    border-color: rgba(255, 255, 255, 0.3);
-  }
-}
-
-.markdown-content .markdown-code-block pre {
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  font-size: inherit;
-  font-family: inherit;
-}
-
-/* Syntax-highlighted code blocks (from react-syntax-highlighter) should use pre instead of pre-wrap
-   to preserve formatting and allow horizontal scrolling for long lines */
-.markdown-content .syntax-highlighted-wrapper {
-  position: relative;
-}
-
-.markdown-content .syntax-highlighted-wrapper pre {
-  white-space: pre !important;
-  word-wrap: normal !important;
-  overflow-x: auto;
-  max-height: none; /* Remove height cap for syntax-highlighted blocks */
 }
 
 /* Inline code specifically */
@@ -385,8 +408,7 @@
 
 /* Override for code inside pre or code blocks (block-level code) */
 .markdown-content pre code,
-.markdown-content .markdown-code-block code,
-.markdown-content .syntax-highlighted-wrapper code {
+.markdown-content .code-block code {
   padding: 0;
   border-radius: 0;
   background-color: transparent;
