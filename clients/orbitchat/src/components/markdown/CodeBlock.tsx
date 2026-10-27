@@ -13,6 +13,10 @@ const CODE_SYNTAX_THEMES: Record<ThemeMode, typeof oneDark> = {
   light: oneLight,
   dark: {
     ...oneDark,
+    // Match the pitch-black card used by the other renderers (chart/mermaid/svg/music)
+    // instead of oneDark's own dark-gray (#282c34).
+    'pre[class*="language-"]': { ...oneDark['pre[class*="language-"]'], background: '#000000' },
+    'code[class*="language-"]': { ...oneDark['code[class*="language-"]'], background: '#000000' },
     comment: { ...oneDark.comment, color: '#8992a4', background: 'transparent' },
     prolog: { ...oneDark.prolog, color: '#8992a4', background: 'transparent' },
     cdata: { ...oneDark.cdata, color: '#8992a4', background: 'transparent' },
@@ -367,7 +371,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
         <SyntaxHighlighter
           language={language}
           style={style}
-          customStyle={{ margin: 0, padding: '14px 16px' }}
+          customStyle={{ margin: 0, padding: '14px 16px', maxHeight: 'none', overflowY: 'visible' }}
           codeTagProps={{ style: { fontFamily: 'inherit' } }}
           showLineNumbers={lineCount > 1}
           lineNumberStyle={{ color: effectiveTheme === 'light' ? '#9d9d9f' : '#5c6370' }}
@@ -385,7 +389,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
         <span className="code-block-language">{getLanguageLabel(language || 'text')}</span>
         <CopyButton code={code} />
       </div>
-      <pre className="code-block-body">
+      <pre className="code-block-body" style={{ maxHeight: 'none', overflowY: 'visible' }}>
         <code>{code}</code>
       </pre>
     </div>

@@ -126,14 +126,27 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   // Declared before any early return to keep hook call order stable.
   const components: Partial<Components> = React.useMemo(() => ({
     pre: ({ node, children, ...props }) => {
-      const isMusicBlock = enableMusic && node?.children.some(child => {
-        if (child.type !== 'element' || child.tagName !== 'code') return false;
-        const classes = child.properties?.className;
-        return Array.isArray(classes) && classes.some(name => name === 'language-abc' || name === 'language-music');
-      });
+      // A fenced block with a language tag (```js, ```mermaid, ...) gets a
+      // `language-xxx` class on its `code` child; the `code` renderer below
+      // (CodeBlock) then treats it as block-level and supplies its own
+      // complete presentation - a bordered `.code-block` with its own
+      // internal `<pre>`, or a Mermaid/Chart/SVG/Music container. Wrapping
+      // that in react-markdown's default `<pre>` here would nest two
+      // independently scrollable `<pre>` boxes around the same content (and,
+      // for music, hide the player inside a clipped box), so skip it.
+      //
+      // An unlabelled fenced block or an indented code block has no
+      // `language-` class, so CodeBlock renders it as plain inline `<code>`
+      // (no wrapper of its own) - that one still needs this `<pre>` to
+      // preserve its line breaks and indentation.
+      const hasLanguageTag = node?.children.some(child =>
+        child.type === 'element' &&
+        child.tagName === 'code' &&
+        Array.isArray(child.properties?.className) &&
+        child.properties.className.some(name => typeof name === 'string' && name.startsWith('language-'))
+      );
 
-      // Music owns its score viewport; a scrolling pre would hide its player.
-      return isMusicBlock ? <>{children}</> : <pre {...props}>{children}</pre>;
+      return hasLanguageTag ? <>{children}</> : <pre {...props}>{children}</pre>;
     },
     table: ({ children, ...props }) => (
       <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>

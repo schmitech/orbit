@@ -270,8 +270,8 @@
 }
 
 .markdown-content .code-block--dark {
-  background-color: #282c34;
-  border: 1px solid #3a3f4b;
+  background-color: #000000;
+  border: 1px solid #242424;
 }
 
 .markdown-content .code-block-header {
@@ -289,8 +289,8 @@
 }
 
 .markdown-content .code-block--dark .code-block-header {
-  background-color: #21252b;
-  border-bottom-color: #3a3f4b;
+  background-color: #0a0a0a;
+  border-bottom-color: #242424;
 }
 
 .markdown-content .code-block-language {
@@ -316,8 +316,6 @@
 
 .markdown-content .code-block-body {
   padding: 14px 16px;
-  overflow: auto;
-  max-height: 500px;
   font-size: 0.9em;
   font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   white-space: pre-wrap;
@@ -332,12 +330,15 @@
   color: #abb2bf;
 }
 
-/* react-syntax-highlighter renders its own <pre>; let it scroll on its own axis */
+/* react-syntax-highlighter renders its own <pre>; the code block grows to its full
+   height so the chat/page scroll is the only vertical scroll in view — only long
+   lines get a horizontal scrollbar, scoped to this block. */
 .markdown-content .code-block pre {
   white-space: pre !important;
   word-wrap: normal !important;
   overflow-x: auto;
-  max-height: 500px;
+  overflow-y: visible;
+  max-height: none;
 }
 
 /* Copy button, docked in the header bar */
@@ -406,12 +407,14 @@
   font-family: Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-/* Override for code inside pre or code blocks (block-level code) */
+/* Override for code inside pre or code blocks (block-level code).
+   !important beats Tailwind's `.prose code { dark:bg-[#202123] }` utility,
+   which otherwise tints the syntax-highlighted block's own <code> gray. */
 .markdown-content pre code,
 .markdown-content .code-block code {
   padding: 0;
   border-radius: 0;
-  background-color: transparent;
+  background-color: transparent !important;
   border: none;
   font-size: inherit;
 }
@@ -615,8 +618,8 @@
 .markdown-content.dark .graph-container,
 .dark .markdown-content .graph-container,
 [data-theme="dark"] .markdown-content .graph-container {
-  background-color: #1a1b1e;
-  border-color: #2d2f36;
+  background-color: #000000;
+  border-color: #242424;
 }
 
 .markdown-content.dark .chart-container,
@@ -647,17 +650,25 @@
   border-color: #e5e7eb;
 }
 
-/* Charts render their own title/background inside the SVG, so the card
-   treatment used by mermaid/svg/music blocks just adds a boxed panel behind
-   the title that clashes with the surrounding message bubble. Let it blend. */
+/* In light mode, charts render their own title/background inside the SVG, so
+   the card treatment used by mermaid/svg/music blocks just adds a boxed panel
+   behind the title that clashes with the surrounding message bubble. Let it
+   blend. In dark mode a transparent chart card shows the message bubble's
+   dark-gray background through it, which looks inconsistent next to the
+   pitch-black card every other renderer here uses - so give it the same
+   solid black card there instead of blending. */
 .markdown-content .chart-container,
-.markdown-content.dark .chart-container,
-.dark .markdown-content .chart-container,
-[data-theme="dark"] .markdown-content .chart-container,
 .markdown-content.light .chart-container,
 [data-theme="light"] .markdown-content .chart-container {
   background-color: transparent !important;
   border-color: transparent !important;
+}
+
+.markdown-content.dark .chart-container,
+.dark .markdown-content .chart-container,
+[data-theme="dark"] .markdown-content .chart-container {
+  background-color: #000000 !important;
+  border-color: #242424 !important;
 }
 
 .markdown-content .md-expandable-actions {
