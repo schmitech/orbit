@@ -43,6 +43,8 @@ An AI gateway, retrieval engine, and agent host in one Apache 2.0 project, with 
 
 Explore the [capability matrix](docs/ORBIT_CAPABILITY_MATRIX.md) for a detailed comparison with Open WebUI and LiteLLM.
 
+See [who ORBIT is for](docs/ORBIT_AUDIENCE_MATRIX.md) for organization types, needs, relevant features, and pilot ideas.
+
 <p align="center">
   <strong>ORBIT control plane</strong>
   <br />

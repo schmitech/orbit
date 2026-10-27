@@ -42,6 +42,7 @@ New to ORBIT? Start here.
 |-------|-------------|
 | [Quick Start](../README.md#-start-in-minutes) | Get ORBIT running in minutes with Docker or manual installation |
 | [Tutorial](tutorial.md) | Step-by-step guide to chat with your data |
+| [Who ORBIT is for](ORBIT_AUDIENCE_MATRIX.md) | One-page audience matrix with organization types, needs, features, and pilot ideas |
 | [Server Setup](server.md) | Detailed server configuration and deployment options |
 | [Configuration Reference (`config.yaml`)](../install/default-config/config.yaml) | Complete, commented configuration reference |
 | [ORBIT and Open WebUI](openwebui/openwebui-integration.md) | Connecting Open WebUI to ORBIT |
