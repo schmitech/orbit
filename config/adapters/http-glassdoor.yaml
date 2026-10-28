@@ -1,0 +1,66 @@
+adapters:
+  # HTTP JSON API Adapter - Glassdoor company data (OpenWeb Ninja Real-Time Glassdoor Data API)
+  # Company search, rating breakdowns, and employee reviews
+  # Requires OPENWEB_NINJA_API_KEY (sent as the x-api-key header)
+  - name: "intent-http-glassdoor"
+    enabled: true
+    type: "retriever"
+    datasource: "http"  # Uses HTTP datasource placeholder
+    adapter: "intent"
+    implementation: "retrievers.implementations.intent.IntentHTTPJSONRetriever"
+    inference_provider: "ollama_cloud"
+    model: "gpt-oss:120b"
+    embedding_provider: "ollama"
+    capabilities:
+      retrieval_behavior: "always"
+      formatting_style: "standard"
+      supports_charts: true       # Emit chart-formatting instructions when the turn looks chart-related
+      supports_file_ids: false
+      supports_session_tracking: false
+      supports_threading: true
+      supports_autocomplete: true  # Enable autocomplete from template nl_examples
+      requires_api_key_validation: true
+      context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
+      context_max_tokens: 8000
+      numeric_precision:
+        decimal_places: 2
+    config:
+      # Domain and template configuration
+      domain_config_path: "examples/intent-templates/http-intent-template/examples/glassdoor/templates/glassdoor_domain.yaml"
+      template_library_path:
+        - "examples/intent-templates/http-intent-template/examples/glassdoor/templates/glassdoor_templates.yaml"
+
+      # Vector store configuration for template matching
+      template_collection_name: "glassdoor_http_templates"
+      store_name: "chroma"  # References stores.yaml
+
+      # Intent matching configuration
+      confidence_threshold: 0.4
+      max_templates: 5
+      return_results: 20
+      verbose: false  # Enable debug logging
+
+      # Template loading settings
+      reload_templates_on_start: false
+      force_reload_templates: false
+
+      # HTTP-specific configuration
+      base_url: "https://api.openwebninja.com/realtime-glassdoor-data"
+      default_timeout: 30
+      enable_retries: true
+      max_retries: 3
+      retry_delay: 1.0
+
+      # Authentication
+      auth:
+        type: "api_key"
+        api_key_env: "OPENWEB_NINJA_API_KEY"
+        header_name: "x-api-key"
+
+    # Fault tolerance settings
+    fault_tolerance:
+      operation_timeout: 30.0
+      failure_threshold: 5
+      recovery_timeout: 60.0
+      max_retries: 3
+      retry_delay: 1.0

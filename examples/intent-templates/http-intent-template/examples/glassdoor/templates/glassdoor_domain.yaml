@@ -1,0 +1,158 @@
+# Glassdoor Company Data Domain Configuration (OpenWeb Ninja Real-Time Glassdoor Data API)
+# Docs: https://www.openwebninja.com/api/real-time-glassdoor-data/docs
+
+domain_name: "glassdoor_api"
+domain_type: "rest_api"
+version: "1.0.0"
+description: "Real-time Glassdoor data via OpenWeb Ninja: company search and overview, ratings, employee reviews, interviews, salaries, and job listings."
+
+# API Configuration
+api_config:
+  base_url: "https://api.openwebninja.com/realtime-glassdoor-data"
+  api_version: "v1"
+  protocol: "https"
+  default_timeout: 30
+
+# Authentication
+authentication:
+  type: "api_key"
+  api_key_env: "OPENWEB_NINJA_API_KEY"
+  header_name: "x-api-key"
+
+# Entity Definitions
+entities:
+  company:
+    entity_type: "resource"
+    endpoint_base: "/company-search"
+    primary_key: "company_id"
+    display_name: "Company"
+    display_name_field: "name"
+    description: "Employer profile with ratings, size, industry, revenue, CEO, and headquarters"
+    searchable_fields:
+      - name
+    response_structure:
+      list_wrapper: "data"
+
+  review:
+    entity_type: "resource"
+    endpoint_base: "/company-reviews"
+    primary_key: "review_id"
+    display_name: "Review"
+    display_name_field: "summary"
+    description: "Employee review with summary, pros, cons, overall rating, and category ratings"
+    searchable_fields:
+      - summary
+      - pros
+      - cons
+    common_filters:
+      - field: "sort"
+        values: ["POPULAR", "MOST_RECENT", "HIGHEST_RATING", "LOWEST_RATING"]
+      - field: "only_current_employees"
+        values: [true, false]
+    relationships:
+      - entity: "company"
+        type: "belongs_to"
+        foreign_key: "company_id"
+    response_structure:
+      list_wrapper: "data.reviews"
+      pagination:
+        type: "page"
+        page_param: "page"
+
+  interview:
+    entity_type: "resource"
+    endpoint_base: "/company-interviews"
+    primary_key: "interview_id"
+    display_name: "Interview"
+    display_name_field: "job_title"
+    description: "Candidate interview experience with process, difficulty, outcome, and questions"
+    searchable_fields:
+      - job_title
+    common_filters:
+      - field: "sort"
+        values: ["POPULAR", "MOST_RECENT", "OLDEST", "EASIEST", "MOST_DIFFICULT"]
+      - field: "received_offer_only"
+        values: [true, false]
+    relationships:
+      - entity: "company"
+        type: "belongs_to"
+        foreign_key: "company_id"
+    response_structure:
+      list_wrapper: "data.interviews"
+
+  salary:
+    entity_type: "resource"
+    endpoint_base: "/company-salaries"
+    primary_key: "job_title"
+    display_name: "Salary"
+    display_name_field: "job_title"
+    description: "Salary range (base, additional pay, total) for a job title, at a company (/company-salaries) or market-wide (/salary-estimation)"
+    common_filters:
+      - field: "years_of_experience"
+        values: ["LESS_THAN_ONE", "ONE_TO_THREE", "FOUR_TO_SIX", "SEVEN_TO_NINE", "TEN_TO_FOURTEEN", "ABOVE_FIFTEEN"]
+    response_structure:
+      list_wrapper: "data"
+
+  job:
+    entity_type: "resource"
+    endpoint_base: "/job-search"
+    primary_key: "job_id"
+    display_name: "Job"
+    display_name_field: "job_title"
+    description: "Job posting with company, location, salary range, and link (/job-search by keyword, /company-jobs by numeric company ID)"
+    searchable_fields:
+      - job_title
+    common_filters:
+      - field: "date_posted"
+        values: ["all", "today", "3days", "week", "2weeks", "month"]
+      - field: "sort"
+        values: ["MOST_RELEVANT", "MOST_RECENT"]
+    relationships:
+      - entity: "company"
+        type: "belongs_to"
+        foreign_key: "company_id"
+    response_structure:
+      list_wrapper: "data.jobs"
+
+# Vocabulary for Natural Language Understanding
+vocabulary:
+  entity_synonyms:
+    company: ["company", "companies", "employer", "employers", "organization", "business", "firm"]
+    review: ["review", "reviews", "feedback", "employee reviews", "opinions", "testimonials", "what employees say"]
+    interview: ["interview", "interviews", "interview process", "interview questions", "hiring process"]
+    salary: ["salary", "salaries", "pay", "compensation", "wage", "earnings", "how much does"]
+    job: ["job", "jobs", "openings", "postings", "positions", "vacancies", "listings"]
+
+  action_synonyms:
+    search: ["search", "find", "look up", "lookup", "look for"]
+    list: ["show", "get", "list", "display", "fetch"]
+
+  qualifier_synonyms:
+    recent: ["recent", "latest", "newest", "new", "last"]
+    negative: ["worst", "negative", "bad", "lowest rated", "critical", "complaints"]
+    positive: ["best", "positive", "good", "highest rated", "glowing"]
+    popular: ["popular", "top", "most helpful", "featured"]
+    current: ["current employees", "current staff", "people who work there now"]
+
+  field_synonyms:
+    rating: ["rating", "score", "stars", "overall rating"]
+    work_life_balance_rating: ["work-life balance", "work life balance", "hours", "flexibility"]
+    compensation_and_benefits_rating: ["compensation", "pay", "salary", "benefits"]
+    culture_and_values_rating: ["culture", "values", "company culture"]
+    career_opportunities_rating: ["career opportunities", "growth", "promotion", "advancement"]
+    senior_management_rating: ["management", "leadership", "senior management"]
+    ceo_rating: ["ceo approval", "ceo rating"]
+
+# Error Handling Configuration
+error_handling:
+  retry_on_status: [429, 500, 502, 503, 504]
+  max_retries: 3
+  backoff_factor: 2
+  timeout: 30
+
+# Response Processing
+response_processing:
+  default_format: "json"
+  content_types:
+    - "application/json"
+  error_field: "error.message"

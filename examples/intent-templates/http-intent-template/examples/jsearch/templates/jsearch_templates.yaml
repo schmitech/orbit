@@ -1,0 +1,575 @@
+# JSearch Job Data - OpenWeb Ninja JSearch API Templates
+# API: https://api.openwebninja.com/jsearch
+# Auth: x-api-key header (OPENWEB_NINJA_API_KEY), configured on the adapter
+#
+# Note: endpoints and response fields follow the published JSearch schema; they have
+# not yet been verified against live responses (no active subscription at authoring time).
+# /search accepts a free-form query that should include the location, e.g.
+# "data engineer jobs in Toronto". num_pages is pinned to 1 because each page costs a request.
+
+templates:
+  # ============================================================================
+  # JOB SEARCH
+  # ============================================================================
+
+  - id: search_jobs
+    version: "1.0.0"
+    description: "Search real-time job listings by title, keywords, company, and location, with filters for posting date, remote, employment type, and experience"
+
+    http_method: "GET"
+    endpoint_template: "/search"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      query: "{{query}}"
+      page: "{{page}}"
+      num_pages: 1
+      country: "{{country}}"
+      date_posted: "{{date_posted}}"
+      work_from_home: "{{work_from_home}}"
+      employment_types: "{{employment_types}}"
+      job_requirements: "{{job_requirements}}"
+      radius: "{{radius}}"
+
+    parameters:
+      - name: query
+        type: string
+        required: true
+        description: "Free-form job search including role, company, and location as the user said it (e.g. 'data engineer jobs in Toronto', 'Shopify jobs')"
+        location: "query"
+        example: "data engineer jobs in Toronto"
+
+      - name: page
+        type: integer
+        required: false
+        default: 1
+        description: "Page of results (10 jobs per page)"
+        location: "query"
+        min: 1
+
+      - name: country
+        type: string
+        required: false
+        description: "Two-letter lowercase country code where the jobs are located, inferred from the location (e.g. 'ca' for Toronto or Canada, 'gb' for London UK, 'de' for Berlin). Omit for the United States."
+        location: "query"
+        example: "ca"
+
+      - name: date_posted
+        type: string
+        required: false
+        description: "Posting age: all, today, 3days, week, month"
+        location: "query"
+        allowed_values: ["all", "today", "3days", "week", "month"]
+
+      - name: work_from_home
+        type: boolean
+        required: false
+        description: "Only remote / work-from-home jobs"
+        location: "query"
+
+      - name: employment_types
+        type: string
+        required: false
+        description: "Comma-separated employment types: FULLTIME, PARTTIME, CONTRACTOR, INTERN"
+        location: "query"
+        example: "FULLTIME,CONTRACTOR"
+
+      - name: job_requirements
+        type: string
+        required: false
+        description: "Comma-separated experience requirements: under_3_years_experience, more_than_3_years_experience, no_experience, no_degree"
+        location: "query"
+        example: "no_experience"
+
+      - name: radius
+        type: integer
+        required: false
+        description: "Search radius in kilometers around the location in the query"
+        location: "query"
+        min: 1
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "job_id"
+          path: "job_id"
+          type: "string"
+        - name: "job_title"
+          path: "job_title"
+          type: "string"
+        - name: "employer_name"
+          path: "employer_name"
+          type: "string"
+        - name: "job_location"
+          path: "job_location"
+          type: "string"
+        - name: "job_city"
+          path: "job_city"
+          type: "string"
+        - name: "job_state"
+          path: "job_state"
+          type: "string"
+        - name: "job_country"
+          path: "job_country"
+          type: "string"
+        - name: "job_is_remote"
+          path: "job_is_remote"
+          type: "boolean"
+        - name: "job_employment_type"
+          path: "job_employment_type"
+          type: "string"
+        - name: "job_posted_at"
+          path: "job_posted_at"
+          type: "string"
+        - name: "job_posted_at_datetime_utc"
+          path: "job_posted_at_datetime_utc"
+          type: "datetime"
+        - name: "job_salary"
+          path: "job_salary"
+          type: "string"
+        - name: "job_min_salary"
+          path: "job_min_salary"
+          type: "number"
+        - name: "job_max_salary"
+          path: "job_max_salary"
+          type: "number"
+        - name: "job_salary_period"
+          path: "job_salary_period"
+          type: "string"
+        - name: "job_publisher"
+          path: "job_publisher"
+          type: "string"
+        - name: "job_apply_link"
+          path: "job_apply_link"
+          type: "string"
+        - name: "job_apply_is_direct"
+          path: "job_apply_is_direct"
+          type: "boolean"
+
+    nl_examples:
+      - "Find data engineer jobs in Toronto"
+      - "Show remote software developer jobs"
+      - "Nursing jobs in Vancouver posted this week"
+      - "Is Shopify hiring?"
+      - "Part-time barista jobs near Montreal"
+      - "Entry level marketing jobs in New York with no experience required"
+      - "Contract Python developer jobs in London"
+      - "Product manager jobs in Austin posted today"
+      - "Internships for computer science students in Waterloo"
+      - "Show me the next page of results"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "job"
+
+    result_format: "table"
+    tags: ["job", "search", "openings", "hiring", "remote", "location"]
+
+  # ============================================================================
+  # JOB DETAILS
+  # ============================================================================
+
+  - id: get_job_details
+    version: "1.0.0"
+    description: "Get the full details of a specific job posting by its job ID: description, qualifications, responsibilities, benefits, salary, and apply options"
+
+    http_method: "GET"
+    endpoint_template: "/job-details"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      job_id: "{{job_id}}"
+      country: "{{country}}"
+
+    parameters:
+      - name: job_id
+        type: string
+        required: true
+        description: "Job ID returned by a previous job search (comma-separate up to 20 IDs)"
+        location: "query"
+        example: "aW8Gw0PZ7PEAAAAAAAAAAA=="
+
+      - name: country
+        type: string
+        required: false
+        description: "Two-letter lowercase country code of the job (e.g. 'ca'). Omit for the United States."
+        location: "query"
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "job_title"
+          path: "job_title"
+          type: "string"
+        - name: "employer_name"
+          path: "employer_name"
+          type: "string"
+        - name: "employer_website"
+          path: "employer_website"
+          type: "string"
+        - name: "job_location"
+          path: "job_location"
+          type: "string"
+        - name: "job_is_remote"
+          path: "job_is_remote"
+          type: "boolean"
+        - name: "job_employment_type"
+          path: "job_employment_type"
+          type: "string"
+        - name: "job_posted_at"
+          path: "job_posted_at"
+          type: "string"
+        - name: "job_salary"
+          path: "job_salary"
+          type: "string"
+        - name: "job_min_salary"
+          path: "job_min_salary"
+          type: "number"
+        - name: "job_max_salary"
+          path: "job_max_salary"
+          type: "number"
+        - name: "job_salary_period"
+          path: "job_salary_period"
+          type: "string"
+        - name: "job_description"
+          path: "job_description"
+          type: "string"
+        - name: "qualifications"
+          path: "job_highlights.Qualifications"
+          type: "array"
+        - name: "responsibilities"
+          path: "job_highlights.Responsibilities"
+          type: "array"
+        - name: "benefits"
+          path: "job_highlights.Benefits"
+          type: "array"
+        - name: "job_apply_link"
+          path: "job_apply_link"
+          type: "string"
+        - name: "apply_options"
+          path: "apply_options"
+          type: "array"
+
+    nl_examples:
+      - "Show me the details for job aW8Gw0PZ7PEAAAAAAAAAAA=="
+      - "What are the requirements for that job?"
+      - "Tell me more about the first job"
+      - "What benefits does that position offer?"
+      - "Give me the full job description for the second listing"
+
+    semantic_tags:
+      action: "get"
+      primary_entity: "job"
+      qualifiers: ["details", "description"]
+
+    result_format: "table"
+    tags: ["job", "details", "description", "qualifications", "benefits", "apply"]
+
+  # ============================================================================
+  # SALARIES
+  # ============================================================================
+
+  - id: estimate_salary
+    version: "1.0.0"
+    description: "Estimate the market salary for a job title in a location across all employers"
+
+    http_method: "GET"
+    endpoint_template: "/estimated-salary"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      job_title: "{{job_title}}"
+      location: "{{location}}"
+      location_type: "{{location_type}}"
+      years_of_experience: "{{years_of_experience}}"
+
+    parameters:
+      - name: job_title
+        type: string
+        required: true
+        description: "Job title to estimate salary for"
+        location: "query"
+        example: "software engineer"
+
+      - name: location
+        type: string
+        required: true
+        description: "City, state, or country"
+        location: "query"
+        example: "Toronto"
+
+      - name: location_type
+        type: string
+        required: false
+        description: "How to interpret the location: ANY, CITY, STATE, COUNTRY"
+        location: "query"
+        allowed_values: ["ANY", "CITY", "STATE", "COUNTRY"]
+
+      - name: years_of_experience
+        type: string
+        required: false
+        description: "Experience bracket: ALL, LESS_THAN_ONE, ONE_TO_THREE, FOUR_TO_SIX, SEVEN_TO_NINE, TEN_TO_FOURTEEN, ABOVE_FIFTEEN"
+        location: "query"
+        allowed_values: ["ALL", "LESS_THAN_ONE", "ONE_TO_THREE", "FOUR_TO_SIX", "SEVEN_TO_NINE", "TEN_TO_FOURTEEN", "ABOVE_FIFTEEN"]
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "job_title"
+          path: "job_title"
+          type: "string"
+        - name: "location"
+          path: "location"
+          type: "string"
+        - name: "median_salary"
+          path: "median_salary"
+          type: "number"
+        - name: "min_salary"
+          path: "min_salary"
+          type: "number"
+        - name: "max_salary"
+          path: "max_salary"
+          type: "number"
+        - name: "median_base_salary"
+          path: "median_base_salary"
+          type: "number"
+        - name: "min_base_salary"
+          path: "min_base_salary"
+          type: "number"
+        - name: "max_base_salary"
+          path: "max_base_salary"
+          type: "number"
+        - name: "median_additional_pay"
+          path: "median_additional_pay"
+          type: "number"
+        - name: "salary_currency"
+          path: "salary_currency"
+          type: "string"
+        - name: "salary_period"
+          path: "salary_period"
+          type: "string"
+        - name: "salary_count"
+          path: "salary_count"
+          type: "integer"
+        - name: "confidence"
+          path: "confidence"
+          type: "string"
+
+    nl_examples:
+      - "What is the average salary for a software engineer in Toronto?"
+      - "How much do nurses make in Vancouver?"
+      - "Salary estimate for a data analyst in New York"
+      - "What does a junior accountant earn in Chicago?"
+      - "Typical pay for a project manager with 4 years of experience in Montreal"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "salary"
+      qualifiers: ["market", "estimate"]
+
+    result_format: "table"
+    tags: ["salary", "estimate", "market rate", "location", "pay"]
+
+  - id: get_company_job_salary
+    version: "1.0.0"
+    description: "Get the salary range for a job title at a specific company"
+
+    http_method: "GET"
+    endpoint_template: "/company-job-salary"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      company: "{{company}}"
+      job_title: "{{job_title}}"
+      location: "{{location}}"
+      location_type: "{{location_type}}"
+      years_of_experience: "{{years_of_experience}}"
+
+    parameters:
+      - name: company
+        type: string
+        required: true
+        description: "Company name"
+        location: "query"
+        example: "Amazon"
+
+      - name: job_title
+        type: string
+        required: true
+        description: "Job title to get salaries for"
+        location: "query"
+        example: "software engineer"
+
+      - name: location
+        type: string
+        required: false
+        description: "City, state, or country"
+        location: "query"
+        example: "Seattle"
+
+      - name: location_type
+        type: string
+        required: false
+        description: "How to interpret the location: ANY, CITY, STATE, COUNTRY"
+        location: "query"
+        allowed_values: ["ANY", "CITY", "STATE", "COUNTRY"]
+
+      - name: years_of_experience
+        type: string
+        required: false
+        description: "Experience bracket: ALL, LESS_THAN_ONE, ONE_TO_THREE, FOUR_TO_SIX, SEVEN_TO_NINE, TEN_TO_FOURTEEN, ABOVE_FIFTEEN"
+        location: "query"
+        allowed_values: ["ALL", "LESS_THAN_ONE", "ONE_TO_THREE", "FOUR_TO_SIX", "SEVEN_TO_NINE", "TEN_TO_FOURTEEN", "ABOVE_FIFTEEN"]
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "job_title"
+          path: "job_title"
+          type: "string"
+        - name: "company"
+          path: "company"
+          type: "string"
+        - name: "location"
+          path: "location"
+          type: "string"
+        - name: "median_salary"
+          path: "median_salary"
+          type: "number"
+        - name: "min_salary"
+          path: "min_salary"
+          type: "number"
+        - name: "max_salary"
+          path: "max_salary"
+          type: "number"
+        - name: "median_base_salary"
+          path: "median_base_salary"
+          type: "number"
+        - name: "min_base_salary"
+          path: "min_base_salary"
+          type: "number"
+        - name: "max_base_salary"
+          path: "max_base_salary"
+          type: "number"
+        - name: "median_additional_pay"
+          path: "median_additional_pay"
+          type: "number"
+        - name: "salary_currency"
+          path: "salary_currency"
+          type: "string"
+        - name: "salary_period"
+          path: "salary_period"
+          type: "string"
+        - name: "salary_count"
+          path: "salary_count"
+          type: "integer"
+        - name: "confidence"
+          path: "confidence"
+          type: "string"
+
+    nl_examples:
+      - "How much does a software engineer make at Amazon?"
+      - "What is the salary for a product manager at Google in Toronto?"
+      - "Data scientist pay at Microsoft in Seattle"
+      - "How much do nurses earn at Kaiser Permanente?"
+      - "Senior engineer salary at Shopify with 10 years of experience"
+
+    semantic_tags:
+      action: "get"
+      primary_entity: "salary"
+      secondary_entity: "employer"
+
+    result_format: "table"
+    tags: ["salary", "company", "compensation", "pay"]
+
+  # ============================================================================
+  # JOB MARKET BREAKDOWN
+  # ============================================================================
+
+  - id: get_job_search_filters
+    version: "1.0.0"
+    description: "Break down a job search into estimated job counts by employer, employment type, experience requirement, category, and posting date (who is hiring the most)"
+
+    http_method: "GET"
+    endpoint_template: "/search-filters"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      query: "{{query}}"
+      country: "{{country}}"
+      date_posted: "{{date_posted}}"
+      work_from_home: "{{work_from_home}}"
+
+    parameters:
+      - name: query
+        type: string
+        required: true
+        description: "Free-form job search including role and location (e.g. 'data engineer jobs in Toronto')"
+        location: "query"
+        example: "data engineer jobs in Toronto"
+
+      - name: country
+        type: string
+        required: false
+        description: "Two-letter lowercase country code inferred from the location (e.g. 'ca'). Omit for the United States."
+        location: "query"
+
+      - name: date_posted
+        type: string
+        required: false
+        description: "Posting age: all, today, 3days, week, month"
+        location: "query"
+        allowed_values: ["all", "today", "3days", "week", "month"]
+
+      - name: work_from_home
+        type: boolean
+        required: false
+        description: "Only remote / work-from-home jobs"
+        location: "query"
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "employers"
+          path: "employers"
+          type: "array"
+        - name: "employment_types"
+          path: "employment_types"
+          type: "array"
+        - name: "job_requirements"
+          path: "job_requirements"
+          type: "array"
+        - name: "categories"
+          path: "categories"
+          type: "array"
+        - name: "job_titles"
+          path: "job_titles"
+          type: "array"
+        - name: "date_posted"
+          path: "date_posted"
+          type: "array"
+
+    nl_examples:
+      - "Which companies are hiring the most data engineers in Toronto?"
+      - "Who is hiring nurses in Vancouver?"
+      - "How many software developer jobs are full-time vs contract in Chicago?"
+      - "Break down remote marketing jobs by employer"
+      - "How many entry level accounting jobs are there in Calgary?"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "job"
+      qualifiers: ["breakdown", "counts", "employers"]
+
+    result_format: "table"
+    tags: ["job", "market", "breakdown", "employers", "hiring", "counts"]

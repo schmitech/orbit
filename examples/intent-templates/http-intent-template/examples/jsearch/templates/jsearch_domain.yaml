@@ -1,0 +1,112 @@
+# JSearch Job Data Domain Configuration (OpenWeb Ninja JSearch API)
+# Docs: https://www.openwebninja.com/api/jsearch/docs
+
+domain_name: "jsearch_api"
+domain_type: "rest_api"
+version: "1.0.0"
+description: "Real-time job listings aggregated from job boards and employer career sites, with job details, salary estimates, and search filter breakdowns."
+
+# API Configuration
+api_config:
+  base_url: "https://api.openwebninja.com/jsearch"
+  api_version: "v1"
+  protocol: "https"
+  default_timeout: 30
+
+# Authentication
+authentication:
+  type: "api_key"
+  api_key_env: "OPENWEB_NINJA_API_KEY"
+  header_name: "x-api-key"
+
+# Entity Definitions
+entities:
+  job:
+    entity_type: "resource"
+    endpoint_base: "/search"
+    primary_key: "job_id"
+    display_name: "Job"
+    display_name_field: "job_title"
+    description: "Job posting with employer, location, employment type, salary, description, highlights, and apply links"
+    searchable_fields:
+      - job_title
+      - employer_name
+      - job_description
+    common_filters:
+      - field: "date_posted"
+        values: ["all", "today", "3days", "week", "month"]
+      - field: "employment_types"
+        values: ["FULLTIME", "PARTTIME", "CONTRACTOR", "INTERN"]
+      - field: "job_requirements"
+        values: ["under_3_years_experience", "more_than_3_years_experience", "no_experience", "no_degree"]
+      - field: "work_from_home"
+        values: [true, false]
+    relationships:
+      - entity: "employer"
+        type: "belongs_to"
+        foreign_key: "employer_name"
+    response_structure:
+      list_wrapper: "data"
+      pagination:
+        type: "page"
+        page_param: "page"
+
+  salary:
+    entity_type: "resource"
+    endpoint_base: "/estimated-salary"
+    primary_key: "job_title"
+    display_name: "Salary"
+    display_name_field: "job_title"
+    description: "Salary range for a job title in a location (/estimated-salary) or at a specific company (/company-job-salary)"
+    common_filters:
+      - field: "location_type"
+        values: ["ANY", "CITY", "STATE", "COUNTRY"]
+      - field: "years_of_experience"
+        values: ["ALL", "LESS_THAN_ONE", "ONE_TO_THREE", "FOUR_TO_SIX", "SEVEN_TO_NINE", "TEN_TO_FOURTEEN", "ABOVE_FIFTEEN"]
+    response_structure:
+      list_wrapper: "data"
+
+  search_filter:
+    entity_type: "aggregate"
+    endpoint_base: "/search-filters"
+    display_name: "Job Market Breakdown"
+    description: "Estimated job counts for a search, grouped by employer, employment type, experience requirement, category, and posting date"
+    response_structure:
+      list_wrapper: "data"
+
+# Vocabulary for Natural Language Understanding
+vocabulary:
+  entity_synonyms:
+    job: ["job", "jobs", "openings", "postings", "positions", "vacancies", "listings", "roles", "work", "hiring"]
+    salary: ["salary", "salaries", "pay", "compensation", "wage", "earnings", "how much does"]
+    employer: ["company", "companies", "employer", "employers", "organization", "business"]
+    search_filter: ["breakdown", "who is hiring", "most openings", "job market", "how many jobs"]
+
+  action_synonyms:
+    search: ["search", "find", "look for", "show", "list", "get"]
+    details: ["details", "describe", "more about", "full description", "requirements"]
+    estimate: ["estimate", "average", "typical", "range", "median"]
+
+  qualifier_synonyms:
+    remote: ["remote", "work from home", "wfh", "telecommute", "anywhere"]
+    recent: ["recent", "latest", "new", "today", "this week", "just posted"]
+    full_time: ["full-time", "full time", "permanent"]
+    part_time: ["part-time", "part time"]
+    contract: ["contract", "contractor", "freelance", "temporary"]
+    internship: ["intern", "internship", "co-op", "coop"]
+    entry_level: ["entry level", "junior", "no experience", "new grad", "graduate"]
+    senior: ["senior", "experienced", "3+ years", "lead"]
+
+# Error Handling Configuration
+error_handling:
+  retry_on_status: [429, 500, 502, 503, 504]
+  max_retries: 3
+  backoff_factor: 2
+  timeout: 30
+
+# Response Processing
+response_processing:
+  default_format: "json"
+  content_types:
+    - "application/json"
+  error_field: "error.message"

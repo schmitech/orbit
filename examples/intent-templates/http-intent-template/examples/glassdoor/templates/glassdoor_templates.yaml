@@ -1,0 +1,1102 @@
+# Glassdoor Company Data - OpenWeb Ninja Real-Time Glassdoor Data API Templates
+# API: https://api.openwebninja.com/realtime-glassdoor-data
+# Auth: x-api-key header (OPENWEB_NINJA_API_KEY), configured on the adapter
+#
+# Note: /company-overview, /company-reviews, /company-interviews and /company-salaries
+# accept either a numeric Glassdoor company ID or a company name in company_id
+# (e.g. "Shopify"), so they resolve in a single call. /company-jobs only accepts the
+# numeric ID (names return HTTP 500); search_companies returns it.
+
+templates:
+  # ============================================================================
+  # COMPANY SEARCH
+  # ============================================================================
+
+  - id: search_companies
+    version: "1.0.0"
+    description: "Search Glassdoor for companies by name or keyword and return their profile and overall rating"
+
+    http_method: "GET"
+    endpoint_template: "/company-search"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      query: "{{query}}"
+      limit: "{{limit}}"
+
+    parameters:
+      - name: query
+        type: string
+        required: true
+        description: "Company name or keyword to search for"
+        location: "query"
+        example: "Shopify"
+
+      - name: limit
+        type: integer
+        required: false
+        default: 10
+        description: "Maximum number of companies to return"
+        location: "query"
+        min: 1
+        max: 100
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "company_id"
+          path: "company_id"
+          type: "integer"
+        - name: "name"
+          path: "name"
+          type: "string"
+        - name: "rating"
+          path: "rating"
+          type: "number"
+        - name: "review_count"
+          path: "review_count"
+          type: "integer"
+        - name: "salary_count"
+          path: "salary_count"
+          type: "integer"
+        - name: "job_count"
+          path: "job_count"
+          type: "integer"
+        - name: "headquarters_location"
+          path: "headquarters_location"
+          type: "string"
+        - name: "company_size"
+          path: "company_size"
+          type: "string"
+        - name: "industry"
+          path: "industry"
+          type: "string"
+        - name: "company_type"
+          path: "company_type"
+          type: "string"
+        - name: "revenue"
+          path: "revenue"
+          type: "string"
+        - name: "ceo"
+          path: "ceo"
+          type: "string"
+        - name: "year_founded"
+          path: "year_founded"
+          type: "integer"
+        - name: "website"
+          path: "website"
+          type: "string"
+        - name: "company_link"
+          path: "company_link"
+          type: "string"
+
+    nl_examples:
+      - "Search Glassdoor for Shopify"
+      - "Find companies named Acme"
+      - "Look up Microsoft on Glassdoor"
+      - "What is the Glassdoor rating for Google?"
+      - "Show me Glassdoor companies matching 'bank'"
+      - "What is the Glassdoor company ID for Shopify?"
+      - "How many reviews does Amazon have on Glassdoor?"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "company"
+
+    result_format: "table"
+    tags: ["glassdoor", "company", "search", "profile", "rating"]
+
+  # ============================================================================
+  # COMPANY OVERVIEW
+  # ============================================================================
+
+  - id: get_company_overview
+    version: "1.0.0"
+    description: "Get the Glassdoor profile of a specific company: description, industry, size, headquarters, CEO, revenue, stock, competitors, and office locations"
+
+    http_method: "GET"
+    endpoint_template: "/company-overview"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      company_id: "{{company_id}}"
+
+    parameters:
+      - name: company_id
+        type: string
+        required: true
+        description: "Company name (e.g. 'Shopify') or numeric Glassdoor company ID"
+        location: "query"
+        example: "Shopify"
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "company_id"
+          path: "company_id"
+          type: "integer"
+        - name: "name"
+          path: "name"
+          type: "string"
+        - name: "company_description"
+          path: "company_description"
+          type: "string"
+        - name: "industry"
+          path: "industry"
+          type: "string"
+        - name: "company_type"
+          path: "company_type"
+          type: "string"
+        - name: "company_size"
+          path: "company_size"
+          type: "string"
+        - name: "headquarters_location"
+          path: "headquarters_location"
+          type: "string"
+        - name: "year_founded"
+          path: "year_founded"
+          type: "integer"
+        - name: "revenue"
+          path: "revenue"
+          type: "string"
+        - name: "stock"
+          path: "stock"
+          type: "string"
+        - name: "ceo"
+          path: "ceo"
+          type: "string"
+        - name: "rating"
+          path: "rating"
+          type: "number"
+        - name: "review_count"
+          path: "review_count"
+          type: "integer"
+        - name: "job_count"
+          path: "job_count"
+          type: "integer"
+        - name: "competitors"
+          path: "competitors"
+          type: "array"
+        - name: "office_locations"
+          path: "office_locations"
+          type: "array"
+        - name: "best_places_to_work_awards"
+          path: "best_places_to_work_awards"
+          type: "array"
+        - name: "website"
+          path: "website"
+          type: "string"
+        - name: "company_link"
+          path: "company_link"
+          type: "string"
+
+    nl_examples:
+      - "Tell me about Shopify"
+      - "Give me an overview of Stripe"
+      - "Who is the CEO of Netflix and how big is the company?"
+      - "Where is Stripe headquartered and what industry is it in?"
+      - "Who are Shopify's competitors?"
+      - "Where are Google's offices?"
+      - "What is Shopify's stock ticker and revenue?"
+      - "Has Google won any best places to work awards?"
+      - "When was Salesforce founded?"
+
+    semantic_tags:
+      action: "get"
+      primary_entity: "company"
+      qualifiers: ["overview", "profile"]
+
+    result_format: "table"
+    tags: ["glassdoor", "company", "overview", "profile", "competitors", "offices", "ceo"]
+
+  # ============================================================================
+  # COMPANY RATINGS BREAKDOWN
+  # ============================================================================
+
+  - id: get_company_ratings
+    version: "1.0.0"
+    description: "Get the detailed Glassdoor rating breakdown for a company (work-life balance, pay, culture, management, CEO approval)"
+
+    http_method: "GET"
+    endpoint_template: "/company-overview"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      company_id: "{{company_id}}"
+
+    parameters:
+      - name: company_id
+        type: string
+        required: true
+        description: "Company name (e.g. 'Google') or numeric Glassdoor company ID"
+        location: "query"
+        example: "Google"
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "name"
+          path: "name"
+          type: "string"
+        - name: "rating"
+          path: "rating"
+          type: "number"
+        - name: "review_count"
+          path: "review_count"
+          type: "integer"
+        - name: "work_life_balance_rating"
+          path: "work_life_balance_rating"
+          type: "number"
+        - name: "compensation_and_benefits_rating"
+          path: "compensation_and_benefits_rating"
+          type: "number"
+        - name: "culture_and_values_rating"
+          path: "culture_and_values_rating"
+          type: "number"
+        - name: "diversity_and_inclusion_rating"
+          path: "diversity_and_inclusion_rating"
+          type: "number"
+        - name: "career_opportunities_rating"
+          path: "career_opportunities_rating"
+          type: "number"
+        - name: "senior_management_rating"
+          path: "senior_management_rating"
+          type: "number"
+        - name: "ceo"
+          path: "ceo"
+          type: "string"
+        - name: "ceo_approval"
+          path: "ceo_rating"
+          type: "number"
+        - name: "recommend_to_friend"
+          path: "recommend_to_friend_rating"
+          type: "number"
+        - name: "business_outlook"
+          path: "business_outlook_rating"
+          type: "number"
+        - name: "reviews_link"
+          path: "reviews_link"
+          type: "string"
+
+    nl_examples:
+      - "How is the work-life balance at Google?"
+      - "Show me the rating breakdown for Shopify"
+      - "How do employees rate compensation and benefits at Amazon?"
+      - "What is the culture rating at Meta?"
+      - "What's the CEO approval rating at Tesla?"
+      - "How do employees rate senior management at IBM?"
+      - "Would employees recommend working at Deloitte to a friend?"
+      - "Compare category ratings for Microsoft"
+
+    semantic_tags:
+      action: "get"
+      primary_entity: "company"
+      qualifiers: ["ratings", "breakdown"]
+
+    result_format: "table"
+    tags: ["glassdoor", "company", "ratings", "work-life balance", "culture", "compensation", "ceo"]
+
+  # ============================================================================
+  # COMPANY REVIEWS
+  # ============================================================================
+
+  - id: get_company_reviews
+    version: "1.0.0"
+    description: "Get employee reviews for a company on Glassdoor, sorted by popularity, recency, or rating"
+
+    http_method: "GET"
+    endpoint_template: "/company-reviews"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      company_id: "{{company_id}}"
+      sort: "{{sort}}"
+      page: "{{page}}"
+      only_current_employees: "{{only_current_employees}}"
+
+    parameters:
+      - name: company_id
+        type: string
+        required: true
+        description: "Company name (e.g. 'Shopify') or numeric Glassdoor company ID"
+        location: "query"
+        example: "Shopify"
+
+      - name: sort
+        type: string
+        required: false
+        default: "POPULAR"
+        description: "Review order: POPULAR (default), MOST_RECENT (latest/newest), HIGHEST_RATING (best/positive), LOWEST_RATING (worst/negative)"
+        location: "query"
+        allowed_values: ["POPULAR", "MOST_RECENT", "HIGHEST_RATING", "LOWEST_RATING"]
+
+      - name: page
+        type: integer
+        required: false
+        default: 1
+        description: "Page of results (10 reviews per page)"
+        location: "query"
+        min: 1
+
+      - name: only_current_employees
+        type: boolean
+        required: false
+        default: false
+        description: "Only include reviews from current employees"
+        location: "query"
+
+    response_mapping:
+      items_path: "data.reviews"
+      fields:
+        - name: "summary"
+          path: "summary"
+          type: "string"
+        - name: "rating"
+          path: "rating"
+          type: "integer"
+        - name: "pros"
+          path: "pros"
+          type: "string"
+        - name: "cons"
+          path: "cons"
+          type: "string"
+        - name: "review_datetime"
+          path: "review_datetime"
+          type: "datetime"
+        - name: "is_current_employee"
+          path: "is_current_employee"
+          type: "boolean"
+        - name: "employment_status"
+          path: "employment_status"
+          type: "string"
+        - name: "years_of_employment"
+          path: "years_of_employment"
+          type: "integer"
+        - name: "recommend_to_friend"
+          path: "recommend_to_friend_rating"
+          type: "string"
+        - name: "ceo_rating"
+          path: "ceo_rating"
+          type: "string"
+        - name: "helpful_count"
+          path: "helpful_count"
+          type: "integer"
+        - name: "review_link"
+          path: "review_link"
+          type: "string"
+
+    nl_examples:
+      - "Show me Glassdoor reviews for Shopify"
+      - "What do employees say about working at Google?"
+      - "Get the latest reviews for Amazon"
+      - "Show the most recent employee reviews for Tim Hortons"
+      - "What are the worst reviews of Tesla?"
+      - "Show me negative reviews for Uber"
+      - "Show me the best reviews for Salesforce"
+      - "Reviews from current employees at Microsoft"
+      - "Show page 2 of Netflix reviews"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "review"
+      secondary_entity: "company"
+
+    result_format: "table"
+    tags: ["glassdoor", "review", "employee", "pros", "cons", "company"]
+
+  - id: search_company_reviews
+    version: "1.0.0"
+    description: "Search a company's Glassdoor employee reviews for a keyword or topic (e.g. remote work, layoffs, management)"
+
+    http_method: "GET"
+    endpoint_template: "/company-reviews"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      company_id: "{{company_id}}"
+      query: "{{query}}"
+      sort: "{{sort}}"
+      page: "{{page}}"
+
+    parameters:
+      - name: company_id
+        type: string
+        required: true
+        description: "Company name (e.g. 'Shopify') or numeric Glassdoor company ID"
+        location: "query"
+        example: "Google"
+
+      - name: query
+        type: string
+        required: true
+        description: "Keyword or topic to find in reviews"
+        location: "query"
+        example: "remote work"
+
+      - name: sort
+        type: string
+        required: false
+        default: "POPULAR"
+        description: "Review order: POPULAR (default), MOST_RECENT, HIGHEST_RATING, LOWEST_RATING"
+        location: "query"
+        allowed_values: ["POPULAR", "MOST_RECENT", "HIGHEST_RATING", "LOWEST_RATING"]
+
+      - name: page
+        type: integer
+        required: false
+        default: 1
+        description: "Page of results (10 reviews per page)"
+        location: "query"
+        min: 1
+
+    response_mapping:
+      items_path: "data.reviews"
+      fields:
+        - name: "summary"
+          path: "summary"
+          type: "string"
+        - name: "rating"
+          path: "rating"
+          type: "integer"
+        - name: "pros"
+          path: "pros"
+          type: "string"
+        - name: "cons"
+          path: "cons"
+          type: "string"
+        - name: "review_datetime"
+          path: "review_datetime"
+          type: "datetime"
+        - name: "is_current_employee"
+          path: "is_current_employee"
+          type: "boolean"
+        - name: "employment_status"
+          path: "employment_status"
+          type: "string"
+        - name: "review_link"
+          path: "review_link"
+          type: "string"
+
+    nl_examples:
+      - "What do Google employees say about remote work?"
+      - "Find Amazon reviews that mention layoffs"
+      - "Search Shopify reviews for management"
+      - "Do Microsoft reviews mention work from home?"
+      - "What do Tesla employees say about overtime?"
+      - "Find Meta reviews about promotions"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "review"
+      secondary_entity: "company"
+      qualifiers: ["keyword", "topic"]
+
+    result_format: "table"
+    tags: ["glassdoor", "review", "search", "keyword", "topic"]
+
+  # ============================================================================
+  # INTERVIEWS
+  # ============================================================================
+
+  - id: get_company_interviews
+    version: "1.0.0"
+    description: "Get candidate interview experiences at a company on Glassdoor: process, difficulty, outcome, and questions asked"
+
+    http_method: "GET"
+    endpoint_template: "/company-interviews"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      company_id: "{{company_id}}"
+      job_title: "{{job_title}}"
+      sort: "{{sort}}"
+      received_offer_only: "{{received_offer_only}}"
+      page: "{{page}}"
+
+    parameters:
+      - name: company_id
+        type: string
+        required: true
+        description: "Company name (e.g. 'Shopify') or numeric Glassdoor company ID"
+        location: "query"
+        example: "Shopify"
+
+      - name: job_title
+        type: string
+        required: false
+        description: "Only interviews for this job title (e.g. 'software engineer')"
+        location: "query"
+        example: "software engineer"
+
+      - name: sort
+        type: string
+        required: false
+        description: "Interview order: POPULAR, MOST_RECENT (latest), OLDEST, EASIEST, MOST_DIFFICULT (hardest). Omit for relevance order."
+        location: "query"
+        allowed_values: ["POPULAR", "MOST_RECENT", "OLDEST", "EASIEST", "MOST_DIFFICULT"]
+
+      - name: received_offer_only
+        type: boolean
+        required: false
+        description: "Only interviews where the candidate received an offer"
+        location: "query"
+
+      - name: page
+        type: integer
+        required: false
+        default: 1
+        description: "Page of results (10 interviews per page)"
+        location: "query"
+        min: 1
+
+    response_mapping:
+      items_path: "data.interviews"
+      fields:
+        - name: "job_title"
+          path: "job_title"
+          type: "string"
+        - name: "location"
+          path: "location"
+          type: "string"
+        - name: "review_datetime"
+          path: "review_datetime"
+          type: "datetime"
+        - name: "difficulty"
+          path: "difficulty"
+          type: "string"
+        - name: "experience"
+          path: "experience"
+          type: "string"
+        - name: "outcome"
+          path: "outcome"
+          type: "string"
+        - name: "process_description"
+          path: "process_description"
+          type: "string"
+        - name: "questions"
+          path: "questions"
+          type: "array"
+        - name: "advice"
+          path: "advice"
+          type: "string"
+        - name: "duration_days"
+          path: "duration_days"
+          type: "integer"
+
+    nl_examples:
+      - "What is the interview process like at Shopify?"
+      - "What interview questions does Google ask software engineers?"
+      - "Show me recent interview experiences at Amazon"
+      - "What are the hardest interviews at Meta?"
+      - "Show interviews at Microsoft where the candidate got an offer"
+      - "How did candidates describe the product manager interview at Stripe?"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "interview"
+      secondary_entity: "company"
+
+    result_format: "table"
+    tags: ["glassdoor", "interview", "questions", "hiring process", "company"]
+
+  - id: get_company_interview_stats
+    version: "1.0.0"
+    description: "Get aggregate interview statistics for a company on Glassdoor: average difficulty, positive/negative experience counts, and how candidates got interviews"
+
+    http_method: "GET"
+    endpoint_template: "/company-interviews"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      company_id: "{{company_id}}"
+      job_title: "{{job_title}}"
+
+    parameters:
+      - name: company_id
+        type: string
+        required: true
+        description: "Company name (e.g. 'Shopify') or numeric Glassdoor company ID"
+        location: "query"
+        example: "Shopify"
+
+      - name: job_title
+        type: string
+        required: false
+        description: "Only interviews for this job title (e.g. 'software engineer')"
+        location: "query"
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "interview_count"
+          path: "total_count"
+          type: "integer"
+        - name: "interview_difficulty"
+          path: "interview_difficulty"
+          type: "number"
+        - name: "interview_question_count"
+          path: "interview_question_count"
+          type: "integer"
+        - name: "experience_positive"
+          path: "interview_experience_counts.POSITIVE"
+          type: "integer"
+        - name: "experience_neutral"
+          path: "interview_experience_counts.NEUTRAL"
+          type: "integer"
+        - name: "experience_negative"
+          path: "interview_experience_counts.NEGATIVE"
+          type: "integer"
+        - name: "obtained_via_applied_online"
+          path: "interview_obtained_channel_counts.APPLIED_ONLINE"
+          type: "integer"
+        - name: "obtained_via_employee_referral"
+          path: "interview_obtained_channel_counts.EMPLOYEE_REFERRAL"
+          type: "integer"
+        - name: "obtained_via_recruiter"
+          path: "interview_obtained_channel_counts.RECRUITER"
+          type: "integer"
+        - name: "obtained_via_college"
+          path: "interview_obtained_channel_counts.COLLEGE"
+          type: "integer"
+        - name: "newest_review_date"
+          path: "newest_review_date"
+          type: "datetime"
+
+    nl_examples:
+      - "How hard is it to interview at Google?"
+      - "What is the interview difficulty at Shopify?"
+      - "Are interview experiences at Amazon mostly positive or negative?"
+      - "How do most candidates get an interview at Microsoft?"
+      - "How difficult are software engineer interviews at Meta?"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "interview"
+      secondary_entity: "company"
+      qualifiers: ["statistics", "difficulty"]
+
+    result_format: "table"
+    tags: ["glassdoor", "interview", "difficulty", "statistics", "company"]
+
+  # ============================================================================
+  # SALARIES
+  # ============================================================================
+
+  - id: get_company_salaries
+    version: "1.0.0"
+    description: "Get the salary range at a specific company for a job title on Glassdoor (base, additional pay, total)"
+
+    http_method: "GET"
+    endpoint_template: "/company-salaries"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      company_id: "{{company_id}}"
+      job_title: "{{job_title}}"
+      location: "{{location}}"
+      years_of_experience: "{{years_of_experience}}"
+
+    parameters:
+      - name: company_id
+        type: string
+        required: true
+        description: "Company name (e.g. 'Shopify') or numeric Glassdoor company ID"
+        location: "query"
+        example: "Shopify"
+
+      - name: job_title
+        type: string
+        required: true
+        description: "Job title to get salaries for"
+        location: "query"
+        example: "software engineer"
+
+      - name: location
+        type: string
+        required: false
+        description: "City, state, or country (defaults to the company's main country)"
+        location: "query"
+        example: "Toronto"
+
+      - name: years_of_experience
+        type: string
+        required: false
+        description: "Experience bracket: LESS_THAN_ONE, ONE_TO_THREE, FOUR_TO_SIX, SEVEN_TO_NINE, TEN_TO_FOURTEEN, ABOVE_FIFTEEN"
+        location: "query"
+        allowed_values: ["LESS_THAN_ONE", "ONE_TO_THREE", "FOUR_TO_SIX", "SEVEN_TO_NINE", "TEN_TO_FOURTEEN", "ABOVE_FIFTEEN"]
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "job_title"
+          path: "job_title"
+          type: "string"
+        - name: "company_name"
+          path: "company_name"
+          type: "string"
+        - name: "location"
+          path: "location"
+          type: "string"
+        - name: "median_salary"
+          path: "median_salary"
+          type: "number"
+        - name: "min_salary"
+          path: "min_salary"
+          type: "number"
+        - name: "max_salary"
+          path: "max_salary"
+          type: "number"
+        - name: "median_base_salary"
+          path: "median_base_salary"
+          type: "number"
+        - name: "min_base_salary"
+          path: "min_base_salary"
+          type: "number"
+        - name: "max_base_salary"
+          path: "max_base_salary"
+          type: "number"
+        - name: "median_additional_pay"
+          path: "median_additional_pay"
+          type: "number"
+        - name: "salary_currency"
+          path: "salary_currency"
+          type: "string"
+        - name: "salary_period"
+          path: "salary_period"
+          type: "string"
+        - name: "salary_count"
+          path: "salary_count"
+          type: "integer"
+        - name: "confidence"
+          path: "confidence"
+          type: "string"
+
+    nl_examples:
+      - "How much does a software engineer make at Shopify?"
+      - "What is the salary for a product manager at Google?"
+      - "Data scientist pay at Amazon in Seattle"
+      - "How much do senior engineers with 10 years of experience earn at Microsoft?"
+      - "What's the salary range for a nurse at Kaiser Permanente?"
+
+    semantic_tags:
+      action: "get"
+      primary_entity: "salary"
+      secondary_entity: "company"
+
+    result_format: "table"
+    tags: ["glassdoor", "salary", "compensation", "pay", "company"]
+
+  - id: estimate_salary
+    version: "1.0.0"
+    description: "Estimate the market salary for a job title in a location across all companies on Glassdoor"
+
+    http_method: "GET"
+    endpoint_template: "/salary-estimation"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      job_title: "{{job_title}}"
+      location: "{{location}}"
+      years_of_experience: "{{years_of_experience}}"
+
+    parameters:
+      - name: job_title
+        type: string
+        required: true
+        description: "Job title to estimate salary for"
+        location: "query"
+        example: "software engineer"
+
+      - name: location
+        type: string
+        required: true
+        description: "City, state, or country"
+        location: "query"
+        example: "Toronto"
+
+      - name: years_of_experience
+        type: string
+        required: false
+        description: "Experience bracket: LESS_THAN_ONE, ONE_TO_THREE, FOUR_TO_SIX, SEVEN_TO_NINE, TEN_TO_FOURTEEN, ABOVE_FIFTEEN"
+        location: "query"
+        allowed_values: ["LESS_THAN_ONE", "ONE_TO_THREE", "FOUR_TO_SIX", "SEVEN_TO_NINE", "TEN_TO_FOURTEEN", "ABOVE_FIFTEEN"]
+
+    response_mapping:
+      items_path: "data"
+      fields:
+        - name: "job_title"
+          path: "job_title"
+          type: "string"
+        - name: "company_name"
+          path: "company_name"
+          type: "string"
+        - name: "location"
+          path: "location"
+          type: "string"
+        - name: "median_salary"
+          path: "median_salary"
+          type: "number"
+        - name: "min_salary"
+          path: "min_salary"
+          type: "number"
+        - name: "max_salary"
+          path: "max_salary"
+          type: "number"
+        - name: "median_base_salary"
+          path: "median_base_salary"
+          type: "number"
+        - name: "min_base_salary"
+          path: "min_base_salary"
+          type: "number"
+        - name: "max_base_salary"
+          path: "max_base_salary"
+          type: "number"
+        - name: "median_additional_pay"
+          path: "median_additional_pay"
+          type: "number"
+        - name: "salary_currency"
+          path: "salary_currency"
+          type: "string"
+        - name: "salary_period"
+          path: "salary_period"
+          type: "string"
+        - name: "salary_count"
+          path: "salary_count"
+          type: "integer"
+        - name: "confidence"
+          path: "confidence"
+          type: "string"
+
+    nl_examples:
+      - "What is the average salary for a software engineer in Toronto?"
+      - "How much do nurses make in Vancouver?"
+      - "Salary estimate for a data analyst in New York"
+      - "What does a junior accountant earn in London?"
+      - "Typical pay for a project manager with 4 years of experience in Montreal"
+
+    semantic_tags:
+      action: "aggregate"
+      primary_entity: "salary"
+      qualifiers: ["market", "estimate"]
+
+    result_format: "table"
+    tags: ["glassdoor", "salary", "estimate", "market rate", "location"]
+
+  # ============================================================================
+  # JOBS
+  # ============================================================================
+
+  - id: search_jobs
+    version: "1.0.0"
+    description: "Search Glassdoor job listings by keyword and location, with optional posting date, remote, and easy-apply filters"
+
+    http_method: "GET"
+    endpoint_template: "/job-search"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      query: "{{query}}"
+      location: "{{location}}"
+      date_posted: "{{date_posted}}"
+      remote_only: "{{remote_only}}"
+      easy_apply_only: "{{easy_apply_only}}"
+
+    parameters:
+      - name: query
+        type: string
+        required: true
+        description: "Job title or keywords"
+        location: "query"
+        example: "data engineer"
+
+      - name: location
+        type: string
+        required: true
+        description: "City, state, or country"
+        location: "query"
+        example: "Toronto"
+
+      - name: date_posted
+        type: string
+        required: false
+        description: "Posting age: all, today, 3days, week, 2weeks, month"
+        location: "query"
+        allowed_values: ["all", "today", "3days", "week", "2weeks", "month"]
+
+      - name: remote_only
+        type: boolean
+        required: false
+        description: "Only remote jobs"
+        location: "query"
+
+      - name: easy_apply_only
+        type: boolean
+        required: false
+        description: "Only jobs with Glassdoor Easy Apply"
+        location: "query"
+
+    response_mapping:
+      items_path: "data.jobs"
+      fields:
+        - name: "job_title"
+          path: "job_title"
+          type: "string"
+        - name: "company_name"
+          path: "company_name"
+          type: "string"
+        - name: "location_name"
+          path: "location_name"
+          type: "string"
+        - name: "rating"
+          path: "rating"
+          type: "number"
+        - name: "salary_min"
+          path: "salary_min"
+          type: "number"
+        - name: "salary_median"
+          path: "salary_median"
+          type: "number"
+        - name: "salary_max"
+          path: "salary_max"
+          type: "number"
+        - name: "salary_currency"
+          path: "salary_currency"
+          type: "string"
+        - name: "salary_period"
+          path: "salary_period"
+          type: "string"
+        - name: "age_in_days"
+          path: "age_in_days"
+          type: "integer"
+        - name: "easy_apply"
+          path: "easy_apply"
+          type: "boolean"
+        - name: "job_link"
+          path: "job_link"
+          type: "string"
+
+    nl_examples:
+      - "Find data engineer jobs in Toronto"
+      - "Show remote software developer jobs in Canada"
+      - "Nursing jobs in Vancouver posted this week"
+      - "Easy apply marketing jobs in New York"
+      - "Any product manager openings in Austin posted today?"
+
+    semantic_tags:
+      action: "search"
+      primary_entity: "job"
+
+    result_format: "table"
+    tags: ["glassdoor", "job", "search", "openings", "hiring"]
+
+  - id: get_company_jobs
+    version: "1.0.0"
+    description: "List open job postings at a company on Glassdoor, identified by its numeric Glassdoor company ID"
+
+    http_method: "GET"
+    endpoint_template: "/company-jobs"
+
+    headers:
+      Accept: "application/json"
+
+    query_params:
+      company_id: "{{company_id}}"
+      sort: "{{sort}}"
+      page: "{{page}}"
+
+    parameters:
+      - name: company_id
+        type: integer
+        required: true
+        description: "Numeric Glassdoor company ID (e.g. 675933 for Shopify). Company names are not accepted by this endpoint."
+        location: "query"
+        example: 675933
+
+      - name: sort
+        type: string
+        required: false
+        description: "Job order: MOST_RELEVANT or MOST_RECENT (latest)"
+        location: "query"
+        allowed_values: ["MOST_RELEVANT", "MOST_RECENT"]
+
+      - name: page
+        type: integer
+        required: false
+        default: 1
+        description: "Page of results"
+        location: "query"
+        min: 1
+
+    response_mapping:
+      items_path: "data.jobs"
+      fields:
+        - name: "job_title"
+          path: "job_title"
+          type: "string"
+        - name: "company_name"
+          path: "company_name"
+          type: "string"
+        - name: "location_name"
+          path: "location_name"
+          type: "string"
+        - name: "rating"
+          path: "rating"
+          type: "number"
+        - name: "salary_min"
+          path: "salary_min"
+          type: "number"
+        - name: "salary_median"
+          path: "salary_median"
+          type: "number"
+        - name: "salary_max"
+          path: "salary_max"
+          type: "number"
+        - name: "salary_currency"
+          path: "salary_currency"
+          type: "string"
+        - name: "salary_period"
+          path: "salary_period"
+          type: "string"
+        - name: "age_in_days"
+          path: "age_in_days"
+          type: "integer"
+        - name: "easy_apply"
+          path: "easy_apply"
+          type: "boolean"
+        - name: "job_link"
+          path: "job_link"
+          type: "string"
+
+    nl_examples:
+      - "Show open jobs for company 675933"
+      - "List job postings for Glassdoor company ID 9079"
+      - "What are the latest openings at company 1651?"
+      - "Jobs at employer id 675933"
+
+    semantic_tags:
+      action: "list"
+      primary_entity: "job"
+      secondary_entity: "company"
+
+    result_format: "table"
+    tags: ["glassdoor", "job", "company", "openings"]
