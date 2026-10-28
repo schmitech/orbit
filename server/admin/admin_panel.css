@@ -2767,6 +2767,10 @@ label.expiration-choice-row-item {
   border-radius: 999px;
   font-size: var(--text-sm);
   font-weight: 800;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+:root[data-theme="light"] .test-result-icon {
   background: rgba(255, 255, 255, 0.7);
 }
 
