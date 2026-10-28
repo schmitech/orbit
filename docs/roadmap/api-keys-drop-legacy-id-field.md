@@ -54,6 +54,11 @@ done as a single sweeping edit.
 
 ## Phase 1 — Frontend: normalize to `id` once, at the data boundary
 
+**Status: done.** `normalizeKeyRecord()` landed in
+`server/admin/admin_panel/tabs/api-keys.js`, applied at the create/list/
+detail boundaries; all downstream reads (including the row-click handler's
+temporary selection object) use `.id`. See `CHANGELOG.md` [UNRELEASED].
+
 Rather than scattering `key.id || key._id` across ~15 call sites, normalize
 once where API responses enter the module (wherever list/detail/create
 responses are parsed, e.g. a shared `normalizeKey(raw)` applied right after
@@ -103,6 +108,14 @@ unchanged (`_id`-and-`id`-both-present) backend:
   stays selected.
 
 ## Phase 2 — Tests: make the contract checks actually fail
+
+**Status: done.** Both integration test files now require a present,
+nonempty, string `id` (failing instead of logging-and-continuing), round-trip
+a created key's `id` through the list and new `/detail` checks, and page
+through `GET /api-keys` with `limit=1000` before asserting membership so the
+check doesn't miss a key past the default 100-record first page on a
+populated server. The `_ASSERT_LEGACY_KEY_ID_REMOVED` scaffolding for Phase 3
+is in place but still `False`.
 
 `server/tests/test_admin/test_admin_integration.py` and
 `test_admin_integration_sqlite.py` currently only *log a warning* when a

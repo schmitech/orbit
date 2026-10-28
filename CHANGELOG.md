@@ -1,18 +1,23 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Maintenance
+- **API-key admin panel reads `id` only**: The admin panel's API-key tab now reads the canonical `id` field exclusively instead of the legacy `_id` field the list/detail endpoints also send, normalizing it once where responses are loaded. No backend or behavior change yet; see `docs/roadmap/api-keys-drop-legacy-id-field.md` for the full plan, including the later phase that will drop `_id` from the backend responses.
+
 ## [2.21.0] - 2026-10-28
 
 ### Core Features
-- **Follow-up query rewriting for intent retrievers**: Intent adapters (SQL/HTTP) can now resolve follow-up questions like "what about Ottawa" or "and last month" against the previous turn's resolved query and parameters, rewriting them into a standalone question before template matching via a cheap LLM call — opt-in per adapter with `supports_followup_rewrite: true`, and composes correctly with the existing intent-clarification feature (rewriting defers to a pending clarification round rather than racing it). See `docs/sql-retriever-architecture.md`; enabled on `customer-orders`, `business-analytics`, `hr`, `mongodb-mflix`, `http-paris-opendata`, `http-glassdoor`, and `http-jsearch`.
-- **Cheaper Inference provider**: Added `cheaperinference` as a new OpenAI-compatible inference provider (disabled by default). See `config/inference.yaml` and `env.example` (`CHEAPERINFERENCE_API_KEY`).
+- **Follow-up query rewriting**: SQL/HTTP intent adapters can rewrite follow-up questions using the previous turn's query and parameters. Opt in with `supports_followup_rewrite: true`; compatible with intent clarification. Enabled on seven example adapters. See `docs/sql-retriever-architecture.md`.
+- **Cheaper Inference provider**: Added the OpenAI-compatible `cheaperinference` provider, disabled by default. Configure it in `config/inference.yaml` with `CHEAPERINFERENCE_API_KEY`.
 
 ### Maintenance
-- **Deduplicated prompt-parsing across inference providers**: The prompt-to-`messages` parsing block copy-pasted across 11 OpenAI-compatible inference providers (venice, minimax, scaleway, deepinfra, lmstudio, cohere, nebius, groq, moonshot, cheaperinference, cerebras) now lives in one `_build_messages()` helper on `OpenAICompatibleBaseService`. No behavior change; NearAI was left as-is since it already had its own helper plus extra message normalization. `docs/roadmap/complete/dedupe-prompt-parsing-inference-services.md` is now complete.
+- **Shared prompt parsing**: Consolidated message parsing across 11 OpenAI-compatible inference providers into a shared helper, with no behavior change.
 
 ### Bug Fixes
-- **API key detail panel broken immediately after creating a key**: The admin panel's Test Key, Rename, quota, renew, and deactivate/delete controls all derive the target key's record ID from the key object they're rendering; the create-key response never included that ID, so acting on any of these controls right after creating a key (before reselecting it from the refreshed list) sent requests with an empty ID and silently failed. `ApiKeyService.create_api_key()` now returns the new record's ID, and the admin panel falls back to it.
-- **API keys could be created pointing at a deleted or fabricated system prompt**: Unlike updating a key's metadata, creating a key never checked that a supplied `system_prompt_id` referred to an existing prompt, so a stale or made-up ID was stored silently and the key's status later misreported it as present. Key creation now validates the prompt exists, returning 404 otherwise.
-- **Test Key success toast unreadable in dark mode**: The verified-key toast's icon circle used a hardcoded semi-transparent white background intended for the light theme, washing out against the dark theme's green success toast. The icon background is now theme-aware.
+- **New API-key controls**: Create responses now include the record ID, fixing Test Key, Rename, quota, renew, and deactivate/delete actions immediately after creation.
+- **API-key prompt validation**: Key creation now returns 404 when the supplied system prompt does not exist.
+- **Dark-mode toast**: Fixed the unreadable icon background in the Test Key success toast.
 
 ## [2.20.3] - 2026-10-25
 

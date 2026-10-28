@@ -28,6 +28,28 @@ import yaml
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Mirrors test_admin_integration.py - see the comment there and
+# docs/roadmap/api-keys-drop-legacy-id-field.md for the Phase 2/3 contract
+# this enforces.
+_ASSERT_LEGACY_KEY_ID_REMOVED = False
+
+
+def _assert_api_key_record_fields(key: dict) -> None:
+    """Shared id-contract check for a serialized API-key record (list or detail).
+
+    Requires a present, nonempty, string `id`. Raises AssertionError on
+    violation instead of logging and continuing, so a regression here fails
+    the test.
+    """
+    assert "api_key" in key, f"API key record missing 'api_key': {key}"
+    assert "adapter_name" in key, f"API key record missing 'adapter_name': {key}"
+    record_id = key.get("id")
+    assert isinstance(record_id, str) and record_id, (
+        f"API key record missing a present, nonempty, string 'id': {key}"
+    )
+    if _ASSERT_LEGACY_KEY_ID_REMOVED:
+        assert "_id" not in key, f"API key record still carries legacy '_id': {key}"
+
 def _candidate_config_roots() -> list[Path]:
     """Return likely config roots for local and test execution layouts."""
     script_dir = Path(__file__).parent
@@ -149,7 +171,8 @@ class AdminTesterSQLite:
         self.base_url = base_url
         self.token: Optional[str] = None
         self.session: Optional[aiohttp.ClientSession] = None
-        self.created_api_keys = []  # Track created API keys for cleanup
+        self.created_api_keys = []  # Track created API keys (raw values) for cleanup
+        self.created_api_key_ids = []  # Track created API key record ids, for id-contract checks
         self.created_prompts = []   # Track created prompts for cleanup
         self.test_adapter = _discover_enabled_adapter_name()
 
@@ -310,9 +333,14 @@ class AdminTesterSQLite:
                 if response.status == 200:
                     result = await response.json()
                     api_key = result.get("api_key")
+                    record_id = result.get("id")
+                    if not isinstance(record_id, str) or not record_id:
+                        logger.error(f"✗ API key creation response missing a present, nonempty, string 'id': {result}")
+                        return False
                     if api_key:
                         self.created_api_keys.append(api_key)
-                        logger.info(f"✓ API key created in SQLite: ***{api_key[-4:]} for adapter '{existing_adapter}'")
+                        self.created_api_key_ids.append(record_id)
+                        logger.info(f"✓ API key created in SQLite: ***{api_key[-4:]} (id={record_id}) for adapter '{existing_adapter}'")
                         return True
                     else:
                         logger.error("✗ API key creation response missing api_key")
@@ -387,23 +415,86 @@ class AdminTesterSQLite:
             return False
 
         try:
+            # list_api_keys defaults to limit=100 with no newest-first
+            # ordering, so a just-created key can land past the first page
+            # on a server that already has keys. Page through with
+            # limit=1000 (the server's max, see _clamp_pagination) and
+            # increasing offset until a short page is returned, mirroring
+            # the admin panel's own collectAllKeyPages(), instead of
+            # asserting membership against only the first unpaginated page.
+            keys = []
+            limit = 1000
+            offset = 0
+            while True:
+                async with self.session.get(
+                    f"{self.base_url}/admin/api-keys?limit={limit}&offset={offset}",
+                    headers=self._get_headers(),
+                    timeout=10
+                ) as response:
+                    if response.status == 503:
+                        error = await response.text()
+                        logger.info(f"✓ Expected response in inference-only mode: {error}")
+                        return True
+                    if response.status != 200:
+                        error = await response.text()
+                        logger.error(f"✗ API key listing failed: {response.status} - {error}")
+                        return False
+                    result = await response.json()
+                    page_keys = result.get("keys", [])
+                    keys.extend(page_keys)
+                    if len(page_keys) < limit:
+                        break
+                    offset += limit
+
+            logger.info(f"✓ Listed {len(keys)} API keys from SQLite")
+
+            for key in keys:
+                _assert_api_key_record_fields(key)
+            logger.info("✓ API key response format is correct")
+
+            if self.created_api_key_ids:
+                expected_id = self.created_api_key_ids[-1]
+                listed_ids = {key.get("id") for key in keys}
+                assert expected_id in listed_ids, (
+                    f"Created API key id {expected_id} not found in list response ids: {listed_ids}"
+                )
+                logger.info(f"✓ Created API key id {expected_id} round-trips through the list response")
+
+            return True
+        except Exception as e:
+            logger.error(f"✗ API key listing error: {e!s}")
+            return False
+
+    async def test_api_key_detail(self) -> bool:
+        """Test fetching an API key's admin detail record from SQLite, and
+        that its id round-trips consistently with the create response
+        (docs/roadmap/api-keys-drop-legacy-id-field.md Phase 2)."""
+        logger.info("\\n=== Testing API Key Detail (SQLite) ===")
+
+        auth_enabled = await self.check_auth_enabled()
+        if auth_enabled and not self.token:
+            logger.error("✗ No authentication token available (auth is enabled)")
+            return False
+
+        if not self.created_api_key_ids:
+            logger.info("✓ No API keys to fetch detail for (expected in inference-only mode)")
+            return True
+
+        expected_id = self.created_api_key_ids[-1]
+
+        try:
             async with self.session.get(
-                f"{self.base_url}/admin/api-keys",
+                f"{self.base_url}/admin/api-keys/{expected_id}/detail",
                 headers=self._get_headers(),
                 timeout=10
             ) as response:
                 if response.status == 200:
-                    result = await response.json()
-                    logger.info(f"✓ Listed {len(result)} API keys from SQLite")
-
-                    if isinstance(result, list):
-                        for key in result:
-                            if not all(field in key for field in ["_id", "api_key", "adapter_name"]):
-                                logger.warning("API key response missing expected fields")
-                                break
-                        else:
-                            logger.info("✓ API key response format is correct")
-
+                    key = await response.json()
+                    _assert_api_key_record_fields(key)
+                    assert key.get("id") == expected_id, (
+                        f"Detail response id {key.get('id')!r} does not match requested id {expected_id!r}"
+                    )
+                    logger.info(f"✓ API key detail id {expected_id} round-trips from create()")
                     return True
                 elif response.status == 503:
                     error = await response.text()
@@ -411,10 +502,10 @@ class AdminTesterSQLite:
                     return True
                 else:
                     error = await response.text()
-                    logger.error(f"✗ API key listing failed: {response.status} - {error}")
+                    logger.error(f"✗ API key detail fetch failed: {response.status} - {error}")
                     return False
         except Exception as e:
-            logger.error(f"✗ API key listing error: {e!s}")
+            logger.error(f"✗ API key detail fetch error: {e!s}")
             return False
 
 
@@ -432,6 +523,7 @@ async def test_sqlite_backend_admin_operations():
         # Test API key operations
         assert await tester.test_create_api_key(), "API key creation failed"
         assert await tester.test_list_api_keys(), "API key listing failed"
+        assert await tester.test_api_key_detail(), "API key detail fetch failed"
 
         # Test system prompt operations
         assert await tester.test_create_system_prompt(), "System prompt creation failed"

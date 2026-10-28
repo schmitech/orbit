@@ -149,6 +149,18 @@ export function buildExpirationRequest(choice, dateValue, justification) {
 // concatenating `keys` and capturing `expiration_warning_days` from the
 // first page that has it. `fetchPage(limit, offset)` is injected so this is
 // testable without a DOM or a real api() client.
+// Normalizes a server-supplied key record to a single canonical `id` field.
+// The list/detail endpoints currently send both `_id` (legacy) and `id`
+// (canonical) with the same value; create sends `id` only. Applying this
+// once at each data-entry boundary (loadKeys/loadKeyDetail/create) lets the
+// rest of this file read `key.id` exclusively instead of re-deriving the
+// fallback at every call site. See docs/roadmap/api-keys-drop-legacy-id-field.md.
+function normalizeKeyRecord(raw) {
+  if (!raw) return raw;
+  var id = raw.id || raw._id;
+  return id === raw.id ? raw : Object.assign({}, raw, { id: id });
+}
+
 export async function collectAllKeyPages(fetchPage) {
   var allKeys = [];
   var warningDays = DEFAULT_EXPIRATION_WARNING_DAYS;
@@ -450,7 +462,7 @@ export function createApiKeysTab({
         if (allowedEmails === null) { showError("Enter valid comma-separated email addresses."); return; }
         if (allowedEmails.length) body.allowed_emails = allowedEmails;
         Object.assign(body, expirationResult.body);
-        var created = await api("POST", endpoints.apiKeys, body);
+        var created = normalizeKeyRecord(await api("POST", endpoints.apiKeys, body));
         clientInput.value = "";
         promptSelect.value = "";
         notesInput.value = "";
@@ -485,7 +497,7 @@ export function createApiKeysTab({
             await api("DELETE", keyPath(ids[i]));
           }
           ids.forEach(function (id) { selectedKeyIds.delete(id); });
-          if (selectedKey && ids.indexOf(selectedKey._id) !== -1) selectedKey = null;
+          if (selectedKey && ids.indexOf(selectedKey.id) !== -1) selectedKey = null;
           showStatus(ids.length + " API key" + (ids.length === 1 ? "" : "s") + " deleted");
           await loadKeys();
         }
@@ -515,7 +527,7 @@ export function createApiKeysTab({
       }
       keyFilteredEmpty = !!keys.length && filteredKeys.length === 0;
       selectedKeyIds.forEach(function (keyId) {
-        if (!keys.some(function (key) { return key._id === keyId; })) {
+        if (!keys.some(function (key) { return key.id === keyId; })) {
           selectedKeyIds.delete(keyId);
         }
       });
@@ -550,7 +562,7 @@ export function createApiKeysTab({
     async function loadKeys() {
       try {
         var result = await loadAllKeys();
-        var keys = result.keys;
+        var keys = result.keys.map(normalizeKeyRecord);
         cachedExpirationWarningDays = result.expirationWarningDays;
         keyExpirationFilterSelect.setOptions([
           { value: "all", label: "All keys" },
@@ -561,23 +573,23 @@ export function createApiKeysTab({
         setCachedKeys(keys);
         applyKeyFilter();
         selectedKeyIds.forEach(function (keyId) {
-          if (!keys.some(function (key) { return key._id === keyId; })) {
+          if (!keys.some(function (key) { return key.id === keyId; })) {
             selectedKeyIds.delete(keyId);
           }
         });
         syncBulkActionButton(bulkDeleteBtn, selectedKeyIds.size, "API keys");
-        if (selectedKey && selectedKey._id) {
+        if (selectedKey && selectedKey.id) {
           var refreshedSelection = keys.find(function (key) {
-            return key._id === selectedKey._id;
+            return key.id === selectedKey.id;
           });
           if (refreshedSelection) {
             selectedKey = refreshedSelection;
-            keyPaginator.ensureItemVisible(function (k) { return k._id === selectedKey._id; });
+            keyPaginator.ensureItemVisible(function (k) { return k.id === selectedKey.id; });
             clear(detailPanel);
             detailPanel.style.display = "";
             detailPanel.appendChild(el("p", { className: "muted" }, "Loading key details..."));
             try {
-              var detail = await loadKeyDetail(refreshedSelection._id);
+              var detail = await loadKeyDetail(refreshedSelection.id);
               selectedKey = detail;
               renderKeyDetail(detailPanel, detail, function () {
                 selectedKey = null;
@@ -646,7 +658,7 @@ export function createApiKeysTab({
   }
 
   async function loadKeyDetail(keyId) {
-    return api("GET", keyPath(keyId, "/detail"));
+    return api("GET", keyPath(keyId, "/detail")).then(normalizeKeyRecord);
   }
 
   // Maps formatExpiration()'s badge tone to the shared `.monitoring-badge`
@@ -689,7 +701,7 @@ export function createApiKeysTab({
       return;
     }
     var table = el("table");
-    var keyIds = keys.map(function (key) { return key._id; });
+    var keyIds = keys.map(function (key) { return key.id; });
     var rowCheckboxes = [];
     var selectAllBox = el("input", {
       type: "checkbox",
@@ -704,8 +716,8 @@ export function createApiKeysTab({
     selectAllBox.addEventListener("click", function (e) { e.stopPropagation(); });
     selectAllBox.addEventListener("change", function () {
       keys.forEach(function (key) {
-        if (selectAllBox.checked) selection.selectedIds.add(key._id);
-        else selection.selectedIds.delete(key._id);
+        if (selectAllBox.checked) selection.selectedIds.add(key.id);
+        else selection.selectedIds.delete(key.id);
       });
       selection.onSelectionChange();
       syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, keyIds);
@@ -720,17 +732,17 @@ export function createApiKeysTab({
     ]));
     var tbody = el("tbody");
     keys.forEach(function (k) {
-      var isSelected = selectedKey && selectedKey._id && k._id && selectedKey._id === k._id;
+      var isSelected = selectedKey && selectedKey.id && k.id && selectedKey.id === k.id;
       var checkbox = el("input", {
         type: "checkbox",
-        "aria-label": "Select API key " + (k.client_name || k._id || "")
+        "aria-label": "Select API key " + (k.client_name || k.id || "")
       });
-      checkbox._selectionId = k._id;
-      checkbox.checked = selection.selectedIds.has(k._id);
+      checkbox._selectionId = k.id;
+      checkbox.checked = selection.selectedIds.has(k.id);
       checkbox.addEventListener("click", function (e) { e.stopPropagation(); });
       checkbox.addEventListener("change", function () {
-        if (checkbox.checked) selection.selectedIds.add(k._id);
-        else selection.selectedIds.delete(k._id);
+        if (checkbox.checked) selection.selectedIds.add(k.id);
+        else selection.selectedIds.delete(k.id);
         selection.onSelectionChange();
         syncVisibleSelection(selectAllBox, rowCheckboxes, selection.selectedIds, keyIds);
       });
@@ -748,13 +760,13 @@ export function createApiKeysTab({
         accessCell(k)
       );
       tr.addEventListener("click", async function () {
-        selectedKey = { _id: k._id };
+        selectedKey = { id: k.id };
         markSelectedRow(tbody, tr);
         clear(rightPanel);
         rightPanel.style.display = "";
         rightPanel.appendChild(el("p", { className: "muted" }, "Loading key details..."));
         try {
-          var detail = await loadKeyDetail(k._id);
+          var detail = await loadKeyDetail(k.id);
           selectedKey = detail;
           renderKeyDetail(rightPanel, detail, function () {
             selectedKey = null;
@@ -827,7 +839,7 @@ export function createApiKeysTab({
   }
 
   // Expiration summary plus the renew/change-expiration inline form. Always
-  // builds the renewal request from `keyId` (the record's non-secret _id),
+  // builds the renewal request from `keyId` (the record's non-secret id),
   // never from the displayed/revealed key value.
   function renderExpirationSection(key, keyId, onRefresh) {
     var section = el("div", { className: "api-key-expiration-section" }, el("h3", null, "Expiration"));
@@ -911,7 +923,7 @@ export function createApiKeysTab({
   function renderKeyDetail(panel, key, onRefresh, justCreated) {
     clear(panel);
     panel.style.display = "";
-    var keyId = key._id || key.id || "";
+    var keyId = key.id || "";
     var keyVal = key.api_key || key.key || "";
     var keyIsMasked = keyVal.indexOf("***") === 0;
     panel.appendChild(el("h2", { className: "detail-title" }, key.client_name || "API Key Details"));
