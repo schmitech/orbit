@@ -54,6 +54,7 @@ class AdapterCapabilities:
     supports_language_filtering: bool = False  # Can filter/boost by detected language
     supports_autocomplete: bool = False  # Provides autocomplete suggestions from nl_examples
     supports_charts: bool = False  # Emits chart-formatting instructions (see prompt_builder.build_chart_instruction)
+    supports_followup_rewrite: bool = False  # Rewrites follow-up queries against the prior intent turn (see intent_query_rewrite.py)
 
     # Additional parameters to pass to get_relevant_context()
     required_parameters: list[str] = field(default_factory=list)
@@ -164,6 +165,7 @@ class AdapterCapabilities:
             supports_language_filtering=capabilities_config.get('supports_language_filtering', False),
             supports_autocomplete=capabilities_config.get('supports_autocomplete', False),
             supports_charts=capabilities_config.get('supports_charts', False),
+            supports_followup_rewrite=capabilities_config.get('supports_followup_rewrite', False),
             required_parameters=capabilities_config.get('required_parameters', []),
             optional_parameters=capabilities_config.get('optional_parameters', []),
             skip_when_no_files=capabilities_config.get('skip_when_no_files', False),

@@ -20,6 +20,7 @@ from .intent_domain_components import IntentDomainComponentsMixin, record_intent
 from retrievers.implementations.intent.domain.response.table_renderer import TableRenderer
 from retrievers.implementations.intent.template_processor import TemplateProcessor
 from utils.async_utils import close_client
+from services.intent_followup_state import store_last_turn
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
         # Resolve once so the domain adapter's result-filtering threshold and this
         # retriever's template-matching threshold can never diverge on the same config key.
         self.confidence_threshold = self.intent_config.get('confidence_threshold', 0.1)
+        self.followup_rewrite_ttl_seconds = self.intent_config.get('followup_rewrite_ttl_seconds', 300)
 
         # Create domain adapter if not provided
         if not domain_adapter:
@@ -908,6 +910,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                     
                     logger.debug(f"Generated content for LLM context (length: {len(content)}):\n{content}")
 
+                    self._store_followup_turn(kwargs.get('session_id'), query, template.get('id'), parameters)
                     return [{
                         "content": content,
                         "metadata": {
@@ -927,6 +930,7 @@ class IntentHTTPRetriever(IntentDomainComponentsMixin, BaseRetriever):
                     formatted_results = self._format_http_results(
                         results, template, parameters, similarity)
                     if formatted_results:
+                        self._store_followup_turn(kwargs.get('session_id'), query, template.get('id'), parameters)
                         return formatted_results
 
             # All templates failed - log summary
@@ -1192,6 +1196,23 @@ JSON:"""
         except Exception as e:  # noqa: BLE001 - parameter-extraction boundary against arbitrary pluggable extractor
             logger.error(f"Error extracting parameters: {e}")
             return {}
+
+    def _followup_adapter_key(self) -> str:
+        return getattr(self, "audit_adapter_name", None) or self.__class__.__name__
+
+    def _store_followup_turn(
+        self, session_id: Optional[str], effective_query: str,
+        template_id: Optional[str], parameters: dict[str, Any],
+    ) -> None:
+        """Record this turn's resolved state for the next turn's follow-up-rewrite
+        step (server/inference/pipeline/steps/intent_query_rewrite.py)."""
+        if not session_id:
+            return
+        store_last_turn(
+            self._followup_adapter_key(), session_id,
+            {"effective_query": effective_query, "template_id": template_id, "parameters": parameters},
+            ttl=getattr(self, "followup_rewrite_ttl_seconds", 300.0),
+        )
 
     @abstractmethod
     async def _execute_template(self, template: dict[str, Any],

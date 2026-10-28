@@ -283,6 +283,33 @@ Control how context is formatted and sized via capabilities:
 - `context_max_tokens` is applied after formatting in `ContextRetrievalStep._format_context()`
 - `numeric_precision` is applied by `ResponseFormatter._format_single_result()` for floats without a `display_format`
 
+### Follow-up Query Rewriting
+
+Lets an intent adapter (SQL/HTTP) resolve a follow-up question like "what about
+Ottawa" against the previous turn's resolved query and parameters, rewriting it
+into a standalone question before template matching:
+
+```yaml
+# adapters.yaml
+- name: "intent-sql-postgres"
+  type: "retriever"
+  adapter: "intent"
+
+  capabilities:
+    supports_followup_rewrite: true  # opt-in; requires a stable session_id per conversation
+
+  # Optional: use a cheaper/faster model for the rewrite call than the
+  # adapter's main inference_provider/model
+  rewrite_provider: "openai"
+  rewrite_model: "gpt-4.5-mini"
+```
+
+**How it works:**
+- On a successful resolution, the retriever (`intent_sql_base.py`/`intent_http_base.py`) stashes the turn's standalone "effective query" plus its resolved template/parameters in a short-lived, per-(adapter, session) store (`services/intent_followup_state.py`).
+- `ContextRetrievalStep` forwards `session_id` to the retriever whenever this capability is enabled (the same special case already used for `clarification_enabled`), and — unless a clarification is currently pending for that session — calls `maybe_rewrite_followup_query()` (`inference/pipeline/steps/intent_query_rewrite.py`) to rewrite the message via a cheap LLM call before it's passed to the retriever.
+- Rewriting defers to a pending clarification round rather than racing it, and the originating question is carried through multiple clarification rounds so a follow-up after clarification still builds on the right query.
+- See `docs/sql-retriever-architecture.md` for the full design.
+
 ### Custom Behavior Hooks (Advanced)
 
 ```python

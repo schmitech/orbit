@@ -11,8 +11,8 @@ adapters:
     implementation: "retrievers.implementations.intent.IntentSQLiteRetriever"
     database: "examples/intent-templates/sql-intent-template/sqlite/hr/hr.db"
     # Provider overrides - intent adapters benefit from powerful models
-    inference_provider: "gemini"    # Cloud LLM for complex intent classification
-    model: "gemini-3.1-pro-preview"
+    inference_provider: "ollama_cloud"    # Cloud LLM for complex intent classification
+    model: "gpt-oss:120b"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
     # reranker_provider: "ollama"           # Optional: Jina AI reranker for template relevance
@@ -47,6 +47,7 @@ adapters:
       supports_file_ids: false
       supports_session_tracking: false
       supports_threading: true
+      supports_followup_rewrite: true  # Rewrite follow-ups ("what about Ottawa") against the prior intent turn
       requires_api_key_validation: true
       # Auto-route these from plain natural language (e.g. "make a pdf of
       # this") without requiring the client to send skill=<name> — matches

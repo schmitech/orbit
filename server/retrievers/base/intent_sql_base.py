@@ -18,6 +18,7 @@ from retrievers.implementations.intent.template_processor import TemplateProcess
 from utils.async_utils import close_client
 from services.metrics_service import get_metrics_service_instance
 from services.intent_clarification_state import store_pending, pop_pending
+from services.intent_followup_state import store_last_turn
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         self.clarification_ambiguity_gap = self.intent_config.get('clarification_ambiguity_gap', 0.05)
         self.clarification_max_rounds = self.intent_config.get('clarification_max_rounds', 2)
         self.clarification_ttl_seconds = self.intent_config.get('clarification_ttl_seconds', 300)
+        self.followup_rewrite_ttl_seconds = self.intent_config.get('followup_rewrite_ttl_seconds', 300)
         self.no_match_message = self.intent_config.get(
             'no_match_message', "I couldn't find a matching query pattern for your request."
         )
@@ -772,7 +774,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     and second_sim >= self.confidence_threshold
                     and (top_sim - second_sim) < self.clarification_ambiguity_gap
                 ):
-                    return self._build_disambiguation_response(templates, session_id)
+                    return self._build_disambiguation_response(templates, session_id, query)
 
             # A clear winner in the low/high band still executes, but is flagged so the
             # prompt can hedge — only meaningful for the top-ranked candidate.
@@ -810,7 +812,8 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     # ask for it instead of silently moving on to a worse-matching template.
                     if self.clarification_enabled and idx == 0 and similarity >= self.clarification_high_threshold:
                         return self._build_slot_fill_clarification(
-                            template, parameters, missing_required, similarity, session_id
+                            template, parameters, missing_required, similarity, session_id,
+                            originating_effective_query=query,
                         )
                     logger.debug(
                         "Template %s missing required params %s, trying next candidate",
@@ -834,6 +837,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                 if response is not None:
                     if idx == 0 and mark_low_confidence:
                         response[0].setdefault("metadata", {})["low_confidence"] = True
+                    self._store_followup_turn(session_id, query, template.get('id'), parameters)
                     return response
 
             if datasource_unavailable:
@@ -981,6 +985,20 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
     def _clarification_adapter_key(self) -> str:
         return getattr(self, "audit_adapter_name", None) or self.__class__.__name__
 
+    def _store_followup_turn(
+        self, session_id: Optional[str], effective_query: str,
+        template_id: Optional[str], parameters: dict[str, Any],
+    ) -> None:
+        """Record this turn's resolved state for the next turn's follow-up-rewrite
+        step (server/inference/pipeline/steps/intent_query_rewrite.py)."""
+        if not session_id:
+            return
+        store_last_turn(
+            self._clarification_adapter_key(), session_id,
+            {"effective_query": effective_query, "template_id": template_id, "parameters": parameters},
+            ttl=getattr(self, "followup_rewrite_ttl_seconds", 300.0),
+        )
+
     async def _extract_parameters_for_template(self, query: str, template: dict[str, Any]) -> Optional[dict[str, Any]]:
         """Extract parameters for one template. Returns None when the extractor's own
         validation rejects the result (fresh-match loop treats that like a missing template)."""
@@ -1002,6 +1020,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
 
     def _build_disambiguation_response(
         self, templates: list[dict[str, Any]], session_id: Optional[str],
+        originating_effective_query: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         top_candidates = templates[:3]
         candidates = [
@@ -1018,7 +1037,12 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
         if session_id:
             store_pending(
                 self._clarification_adapter_key(), session_id,
-                {"kind": "disambiguate", "candidates": [c["template_id"] for c in candidates], "round": 1},
+                {
+                    "kind": "disambiguate",
+                    "candidates": [c["template_id"] for c in candidates],
+                    "round": 1,
+                    "originating_effective_query": originating_effective_query,
+                },
                 ttl=self.clarification_ttl_seconds,
             )
 
@@ -1036,7 +1060,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
     def _build_slot_fill_clarification(
         self, template: dict[str, Any], parameters: dict[str, Any],
         missing_required: list[str], similarity: float, session_id: Optional[str],
-        round_num: int = 1,
+        round_num: int = 1, originating_effective_query: Optional[str] = None,
     ) -> list[dict[str, Any]]:
         missing_specs = [p for p in template.get('parameters', []) if p['name'] in missing_required]
         prompts = [p.get('description') or p['name'] for p in missing_specs] or missing_required
@@ -1053,6 +1077,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     "extracted": parameters,
                     "missing_params": missing_required,
                     "round": round_num,
+                    "originating_effective_query": originating_effective_query,
                 },
                 ttl=self.clarification_ttl_seconds,
             )
@@ -1107,10 +1132,14 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             template = self.domain_adapter.get_template_by_id(chosen_id) if self.domain_adapter else None
             if not template:
                 return None
+            originating_effective_query = pending.get("originating_effective_query") or query
             parameters = await self._extract_parameters_for_template(query, template) or {}
             missing_required = self._missing_required_params(template, parameters)
             if missing_required:
-                return self._build_slot_fill_clarification(template, parameters, missing_required, 1.0, session_id)
+                return self._build_slot_fill_clarification(
+                    template, parameters, missing_required, 1.0, session_id,
+                    originating_effective_query=originating_effective_query,
+                )
             results, error = await self._execute_template(template, parameters)
             if error:
                 return [{
@@ -1118,6 +1147,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     "metadata": {"source": "intent", "error": "datasource_unavailable"},
                     "confidence": 0.0
                 }]
+            self._store_followup_turn(session_id, originating_effective_query, template.get('id'), parameters)
             return self._format_execution_response(template, parameters, results, 1.0) or [{
                 "content": "Query executed successfully. Found 0 results.",
                 "metadata": {"source": "intent", "template_id": template.get('id'), "result_count": 0},
@@ -1130,6 +1160,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             if not template or template.get('_content_hash') != pending.get("template_hash"):
                 return None
 
+            originating_effective_query = pending.get("originating_effective_query") or query
             new_params = await self._extract_parameters_for_template(query, template) or {}
             merged = dict(pending.get("extracted") or {})
             for key, value in new_params.items():
@@ -1145,7 +1176,8 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                         "confidence": 0.0
                     }]
                 return self._build_slot_fill_clarification(
-                    template, merged, missing_required, 1.0, session_id, round_num=round_num + 1
+                    template, merged, missing_required, 1.0, session_id, round_num=round_num + 1,
+                    originating_effective_query=originating_effective_query,
                 )
 
             results, error = await self._execute_template(template, merged)
@@ -1155,6 +1187,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     "metadata": {"source": "intent", "error": "datasource_unavailable"},
                     "confidence": 0.0
                 }]
+            self._store_followup_turn(session_id, originating_effective_query, template.get('id'), merged)
             return self._format_execution_response(template, merged, results, 1.0) or [{
                 "content": "Query executed successfully. Found 0 results.",
                 "metadata": {"source": "intent", "template_id": template.get('id'), "result_count": 0},

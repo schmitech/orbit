@@ -10,6 +10,8 @@ adapters:
     model: "gpt-oss:120b"
     embedding_provider: "ollama"
     embedding_model: "nomic-embed-text:latest"
+    rewrite_provider: "ollama_cloud"
+    rewrite_model: "gpt-oss:20b"
     allowed_models:
       - name: "xai-grok-4.3"
         provider: "xai"
@@ -52,6 +54,7 @@ adapters:
       supports_session_tracking: false
       supports_threading: true
       supports_autocomplete: true  # Enable autocomplete from template nl_examples
+      supports_followup_rewrite: true  # Rewrite follow-ups ("what about Ottawa") against the prior intent turn
       requires_api_key_validation: true
       context_format: "toon"  # Options: markdown_table, toon, csv (default: pipe-separated)
       context_max_tokens: 8000

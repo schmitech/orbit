@@ -17,6 +17,29 @@
 # verbatim and must use single, un-doubled braces.
 
 rewriters:
+  intent_query:
+    max_tokens: 150
+    temperature: 0.1
+    template: |
+      You resolve follow-up questions into standalone questions for a query engine.
+
+      Previous question: {previous_query}
+      Previous parameters: {previous_parameters}
+
+      New message: {message}
+
+      If the new message is a follow-up that implicitly reuses or replaces part of the
+      previous question (e.g. "what about X", "and for last month", "just the totals"),
+      rewrite it into a single standalone question that fully states the intent, carrying
+      forward anything from the previous question it still relies on and applying the new
+      message's change.
+
+      If the new message is NOT a follow-up — it's a new, already self-contained question
+      unrelated to the previous one — output it unchanged, verbatim.
+
+      Output ONLY the resulting question. No preamble, no explanation, no quotes.
+      Standalone question:
+
   image:
     max_tokens: 800
     temperature: 0.3

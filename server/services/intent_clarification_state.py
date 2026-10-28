@@ -43,6 +43,16 @@ def pop_pending(adapter: str, session_id: str) -> Optional[dict[str, Any]]:
     return entry["payload"]
 
 
+def has_pending(adapter: str, session_id: str) -> bool:
+    """Non-destructive peek: is there an unexpired pending clarification for this
+    adapter/session? Used by follow-up rewriting to skip ahead of clarification
+    without consuming the entry (pop_pending still does that on actual resume)."""
+    if not session_id:
+        return False
+    entry = _pending.get((adapter, session_id))
+    return entry is not None and entry["expires_at"] >= time.time()
+
+
 def clear_pending(adapter: str, session_id: str) -> None:
     if not session_id:
         return

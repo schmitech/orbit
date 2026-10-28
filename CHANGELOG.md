@@ -1,8 +1,9 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.21.0] - 2026-10-28
 
 ### Core Features
+- **Follow-up query rewriting for intent retrievers**: Intent adapters (SQL/HTTP) can now resolve follow-up questions like "what about Ottawa" or "and last month" against the previous turn's resolved query and parameters, rewriting them into a standalone question before template matching via a cheap LLM call — opt-in per adapter with `supports_followup_rewrite: true`, and composes correctly with the existing intent-clarification feature (rewriting defers to a pending clarification round rather than racing it). See `docs/sql-retriever-architecture.md`; enabled on `customer-orders`, `business-analytics`, `hr`, `mongodb-mflix`, `http-paris-opendata`, `http-glassdoor`, and `http-jsearch`.
 - **Cheaper Inference provider**: Added `cheaperinference` as a new OpenAI-compatible inference provider (disabled by default). See `config/inference.yaml` and `env.example` (`CHEAPERINFERENCE_API_KEY`).
 
 ### Maintenance

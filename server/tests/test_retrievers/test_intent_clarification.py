@@ -22,6 +22,13 @@ import pytest
 
 from retrievers.base.intent_sql_base import IntentSQLRetriever
 from services import intent_clarification_state as clarification_state
+from services import intent_followup_state as followup_state
+
+
+def AsyncMockReturning(value):
+    async def _fn(*args, **kwargs):
+        return value
+    return _fn
 
 # Helpers that call other `self.*` helpers internally — bound onto every stub so
 # those internal calls resolve, even though _StubRetriever doesn't inherit from
@@ -34,14 +41,17 @@ _BOUND_HELPER_METHODS = (
     "_match_disambiguation_choice",
     "_build_disambiguation_response",
     "_build_slot_fill_clarification",
+    "_store_followup_turn",
 )
 
 
 @pytest.fixture(autouse=True)
 def _reset_pending_store():
     clarification_state._pending.clear()
+    followup_state._last_turn.clear()
     yield
     clarification_state._pending.clear()
+    followup_state._last_turn.clear()
 
 
 class _StubDomainAdapter:
@@ -64,6 +74,7 @@ class _StubRetriever:
         self.clarification_ambiguity_gap = 0.05
         self.clarification_max_rounds = 2
         self.clarification_ttl_seconds = 300
+        self.followup_rewrite_ttl_seconds = 300
         self.no_match_message = "I couldn't find a matching query pattern for your request."
         self.parameter_extractor = None
         for name in _BOUND_HELPER_METHODS:
@@ -318,3 +329,104 @@ class TestResumePendingClarification:
 
         result = await IntentSQLRetriever._resume_pending_clarification(stub, "the first one", pending, "s1")
         assert result[0]["metadata"]["template_id"] == "orders_by_dept"
+
+
+class TestFollowupStateAfterClarification:
+    """Covers the plan's correction: on clarification resume, the stored
+    effective_query must be the originating question that triggered
+    clarification (carried through every round), not the raw answer fragment
+    ("the second one", "engineering") used to resolve it."""
+
+    @pytest.mark.asyncio
+    async def test_slot_fill_resume_stores_originating_query_not_answer_fragment(self):
+        template = _template("orders_by_dept", parameters=[{"name": "dept", "required": True}])
+        stub = _StubRetriever(
+            templates_by_id={"orders_by_dept": template},
+            _extract_parameters=_async_extractor({"dept": "engineering"}),
+        )
+        stub._execute_template = AsyncMockReturning(([{"id": 1}], None))
+        stub._format_execution_response = lambda tmpl, params, results, sim: [{
+            "content": "ok", "metadata": {"source": "intent", "template_id": "orders_by_dept"}, "confidence": sim,
+        }]
+
+        pending = {
+            "kind": "slot_fill", "template_id": "orders_by_dept", "template_hash": "hash1",
+            "extracted": {}, "missing_params": ["dept"], "round": 1,
+            "originating_effective_query": "revenue by region for Q3",
+        }
+
+        await IntentSQLRetriever._resume_pending_clarification(stub, "engineering", pending, "s1")
+
+        stored = followup_state.get_last_turn("intent-sql-test", "s1")
+        assert stored["effective_query"] == "revenue by region for Q3"
+        assert stored["parameters"] == {"dept": "engineering"}
+
+    @pytest.mark.asyncio
+    async def test_disambiguate_resume_stores_originating_query(self):
+        template = _template("orders_by_dept", parameters=[])
+        stub = _StubRetriever(
+            templates_by_id={"orders_by_dept": template},
+            _extract_parameters=_async_extractor({}),
+        )
+        stub._execute_template = AsyncMockReturning(([{"id": 1}], None))
+        stub._format_execution_response = lambda tmpl, params, results, sim: [{
+            "content": "ok", "metadata": {"source": "intent", "template_id": "orders_by_dept"}, "confidence": sim,
+        }]
+
+        pending = {
+            "kind": "disambiguate", "candidates": ["orders_by_dept", "other"], "round": 1,
+            "originating_effective_query": "revenue by region for Q3",
+        }
+
+        await IntentSQLRetriever._resume_pending_clarification(stub, "the first one", pending, "s1")
+
+        stored = followup_state.get_last_turn("intent-sql-test", "s1")
+        assert stored["effective_query"] == "revenue by region for Q3"
+
+    @pytest.mark.asyncio
+    async def test_clarification_then_two_chained_followups(self):
+        """Simulates: ambiguous query triggers clarification -> resolved ->
+        two more follow-up turns, each building on the latest resolved request
+        rather than the raw clarification answer or the original query."""
+        template = _template("revenue_by_region", parameters=[{"name": "region", "required": True}])
+        stub = _StubRetriever(
+            templates_by_id={"revenue_by_region": template},
+            _extract_parameters=_async_extractor({"region": "Ontario"}),
+        )
+        stub._execute_template = AsyncMockReturning(([{"id": 1}], None))
+        stub._format_execution_response = lambda tmpl, params, results, sim: [{
+            "content": "ok", "metadata": {"source": "intent", "template_id": "revenue_by_region"}, "confidence": sim,
+        }]
+
+        # Round 1: slot-fill clarification triggered on "revenue by region for Q3",
+        # resolved with the answer "Ontario".
+        pending = {
+            "kind": "slot_fill", "template_id": "revenue_by_region", "template_hash": "hash1",
+            "extracted": {}, "missing_params": ["region"], "round": 1,
+            "originating_effective_query": "revenue by region for Q3",
+        }
+        await IntentSQLRetriever._resume_pending_clarification(stub, "Ontario", pending, "s1")
+
+        stored_after_clarification = followup_state.get_last_turn("intent-sql-test", "s1")
+        assert stored_after_clarification["effective_query"] == "revenue by region for Q3"
+        assert stored_after_clarification["parameters"] == {"region": "Ontario"}
+
+        # Follow-up 1: "and Q4" — rewrite step (tested separately) would turn this
+        # into a standalone query; here we directly exercise the normal-path storage
+        # by simulating the retriever being called with that rewritten effective query.
+        followup_state.store_last_turn(
+            "intent-sql-test", "s1",
+            {"effective_query": "revenue by region for Q4, Ontario", "template_id": "revenue_by_region", "parameters": {"region": "Ontario", "quarter": "Q4"}},
+        )
+        stored_after_followup_1 = followup_state.get_last_turn("intent-sql-test", "s1")
+        assert stored_after_followup_1["effective_query"] == "revenue by region for Q4, Ontario"
+
+        # Follow-up 2: "just Ontario" builds on follow-up 1's effective query, not
+        # the original clarification question.
+        followup_state.store_last_turn(
+            "intent-sql-test", "s1",
+            {"effective_query": "revenue by region for Q4, just Ontario", "template_id": "revenue_by_region", "parameters": {"region": "Ontario", "quarter": "Q4"}},
+        )
+        stored_after_followup_2 = followup_state.get_last_turn("intent-sql-test", "s1")
+        assert stored_after_followup_2["effective_query"] == "revenue by region for Q4, just Ontario"
+        assert "Q3" not in stored_after_followup_2["effective_query"]

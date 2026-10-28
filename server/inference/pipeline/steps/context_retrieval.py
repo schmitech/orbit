@@ -24,6 +24,8 @@ from adapters.capabilities import (
 )
 from ._utils import add_usage_component, finalize_usage_components
 from .language_detection import UNKNOWN_LANGUAGE, normalize_language_code
+from .intent_query_rewrite import maybe_rewrite_followup_query
+from services.intent_clarification_state import has_pending
 
 logger = logging.getLogger(__name__)
 
@@ -296,14 +298,18 @@ class ContextRetrievalStep(PipelineStep):
             retriever_kwargs["usage_sink"] = embedding_usage
             retriever_kwargs["reranking_usage_sink"] = reranking_usage
 
-            # Intent clarification (Phase 5) needs session_id to resume a pending
-            # disambiguation/slot-fill question, independent of the adapter's
-            # `supports_session_tracking` capability (a different, opt-in concern —
-            # every shipped intent adapter config currently leaves it false).
+            # Intent clarification (Phase 5) and follow-up query rewriting both need
+            # session_id — to resume a pending disambiguation/slot-fill question, or to
+            # look up the prior turn's resolved query/parameters — independent of the
+            # adapter's `supports_session_tracking` capability (a different, opt-in
+            # concern — every shipped intent adapter config currently leaves it false).
             if (
                 'session_id' not in retriever_kwargs
                 and context.session_id
-                and getattr(retriever, 'clarification_enabled', False)
+                and (
+                    getattr(retriever, 'clarification_enabled', False)
+                    or getattr(capabilities, 'supports_followup_rewrite', False)
+                )
             ):
                 retriever_kwargs['session_id'] = context.session_id
 
@@ -311,10 +317,27 @@ class ContextRetrievalStep(PipelineStep):
             if context.cancel_event:
                 retriever_kwargs['cancel_event'] = context.cancel_event
 
+            # Follow-up query rewriting: rewrite a follow-up like "what about Ottawa"
+            # into a standalone question using the previous turn's resolved query,
+            # before template matching. Skipped while a clarification is pending for
+            # this (adapter, session) — an answer like "the second one" must resolve
+            # the clarification directly, not be rewritten against stale prior context.
+            retrieval_query = context.message
+            if getattr(capabilities, 'supports_followup_rewrite', False) and context.session_id:
+                adapter_key = getattr(retriever, 'audit_adapter_name', None) or retriever.__class__.__name__
+                if not has_pending(adapter_key, context.session_id):
+                    rewrite_usage: dict[str, Any] = {}
+                    retrieval_query = await maybe_rewrite_followup_query(
+                        self.container, retrieval_adapter_name, context.session_id,
+                        context.message, usage_sink=rewrite_usage,
+                        state_key=adapter_key,
+                    )
+                    add_usage_component(context, rewrite_usage, "intent_rewrite")
+
             # Get relevant documents
             try:
                 docs = await retriever.get_relevant_context(
-                    query=context.message,
+                    query=retrieval_query,
                     collection_name=None,
                     **retriever_kwargs
                 )
