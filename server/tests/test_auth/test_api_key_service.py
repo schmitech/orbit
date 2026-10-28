@@ -733,10 +733,14 @@ async def test_create_api_key_requires_adapter_name(api_key_service):
 
 
 @pytest.mark.asyncio
-async def test_api_key_with_system_prompt_adapter_based(api_key_service):
+async def test_api_key_with_system_prompt_adapter_based(api_key_service, prompt_service):
     """Test creating adapter-based API key with system prompt"""
-    # Create a mock prompt ID
-    prompt_id = ObjectId()
+    # Create a real prompt - create_api_key now verifies system_prompt_id exists
+    prompt_id = ensure_object_id(await prompt_service.create_prompt(
+        "Test Prompt for Key Creation",
+        "This is a test system prompt",
+        "1.0"
+    ))
 
     result = await api_key_service.create_api_key(
         client_name="Prompt Test Client",

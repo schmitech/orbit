@@ -911,7 +911,7 @@ export function createApiKeysTab({
   function renderKeyDetail(panel, key, onRefresh, justCreated) {
     clear(panel);
     panel.style.display = "";
-    var keyId = key._id || "";
+    var keyId = key._id || key.id || "";
     var keyVal = key.api_key || key.key || "";
     var keyIsMasked = keyVal.indexOf("***") === 0;
     panel.appendChild(el("h2", { className: "detail-title" }, key.client_name || "API Key Details"));

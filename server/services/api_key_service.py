@@ -838,6 +838,11 @@ class ApiKeyService:
 
             allowed_emails = _normalize_allowed_emails(allowed_emails)
 
+            if system_prompt_id:
+                prompt_doc = await self.database.find_one('system_prompts', {"_id": system_prompt_id})
+                if not prompt_doc:
+                    raise HTTPException(status_code=404, detail="System prompt not found")
+
             # Generate a new API key
             api_key = self._generate_api_key()
 
@@ -887,6 +892,7 @@ class ApiKeyService:
 
             # Return the API key and metadata
             result = {
+                "id": str(inserted_id),
                 "api_key": api_key,
                 "client_name": client_name,
                 "notes": notes,

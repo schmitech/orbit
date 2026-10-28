@@ -77,6 +77,7 @@ class ApiKeyCreate(BaseModel):
 
 class ApiKeyResponse(BaseModel):
     """API key response model"""
+    id: str | None = None
     api_key: str
     client_name: str
     notes: str | None = None

@@ -9,6 +9,11 @@
 ### Maintenance
 - **Deduplicated prompt-parsing across inference providers**: The prompt-to-`messages` parsing block copy-pasted across 11 OpenAI-compatible inference providers (venice, minimax, scaleway, deepinfra, lmstudio, cohere, nebius, groq, moonshot, cheaperinference, cerebras) now lives in one `_build_messages()` helper on `OpenAICompatibleBaseService`. No behavior change; NearAI was left as-is since it already had its own helper plus extra message normalization. `docs/roadmap/complete/dedupe-prompt-parsing-inference-services.md` is now complete.
 
+### Bug Fixes
+- **API key detail panel broken immediately after creating a key**: The admin panel's Test Key, Rename, quota, renew, and deactivate/delete controls all derive the target key's record ID from the key object they're rendering; the create-key response never included that ID, so acting on any of these controls right after creating a key (before reselecting it from the refreshed list) sent requests with an empty ID and silently failed. `ApiKeyService.create_api_key()` now returns the new record's ID, and the admin panel falls back to it.
+- **API keys could be created pointing at a deleted or fabricated system prompt**: Unlike updating a key's metadata, creating a key never checked that a supplied `system_prompt_id` referred to an existing prompt, so a stale or made-up ID was stored silently and the key's status later misreported it as present. Key creation now validates the prompt exists, returning 404 otherwise.
+- **Test Key success toast unreadable in dark mode**: The verified-key toast's icon circle used a hardcoded semi-transparent white background intended for the light theme, washing out against the dark theme's green success toast. The icon background is now theme-aware.
+
 ## [2.20.3] - 2026-10-25
 
 ### Maintenance
