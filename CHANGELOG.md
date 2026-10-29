@@ -3,7 +3,8 @@
 ## [UNRELEASED]
 
 ### Maintenance
-- **API-key admin panel reads `id` only**: The admin panel's API-key tab now reads the canonical `id` field exclusively instead of the legacy `_id` field the list/detail endpoints also send, normalizing it once where responses are loaded. No backend or behavior change yet; see `docs/roadmap/api-keys-drop-legacy-id-field.md` for the full plan, including the later phase that will drop `_id` from the backend responses.
+- **API-key admin panel reads `id` only**: The admin panel's API-key tab now reads the canonical `id` field exclusively instead of the legacy `_id` field the list/detail endpoints also send, normalizing it once where responses are loaded.
+- **Dropped the legacy `_id` field from API-key list/detail responses**: `GET /admin/api-keys` and `GET /admin/api-keys/{id}/detail` now return `id` only, completing `docs/roadmap/api-keys-drop-legacy-id-field.md`. The admin panel already reads `id` exclusively (previous entry); its `normalizeKeyRecord()` still tolerates a legacy `_id` from an older server as a transition fallback, with no functional effect now that the backend no longer sends it.
 
 ## [2.21.0] - 2026-10-28
 

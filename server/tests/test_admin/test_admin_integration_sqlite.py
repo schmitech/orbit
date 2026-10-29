@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # Mirrors test_admin_integration.py - see the comment there and
 # docs/roadmap/api-keys-drop-legacy-id-field.md for the Phase 2/3 contract
 # this enforces.
-_ASSERT_LEGACY_KEY_ID_REMOVED = False
+_ASSERT_LEGACY_KEY_ID_REMOVED = True
 
 
 def _assert_api_key_record_fields(key: dict) -> None:

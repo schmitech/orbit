@@ -152,6 +152,12 @@ long as it exists before Phase 3 is considered done.
 
 ## Phase 3 — Backend: drop `_id` from list/detail responses
 
+**Status: done.** `list_api_keys` and `get_api_key_detail`
+(`server/routes/admin/api_keys.py`) now return `id` only. The
+`_ASSERT_LEGACY_KEY_ID_REMOVED` scaffolding from Phase 2 is flipped to `True`
+in both integration test files, so they now assert `_id` is absent rather
+than merely tolerating either shape. See `CHANGELOG.md` [UNRELEASED].
+
 **Ship as its own release**, after Phase 1 has had a chance to reach every
 admin panel instance (see "Why now, why phased" above) — unless this
 deployment has already confirmed there's no compatibility window to protect.
@@ -173,17 +179,31 @@ weren't already active.
 
 ## Phase 4 — Verify and close out
 
-- Run `server/tests/test_admin/test_admin_integration.py`,
+**Status: done**, with one caveat below.
+
+- Ran `server/tests/test_admin/test_admin_integration.py`,
   `test_admin_integration_sqlite.py`, and the full `test_auth/
-  test_api_key_service*.py` suite.
-- Manually re-run the full Phase 1 verification list (create/Test Key,
-  select/multi-select/bulk-delete, edit, rename, activate/deactivate,
-  renew, quota view/update/reset) against the now-`id`-only backend.
-- Grep `server/admin/admin_panel/` and `bin/orbit/commands/keys.py` one more
-  time for `_id` to confirm no straggler reference remains (the CLI's list
-  rendering already prefers `.get('id') or .get('_id')` — simplify to
-  `.get('id')` once the backend guarantee holds, or leave the fallback as
-  cheap insurance; not required for correctness either way).
+  test_api_key_service*.py` suite. The two integration files' API-key tests
+  can't be exercised end to end in this environment (no live server/DB
+  available) — they fail identically, at the `authenticate()` step, before
+  and after every phase of this plan, so this is a pre-existing environment
+  gap, not a regression. **Before merging, run these against a live server**
+  to confirm `test_list_api_keys`/`test_api_key_detail` actually pass with
+  `_ASSERT_LEGACY_KEY_ID_REMOVED = True` against the real response shape.
+  The rest of the suite (108+ tests covering `ApiKeyService`, the create/
+  rename/status routes, and the admin-panel JS module) passes.
+- Grepped `server/admin/admin_panel/tabs/api-keys.js` for `_id` - the only
+  remaining reference is `normalizeKeyRecord()`'s intentional `raw.id ||
+  raw._id` fallback (updated to note the backend no longer sends `_id`, kept
+  as transition-safety for an older server).
+- `bin/orbit/commands/keys.py:156` still has `key.get('id') or
+  key.get('_id')` - left as-is per the plan ("not required for correctness
+  either way"); it's dead-but-harmless now that the backend only sends `id`.
+- Manual re-verification of the Phase 1 UI checklist (create/Test Key,
+  select/multi-select/bulk-delete, edit, rename, activate/deactivate, renew,
+  quota view/update/reset) against the now-`id`-only backend was not
+  performed in this pass - do this alongside the live-server test run above
+  before considering the plan fully closed out.
 
 ## Out of scope
 

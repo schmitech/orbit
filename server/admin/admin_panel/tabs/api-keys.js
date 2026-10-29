@@ -150,11 +150,11 @@ export function buildExpirationRequest(choice, dateValue, justification) {
 // first page that has it. `fetchPage(limit, offset)` is injected so this is
 // testable without a DOM or a real api() client.
 // Normalizes a server-supplied key record to a single canonical `id` field.
-// The list/detail endpoints currently send both `_id` (legacy) and `id`
-// (canonical) with the same value; create sends `id` only. Applying this
-// once at each data-entry boundary (loadKeys/loadKeyDetail/create) lets the
-// rest of this file read `key.id` exclusively instead of re-deriving the
-// fallback at every call site. See docs/roadmap/api-keys-drop-legacy-id-field.md.
+// All endpoints now send `id` only, but this still falls back to a legacy
+// `_id` for a server running an older build mid-rollout. Applying this once
+// at each data-entry boundary (loadKeys/loadKeyDetail/create) lets the rest
+// of this file read `key.id` exclusively instead of re-deriving the fallback
+// at every call site. See docs/roadmap/api-keys-drop-legacy-id-field.md.
 function normalizeKeyRecord(raw) {
   if (!raw) return raw;
   var id = raw.id || raw._id;

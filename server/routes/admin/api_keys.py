@@ -193,8 +193,7 @@ async def list_api_keys(
         for key in api_keys:
             record_id = str(key["_id"]) if key.get("_id") else None
             key_dict = {
-                "_id": record_id,   # legacy — admin_panel.js depends on this
-                "id": record_id,    # canonical
+                "id": record_id,
                 "api_key": _masked_key_display(key),
                 "adapter_name": key.get("adapter_name"),
                 "client_name": key.get("client_name"),
@@ -250,8 +249,7 @@ async def get_api_key_detail(
 
         record_id = str(key["_id"]) if key.get("_id") else None
         key_dict = {
-            "_id": record_id,   # legacy — admin_panel.js depends on this
-            "id": record_id,    # canonical
+            "id": record_id,
             "api_key": _masked_key_display(key),
             "adapter_name": key.get("adapter_name"),
             "client_name": key.get("client_name"),

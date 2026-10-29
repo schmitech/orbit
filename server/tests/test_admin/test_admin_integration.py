@@ -29,13 +29,12 @@ import yaml
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Phase 3 of docs/roadmap/api-keys-drop-legacy-id-field.md will remove the
-# legacy `_id` field from the API-key list/detail responses, after Phase 1
-# (the admin panel reading `id` only) has shipped and had time to reach every
-# open admin panel instance. Flip this to True once Phase 3 lands so this
-# suite actively proves `_id` is gone, rather than merely tolerating either
-# shape.
-_ASSERT_LEGACY_KEY_ID_REMOVED = False
+# Phase 3 of docs/roadmap/api-keys-drop-legacy-id-field.md removed the
+# legacy `_id` field from the API-key list/detail responses (see
+# server/routes/admin/api_keys.py), after Phase 1 (the admin panel reading
+# `id` only) shipped. This suite now actively proves `_id` is gone, rather
+# than merely tolerating either shape.
+_ASSERT_LEGACY_KEY_ID_REMOVED = True
 
 
 def _assert_api_key_record_fields(key: dict) -> None:
