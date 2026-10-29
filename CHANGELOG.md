@@ -1,11 +1,5 @@
 # Changelog
 
-## [UNRELEASED]
-
-### Maintenance
-- **API-key admin panel reads `id` only**: The admin panel's API-key tab now reads the canonical `id` field exclusively instead of the legacy `_id` field the list/detail endpoints also send, normalizing it once where responses are loaded.
-- **Dropped the legacy `_id` field from API-key list/detail responses**: `GET /admin/api-keys` and `GET /admin/api-keys/{id}/detail` now return `id` only, completing `docs/roadmap/api-keys-drop-legacy-id-field.md`. The admin panel already reads `id` exclusively (previous entry); its `normalizeKeyRecord()` still tolerates a legacy `_id` from an older server as a transition fallback, with no functional effect now that the backend no longer sends it.
-
 ## [2.21.0] - 2026-10-28
 
 ### Core Features
@@ -14,6 +8,8 @@
 
 ### Maintenance
 - **Shared prompt parsing**: Consolidated message parsing across 11 OpenAI-compatible inference providers into a shared helper, with no behavior change.
+- **API-key admin panel reads `id` only**: The admin panel's API-key tab now reads the canonical `id` field exclusively instead of the legacy `_id` field the list/detail endpoints also send, normalizing it once where responses are loaded.
+- **Dropped the legacy `_id` field from API-key list/detail responses**: `GET /admin/api-keys` and `GET /admin/api-keys/{id}/detail` now return `id` only, completing `docs/roadmap/api-keys-drop-legacy-id-field.md`. The admin panel already reads `id` exclusively (previous entry); its `normalizeKeyRecord()` still tolerates a legacy `_id` from an older server as a transition fallback, with no functional effect now that the backend no longer sends it.
 
 ### Bug Fixes
 - **New API-key controls**: Create responses now include the record ID, fixing Test Key, Rename, quota, renew, and deactivate/delete actions immediately after creation.
