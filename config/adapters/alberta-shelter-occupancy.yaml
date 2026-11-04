@@ -9,6 +9,10 @@ adapters:
     inference_provider: "openai"
     model: "gpt-5.6"
     embedding_provider: "openai"
+
+    capabilities:
+      supports_threading: true  # Intent/SQL adapters support conversation threading on retrieved datasets
+
     config:
       # Path to the domain definition file
       domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/alberta-shelter/shelter_occupancy_domain.yaml"

@@ -29,6 +29,7 @@ adapters:
       requires_api_key_validation: true  # Validates file ownership via API key
       requires_authenticated_user: false # Override auth.require_authenticated_user; leave off unless this adapter should require login
       requires_encryption: false         # Set true to require encrypted file storage (files.encryption.enabled must be true)
+      supports_threading: false          # Document Q&A does not thread conversations on a retrieved dataset
       optional_parameters:
         - "file_ids"
         - "api_key"

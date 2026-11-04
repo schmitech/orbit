@@ -8,6 +8,10 @@ adapters:
     database: "examples/intent-templates/duckdb-intent-template/examples/goc-ised-ai-mvp/goc-ai-register.duckdb"
     inference_provider: "openai"
     embedding_provider: "openai"
+
+    capabilities:
+      supports_threading: true  # Intent/SQL adapters support conversation threading on retrieved datasets
+
     config:
       # Path to the domain definition file
       domain_config_path: "examples/intent-templates/duckdb-intent-template/examples/goc-ised-ai-mvp/ai_register_domain.yaml"

@@ -885,6 +885,47 @@ class TestResponseProcessorThreadingDetection:
         assert processor._sources_contain_actual_data(sources) is True
 
     # ==========================================
+    # Tests for the Phase 3 structured `has_results` signal
+    # (docs/roadmap/response-processor-cleanup.md)
+    # ==========================================
+
+    def test_sources_contain_actual_data_has_results_true_overrides_empty_looking_content(self, processor):
+        """A migrated retriever's explicit has_results=True must be trusted even when the
+        content text would otherwise look empty via the pattern-based fallback."""
+        sources = [
+            {
+                "content": "Total: 0",
+                "confidence": 0.9,
+                "metadata": {"has_results": True, "row_count": 1}
+            }
+        ]
+        assert processor._sources_contain_actual_data(sources) is True
+
+    def test_sources_contain_actual_data_has_results_false_overrides_data_looking_content(self, processor):
+        """has_results=False must be trusted even when content looks data-bearing and
+        row_count is absent - the structured signal takes precedence over both fallbacks."""
+        sources = [
+            {
+                "content": "Employee: John Smith, Department: Engineering, Salary: $95,000",
+                "confidence": 0.85,
+                "metadata": {"has_results": False}
+            }
+        ]
+        assert processor._sources_contain_actual_data(sources) is False
+
+    def test_sources_contain_actual_data_has_results_absent_falls_back_to_row_count(self, processor):
+        """An unmigrated source (no has_results key at all) must still be evaluated by the
+        existing row_count/content-based fallback, unchanged."""
+        sources = [
+            {
+                "content": "Employee: Jane Doe, Department: Sales, Salary: $85,000",
+                "confidence": 0.85,
+                "metadata": {"row_count": 1}
+            }
+        ]
+        assert processor._sources_contain_actual_data(sources) is True
+
+    # ==========================================
     # Tests for _content_indicates_empty
     # ==========================================
 
@@ -1105,3 +1146,74 @@ class TestResponseProcessorThreadingDetection:
 
         # Threading should NOT be in result
         assert "threading" not in result
+
+    # ==========================================
+    # Tests for _adapter_supports_threading (Phase 4:
+    # docs/roadmap/response-processor-cleanup.md - single source of truth via
+    # AdapterCapabilityRegistry, no more name-prefix fallback)
+    # ==========================================
+
+    @pytest.fixture
+    def clean_registry(self):
+        """Ensure the module-level capability registry has no leftover entry for the
+        test adapter name before and after each test, so these tests can't leak into
+        others (the registry is a process-wide singleton)."""
+        from adapters.capabilities import get_capability_registry
+        registry = get_capability_registry()
+        registry.unregister("registry-test-adapter")
+        yield registry
+        registry.unregister("registry-test-adapter")
+
+    def test_adapter_supports_threading_prefers_registry_true(self, processor, clean_registry):
+        """A registry entry wins even if the config scan would say otherwise -
+        the registry is the single source of truth once an adapter is registered."""
+        from adapters.capabilities import AdapterCapabilities
+        clean_registry.register("registry-test-adapter", AdapterCapabilities(supports_threading=True))
+        processor.config['adapters'] = [
+            {'name': 'registry-test-adapter', 'capabilities': {'supports_threading': False}}
+        ]
+
+        assert processor._adapter_supports_threading("registry-test-adapter") is True
+
+    def test_adapter_supports_threading_prefers_registry_false(self, processor, clean_registry):
+        from adapters.capabilities import AdapterCapabilities
+        clean_registry.register("registry-test-adapter", AdapterCapabilities(supports_threading=False))
+        processor.config['adapters'] = [
+            {'name': 'registry-test-adapter', 'capabilities': {'supports_threading': True}}
+        ]
+
+        assert processor._adapter_supports_threading("registry-test-adapter") is False
+
+    def test_adapter_supports_threading_falls_back_to_config_when_unregistered(self, processor, clean_registry):
+        """An adapter the registry has never seen (e.g. called before the pipeline's
+        capability-initialization step ran) must fall back to the config scan, not
+        silently return False."""
+        processor.config['adapters'] = [
+            {'name': 'registry-test-adapter', 'capabilities': {'supports_threading': True}}
+        ]
+
+        assert processor._adapter_supports_threading("registry-test-adapter") is True
+
+    def test_adapter_supports_threading_unregistered_and_unconfigured_is_false(self, processor, clean_registry):
+        """No registry entry and no matching config entry - safe default, not an
+        exception, mirroring AdapterCapabilityRegistry.get()'s None-for-unknown
+        contract."""
+        processor.config['adapters'] = []
+
+        assert processor._adapter_supports_threading("registry-test-adapter") is False
+
+    def test_adapter_supports_threading_reflects_hot_reload(self, processor, clean_registry):
+        """Simulates the adapter_reloader.py lifecycle: register, then later
+        unregister (e.g. the adapter was deleted or disabled) - the method must track
+        the registry's current state, not a cached snapshot from an earlier call."""
+        from adapters.capabilities import AdapterCapabilities
+        clean_registry.register("registry-test-adapter", AdapterCapabilities(supports_threading=True))
+        assert processor._adapter_supports_threading("registry-test-adapter") is True
+
+        clean_registry.unregister("registry-test-adapter")
+        processor.config['adapters'] = []
+        assert processor._adapter_supports_threading("registry-test-adapter") is False
+
+    def test_adapter_supports_threading_empty_adapter_name(self, processor, clean_registry):
+        assert processor._adapter_supports_threading("") is False
+        assert processor._adapter_supports_threading(None) is False

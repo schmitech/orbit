@@ -3,22 +3,23 @@ Unified Intent SQL Retriever base class that combines intent functionality
 with database-specific implementations to reduce duplication.
 """
 
-import logging
-import traceback
 import asyncio
-import re
 import json
+import logging
+import re
+import traceback
 from typing import Any, Optional
 
-from .base_sql_database import BaseSQLDatabaseRetriever
-from .intent_domain_components import IntentDomainComponentsMixin, record_intent_telemetry
 from adapters.intent.adapter import IntentAdapter
 from retrievers.implementations.intent.domain.response.table_renderer import TableRenderer
 from retrievers.implementations.intent.template_processor import TemplateProcessor
-from utils.async_utils import close_client
-from services.metrics_service import get_metrics_service_instance
-from services.intent_clarification_state import store_pending, pop_pending
+from services.intent_clarification_state import pop_pending, store_pending
 from services.intent_followup_state import store_last_turn
+from services.metrics_service import get_metrics_service_instance
+from utils.async_utils import close_client
+
+from .base_sql_database import BaseSQLDatabaseRetriever
+from .intent_domain_components import IntentDomainComponentsMixin, record_intent_telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -342,8 +343,9 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     self.store_manager._config = self.config.get('stores', {})
                 else:
                     # Try to load from stores.yaml file
-                    import yaml
                     from pathlib import Path
+
+                    import yaml
                     stores_config_path = Path('config/stores.yaml')
                     if stores_config_path.exists():
                         with open(stores_config_path, 'r') as f:
@@ -966,6 +968,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
                     "result_count": len(results),  # Actual count passed to LLM
                     "total_available": original_result_count,  # Total from SQL
                     "truncated": was_truncated,  # Truncation flag
+                    "has_results": original_result_count > 0,  # Structured signal (Phase 3)
                     "domain_aware": True
                 },
                 "confidence": similarity
@@ -1150,7 +1153,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             self._store_followup_turn(session_id, originating_effective_query, template.get('id'), parameters)
             return self._format_execution_response(template, parameters, results, 1.0) or [{
                 "content": "Query executed successfully. Found 0 results.",
-                "metadata": {"source": "intent", "template_id": template.get('id'), "result_count": 0},
+                "metadata": {"source": "intent", "template_id": template.get('id'), "result_count": 0, "has_results": False},
                 "confidence": 1.0,
             }]
 
@@ -1190,7 +1193,7 @@ class IntentSQLRetriever(IntentDomainComponentsMixin, BaseSQLDatabaseRetriever):
             self._store_followup_turn(session_id, originating_effective_query, template.get('id'), merged)
             return self._format_execution_response(template, merged, results, 1.0) or [{
                 "content": "Query executed successfully. Found 0 results.",
-                "metadata": {"source": "intent", "template_id": template.get('id'), "result_count": 0},
+                "metadata": {"source": "intent", "template_id": template.get('id'), "result_count": 0, "has_results": False},
                 "confidence": 1.0,
             }]
 
@@ -1475,8 +1478,12 @@ JSON:"""
 
             if self.query_guard_enabled:
                 from retrievers.base.query_guard import (
-                    QueryGuardError, assert_read_only, assert_single_statement,
-                    clamp_bound_limit_parameter, enforce_row_cap, resolve_dialect,
+                    QueryGuardError,
+                    assert_read_only,
+                    assert_single_statement,
+                    clamp_bound_limit_parameter,
+                    enforce_row_cap,
+                    resolve_dialect,
                 )
                 dialect = resolve_dialect(self._get_datasource_name())
                 adapter_label = self.audit_adapter_name or self.__class__.__name__
@@ -1623,7 +1630,8 @@ JSON:"""
                     "similarity": similarity,
                     "result_count": 0,
                     "total_available": 0,
-                    "truncated": False
+                    "truncated": False,
+                    "has_results": False
                 },
                 "confidence": similarity
             }]
@@ -1643,7 +1651,8 @@ JSON:"""
                 "similarity": similarity,
                 "result_count": len(results),  # Actual count passed to LLM
                 "total_available": original_count,  # Total from SQL
-                "truncated": was_truncated  # Truncation flag
+                "truncated": was_truncated,  # Truncation flag
+                "has_results": original_count > 0  # Structured signal (Phase 3)
             }
         )
 

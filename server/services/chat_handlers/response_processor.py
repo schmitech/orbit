@@ -519,44 +519,37 @@ class ResponseProcessor:
         """
         Check if an adapter supports threading.
 
-        Reads the `capabilities.supports_threading` setting from the adapter configuration.
-        Falls back to name-based inference if capability is not explicitly set.
+        Reads from the shared AdapterCapabilityRegistry (server/adapters/capabilities.py)
+        - the single source of truth for adapter capabilities, kept in sync with adapter
+        reloads/deletes by server/services/reload/adapter_reloader.py and
+        routes/admin/adapters.py. Falls back to a direct config scan only when the
+        registry has no entry for this adapter (e.g. called before the pipeline's
+        capability-initialization step has run), so a configured-but-not-yet-registered
+        adapter doesn't silently lose threading. Every adapter config under
+        config/adapters/ is expected to declare `capabilities.supports_threading`
+        explicitly (see docs/roadmap/response-processor-cleanup.md Phase 4) - there is
+        no longer a name-based inference fallback.
 
         Args:
             adapter_name: Name of the adapter
 
         Returns:
-            True if adapter supports threading based on config or name inference
+            True if adapter supports threading based on the registry or config
         """
         if not adapter_name:
             return False
 
-        # Look up adapter configuration to check explicit capability setting
+        from adapters.capabilities import get_capability_registry
+        capabilities = get_capability_registry().get(adapter_name)
+        if capabilities is not None:
+            return bool(capabilities.supports_threading)
+
+        # Not in the registry yet - fall back to a direct config scan.
         adapters = self.config.get('adapters', [])
-        adapter_config = None
         for adapter in adapters:
             if isinstance(adapter, dict) and adapter.get('name') == adapter_name:
-                adapter_config = adapter
-                break
-
-        # If adapter config found, check explicit capability setting
-        if adapter_config:
-            capabilities = adapter_config.get('capabilities', {})
-            if 'supports_threading' in capabilities:
-                return bool(capabilities.get('supports_threading'))
-
-        # Fall back to name-based inference if capability not explicitly set
-        # Intent adapters support threading by default
-        if adapter_name.startswith('intent-'):
-            return True
-
-        # QA adapters do NOT support threading by default (simple Q&A)
-        if adapter_name.startswith('qa-') or 'qa' in adapter_name.lower():
-            return False
-
-        # Conversational and multimodal adapters do not support threading
-        if 'conversational' in adapter_name.lower() or 'multimodal' in adapter_name.lower():
-            return False
+                capabilities_config = adapter.get('capabilities', {})
+                return bool(capabilities_config.get('supports_threading'))
 
         return False
 
@@ -700,6 +693,18 @@ class ResponseProcessor:
         for source in sources:
             content = source.get('content', '') or source.get('text', '') or ''
             metadata = source.get('metadata', {}) or {}
+
+            # Phase 3 structured signal (docs/roadmap/response-processor-cleanup.md):
+            # a retriever that has migrated to set `has_results` explicitly is trusted
+            # over the weaker row_count/content-pattern checks below - it's computed by
+            # the retriever with more context than this method has (e.g. it already knows
+            # "0 rows" vs "field never reported" without the row_count/result_count
+            # fallback ambiguity). `None`/absent means unmigrated - fall through.
+            has_results = metadata.get('has_results')
+            if has_results is False:
+                continue
+            if has_results is True:
+                return True
 
             # Check for explicit empty result flags from retrievers
             if metadata.get('empty_results') or metadata.get('no_data'):

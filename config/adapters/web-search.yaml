@@ -63,6 +63,7 @@ adapters:
         model: "claude-opus-5"
 
     capabilities:
+      supports_threading: false  # Conversational/web-search adapters do not thread conversations on a retrieved dataset
       web_search: true                   # Enable native web search on the inference call
       expose_as_skill: true              # Publish this adapter as a skill
       skill_name: "web-search"           # Identifier clients send in skill=

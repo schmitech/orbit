@@ -4,6 +4,8 @@
 
 ### Maintenance
 - **Chat response post-processing cleanup**: Conversation and audit logging now happen concurrently instead of one after another, slightly reducing per-request latency. Minor cleanup of unused code paths in response handling, with no behavior change.
+- **Conversation threading permission now reads from one place**: Whether an adapter can offer the "continue conversation" option was previously decided by two different mechanisms that could disagree. It now comes from a single, explicit setting per adapter, and every built-in adapter configuration declares it directly instead of relying on a guess based on the adapter's name.
+- **More reliable "did this query actually return data?" signal**: SQL-based adapters now report explicitly whether a query returned data, rather than that being inferred indirectly, making the "continue conversation" option more consistently accurate for those adapters.
 
 ### Bug Fixes
 - **Conversation threading could stay on for genuinely empty results**: A source explicitly reporting zero matching rows was sometimes treated as if no row count had been reported at all, which could let the "continue" threading option appear even though the query returned nothing.

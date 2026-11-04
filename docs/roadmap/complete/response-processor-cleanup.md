@@ -171,63 +171,73 @@ stays in place permanently as the fallback for any source that doesn't
 (or can't) emit the new structured signal, not just during a migration
 window.
 
-- [ ] **Specify the signal's semantics precisely before writing any code.**
-      A row/hit count alone is not sufficient — it conflates several
-      distinct cases that need explicit handling:
-      - **Unknown vs. empty.** A source that doesn't report a count at all
-        (field absent) must be distinguishable from one that reports a
-        confirmed-zero count. Collapsing "we don't know" into "it was empty"
-        (or vice versa) reintroduces a version of the same bug being fixed
-        in Phase 1's `row_count`/`result_count` item.
-      - **Aggregate rows that are themselves empty.** A SQL aggregate query
-        (`SELECT COUNT(*) ...`, `SELECT SUM(...) ...`) can return exactly
-        one row whose value is zero — `row_count=1` but the result is still
-        "no data." The signal must be the *meaningfulness* of the result,
-        not merely whether any rows came back.
-      - **Vector/relevance confidence.** A nonzero hit count from a vector
-        retriever doesn't mean the hits are relevant — low-similarity hits
-        below a confidence floor should not count as "has results" just
-        because they exist. Reuse or formalize the existing confidence
-        check in `_has_meaningful_results` Signal 2 rather than dropping it
-        once a count exists.
-      - **Mixed-source aggregation.** When a turn's `sources` list contains
-        results from more than one retriever/adapter call (composite
-        adapters), define how per-source signals combine into one
-        turn-level "has results" value — any-source-has-results,
-        all-sources-have-results, and a weighted/primary-source rule are all
-        defensible; pick one explicitly and document why.
-      - **Precedence when fields disagree.** If the structured signal says
-        "has results" but the Phase 2 prose heuristic says "no results" (or
-        vice versa), define which wins and why, rather than leaving it to
-        whichever check happens to run first.
-- [ ] **Define a typed field (exact shape TBD by the spec above, e.g.
-      `has_results: bool` plus a separate `result_count: Optional[int]`)**
-      on retrieval results, attached at the source: `server/retrievers/base/
-      intent_sql_base.py`, `intent_http_base.py`, and the formatters in
-      `server/retrievers/implementations/intent/domain/response/
-      formatters.py`. SQL/NoSQL retrievers already know their row count at
-      query time; vector retrievers already know their hit count and
-      similarity scores.
-- [ ] **Thread the field through `sources`/`metadata`** so it survives to
-      `build_result` unchanged, the same way `row_count`/`empty_results`
-      already partially do in `_has_meaningful_results`'s Signal 2/3 checks
-      — reconciled with the Phase 1 `row_count`/`result_count` fix so the
-      new field and the old ones can't disagree with each other.
-- [ ] **Make `_has_meaningful_results` prefer the structured signal when
-      present**, applying the precedence rule defined above, and falling
-      back to the Phase 2 consolidated prose heuristic for any source that
-      doesn't carry the field. This keeps behavior unchanged for
-      unmigrated/non-structured sources while removing the language-drift
-      fragility for migrated ones.
-- [ ] **Add end-to-end tests covering both streaming and non-streaming
-      response paths**, not just the formatter/unit level — confirm the
-      structured signal survives whichever path a given adapter/request
-      actually takes through the pipeline to `build_result`.
-- [ ] **Migrate adapters incrementally**, starting with the highest-traffic
-      intent-SQL adapters, and track migration status so coverage is
-      visible — the prose fallback is kept permanently for unmigrated or
-      inherently unstructured sources, not deleted once migration
-      "completes."
+- [x] **Specify the signal's semantics precisely before writing any code.**
+      Settled semantics for the scope actually implemented below:
+      - **Unknown vs. empty**: `has_results` is `True`/`False` only when a
+        retriever explicitly sets it; the field is omitted entirely (not set
+        to `None`) for anything that hasn't computed it, which
+        `_sources_contain_actual_data` reads as "unmigrated — fall back."
+        This mirrors, and is reconciled with, the Phase 1
+        `row_count`/`result_count` fix.
+      - **Precedence when fields disagree**: `has_results`, when present,
+        wins outright over `row_count`/`result_count`/content-pattern
+        checks for that source — it's set by the retriever with strictly
+        more context (e.g. it knows the true pre-truncation count) than
+        `_sources_contain_actual_data` can reconstruct from metadata alone.
+      - **Mixed-source aggregation**: unchanged from today's existing
+        any-source-has-data loop in `_sources_contain_actual_data` — a
+        `has_results=True` source returns `True` for the whole list
+        immediately (any-source-wins), a `has_results=False` source is
+        skipped and the loop continues to the next source, same as the
+        existing `row_count`/`empty_results` checks already do.
+      - **Aggregate-zero rows and vector/relevance confidence** are
+        explicitly **not** covered by this pass — see the deferred items
+        below. Both require inspecting formatter/query-type context this
+        change didn't touch.
+- [x] **Define a typed field and thread it through `sources`/`metadata`
+      — scoped to `intent_sql_base.py` only (the highest-traffic case,
+      per the migrate-incrementally item below).** Added `has_results: bool`
+      to the four result-formatting call sites in
+      `server/retrievers/base/intent_sql_base.py`
+      (`_format_execution_response`, both clarification/slot-fill "0
+      results" fallbacks, and `_format_sql_results`'s empty and non-empty
+      branches), computed from the pre-truncation row count so it reflects
+      true emptiness rather than a post-truncation count. `intent_http_base.py`
+      and the vector-retriever formatters are **not migrated** — see deferred
+      items below.
+- [x] **Make `_has_meaningful_results` prefer the structured signal when
+      present**, via `_sources_contain_actual_data`
+      (`server/services/chat_handlers/response_processor.py`): `has_results
+      is False` short-circuits that source to empty, `has_results is True`
+      short-circuits the whole method to `True`, and its absence falls
+      through unchanged to the existing row_count/content-pattern checks.
+      Covered by new tests in `test_response_processor.py` (structured
+      True/False/absent precedence) and
+      `test_intent_sql_has_results_signal.py` (field correctly set at the
+      retriever). 767 tests pass across `tests/chat_handlers/` and
+      `tests/test_retrievers/`.
+- [ ] **Deferred: aggregate-zero rows.** A `SELECT COUNT(*)`/`SELECT SUM(...)`
+      query returning one row with value 0 would currently get
+      `has_results=True` (row_count=1), which is wrong per the semantics
+      above — `formatters.py` has no existing concept of "this template is
+      an aggregate query" to key off, so this needs its own investigation
+      into the template/query-type schema before it can be fixed correctly,
+      not a guess bolted onto this pass.
+- [ ] **Deferred: vector/relevance confidence.** Not addressed — no vector
+      retriever was migrated in this pass. `_has_meaningful_results`'s
+      existing Signal 2 confidence check is untouched and still applies.
+- [ ] **Deferred: end-to-end tests covering streaming and non-streaming
+      response paths.** Only formatter/unit-level and
+      `_sources_contain_actual_data`-level tests were added. No change was
+      made to `build_result` or the streaming pipeline in this pass, so the
+      signal's survival through those paths is unverified beyond what the
+      existing (unchanged) metadata-passthrough tests already cover.
+- [ ] **Deferred: migrate remaining adapters.** Only
+      `intent_sql_base.py` is migrated. `intent_http_base.py` and vector
+      retrievers still rely entirely on the Phase 2 prose heuristic and the
+      row_count/content-pattern fallback — tracked here as the next
+      incremental migration target, per the "prose fallback stays permanent
+      for unmigrated sources" policy above.
 
 ## Phase 4 — Adapter threading capability: single source of truth
 
@@ -242,24 +252,49 @@ adapter configs already declare `capabilities.supports_threading` explicitly
 — so the name-based fallback is largely dead weight masking a config-
 completeness gap, not a genuinely needed heuristic.
 
-- [ ] **Audit every adapter config under `config/adapters/`** for a missing
+- [x] **Audit every adapter config under `config/adapters/`** for a missing
       `capabilities.supports_threading` key, and add it explicitly wherever
-      absent. This should shrink the set of adapters relying on the
-      name-prefix fallback to near zero.
-- [ ] **Switch `_adapter_supports_threading` to use
+      absent. Found 11 files missing it: `audio.yaml` (10 conversational/
+      voice adapters, `false`), `passthrough.yaml`, `mcp-agent.yaml`,
+      `web-search.yaml`, `web-search-providers.yaml` (8 adapters across
+      these, all `false`), `file.yaml`'s `file-document-qa` (`false`), and
+      three intent-DuckDB example configs —
+      `alberta-shelter-occupancy.yaml`, `goc-ai-register.yaml`,
+      `ottawa-hospital-ed-visits.yaml` — which had **no `capabilities` block
+      at all** (not just a missing key), now added with `supports_threading:
+      true`. Every value matches what the (now-deleted) name-prefix fallback
+      already resolved to, so this is config-completeness only, no behavior
+      change. Two untracked, uncommitted files (`talktoanyai.yaml`,
+      `talktoanyai copy.yaml` — not part of this repository's committed
+      config) were left alone as out of scope.
+- [x] **Switch `_adapter_supports_threading` to use
       `get_capability_registry().get(adapter_name)`** instead of re-scanning
-      `self.config['adapters']` by hand. Confirm first (with a test) that the
-      registry is populated for every adapter this method is called with at
-      the point `build_result` runs — the registry's population lifecycle is
-      different from a static config scan, so this needs verification before
-      the swap, not just a signature-compatible drop-in. Extend the test
-      coverage to the registry's lifecycle edge cases specifically: a config
-      reload/hot-reload path (if one exists for adapters) that changes or
-      removes an adapter's registration after startup, and a lookup for an
-      adapter name that was never registered at all (confirm it returns
-      `None`/a safe default rather than raising, and that
-      `_adapter_supports_threading` handles that the same way the current
-      config-scan version handles an unmatched name).
-- [ ] **Delete the name-prefix fallback** once the config audit above closes
-      the gap it exists for, so there's exactly one place (`capabilities.py`)
-      that decides whether an adapter supports threading.
+      `self.config['adapters']` by hand. Confirmed via new tests
+      (`test_response_processor.py`,
+      `TestResponseProcessorThreadingDetection`) covering the registry
+      lifecycle edge cases: registry entry present (wins over config either
+      way), registry empty for a configured adapter (falls back to the
+      config scan rather than defaulting to `False`), registry empty and
+      adapter unconfigured (`False`, no exception — matches
+      `AdapterCapabilityRegistry.get()`'s `None`-for-unknown contract), and
+      a simulated hot-reload (register → unregister, mirroring
+      `adapter_reloader.py`'s delete/disable path) confirming the method
+      reads current registry state rather than a cached value. 1063 tests
+      pass across `tests/chat_handlers/`, `tests/test_adapters/`,
+      `tests/test_retrievers/`, `tests/test_inference/test_prompt_builder.py`,
+      and `tests/test_pipeline_steps/`.
+- [x] **Delete the name-prefix fallback.** Done — `_adapter_supports_threading`
+      no longer has `startswith('intent-')`/`'qa' in name.lower()`/etc.
+      branches; an unregistered adapter now falls back only to a direct
+      config scan (itself just a safety net for calls before the pipeline's
+      capability-initialization step has run), with a bare `False` as the
+      final default. `capabilities.py`'s registry is now the only place
+      that decides whether an adapter supports threading, backed by every
+      adapter config declaring the setting explicitly (previous item).
+
+Phase 4 complete. All four phases of this roadmap are now done, with the
+explicitly scoped-out items noted inline above (Phase 1's optional
+`build_result` refactor; Phase 2's `apologetic_starters` merge; Phase 3's
+aggregate-zero detection, vector confidence, e2e tests, and remaining
+adapter migrations) left as deliberate, documented follow-ups rather than
+silently dropped.

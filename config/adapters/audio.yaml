@@ -27,6 +27,7 @@ adapters:
     
     # Capabilities: Audio file transcription
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "conditional"
       formatting_style: "clean"
       supports_file_ids: true
@@ -87,6 +88,7 @@ adapters:
 
     # Capabilities: Voice-enabled chat
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
@@ -125,6 +127,7 @@ adapters:
 
     # Capabilities: Multilingual voice assistant
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
@@ -175,6 +178,7 @@ adapters:
 
     # Capabilities: Premium voice output
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
@@ -216,6 +220,7 @@ adapters:
 
     # Capabilities: Voice output with local TTS
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
@@ -255,6 +260,7 @@ adapters:
 
     # Capabilities: Voice output with local TTS
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
@@ -302,6 +308,7 @@ adapters:
 
     # Capabilities: Fully local voice assistant
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
@@ -362,6 +369,7 @@ adapters:
 
     # Capabilities
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
@@ -403,6 +411,7 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
@@ -463,6 +472,7 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
@@ -502,6 +512,7 @@ adapters:
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
 
     capabilities:
+      supports_threading: false  # Audio/voice adapters do not thread conversations on a retrieved dataset
       retrieval_behavior: "none"
       formatting_style: "standard"
       supports_file_ids: false
