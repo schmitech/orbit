@@ -7,6 +7,7 @@
 
 ### Bug Fixes
 - **Conversation threading could stay on for genuinely empty results**: A source explicitly reporting zero matching rows was sometimes treated as if no row count had been reported at all, which could let the "continue" threading option appear even though the query returned nothing.
+- **Multilingual "no results" detection simplified and hardened**: Consolidated three separately maintained lists of "no results" phrases (across 7 languages) into one, removing drift between them, and fixed a couple of related false positives/negatives along the way — including a reply that said data was unavailable not always correctly ending the conversation thread.
 
 ## [2.21.0] - 2026-10-28
 

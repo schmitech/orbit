@@ -54,19 +54,18 @@ carefully. Good first bites.
       write a characterization test (call `build_result` with each media
       kwarg set individually and in combination, assert the exact resulting
       dict) before refactoring, not after.
-- [ ] **Fix `_content_indicates_empty`'s tab/space-separated pattern gap,
-      don't generalize it.** The 7 `total_patterns` regexes (lines
-      ~778-789) are *not* a full 3-label × 3-style combination as originally
-      assumed — the colon-separated and markdown-table styles each cover all
-      three labels (total/count/sum), but the tab/space-separated style
-      (`r'total\s+\w+\s+(0|n/?a|...)'`) only exists for `total`, not `count`
-      or `sum`. Generating the full 3×3 cross product would silently expand
-      matching behavior to two currently-unmatched cases. If the missing
-      `count`/`sum` whitespace-separated variants are wanted, add them as a
-      deliberate, tested behavior change — not as a side effect of a
-      template refactor. Otherwise leave the 7 patterns as literal entries;
-      collapsing them into a template is not worth the risk of silently
-      changing what matches.
+- [x] **Fix `_content_indicates_empty`'s tab/space-separated pattern gap,
+      don't generalize it.** Confirmed against the current code (lines
+      ~791-802): the 7 `total_patterns` regexes are *not* a full
+      3-label × 3-style combination — the colon-separated and markdown-table
+      styles each cover all three labels (total/count/sum), but the
+      tab/space-separated style (`r'total\s+\w+\s+(0|n/?a|...)'`) only exists
+      for `total`, not `count` or `sum`. No `count`/`sum` whitespace-separated
+      variant was requested, so generating the full 3×3 cross product (which
+      would silently expand matching behavior to two currently-unmatched
+      cases) was intentionally not done. The 7 patterns are left as literal
+      entries, uncollapsed, with this rationale recorded so a future
+      refactor doesn't "fix" the asymmetry as a side effect.
 
 ## Phase 2 — Multilingual "no results" detection consolidation
 
@@ -76,46 +75,90 @@ directly controls when the "continue conversation" threading button appears
 — a regression here is a silent UX bug, not a crash, so it needs its own
 test pass before any merge.
 
-- [ ] **Audit for real drift between the three heuristics first.**
+- [x] **Audit for real drift between the three heuristics first.**
       `_NO_RESULTS_PATTERNS`/`_no_results_regex` (class-level, ~58 patterns
       across 7 languages), `negative_indicators` (~100 keywords inside
       `_response_indicates_no_results`), and `apologetic_starters` (~40
-      prefixes) were built independently and already disagree in places —
-      e.g. the regex list scopes `outside|beyond` with
-      `(my|the) (scope|knowledge|data)` while the keyword list has bare
-      `'outside'`/`'beyond'`, which is a much weaker, false-positive-prone
-      match (a response like "my dataset extends beyond Q3" would trip it).
-      Before merging anything, write a fixture corpus of real/representative
-      responses (true no-results replies and true data-bearing replies, in
-      each of the 7 supported languages) and record what each of the three
-      heuristics currently returns on it — this becomes the regression
-      baseline.
-- [ ] **Step A — merge phrase definitions only, keep the three detection
-      rules unchanged.** Fold `negative_indicators` and
-      `apologetic_starters`'s phrases into `_NO_RESULTS_PATTERNS` as the
-      single source of truth (tightening any bare-word entries found in the
-      audit step to the same qualified form the regex list already uses),
-      but keep evaluating them as three separate rules against that one
-      source: the ≥150-char short-response gate for the keyword-count and
-      regex checks, the ≥300-char gate for the apologetic-prefix check, and
-      distinct-keyword counting for the ≥2-match rule. These aren't
-      interchangeable today — the keyword rule counts how many distinct
-      entries from `negative_indicators` appear in the response, while the
-      regex rule is a boolean "does `_no_results_regex` match at all,"
-      with no count semantics — and the two length thresholds (150 vs. 300)
-      are deliberately different cutoffs.
-      Changing phrase *source* without changing detection *policy* keeps
-      this step behavior-neutral and verifiable against the Phase 2 fixture
-      corpus.
-- [ ] **Step B — only then consider simplifying the detection policy**
-      (e.g. unifying the two length thresholds, or switching the ≥2-keyword
-      rule to a single regex-based count), as a separate, explicitly
-      reviewed change with its own before/after comparison against the
-      fixture corpus — not bundled into Step A.
-- [ ] **Add the fixture corpus as a permanent regression test**, not a
+      prefixes) were built independently and already disagreed in places —
+      confirmed concretely: the regex list scopes `outside|beyond` with
+      `(my|the) (scope|knowledge|data)`, but the keyword list had bare
+      `'outside'`/`'beyond'`, a much weaker, false-positive-prone match. Added
+      a reproducing case to the new fixture corpus
+      (`server/tests/chat_handlers/test_no_results_fixture_corpus.py`) —
+      `"Sales figures for products priced beyond $100 ... regions outside the
+      EU ..."` — confirmed it false-positived (returned "no results" for a
+      135-char, data-bearing response) before the fix below, and passes
+      after. Wrote the fixture corpus as a permanent regression test (see
+      last Phase 2 item) covering true no-results and true data-bearing
+      responses in all 7 languages — this is now the regression baseline for
+      Step A/B below.
+      As a narrow, low-risk fix (not the full Step A consolidation), removed
+      the bare `'outside'`/`'beyond'` entries from `negative_indicators` and
+      replaced them with the same qualified-context regex check the
+      `_no_results_regex` rule already uses, so a genuine "outside my
+      knowledge" still counts as one indicator but unrelated uses of either
+      word (prices, geography) don't. 122 tests pass (99 existing + 23 new
+      fixture-corpus cases).
+- [x] **Step A — merge phrase definitions, scoped to Heuristics 1+2.**
+      `negative_indicators` (the ~100-entry keyword-count list) has been
+      removed. Both the ≥2-match rule and the any-match rule now evaluate
+      against the single `_NO_RESULTS_PATTERNS` source via a new
+      `_no_results_compiled` list (individually compiled patterns from the
+      same source used to build `_no_results_regex`), under the same
+      ≥150-char short-response gate both rules always shared.
+      `apologetic_starters` (the ≥300-char prefix rule) was **not** folded
+      in — see rationale below. 122 tests pass (99 existing +
+      23 fixture-corpus) with zero regressions.
+- [x] **Step B — simplify the detection policy for Heuristics 1+2.**
+      Since both rules now read the same qualified, multilingual pattern
+      source (not bare keywords), requiring a second match adds no real
+      precision over a single match: `match_count >= 2` is now a strict
+      subset of `match_count >= 1`, so the two heuristics collapsed into one
+      count computed once, with `>= 1` sufficient to return `True` (matching
+      the old regex rule's existing single-match threshold — it never
+      required 2, only the keyword rule did). This removes the
+      independently-maintained keyword list entirely rather than just
+      relabeling it, which is the point of Step B. Verified against the
+      full fixture corpus plus all pre-existing parametrized
+      `_response_indicates_no_results` tests before and after — no case
+      changed outcome.
+      **`apologetic_starters` was deliberately left as its own literal list,
+      not merged into `_NO_RESULTS_PATTERNS`.** Its rule is anchored
+      (`response_stripped.startswith(starter)`), while the shared pattern
+      source encodes *contextual* phrases (e.g. `"unfortunately.{0,50}(no
+      |couldn'?t|unable)"` requires specific follow-up words), not the bare
+      `'unfortunately'` the starter list intentionally allows. Reusing the
+      pattern source for an anchored match would silently drop coverage for
+      responses like "Unfortunately, ..." that don't happen to continue with
+      one of the regex's required follow-up phrases — a real regression risk
+      with no existing test granularity to catch it. Left as a separate,
+      explicitly scoped follow-up if ever revisited, not bundled into this
+      pass.
+- [x] **Add the fixture corpus as a permanent regression test**, not a
       one-off audit script — this heuristic will keep attracting ad hoc
       phrase additions, and a single merged source makes that one place to
-      extend instead of two or three.
+      extend instead of two or three. Done as part of the audit step above:
+      `server/tests/chat_handlers/test_no_results_fixture_corpus.py`.
+
+**Post-merge review found and fixed a real regression in Step A/B above**:
+removing `negative_indicators` dropped coverage for denial phrasing like "The
+requested dataset is unavailable, so I cannot retrieve it." — neither the
+regex patterns nor `apologetic_starters` covered it, so with confident
+sources this could have incorrectly enabled threading. Fixed by adding two
+qualified patterns to `_NO_RESULTS_PATTERNS` — `(cannot|can't) (retrieve|
+access|find|locate|provide|obtain)` and `unavailable.{0,30}(cannot|can't|
+unable to) (retrieve|...)` — rather than a bare `unavailable` pattern, which
+was tried first and reintroduced a false positive on data-bearing short
+responses that happen to mention something else being unavailable (e.g. "This
+endpoint is unavailable for free-tier users, but here are the 50 results from
+the paid tier..."). Both cases are now in the fixture corpus. The review also
+caught an unrelated latent bug the new test surfaced: `0 results?` matched
+inside "**5*0* results**" (no digit boundary) — fixed to `(?<!\d)0 results?`.
+The redundant `>= 2` / `>= 1` branch pair was also collapsed into a single
+boolean `self._no_results_regex.search(...)` check, dropping the now-unused
+per-pattern `_no_results_compiled` list entirely — the combined regex already
+does the same job. 325 tests pass (`tests/chat_handlers/`), zero known
+regressions.
 
 ## Phase 3 — Structured "has results" signal from the retrieval pipeline
 

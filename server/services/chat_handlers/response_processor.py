@@ -27,7 +27,7 @@ class ResponseProcessor:
         r"couldn'?t find", r"could not find", r"didn'?t find", r"did not find",
         r"unable to find", r"failed to find", r"no results?", r"no matching",
         r"no data", r"no records?", r"no information", r"zero results?",
-        r"0 results?", r"not found", r"wasn'?t found", r"were not found",
+        r"(?<!\d)0 results?", r"not found", r"wasn'?t found", r"were not found",
         r"weren'?t found",
         r"sorry.{0,50}(couldn'?t|could not|no |unable|don'?t)",
         r"unfortunately.{0,50}(no |couldn'?t|unable)",
@@ -37,6 +37,8 @@ class ResponseProcessor:
         r"(don'?t|doesn'?t|do not|does not) (have|contain|include)",
         r"(outside|beyond|not within) (my|the) (scope|knowledge|data)",
         r"not (available|accessible)",
+        r"(cannot|can'?t) (retrieve|access|find|locate|provide|obtain)",
+        r"unavailable.{0,30}(cannot|can'?t|unable to) (retrieve|access|find|locate|provide|obtain)",
         r"(query|search|request) (returned|yielded|produced) (no|zero|0)",
         r"(database|system|search) (has |contains? )?(no|zero)",
         # === FRENCH ===
@@ -627,66 +629,20 @@ class ResponseProcessor:
         response_lower = response.lower()
         response_stripped = response_lower.strip()
 
-        # Heuristic 1: Short responses with apologetic/negative tone are likely "no results"
-        # A genuine data response is typically longer than 100 chars
+        # Heuristics 1+2: Short responses matching a "no results" pattern are likely genuine
+        # no-results replies. A genuine data response is typically longer than 150 chars; a
+        # long, data-rich answer can incidentally contain a trigger phrase (e.g. "not
+        # available", "does not include") without being a no-results message, so this check
+        # is scoped to short responses only. Scanning long answers caused valid datasets to
+        # intermittently lose their threading ("continue") button.
+        #
+        # Single source of truth (Phase 2 Step A/B): any match against `_NO_RESULTS_PATTERNS`
+        # (via the pre-compiled combined `_no_results_regex`) is sufficient — each pattern
+        # here is already a qualified, multilingual phrase, not a bare keyword, so requiring
+        # a second match (the old separately-maintained ~100-entry keyword list's rule) added
+        # no real precision. This replaces two independently maintained lists with one.
         is_short_response = len(response_stripped) < 150
 
-        # Multilingual keywords that strongly indicate "no results"
-        negative_indicators = [
-            # English
-            'sorry', 'couldn\'t', 'could not', 'couldnt', 'cannot', 'can\'t',
-            'unable', 'no results', 'no data', 'not found', 'don\'t have',
-            'do not have', 'doesn\'t', 'does not', 'wasn\'t', 'weren\'t',
-            'try a different', 'try another', 'rephrase', 'no matching',
-            'no information', 'unfortunately', 'apologize', 'outside',
-            'beyond', 'not available', 'unavailable',
-
-            # French
-            'désolé', 'desole', 'je n\'ai pas', 'pas trouvé', 'pas trouve',
-            'aucun résultat', 'aucun resultat', 'pas de résultat', 'pas de resultat',
-            'impossible de trouver', 'malheureusement', 'je ne peux pas',
-            'pas d\'information', 'essayez une autre', 'reformulez',
-
-            # Spanish
-            'lo siento', 'disculpa', 'no encontré', 'no encontre', 'no pude',
-            'sin resultados', 'no hay resultados', 'no hay datos',
-            'no se encontró', 'no se encontro', 'lamentablemente',
-            'intente otra', 'pruebe con otra', 'no disponible',
-
-            # German
-            'entschuldigung', 'leider', 'keine ergebnisse', 'nicht gefunden',
-            'konnte nicht finden', 'keine daten', 'nicht verfügbar',
-            'versuchen sie', 'keine informationen',
-
-            # Italian
-            'mi dispiace', 'spiacente', 'nessun risultato', 'non trovato',
-            'non ho trovato', 'purtroppo', 'nessuna informazione',
-            'prova con', 'non disponibile',
-
-            # Portuguese
-            'desculpe', 'sinto muito', 'não encontrei', 'nao encontrei',
-            'sem resultados', 'nenhum resultado', 'não disponível',
-            'infelizmente', 'tente outra',
-
-            # Dutch
-            'helaas', 'geen resultaten', 'niet gevonden',
-            'kon niet vinden', 'geen gegevens', 'probeer een andere',
-        ]
-
-        # Count negative indicators (only worth scanning for short responses - see below)
-        if is_short_response:
-            negative_count = sum(1 for indicator in negative_indicators if indicator in response_lower)
-
-            # If short response with 2+ negative indicators, very likely "no results"
-            if negative_count >= 2:
-                logger.debug(f"Threading disabled: short response ({len(response_stripped)} chars) with {negative_count} negative indicators")
-                return True
-
-        # Heuristic 2: Explicit "no results" patterns (single pre-compiled regex, multilingual).
-        # Only applied to short responses. A genuine "no results" reply is brief; a long,
-        # data-rich answer can incidentally contain a trigger phrase (e.g. "not available",
-        # "does not include") without being a no-results message. Scanning long answers caused
-        # valid datasets to intermittently lose their threading ("continue") button.
         if is_short_response and self._no_results_regex.search(response_lower):
             logger.debug("Threading disabled: matched no-results pattern")
             return True
