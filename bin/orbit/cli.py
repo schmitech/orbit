@@ -68,7 +68,7 @@ from bin.orbit.commands.quota import (
 from bin.orbit.commands.mcp import MCPLoginCommand, MCPStatusCommand
 
 # Version information
-__version__ = "2.21.0"
+__version__ = "2.21.1"
 __author__ = "Remsy Schmilinsky"
 
 # Initialize rich console

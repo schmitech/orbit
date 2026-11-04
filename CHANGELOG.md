@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.21.1] - 2026-11-04
 
 ### Maintenance
 - **Chat response post-processing cleanup**: Conversation and audit logging now happen concurrently instead of one after another, slightly reducing per-request latency. Minor cleanup of unused code paths in response handling, with no behavior change.
