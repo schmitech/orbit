@@ -1,5 +1,13 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Maintenance
+- **Chat response post-processing cleanup**: Conversation and audit logging now happen concurrently instead of one after another, slightly reducing per-request latency. Minor cleanup of unused code paths in response handling, with no behavior change.
+
+### Bug Fixes
+- **Conversation threading could stay on for genuinely empty results**: A source explicitly reporting zero matching rows was sometimes treated as if no row count had been reported at all, which could let the "continue" threading option appear even though the query returned nothing.
+
 ## [2.21.0] - 2026-10-28
 
 ### Core Features

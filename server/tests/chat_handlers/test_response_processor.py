@@ -833,6 +833,19 @@ class TestResponseProcessorThreadingDetection:
         ]
         assert processor._sources_contain_actual_data(sources) is False
 
+    def test_sources_contain_actual_data_zero_row_count_with_nonempty_content(self, processor):
+        """row_count=0 must be respected even when result_count is absent and
+        content looks like it contains data - the zero count alone should be
+        enough to mark the source empty, not require content-pattern help."""
+        sources = [
+            {
+                "content": "Employee: John Smith, Department: Engineering, Salary: $95,000",
+                "confidence": 0.85,
+                "metadata": {"row_count": 0}
+            }
+        ]
+        assert processor._sources_contain_actual_data(sources) is False
+
     def test_sources_contain_actual_data_empty_results_flag(self, processor):
         """Test detection when empty_results flag is set."""
         sources = [

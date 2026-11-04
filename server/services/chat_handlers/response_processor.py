@@ -5,11 +5,14 @@ Handles post-processing of chat responses including text formatting,
 warning injection, conversation storage, and logging.
 """
 
+import asyncio
+import base64
 import logging
 import re
 from typing import Any, Optional
 
 from utils.text_utils import fix_text_formatting, mask_api_key
+
 from .conversation_history_handler import ConversationHistoryHandler
 
 logger = logging.getLogger(__name__)
@@ -192,23 +195,26 @@ class ResponseProcessor:
             model: Optional actual model used for this request
             usage: Optional token usage/cost dict from context.metadata["usage"]
         """
-        # Log metadata to Elasticsearch via LoggerService (query/response excluded - handled by audit)
-        try:
-            await self.logger_service.log_conversation(
-                query=query,
-                response=response,
-                ip=client_ip,
-                backend=backend,
-                blocked=False,
-                api_key=api_key,
-                session_id=session_id,
-                user_id=user_id
-            )
-        except Exception as e:
-            logger.error(f"Error logging conversation to LoggerService: {e!s}", exc_info=True)
+        async def _log_to_logger_service():
+            # Log metadata to Elasticsearch via LoggerService (query/response excluded - handled by audit)
+            try:
+                await self.logger_service.log_conversation(
+                    query=query,
+                    response=response,
+                    ip=client_ip,
+                    backend=backend,
+                    blocked=False,
+                    api_key=api_key,
+                    session_id=session_id,
+                    user_id=user_id
+                )
+            except Exception as e:
+                logger.error(f"Error logging conversation to LoggerService: {e!s}", exc_info=True)
 
-        # Log full conversation to AuditService (SQLite/MongoDB/Elasticsearch based on config)
-        if self.audit_service:
+        async def _log_to_audit_service():
+            # Log full conversation to AuditService (SQLite/MongoDB/Elasticsearch based on config)
+            if not self.audit_service:
+                return
             try:
                 audit_kwargs = {
                     "query": query,
@@ -228,6 +234,9 @@ class ResponseProcessor:
                 await self.audit_service.log_conversation(**audit_kwargs)
             except Exception as e:
                 logger.error(f"Error logging conversation to AuditService: {e!s}", exc_info=True)
+
+        # These writes are independent of each other - run them concurrently
+        await asyncio.gather(_log_to_logger_service(), _log_to_audit_service())
 
     async def process_response(
         self,
@@ -331,12 +340,13 @@ class ResponseProcessor:
             # "already called in this thread" union guarantee otherwise has
             # nothing to scan once history is reloaded from storage, since
             # get_context_messages() only reconstructs role/content).
-            mcp_tools_used = sorted({
-                src.get("tool") for src in (sources or [])
-                if src.get("type") == "mcp_tool_call" and src.get("tool")
-            })
-            if mcp_tools_used:
-                metadata["mcp_tools_used"] = mcp_tools_used
+            if sources:
+                mcp_tools_used = sorted({
+                    src.get("tool") for src in sources
+                    if src.get("type") == "mcp_tool_call" and src.get("tool")
+                })
+                if mcp_tools_used:
+                    metadata["mcp_tools_used"] = mcp_tools_used
 
             # Store turn with clean response - warning is only for display
             _, assistant_message_id = await self.conversation_handler.store_turn(
@@ -422,8 +432,6 @@ class ResponseProcessor:
         Returns:
             Complete result dictionary
         """
-        import base64
-
         result = {
             "response": response,
             "sources": sources,
@@ -665,13 +673,14 @@ class ResponseProcessor:
             'kon niet vinden', 'geen gegevens', 'probeer een andere',
         ]
 
-        # Count negative indicators
-        negative_count = sum(1 for indicator in negative_indicators if indicator in response_lower)
+        # Count negative indicators (only worth scanning for short responses - see below)
+        if is_short_response:
+            negative_count = sum(1 for indicator in negative_indicators if indicator in response_lower)
 
-        # If short response with 2+ negative indicators, very likely "no results"
-        if is_short_response and negative_count >= 2:
-            logger.debug(f"Threading disabled: short response ({len(response_stripped)} chars) with {negative_count} negative indicators")
-            return True
+            # If short response with 2+ negative indicators, very likely "no results"
+            if negative_count >= 2:
+                logger.debug(f"Threading disabled: short response ({len(response_stripped)} chars) with {negative_count} negative indicators")
+                return True
 
         # Heuristic 2: Explicit "no results" patterns (single pre-compiled regex, multilingual).
         # Only applied to short responses. A genuine "no results" reply is brief; a long,
@@ -740,8 +749,12 @@ class ResponseProcessor:
             if metadata.get('empty_results') or metadata.get('no_data'):
                 continue
 
-            # Check row_count if available (from SQL/DB retrievers)
-            row_count = metadata.get('row_count') or metadata.get('result_count')
+            # Check row_count if available (from SQL/DB retrievers).
+            # `or` would treat an explicit row_count=0 as falsy and fall
+            # through to result_count, masking a confirmed-empty source.
+            row_count = metadata.get('row_count')
+            if row_count is None:
+                row_count = metadata.get('result_count')
             if row_count is not None and int(row_count) == 0:
                 continue
 
