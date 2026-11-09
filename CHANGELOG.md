@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.21.2] - 2026-11-09
 
 ### Maintenance
 - **Multimodal passthrough config cleanup**: Simplified redundant config construction when initializing the file retriever in the multimodal conversational implementation, with no behavior change.
