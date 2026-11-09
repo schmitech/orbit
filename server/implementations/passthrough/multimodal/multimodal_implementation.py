@@ -65,18 +65,8 @@ class MultimodalImplementation(BaseRetriever):
             try:
                 from retrievers.implementations.file.file_retriever import FileVectorRetriever
                 # Use the same config structure as file-document-qa adapter
-                # Get adapter config first, then fallback to global files config
-                adapter_config = self.config.get('adapter_config', {})
-                files_config = self.config.get('files', {})
+                file_retriever_config = dict(self.config)
 
-                # Create config for file retriever
-                file_retriever_config = {
-                    **self.config,  # Include all config
-                    'adapter_config': adapter_config,  # Preserve adapter-specific config
-                    'files': files_config  # Include files config
-                }
-
-                
                 logger.debug("MultimodalImplementation: Creating FileVectorRetriever")
                 logger.debug(f"  self.config.get('embedding') = {self.config.get('embedding', {})}")
                 logger.debug(f"  file_retriever_config.get('embedding') = {file_retriever_config.get('embedding', {})}")
