@@ -15,23 +15,12 @@ import logging
 from typing import Optional, Any
 
 from ..base import PipelineStep, ProcessingContext
-from ._utils import get_rewrite_prompt_config, is_prompt_rewrite_enabled, record_media_generation_usage
+from ._utils import (
+    get_adapter_type, get_rewrite_prompt_config, is_prompt_rewrite_enabled,
+    record_media_generation_usage, resolve_media_provider,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
-    """Return the adapter's 'type' field, or None if unavailable."""
-    if not adapter_name or not container.has('adapter_manager'):
-        return None
-    try:
-        adapter_manager = container.get('adapter_manager')
-        adapter_config = adapter_manager.get_adapter_config(adapter_name)
-        if adapter_config:
-            return adapter_config.get('type')
-    except Exception:  # noqa: BLE001 - adapter-type lookup is best-effort
-        pass
-    return None
 
 
 class AudioGenerationStep(PipelineStep):
@@ -46,7 +35,7 @@ class AudioGenerationStep(PipelineStep):
     def should_execute(self, context: ProcessingContext) -> bool:
         if context.is_blocked:
             return False
-        return _get_adapter_type(self.container, context.adapter_name) == 'audio_generation'
+        return get_adapter_type(self.container, context.adapter_name) == 'audio_generation'
 
     def supports_streaming(self) -> bool:
         return False
@@ -256,21 +245,7 @@ class AudioGenerationStep(PipelineStep):
         2. Adapter-level tts_provider
         3. Global tts.provider (from tts.yaml)
         """
-        if context.runtime_provider:
-            return context.runtime_provider
-
-        if context.adapter_name and self.container.has('adapter_manager'):
-            try:
-                adapter_manager = self.container.get('adapter_manager')
-                adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
-                if adapter_config:
-                    provider = adapter_config.get('tts_provider')
-                    if provider:
-                        return provider
-            except Exception:  # noqa: BLE001 - tts-provider override lookup is best-effort, falls back to config default
-                pass
-
-        return config.get('tts', {}).get('provider')
+        return resolve_media_provider(self.container, context, config, 'tts_provider', 'tts')
 
     def _resolve_format(self, context: ProcessingContext) -> str:
         """Return the audio format actually produced for this request.

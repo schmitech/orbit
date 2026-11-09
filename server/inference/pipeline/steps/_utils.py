@@ -267,6 +267,34 @@ def is_prompt_rewrite_enabled(container, adapter_name: str) -> bool:
     return True
 
 
+def resolve_media_provider(
+    container, context, config: dict[str, Any], adapter_override_key: str, config_section: str,
+) -> Optional[str]:
+    """Return the media-generation provider name for this request.
+
+    Resolution order shared by image/video/audio generation steps:
+    1. A runtime override already resolved onto the context (e.g. from
+       allowed_image_models/allowed_video_models/allowed_audio_models).
+    2. The adapter config's `adapter_override_key` (e.g. 'image_provider').
+    3. The global default under config[config_section]['provider'].
+    """
+    if context.runtime_provider:
+        return context.runtime_provider
+
+    if context.adapter_name and container.has('adapter_manager'):
+        try:
+            adapter_manager = container.get('adapter_manager')
+            adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
+            if adapter_config:
+                provider = adapter_config.get(adapter_override_key)
+                if provider:
+                    return provider
+        except Exception:  # noqa: BLE001 - provider override lookup is best-effort, falls back to config default
+            pass
+
+    return config.get(config_section, {}).get('provider')
+
+
 REWRITABLE_GENERATION_ADAPTER_TYPES = frozenset({
     'image_generation',
     'video_generation',

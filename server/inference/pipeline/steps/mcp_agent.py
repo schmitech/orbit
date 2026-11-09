@@ -30,20 +30,9 @@ from ..tool_skills_support import (
     tool_skill_catalog_text as _tool_skill_catalog_text,
     tool_skill_loader_schema as _tool_skill_loader_schema,
 )
-from ._utils import record_usage
+from ._utils import get_adapter_type as _get_adapter_type, record_usage
 
 logger = logging.getLogger(__name__)
-
-
-def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
-    if not adapter_name or not container.has("adapter_manager"):
-        return None
-    try:
-        mgr = container.get("adapter_manager")
-        cfg = mgr.get_adapter_config(adapter_name)
-        return cfg.get("type") if cfg else None
-    except Exception:  # noqa: BLE001 - best-effort adapter-config probe; falls back to unknown type
-        return None
 
 
 def _get_mcp_servers_allowlist(container, adapter_name: str) -> Optional[list[str]]:

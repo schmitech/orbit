@@ -11,25 +11,11 @@ from typing import Optional, Any
 
 from ..base import PipelineStep, ProcessingContext
 from ._utils import (
-    get_generation_memory, get_rewrite_prompt_config, is_prompt_rewrite_enabled,
-    record_media_generation_usage, store_generation_memory,
+    get_adapter_type, get_generation_memory, get_rewrite_prompt_config, is_prompt_rewrite_enabled,
+    record_media_generation_usage, resolve_media_provider, store_generation_memory,
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
-    """Return the adapter's 'type' field, or None if unavailable."""
-    if not adapter_name or not container.has('adapter_manager'):
-        return None
-    try:
-        adapter_manager = container.get('adapter_manager')
-        adapter_config = adapter_manager.get_adapter_config(adapter_name)
-        if adapter_config:
-            return adapter_config.get('type')
-    except Exception:  # noqa: BLE001 - adapter-type lookup is best-effort
-        pass
-    return None
 
 
 class ImageGenerationStep(PipelineStep):
@@ -44,7 +30,7 @@ class ImageGenerationStep(PipelineStep):
     def should_execute(self, context: ProcessingContext) -> bool:
         if context.is_blocked:
             return False
-        return _get_adapter_type(self.container, context.adapter_name) == 'image_generation'
+        return get_adapter_type(self.container, context.adapter_name) == 'image_generation'
 
     def supports_streaming(self) -> bool:
         return False
@@ -270,20 +256,4 @@ class ImageGenerationStep(PipelineStep):
 
     def _resolve_provider(self, context: ProcessingContext, config: dict[str, Any]) -> Optional[str]:
         """Return the provider name for this request."""
-        # A runtime override (resolved from allowed_image_models) takes priority.
-        if context.runtime_provider:
-            return context.runtime_provider
-
-        # Allow adapter config to override the global default
-        if context.adapter_name and self.container.has('adapter_manager'):
-            try:
-                adapter_manager = self.container.get('adapter_manager')
-                adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
-                if adapter_config:
-                    provider = adapter_config.get('image_provider')
-                    if provider:
-                        return provider
-            except Exception:  # noqa: BLE001 - image-provider override lookup is best-effort, falls back to config default
-                pass
-
-        return config.get('image', {}).get('provider')
+        return resolve_media_provider(self.container, context, config, 'image_provider', 'image')

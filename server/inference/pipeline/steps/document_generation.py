@@ -22,6 +22,7 @@ from ..base import PipelineStep, ProcessingContext
 from ._utils import (
     extract_embedding_usage,
     extract_reranking_usage,
+    get_adapter_type,
     get_generation_memory,
     get_rewrite_prompt_config,
     store_generation_memory,
@@ -40,20 +41,6 @@ _REFERENCES_PROVIDED_SOURCE_RE = re.compile(
 )
 
 
-def _get_adapter_type(container, adapter_name: str) -> Optional[str]:
-    """Return the adapter's 'type' field, or None if unavailable."""
-    if not adapter_name or not container.has('adapter_manager'):
-        return None
-    try:
-        adapter_manager = container.get('adapter_manager')
-        adapter_config = adapter_manager.get_adapter_config(adapter_name)
-        if adapter_config:
-            return adapter_config.get('type')
-    except Exception:  # noqa: BLE001 - adapter-type lookup is best-effort
-        pass
-    return None
-
-
 class DocumentGenerationStep(PipelineStep):
     """
     Generate a document from the user's text prompt.
@@ -66,7 +53,7 @@ class DocumentGenerationStep(PipelineStep):
     def should_execute(self, context: ProcessingContext) -> bool:
         if context.is_blocked:
             return False
-        return _get_adapter_type(self.container, context.adapter_name) == 'document_generation'
+        return get_adapter_type(self.container, context.adapter_name) == 'document_generation'
 
     def supports_streaming(self) -> bool:
         return False
