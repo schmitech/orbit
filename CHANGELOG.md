@@ -4,7 +4,8 @@
 
 ### Maintenance
 - **Multimodal passthrough config cleanup**: Simplified redundant config construction when initializing the file retriever in the multimodal conversational implementation, with no behavior change.
-- **Pipeline generation-steps dedup**: Consolidated the identical "is this my adapter type?" and media-provider-resolution logic that was copy-pasted across the image/video/audio/document generation steps and the MCP agent step into shared helpers in `_utils.py`, with no behavior change. Remaining, larger cleanup (rewrite-provider resolution, adapter-capability-registry expansion, per-request caching) is tracked as a phased plan in `docs/roadmap/pipeline-steps-cleanup.md`.
+- **Pipeline generation-steps dedup**: Consolidated the identical "is this my adapter type?" and media-provider-resolution logic that was copy-pasted across the image/video/audio/document generation steps and the MCP agent step into shared helpers in `_utils.py`, with no behavior change. Remaining, larger cleanup (adapter-capability-registry expansion, per-request caching) is tracked as a phased plan in `docs/roadmap/pipeline-steps-cleanup.md`.
+- **Pipeline rewrite-provider dedup (Phase 1)**: Consolidated the near-identical rewrite-provider resolution logic from `image_generation.py`, `video_generation.py`, and `audio_generation.py` into one shared `_utils.resolve_rewrite_provider` helper, with no behavior change — `document_generation.py`'s separate candidate-list/retry resolver was intentionally left untouched.
 
 ## [2.21.1] - 2026-11-04
 

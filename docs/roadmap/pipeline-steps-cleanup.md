@@ -24,33 +24,27 @@ Tracked here as phased follow-up work, not urgent.
   override → adapter-config key → global config section) now call one shared
   `_utils.resolve_media_provider(container, context, config, adapter_override_key,
   config_section)`.
+- **Rewrite-provider dedup (Phase 1)**: `image_generation.py`,
+  `video_generation.py`, `audio_generation.py`'s `_resolve_rewrite_provider`
+  methods now call one shared `_utils.resolve_rewrite_provider(container,
+  context, *, model_override=None)`. Resolved the `rewrite_model` question by
+  keeping it as a parameter rather than per-step divergence: only
+  `audio_generation.py` passes a non-None `model_override` (its adapter
+  config's `rewrite_model`), so image/video get the exact same behavior as
+  before (`explicit_model_override=None`, the default) while audio keeps its
+  extra capability. `document_generation.py`'s candidate-list/retry resolver
+  was left untouched, per the acceptance checks below.
 
 ---
 
-## Phase 1 — Consolidate rewrite-provider resolution (quick-ish, needs care)
-
-`_resolve_rewrite_provider` is duplicated (~50-60 lines each) across
-`image_generation.py`, `video_generation.py`, `audio_generation.py`. Not
-folded into Phase-0 because `audio_generation.py`'s version also threads an
-`explicit_model_override=rewrite_model` parameter the other two don't have —
-needs a careful look at whether that's intentional per-step behavior or a gap
-in image/video, before picking one shared signature.
+## Phase 1 — Consolidate rewrite-provider resolution ✅ shipped
 
 `document_generation.py`'s `_resolve_rewrite_providers` (plural) is **not** a
-minor variant of this and should not be merged into the same helper: it
-returns an ordered, de-duplicated list of candidate providers (ranked
-rewrite_provider → original-adapter → skill-adapter → global), and
-`_generate_spec` retries down that list when a candidate fails (e.g. a bad API
-key), falling back to a bare fallback document only once the whole list is
-exhausted. Any shared helper for the single-provider steps must stay separate
-from — or be a thin wrapper feeding into — document generation's candidate-list
-+ retry + dedup-by-provider/model logic, not a replacement for it.
-
-- Land one `_utils.resolve_rewrite_provider(container, context, *, model_override=None)`
-  helper for image/video/audio; decide the `rewrite_model` question first.
-- Leave `document_generation.py`'s candidate-list resolver as its own function;
-  revisit only if/when it can share the single-candidate resolution step
-  without losing the ordered-list/retry/dedup behavior.
+minor variant of the shared resolver above and was not touched: it returns an
+ordered, de-duplicated list of candidate providers (ranked rewrite_provider →
+original-adapter → skill-adapter → global), and `_generate_spec` retries down
+that list when a candidate fails (e.g. a bad API key), falling back to a bare
+fallback document only once the whole list is exhausted.
 
 **Acceptance checks for this phase:**
 - Provider precedence (rewrite_provider → original-adapter inference_provider →

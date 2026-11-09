@@ -295,6 +295,67 @@ def resolve_media_provider(
     return config.get(config_section, {}).get('provider')
 
 
+async def resolve_rewrite_provider(container, context, *, model_override: Optional[str] = None):
+    """Resolve the LLM provider used to rewrite a generation prompt (image/video/audio).
+
+    Priority:
+    1. Explicit `rewrite_provider` field on the skill adapter config (with
+       `rewrite_model`, if set, passed through as an explicit model override —
+       only audio_generation currently sets `rewrite_model`; image/video never
+       pass one, so `model_override` is a no-op for them).
+    2. Original (retrieval) adapter's inference provider (e.g. openai on customer-orders).
+    3. Skill adapter's inference_provider.
+    4. Global llm_provider fallback.
+    """
+    if container.has('adapter_manager'):
+        adapter_manager = container.get('adapter_manager')
+
+        if context.adapter_name:
+            skill_config = adapter_manager.get_adapter_config(context.adapter_name)
+            if skill_config:
+                rewrite_provider_name = skill_config.get('rewrite_provider')
+                if rewrite_provider_name:
+                    try:
+                        provider = await adapter_manager.get_overridden_provider(
+                            rewrite_provider_name, context.adapter_name,
+                            explicit_model_override=model_override,
+                        )
+                        if provider:
+                            logger.debug(
+                                "Using rewrite_provider '%s' (model=%r) for prompt rewrite",
+                                rewrite_provider_name, model_override,
+                            )
+                            return provider
+                    except Exception as e:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
+                        logger.debug(
+                            "Could not resolve rewrite_provider '%s': %s",
+                            rewrite_provider_name, e,
+                        )
+
+        for adapter_name in (context.original_adapter_name, context.adapter_name):
+            if not adapter_name:
+                continue
+            adapter_config = adapter_manager.get_adapter_config(adapter_name)
+            if not adapter_config:
+                continue
+            inference_provider = adapter_config.get('inference_provider')
+            if inference_provider:
+                try:
+                    provider = await adapter_manager.get_overridden_provider(
+                        inference_provider, adapter_name
+                    )
+                    if provider:
+                        logger.debug(
+                            "Using inference provider '%s' (adapter '%s') for prompt rewrite",
+                            inference_provider, adapter_name,
+                        )
+                        return provider
+                except Exception as e:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
+                    logger.debug("Could not resolve provider for '%s': %s", adapter_name, e)
+
+    return container.get_or_none('llm_provider')
+
+
 REWRITABLE_GENERATION_ADAPTER_TYPES = frozenset({
     'image_generation',
     'video_generation',

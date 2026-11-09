@@ -17,7 +17,7 @@ from typing import Optional, Any
 from ..base import PipelineStep, ProcessingContext
 from ._utils import (
     get_adapter_type, get_rewrite_prompt_config, is_prompt_rewrite_enabled,
-    record_media_generation_usage, resolve_media_provider,
+    record_media_generation_usage, resolve_media_provider, resolve_rewrite_provider,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,63 +89,14 @@ class AudioGenerationStep(PipelineStep):
 
         return context
 
-    async def _resolve_rewrite_provider(self, context: ProcessingContext):
-        """Resolve the LLM provider used to turn the request + context into spoken text.
-
-        Priority:
-        1. Explicit `rewrite_provider` field on the skill adapter config.
-        2. Original (retrieval) adapter's inference provider (e.g. openai on customer-orders).
-        3. Skill adapter's inference_provider.
-        4. Global llm_provider fallback.
-        """
-        if self.container.has('adapter_manager'):
+    def _rewrite_model_override(self, context: ProcessingContext) -> Optional[str]:
+        """Return the skill adapter's `rewrite_model`, if configured (audio_generation only)."""
+        if self.container.has('adapter_manager') and context.adapter_name:
             adapter_manager = self.container.get('adapter_manager')
-
-            if context.adapter_name:
-                skill_config = adapter_manager.get_adapter_config(context.adapter_name)
-                if skill_config:
-                    rewrite_provider_name = skill_config.get('rewrite_provider')
-                    rewrite_model = skill_config.get('rewrite_model') or None
-                    if rewrite_provider_name:
-                        try:
-                            provider = await adapter_manager.get_overridden_provider(
-                                rewrite_provider_name, context.adapter_name,
-                                explicit_model_override=rewrite_model,
-                            )
-                            if provider:
-                                logger.debug(
-                                    "Using rewrite_provider '%s' (model=%r) for audio text rewrite",
-                                    rewrite_provider_name, rewrite_model,
-                                )
-                                return provider
-                        except Exception as e:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
-                            logger.debug(
-                                "Could not resolve rewrite_provider '%s': %s",
-                                rewrite_provider_name, e,
-                            )
-
-            for adapter_name in (context.original_adapter_name, context.adapter_name):
-                if not adapter_name:
-                    continue
-                adapter_config = adapter_manager.get_adapter_config(adapter_name)
-                if not adapter_config:
-                    continue
-                inference_provider = adapter_config.get('inference_provider')
-                if inference_provider:
-                    try:
-                        provider = await adapter_manager.get_overridden_provider(
-                            inference_provider, adapter_name
-                        )
-                        if provider:
-                            logger.debug(
-                                "Using inference provider '%s' (adapter '%s') for audio text rewrite",
-                                inference_provider, adapter_name,
-                            )
-                            return provider
-                    except Exception as e:  # noqa: BLE001 - prompt-rewrite provider resolution is best-effort, falls back to default
-                        logger.debug("Could not resolve provider for '%s': %s", adapter_name, e)
-
-        return self.container.get_or_none('llm_provider')
+            skill_config = adapter_manager.get_adapter_config(context.adapter_name)
+            if skill_config:
+                return skill_config.get('rewrite_model') or None
+        return None
 
     async def _rewrite_text(
         self, context: ProcessingContext, rewrite_sink: Optional[dict[str, Any]] = None,
@@ -161,7 +112,9 @@ class AudioGenerationStep(PipelineStep):
         if not context.context_messages and not context.formatted_context:
             return context.message
 
-        llm_provider = await self._resolve_rewrite_provider(context)
+        llm_provider = await resolve_rewrite_provider(
+            self.container, context, model_override=self._rewrite_model_override(context),
+        )
         if not llm_provider:
             logger.warning("No llm_provider available — speaking the raw message for audio generation")
             return context.message
