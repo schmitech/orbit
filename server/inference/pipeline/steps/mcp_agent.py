@@ -30,7 +30,12 @@ from ..tool_skills_support import (
     tool_skill_catalog_text as _tool_skill_catalog_text,
     tool_skill_loader_schema as _tool_skill_loader_schema,
 )
-from ._utils import get_adapter_type as _get_adapter_type, record_usage
+from ._utils import (
+    get_adapter_type as _get_adapter_type,
+    get_mcp_manager,
+    get_tool_skill_registry,
+    record_usage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -292,13 +297,7 @@ class MCPAgentStep(PipelineStep):
         return self.container.get_or_none("llm_provider")
 
     def _get_mcp_manager(self):
-        """Get (or lazily initialize) the MCPClientManager from config."""
-        config = self.container.get_or_none("config") or {}
-        from services.mcp_client_service import get_mcp_client_manager
-        return get_mcp_client_manager(config)
+        return get_mcp_manager(self.container)
 
     def _get_tool_skill_registry(self):
-        """Get (or lazily initialize) the ToolSkillRegistry from config."""
-        config = self.container.get_or_none("config") or {}
-        from services.tool_skill_service import get_tool_skill_registry
-        return get_tool_skill_registry(config)
+        return get_tool_skill_registry(self.container)

@@ -10,6 +10,27 @@ from adapters.capabilities import AdapterCapabilities
 logger = logging.getLogger(__name__)
 
 
+def get_mcp_manager(container):
+    """Get (or lazily initialize) the MCPClientManager from config.
+
+    Shared by LLMInferenceStep (opportunistic mcp_tools) and MCPAgentStep
+    (the "mcp_agent" skill) — both resolve the same process-wide manager.
+    """
+    config = container.get_or_none('config') or {}
+    from services.mcp_client_service import get_mcp_client_manager
+    return get_mcp_client_manager(config)
+
+
+def get_tool_skill_registry(container):
+    """Get (or lazily initialize) the ToolSkillRegistry from config.
+
+    Shared by LLMInferenceStep and MCPAgentStep — see `get_mcp_manager`.
+    """
+    config = container.get_or_none('config') or {}
+    from services.tool_skill_service import get_tool_skill_registry as _get_tool_skill_registry
+    return _get_tool_skill_registry(config)
+
+
 def add_usage_component(
     context,
     usage_sink: Optional[dict[str, Any]],

@@ -20,7 +20,7 @@ from ..tool_skills_support import (
     tool_skill_loader_schema,
 )
 from adapters.capabilities import AdapterCapabilities
-from ._utils import record_usage
+from ._utils import get_mcp_manager, get_tool_skill_registry, record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -286,16 +286,10 @@ class LLMInferenceStep(PipelineStep):
         return bool(mcp_manager.opportunistic_servers(context.mcp_servers_allowlist))
 
     def _get_mcp_manager(self):
-        """Get (or lazily initialize) the MCPClientManager from config."""
-        config = self.container.get_or_none('config') or {}
-        from services.mcp_client_service import get_mcp_client_manager
-        return get_mcp_client_manager(config)
+        return get_mcp_manager(self.container)
 
     def _get_tool_skill_registry(self):
-        """Get (or lazily initialize) the ToolSkillRegistry from config."""
-        config = self.container.get_or_none('config') or {}
-        from services.tool_skill_service import get_tool_skill_registry
-        return get_tool_skill_registry(config)
+        return get_tool_skill_registry(self.container)
 
     def _get_tool_skills_allowlist(self, context: ProcessingContext):
         """Return capabilities.tool_skills for this adapter, or None (= every

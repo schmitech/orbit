@@ -177,28 +177,34 @@ checks) — do it as its own reviewed change, not bundled with Phase 1.
 
 </details>
 
-## Phase 3 — Per-request efficiency
+## Phase 3 — Per-request efficiency ✅ shipped (partial — see below)
 
 Checked against current code before listing — two items from an earlier draft
-didn't hold up and are dropped (see "Not pursued" below):
+didn't hold up and are dropped (see "Not pursued" below). Of the three
+remaining candidates, only the first was a genuine no-profiling-needed win;
+the other two are left as documented, deliberately-not-done items:
 
-- `_get_mcp_manager`/`_get_tool_skill_registry` logic is duplicated verbatim
-  between `llm_inference.py` and `mcp_agent.py` — factor into one shared
-  helper (natural fit once Phase 1/2 land, since both already touch `_utils.py`).
-  This is a reuse/readability win, not a performance one.
-- `adapter_manager.get_adapter_config(adapter_name)` is independently refetched
-  5-8 times per request across `context_retrieval.py`, `document_reranking.py`,
-  `llm_inference.py`, `mcp_agent.py`, `fetch.py`, `web_search.py`. Before
-  changing anything: profile/measure what `get_adapter_config` actually costs
-  (in-memory dict lookup vs. something heavier) — if it's already cheap, a
-  per-request cache on `ProcessingContext` adds complexity for no measurable
-  gain. If it does show up, sequence after Phase 2 settles what capability
-  data looks like, since that's the natural place to cache it.
-- `language_detection.py`'s `_detect_spans` awaits each span's
-  `_detect_language_ensemble_async(piece)` sequentially in a loop for
-  mixed-language messages. Only worth changing if profiling shows this path is
-  hot (messages with 3+ qualifying spans) — if so, prefer bounded concurrency
-  (e.g. `asyncio.gather` over the spans with a semaphore, or a small
+- **Shipped**: `_get_mcp_manager`/`_get_tool_skill_registry` were duplicated
+  verbatim between `llm_inference.py` and `mcp_agent.py`. Factored into
+  `_utils.get_mcp_manager(container)`/`_utils.get_tool_skill_registry(container)`;
+  both steps now keep a thin `self._get_mcp_manager()`/`self._get_tool_skill_registry()`
+  wrapper (so existing call sites didn't need to change) that just forwards to
+  the shared helper. Pure reuse/readability win, no behavior change — verified
+  with `ruff check --select F` and the full `tests/test_pipeline_steps/` suite
+  plus `test_mcp_client_service.py`/`test_tool_skill_service*.py` (268 passed).
+- **Not done, needs profiling first**: `adapter_manager.get_adapter_config(adapter_name)`
+  is independently refetched 5-8 times per request across `context_retrieval.py`,
+  `document_reranking.py`, `llm_inference.py`, `mcp_agent.py`, `fetch.py`,
+  `web_search.py`. Before changing anything: profile/measure what
+  `get_adapter_config` actually costs (in-memory dict lookup vs. something
+  heavier) — if it's already cheap, a per-request cache on `ProcessingContext`
+  adds complexity for no measurable gain. The natural place to cache it, if it
+  turns out to matter, is alongside the capability flags Phase 2 landed.
+- **Not done, needs profiling first**: `language_detection.py`'s `_detect_spans`
+  awaits each span's `_detect_language_ensemble_async(piece)` sequentially in a
+  loop for mixed-language messages. Only worth changing if profiling shows this
+  path is hot (messages with 3+ qualifying spans) — if so, prefer bounded
+  concurrency (e.g. `asyncio.gather` over the spans with a semaphore, or a small
   `asyncio.Semaphore`-gated gather) rather than unbounded `gather`, since each
   span call already fans out to multiple backends internally.
 
