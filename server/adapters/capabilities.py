@@ -14,6 +14,40 @@ from typing import Any, Optional
 from collections.abc import Callable
 from enum import Enum
 
+# Adapter types that never call the main inference LLM — each has its own
+# dedicated pipeline step (or, for 'fetch'/'openai_realtime'/'gemini_live', bypasses it entirely).
+# Canonical home for this set; inference.pipeline.steps._utils re-exports it.
+NO_LLM_ADAPTER_TYPES = frozenset({
+    'image_generation',
+    'video_generation',
+    'document_generation',
+    'audio_generation',
+    'mcp_agent',
+    'fetch',
+    'openai_realtime',
+    'openai_realtime_translation',
+    'gemini_live',
+    'decision_model',
+})
+
+# Adapter types that have no use for an inference_provider/rewrite_provider at all —
+# unlike image/video/document generation (which still resolve an LLM via rewrite_provider),
+# these never call any text-inference provider, so preload/validation should skip them
+# entirely rather than falling back to the global default provider.
+NO_INFERENCE_PROVIDER_ADAPTER_TYPES = frozenset({
+    'fetch',
+    'openai_realtime',
+    'openai_realtime_translation',
+    'gemini_live',
+    'decision_model',
+})
+
+REWRITABLE_GENERATION_ADAPTER_TYPES = frozenset({
+    'image_generation',
+    'video_generation',
+    'audio_generation',
+})
+
 
 class RetrievalBehavior(Enum):
     """Defines how an adapter retrieves context"""
@@ -55,6 +89,17 @@ class AdapterCapabilities:
     supports_autocomplete: bool = False  # Provides autocomplete suggestions from nl_examples
     supports_charts: bool = False  # Emits chart-formatting instructions (see prompt_builder.build_chart_instruction)
     supports_followup_rewrite: bool = False  # Rewrites follow-up queries against the prior intent turn (see intent_query_rewrite.py)
+
+    # Routing/behavior flags (docs/roadmap/pipeline-steps-cleanup.md Phase 2) —
+    # replace ad hoc adapter-type string checks scattered across pipeline
+    # steps and adapter preload/validation. Defaults are computed in
+    # from_config() from the adapter's 'type', matching the hand-maintained
+    # frozensets in inference.pipeline.steps._utils exactly, so existing
+    # adapters behave identically unless a config explicitly overrides one.
+    calls_main_llm: bool = True  # Whether LLMInferenceStep should run for this adapter type
+    needs_text_inference_provider: bool = True  # Whether preload/validation should resolve a text-inference provider at all
+    uses_native_chat_format: bool = False  # Whether the adapter sends a structured messages array (vs. a flat prompt string)
+    prompt_rewrite_enabled: bool = True  # Whether an image/video/audio/document generation adapter rewrites its prompt via an LLM first — distinct from supports_followup_rewrite (a different feature: rewriting a follow-up *retrieval query*, not a *generation prompt*)
 
     # Additional parameters to pass to get_relevant_context()
     required_parameters: list[str] = field(default_factory=list)
@@ -148,6 +193,20 @@ class AdapterCapabilities:
             AdapterCapabilities instance with values from config or defaults
         """
         capabilities_config = config.get('capabilities', {})
+        adapter_type = config.get('type')
+        # Effective rewrite setting: an explicit capabilities.prompt_rewrite_enabled
+        # override wins over the top-level rewrite_prompt key — same precedence
+        # used for the prompt_rewrite_enabled field itself below, so the two never
+        # disagree with each other.
+        prompt_rewrite_enabled = capabilities_config.get(
+            'prompt_rewrite_enabled', bool(config.get('rewrite_prompt', True))
+        )
+        # An adapter of a rewritable generation type with prompt rewriting disabled has no
+        # dependency on a text-inference provider at all — same rule as the pre-existing
+        # adapter_bypasses_rewrite_provider() helper this default replaces.
+        bypasses_rewrite_provider = (
+            adapter_type in REWRITABLE_GENERATION_ADAPTER_TYPES and not prompt_rewrite_enabled
+        )
 
         return cls(
             retrieval_behavior=RetrievalBehavior(
@@ -185,6 +244,17 @@ class AdapterCapabilities:
             auto_skill_routing=capabilities_config.get('auto_skill_routing', False),
             routing_examples=capabilities_config.get('routing_examples', []),
             auto_model_selection=capabilities_config.get('auto_model_selection'),
+            calls_main_llm=capabilities_config.get(
+                'calls_main_llm', adapter_type not in NO_LLM_ADAPTER_TYPES
+            ),
+            needs_text_inference_provider=capabilities_config.get(
+                'needs_text_inference_provider',
+                adapter_type not in NO_INFERENCE_PROVIDER_ADAPTER_TYPES and not bypasses_rewrite_provider,
+            ),
+            uses_native_chat_format=capabilities_config.get(
+                'uses_native_chat_format', adapter_type == 'passthrough'
+            ),
+            prompt_rewrite_enabled=prompt_rewrite_enabled,
         )
 
     @classmethod

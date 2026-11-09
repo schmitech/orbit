@@ -5,35 +5,9 @@ import logging
 from typing import Any, Optional
 
 from utils.generation_memory import generation_memory_key
+from adapters.capabilities import AdapterCapabilities
 
 logger = logging.getLogger(__name__)
-
-# Adapter types that never call the main inference LLM — each has its own
-# dedicated pipeline step (or, for 'fetch'/'openai_realtime'/'gemini_live', bypasses it entirely).
-NO_LLM_ADAPTER_TYPES = frozenset({
-    'image_generation',
-    'video_generation',
-    'document_generation',
-    'audio_generation',
-    'mcp_agent',
-    'fetch',
-    'openai_realtime',
-    'openai_realtime_translation',
-    'gemini_live',
-    'decision_model',
-})
-
-# Adapter types that have no use for an inference_provider/rewrite_provider at all —
-# unlike image/video/document generation (which still resolve an LLM via rewrite_provider),
-# these never call any text-inference provider, so preload/validation should skip them
-# entirely rather than falling back to the global default provider.
-NO_INFERENCE_PROVIDER_ADAPTER_TYPES = frozenset({
-    'fetch',
-    'openai_realtime',
-    'openai_realtime_translation',
-    'gemini_live',
-    'decision_model',
-})
 
 
 def add_usage_component(
@@ -250,10 +224,12 @@ def get_adapter_type(container, adapter_name: str) -> Optional[str]:
 def is_prompt_rewrite_enabled(container, adapter_name: str) -> bool:
     """Return whether prompt rewriting is enabled for this generation adapter.
 
-    Controlled by the adapter config's `rewrite_prompt` key (default True). Set
-    `rewrite_prompt: false` on an image/video/audio/document generation adapter
-    to bypass rewriters-prompts.yaml entirely and send the raw user message
-    straight to the generation provider.
+    Controlled by the adapter config's `rewrite_prompt` key (default True), or
+    `capabilities.prompt_rewrite_enabled` directly — see
+    `AdapterCapabilities.prompt_rewrite_enabled`. Set `rewrite_prompt: false`
+    on an image/video/audio/document generation adapter to bypass
+    rewriters-prompts.yaml entirely and send the raw user message straight to
+    the generation provider.
     """
     if not adapter_name or not container.has('adapter_manager'):
         return True
@@ -261,7 +237,7 @@ def is_prompt_rewrite_enabled(container, adapter_name: str) -> bool:
         adapter_manager = container.get('adapter_manager')
         adapter_config = adapter_manager.get_adapter_config(adapter_name)
         if adapter_config is not None:
-            return bool(adapter_config.get('rewrite_prompt', True))
+            return AdapterCapabilities.from_config(adapter_config).prompt_rewrite_enabled
     except Exception:  # noqa: BLE001 - best-effort lookup, defaults to enabled on error
         pass
     return True
@@ -354,28 +330,6 @@ async def resolve_rewrite_provider(container, context, *, model_override: Option
                     logger.debug("Could not resolve provider for '%s': %s", adapter_name, e)
 
     return container.get_or_none('llm_provider')
-
-
-REWRITABLE_GENERATION_ADAPTER_TYPES = frozenset({
-    'image_generation',
-    'video_generation',
-    'audio_generation',
-})
-
-
-def adapter_bypasses_rewrite_provider(adapter_config: dict[str, Any]) -> bool:
-    """Whether this image/video/audio generation adapter has opted out of prompt
-    rewriting (`rewrite_prompt: false`) and therefore has no dependency on its
-    rewrite_provider — callers that preload/validate inference providers should
-    skip it exactly like the NO_INFERENCE_PROVIDER_ADAPTER_TYPES.
-
-    False for any adapter that isn't one of the rewritable generation types,
-    since this check only ever applies to those.
-    """
-    return (
-        adapter_config.get('type') in REWRITABLE_GENERATION_ADAPTER_TYPES
-        and not adapter_config.get('rewrite_prompt', True)
-    )
 
 
 def get_rewrite_prompt_config(container, kind: str) -> dict[str, Any]:

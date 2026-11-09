@@ -54,7 +54,47 @@ fallback document only once the whole list is exhausted.
 - `document_generation.py` still retries the next candidate on a failed
   generation call and still de-dupes by provider/model (not just provider).
 
-## Phase 2 — Adapter capability registry: express routing/behavior flags generically
+## Phase 2 — Adapter capability registry: express routing/behavior flags generically ✅ shipped
+
+Implemented as a direct, per-call `AdapterCapabilities.from_config(adapter_config)`
+at each existing call site, not a registry lookup: all five call sites below
+already fetch a fresh `adapter_config` dict per call (from `adapter_manager`
+or a preload loop), so there was no need to route through the lazily-populated
+`AdapterCapabilityRegistry` — `from_config()` is a pure function of that dict,
+with identical semantics whether the adapter has been registered yet or not.
+This sidesteps the registry init-semantics question raised below entirely:
+there's no "not yet in the registry" case for these checks, since they never
+consulted the registry in the first place.
+
+- `llm_inference.py`'s `should_execute` now checks
+  `AdapterCapabilities.from_config(adapter_config).calls_main_llm`.
+- `llm_inference.py`'s `_uses_native_chat_format` now checks
+  `.uses_native_chat_format` instead of a hardcoded `== 'passthrough'`.
+- `dynamic_adapter_manager.py` (2 call sites: preload-success logging,
+  parallel preload) and `adapter_loader.py` (1 call site: provider preload)
+  now check `.needs_text_inference_provider` instead of
+  `NO_INFERENCE_PROVIDER_ADAPTER_TYPES` + `adapter_bypasses_rewrite_provider()`.
+- `_utils.py`'s `is_prompt_rewrite_enabled` now reads
+  `.prompt_rewrite_enabled` (which also honors an explicit
+  `capabilities.prompt_rewrite_enabled` config override, a new capability not
+  previously possible) instead of the raw `rewrite_prompt` key directly.
+- The three frozensets (`NO_LLM_ADAPTER_TYPES`, `NO_INFERENCE_PROVIDER_ADAPTER_TYPES`,
+  `REWRITABLE_GENERATION_ADAPTER_TYPES`) moved from `_utils.py` to
+  `adapters/capabilities.py` — the correct layering, since `capabilities.py`
+  is lower-level than `inference/pipeline/steps/`, and importing `_utils.py`
+  from `capabilities.py` would have been circular (`inference/__init__.py`
+  eagerly imports the whole pipeline). They're now the single source of
+  truth for each flag's default in `from_config()`, and `adapter_bypasses_rewrite_provider()`
+  was deleted as dead code once its one caller migrated to `needs_text_inference_provider`.
+
+Originally scoped as a registry/init-semantics change (see the retained notes
+below for context on what was considered); the above is the actually-landed,
+narrower design. Verified with `ruff check --select F` (clean) and the full
+`tests/test_pipeline_steps/`, `tests/test_adapters/`, `tests/test_inference/`,
+and `tests/test_services/` suites (1723 passed).
+
+<details>
+<summary>Original analysis (for context — see "shipped" note above for what actually landed)</summary>
 
 `server/adapters/capabilities.py` (`AdapterCapabilities` /
 `AdapterCapabilityRegistry`) is already used properly by
@@ -134,6 +174,8 @@ checks) — do it as its own reviewed change, not bundled with Phase 1.
 - After a config reload, capability flags reflect the new config (or, if reload
   isn't actually supported for adapter capabilities, that's stated explicitly
   rather than left silently stale).
+
+</details>
 
 ## Phase 3 — Per-request efficiency
 

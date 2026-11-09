@@ -19,7 +19,8 @@ from ..tool_skills_support import (
     tool_skill_catalog_text,
     tool_skill_loader_schema,
 )
-from ._utils import NO_LLM_ADAPTER_TYPES, record_usage
+from adapters.capabilities import AdapterCapabilities
+from ._utils import record_usage
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ class LLMInferenceStep(PipelineStep):
             try:
                 adapter_manager = self.container.get('adapter_manager')
                 adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
-                if adapter_config and adapter_config.get('type') in NO_LLM_ADAPTER_TYPES:
+                if adapter_config and not AdapterCapabilities.from_config(adapter_config).calls_main_llm:
                     return False
             except Exception:  # noqa: BLE001 - best-effort adapter-config probe; must not block the pipeline step
                 pass
@@ -442,7 +443,7 @@ class LLMInferenceStep(PipelineStep):
         if context.adapter_name and self.container.has('adapter_manager'):
             adapter_manager = self.container.get('adapter_manager')
             adapter_config = adapter_manager.get_adapter_config(context.adapter_name)
-            if adapter_config and adapter_config.get('type') == 'passthrough':
+            if adapter_config and AdapterCapabilities.from_config(adapter_config).uses_native_chat_format:
                 return True
         inference_provider = getattr(context, 'inference_provider', None)
         if inference_provider and inference_provider.startswith('ollama'):
