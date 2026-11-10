@@ -2,6 +2,9 @@
 
 ## [2.21.2] - 2026-11-09
 
+### Core Features
+- **Atlas Cloud provider**: Added the OpenAI-compatible `atlascloud` inference provider. Configure it in `config/inference.yaml` with `ATLASCLOUD_API_KEY`.
+
 ### Maintenance
 - **Multimodal passthrough config cleanup**: Simplified redundant config construction when initializing the file retriever in the multimodal conversational implementation, with no behavior change.
 - **Pipeline steps cleanup**: Deduplicated adapter-type checks, provider/rewrite-provider resolution, and MCP manager/tool-skill-registry lookups that were copy-pasted across the generation steps and MCP agent step, and replaced several ad hoc adapter-type checks with new `AdapterCapabilities` flags (`calls_main_llm`, `needs_text_inference_provider`, `uses_native_chat_format`, `prompt_rewrite_enabled`, the last also settable directly under an adapter's `capabilities:` section). No behavior change for existing adapters. Full plan and details in `docs/roadmap/complete/pipeline-steps-cleanup.md`.
