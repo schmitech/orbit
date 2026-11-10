@@ -45,6 +45,7 @@ Available providers:
     - FuguInferenceService: Sakana AI (Fugu) inference
     - CheaperInferenceInferenceService: Cheaper Inference OpenAI-compatible gateway
     - AtlasCloudInferenceService: Atlas Cloud OpenAI-compatible gateway
+    - UberLLMInferenceService: UberLLM OpenAI-compatible gateway
 """
 
 import logging
@@ -97,6 +98,7 @@ _implementations = [
     ('fugu_inference_service', 'FuguInferenceService'),
     ('cheaperinference_inference_service', 'CheaperInferenceInferenceService'),
     ('atlascloud_inference_service', 'AtlasCloudInferenceService'),
+    ('uberllm_inference_service', 'UberLLMInferenceService'),
 ]
 
 for module_name, class_name in _implementations:
