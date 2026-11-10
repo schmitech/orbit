@@ -746,3 +746,12 @@ inference:
     top_p: 0.8
     max_tokens: 4096
     stream: true
+  uberllm:
+    enabled: false
+    api_key: ${UBERLLM_API_KEY}
+    model: "deepseek/deepseek-v4.1-flash"
+    context_window: 1048576  # deepseek-v4.1-flash; per-model value via GET https://api.uberllm.dev/v1/models (context_length)
+    temperature: 0.1
+    top_p: 0.8
+    max_tokens: 4096
+    stream: true

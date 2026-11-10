@@ -71,6 +71,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "fugu": "https://api.sakana.ai/v1",
         "cheaperinference": "https://api.cheaperinference.com/v1",
         "atlascloud": "https://api.atlascloud.ai/v1",
+        "uberllm": "https://api.uberllm.dev/v1",
     }
 
     # Default API key environment variable names
@@ -97,6 +98,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "fugu": "FUGU_API_KEY",
         "cheaperinference": "CHEAPERINFERENCE_API_KEY",
         "atlascloud": "ATLASCLOUD_API_KEY",
+        "uberllm": "UBERLLM_API_KEY",
     }
 
     def __init__(
