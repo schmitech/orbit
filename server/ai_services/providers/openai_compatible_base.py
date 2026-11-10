@@ -70,6 +70,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "scaleway": "https://api.scaleway.ai/v1",
         "fugu": "https://api.sakana.ai/v1",
         "cheaperinference": "https://api.cheaperinference.com/v1",
+        "atlascloud": "https://api.atlascloud.ai/v1",
     }
 
     # Default API key environment variable names
@@ -95,6 +96,7 @@ class OpenAICompatibleBaseService(ProviderAIService):
         "scaleway": "SCALEWAY_API_KEY",
         "fugu": "FUGU_API_KEY",
         "cheaperinference": "CHEAPERINFERENCE_API_KEY",
+        "atlascloud": "ATLASCLOUD_API_KEY",
     }
 
     def __init__(
