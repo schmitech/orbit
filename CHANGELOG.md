@@ -4,6 +4,7 @@
 
 ### Core Features
 - **Atlas Cloud provider**: Added the OpenAI-compatible `atlascloud` inference provider. Configure it in `config/inference.yaml` with `ATLASCLOUD_API_KEY`.
+- **UberLLM provider**: Added the OpenAI-compatible `uberllm` inference provider. Configure it in `config/inference.yaml` with `UBERLLM_API_KEY`.
 
 ### Maintenance
 - **Multimodal passthrough config cleanup**: Simplified redundant config construction when initializing the file retriever in the multimodal conversational implementation, with no behavior change.
