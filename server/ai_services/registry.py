@@ -125,6 +125,7 @@ def register_inference_services(config: dict[str, Any] = None) -> None:
         ("scaleway", "ScalewayInferenceService", "Scaleway"),
         ("fugu", "FuguInferenceService", "Sakana AI (Fugu)"),
         ("cheaperinference", "CheaperInferenceInferenceService", "Cheaper Inference"),
+        ("atlascloud", "AtlasCloudInferenceService", "Atlas Cloud"),
     ], config=config, config_section='inference', default_enabled=False)
 
 
