@@ -3,11 +3,15 @@ AWS Athena Intent Retriever using the unified base classes.
 """
 
 import logging
-import re
 from typing import Any, Optional
 
 from retrievers.base.intent_sql_base import IntentSQLRetriever
 from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.sql_param_binding import (
+    convert_named_style,
+    convert_qmark_to_pyformat,
+    escape_literal_percents_for_pyformat,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,18 +84,18 @@ class IntentAthenaRetriever(IntentSQLRetriever):
             normalized_params: Any = params
 
             if isinstance(normalized_params, dict):
-                if re.search(r':(\w+)', normalized_query):
-                    normalized_query = re.sub(r':(\w+)', r'%(\1)s', normalized_query)
+                normalized_query = convert_named_style(normalized_query, to_style='pyformat')
                 # PyAthena uses pyformat; escape literal % in SQL LIKE patterns, etc.
-                normalized_query = self._escape_literal_percents_for_pyformat(normalized_query)
+                normalized_query = escape_literal_percents_for_pyformat(normalized_query)
             elif isinstance(normalized_params, (list, tuple)) and '?' in normalized_query:
-                generated = {}
-                for idx, value in enumerate(normalized_params):
-                    name = f"p{idx}"
-                    generated[name] = value
-                    normalized_query = normalized_query.replace('?', f"%({name})s", 1)
-                normalized_params = generated
-                normalized_query = self._escape_literal_percents_for_pyformat(normalized_query)
+                # Cap conversion at the number of supplied values: the query
+                # text can contain more literal '?' characters (e.g. inside a
+                # string literal) than there are real placeholders to bind.
+                normalized_query, generated_names = convert_qmark_to_pyformat(
+                    normalized_query, max_replacements=len(normalized_params)
+                )
+                normalized_params = dict(zip(generated_names, normalized_params))
+                normalized_query = escape_literal_percents_for_pyformat(normalized_query)
 
             cursor = self.connection.cursor()
             if normalized_params is None:
@@ -125,48 +129,6 @@ class IntentAthenaRetriever(IntentSQLRetriever):
     async def _close_connection(self) -> None:
         """Connection lifecycle is handled by datasource pool."""
         return None
-
-    def _escape_literal_percents_for_pyformat(self, query: str) -> str:
-        """
-        Escape literal percent signs for pyformat queries while preserving placeholders.
-
-        Keeps:
-        - `%(name)s` placeholders
-        - existing `%%` escapes
-
-        Escapes:
-        - `%` in SQL string literals like `LIKE '%cloud%'`
-        """
-        out: list[str] = []
-        i = 0
-        n = len(query)
-
-        while i < n:
-            ch = query[i]
-            if ch != "%":
-                out.append(ch)
-                i += 1
-                continue
-
-            # Already escaped percent
-            if i + 1 < n and query[i + 1] == "%":
-                out.append("%%")
-                i += 2
-                continue
-
-            # Placeholder start: %(name)s
-            if i + 1 < n and query[i + 1] == "(":
-                end_paren = query.find(")", i + 2)
-                if end_paren != -1 and end_paren + 1 < n and query[end_paren + 1] == "s":
-                    out.append(query[i:end_paren + 2])
-                    i = end_paren + 2
-                    continue
-
-            # Literal percent -> escape
-            out.append("%%")
-            i += 1
-
-        return "".join(out)
 
 
 # Register the Athena intent retriever

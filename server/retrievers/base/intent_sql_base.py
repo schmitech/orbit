@@ -20,6 +20,7 @@ from utils.async_utils import close_client
 
 from .base_sql_database import BaseSQLDatabaseRetriever
 from .intent_domain_components import IntentDomainComponentsMixin, record_intent_telemetry
+from .sql_param_binding import detect_placeholder_style, extract_ordered_param_names
 
 logger = logging.getLogger(__name__)
 
@@ -1521,43 +1522,30 @@ JSON:"""
 
             logger.debug(f"Executing SQL: {sql_query}")
 
-            # Check for different parameter formats
-            has_named_params = bool(re.search(r'%\((\w+)\)s', sql_query))
-            has_duckdb_named_params = bool(re.search(r':(\w+)', sql_query))
-            has_positional_params = '?' in sql_query
-            
+            # Detect which placeholder style the rendered SQL uses (shared
+            # detection -- see retrievers/base/sql_param_binding.py).
+            placeholder_style = detect_placeholder_style(sql_query)
             param_list = template.get('parameters', [])
-            
-            if has_named_params:
-                # PostgreSQL-style named parameters: %(name)s
-                # Ensure all referenced parameters are in the dict (even if None)
-                param_names_in_sql = re.findall(r'%\((\w+)\)s', sql_query)
+
+            if placeholder_style in ('pyformat', 'colon'):
+                # Named parameters: %(name)s (pyformat) or :name (colon).
+                # Ensure all referenced parameters are in the dict (even if
+                # None), falling back to template defaults.
+                param_names_in_sql = extract_ordered_param_names(sql_query, placeholder_style)
                 for param_name in param_names_in_sql:
                     if param_name not in formatted_parameters:
-                        # Try to get from template defaults
                         param_def = next((p for p in param_list if p.get('name') == param_name), None)
                         if param_def and 'default' in param_def:
                             formatted_parameters[param_name] = param_def['default']
                         else:
                             formatted_parameters[param_name] = None
-                # Use dict for named parameters
+                # Use dict for named parameters; each backend's
+                # _execute_raw_query converts to its driver's native style
+                # (e.g. DuckDB always converts to '?', Athena always converts
+                # to pyformat) if it isn't already in that style.
                 results = await self.execute_query(sql_query, formatted_parameters)
-            elif has_duckdb_named_params:
-                # DuckDB/SQLite-style named parameters: :name
-                # Ensure all referenced parameters are in the dict (even if None)
-                param_names_in_sql = re.findall(r':(\w+)', sql_query)
-                for param_name in param_names_in_sql:
-                    if param_name not in formatted_parameters:
-                        # Try to get from template defaults
-                        param_def = next((p for p in param_list if p.get('name') == param_name), None)
-                        if param_def and 'default' in param_def:
-                            formatted_parameters[param_name] = param_def['default']
-                        else:
-                            formatted_parameters[param_name] = None
-                # Use dict for named parameters (DuckDB retriever will convert :name to ?)
-                results = await self.execute_query(sql_query, formatted_parameters)
-            elif has_positional_params and param_list:
-                # SQLite-style positional parameters: ?
+            elif placeholder_style == 'qmark' and param_list:
+                # Positional parameters: ?
                 # Build tuple in order of template parameters
                 param_tuple = tuple(formatted_parameters.get(p['name'], p.get('default')) for p in param_list)
 

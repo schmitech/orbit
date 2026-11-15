@@ -194,6 +194,31 @@ async def test_sqlite_retriever_query_execution(test_config, test_database):
 
 
 @pytest.mark.asyncio
+async def test_positional_binding_preserved_with_colon_like_literal(test_config, test_database):
+    """
+    A positional ('?') query whose SQL text happens to contain a string
+    literal that looks like a ':name' placeholder (e.g. a time value like
+    '12:30') must still bind the supplied positional value -- the caller
+    passing a tuple is an unambiguous declaration of positional binding,
+    regardless of what placeholder-style text appears elsewhere in the query.
+    """
+    test_config["datasources"]["sqlite"]["database"] = test_database
+
+    retriever = IntentSQLiteRetriever(config=test_config)
+    connection = await retriever.create_connection()
+    retriever._connection = connection
+
+    try:
+        results = await retriever._execute_raw_query(
+            "SELECT ? AS id, '12:30' AS time", (42,)
+        )
+
+        assert results == [{"id": 42, "time": "12:30"}]
+    finally:
+        await retriever._close_connection()
+
+
+@pytest.mark.asyncio
 async def test_sqlite_retriever_close_connection_idempotent(test_config, test_database):
     """Test that closing a connection multiple times doesn't error."""
     test_config["datasources"]["sqlite"]["database"] = test_database

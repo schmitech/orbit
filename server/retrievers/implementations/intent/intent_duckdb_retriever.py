@@ -4,7 +4,6 @@ Similar to IntentSQLiteRetriever but for DuckDB databases.
 """
 
 import logging
-import re
 from typing import Any, Optional
 
 try:
@@ -18,6 +17,7 @@ except ImportError:  # pragma: no cover - optional dependency for tests
 
 from retrievers.base.intent_sql_base import IntentSQLRetriever
 from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.sql_param_binding import convert_named_to_qmark, detect_placeholder_style
 
 logger = logging.getLogger(__name__)
 
@@ -164,42 +164,20 @@ class IntentDuckDBRetriever(IntentSQLRetriever):
             if not self._is_connection_alive():
                 raise _OperationalError("connection is closed")
 
-            # DuckDB uses standard parameterized queries
-            # Can handle both named parameters (%(name)s) and positional (?)
-            # DuckDB's execute() method accepts parameters as a dict for named or tuple for positional
-            
-            # DuckDB uses ? for positional parameters
-            # Convert named parameters to positional parameters
+            # DuckDB's execute() takes positional ('?') parameters only in
+            # practice here -- named placeholders are always converted to
+            # '?' first via the shared helper (retrievers/base/sql_param_binding.py).
             if params and isinstance(params, dict):
-                # Check if query has %(name)s format (PostgreSQL-style from templates)
-                has_postgres_style = bool(re.search(r'%\((\w+)\)s', query))
-                
-                if has_postgres_style:
-                    # Convert %(name)s to ? placeholders
-                    # Extract parameter names in order
-                    param_names = re.findall(r'%\((\w+)\)s', query)
-                    # Replace with ? placeholders
-                    converted_query = re.sub(r'%\((\w+)\)s', '?', query)
-                    # Build positional parameter list in order of appearance
-                    param_values = [params[name] for name in param_names if name in params]
+                style = detect_placeholder_style(query)
+
+                if style in ('pyformat', 'colon'):
+                    converted_query, param_names = convert_named_to_qmark(query, style=style)
+                    param_values = [params.get(name) for name in param_names]
                     result = self.connection.execute(converted_query, param_values)
                 else:
-                    # Check if query has :name format (named parameters)
-                    has_named_params = bool(re.search(r':(\w+)', query))
-                    
-                    if has_named_params:
-                        # Convert :name to ? placeholders
-                        # Extract parameter names in order
-                        param_names = re.findall(r':(\w+)', query)
-                        # Replace with ? placeholders
-                        converted_query = re.sub(r':(\w+)', '?', query)
-                        # Build positional parameter list in order of appearance
-                        param_values = [params[name] for name in param_names if name in params]
-                        result = self.connection.execute(converted_query, param_values)
-                    else:
-                        # Query uses ? placeholders already, convert dict to tuple
-                        param_values = tuple(params.values())
-                        result = self.connection.execute(query, param_values)
+                    # Query uses ? placeholders already, convert dict to tuple
+                    param_values = tuple(params.values())
+                    result = self.connection.execute(query, param_values)
             elif params and isinstance(params, (list, tuple)):
                 # Positional parameters - already in correct format
                 result = self.connection.execute(query, params)

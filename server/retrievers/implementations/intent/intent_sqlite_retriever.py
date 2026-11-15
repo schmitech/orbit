@@ -4,7 +4,6 @@ Similar to IntentPostgreSQLRetriever but for SQLite databases.
 """
 
 import logging
-import re
 from typing import Any, Optional
 
 try:
@@ -18,6 +17,7 @@ except ImportError:  # pragma: no cover - optional dependency for tests
 
 from retrievers.base.intent_sql_base import IntentSQLRetriever
 from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.sql_param_binding import convert_named_style, detect_placeholder_style
 
 logger = logging.getLogger(__name__)
 
@@ -126,41 +126,39 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
 
             cursor = self.connection.cursor()
 
-            # SQLite uses ? placeholders, but we might receive %(name)s format from templates
-            # Convert named parameters to SQLite format
-            # Check if query has parameter placeholders
-            has_param_placeholders = bool(re.search(r'%\((\w+)\)s', query))
-
-            if has_param_placeholders:
-                # Convert %(name)s format to :name format for SQLite
-                converted_query = re.sub(r'%\((\w+)\)s', r':\1', query)
-
-                # Ensure we have params dict
-                if not params:
-                    params = {}
-                elif not isinstance(params, dict):
-                    params = {}
-
+            # SQLite's sqlite3 module natively supports ':name' and '?'
+            # placeholders, but not '%(name)s' -- convert that one case via
+            # the shared helper (retrievers/base/sql_param_binding.py).
+            #
+            # Branch on the TYPE of params the caller supplied, not on
+            # placeholder style detected from the query text: style detection
+            # is a regex over the rendered SQL string, so a string literal
+            # like '12:30' can look like a ':30' named placeholder. A caller
+            # that already supplied a positional tuple/list has unambiguously
+            # declared "bind these positionally" regardless of what a literal
+            # elsewhere in the query happens to look like.
+            if params is not None and isinstance(params, (list, tuple)):
+                placeholder_count = query.count('?')
+                if placeholder_count > 0:
+                    cursor.execute(query, tuple(params))
+                else:
+                    cursor.execute(query)
+            elif params and isinstance(params, dict):
+                style = detect_placeholder_style(query)
+                if style == 'qmark':
+                    raise ValueError(
+                        "SQLite received dict params with ? placeholders; caller must "
+                        f"convert params to a positional sequence using template parameter order. Query: {query[:100]}"
+                    )
+                converted_query = convert_named_style(query, to_style='colon')
                 cursor.execute(converted_query, params)
             else:
-                # Handle ? placeholders (positional parameters)
-                # Check if there are ? placeholders in the query
+                # No params provided.
                 placeholder_count = query.count('?')
-
                 if placeholder_count > 0:
-                    # Need to convert params dict to tuple/list for ? placeholders
-                    if params and isinstance(params, dict):
-                        raise ValueError(
-                            "SQLite received dict params with ? placeholders; caller must "
-                            f"convert params to a positional sequence using template parameter order. Query: {query[:100]}"
-                        )
-                    elif params and isinstance(params, (list, tuple)):
-                        cursor.execute(query, params)
-                    else:
-                        # No params provided but query has placeholders - use None values
-                        cursor.execute(query, tuple([None] * placeholder_count))
+                    # Query has ? placeholders but no params - use None values
+                    cursor.execute(query, tuple([None] * placeholder_count))
                 else:
-                    # No placeholders, execute without params
                     cursor.execute(query)
 
             query_upper = query.strip().upper()

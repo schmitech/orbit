@@ -111,13 +111,13 @@ notes per item).
       still works. Full retriever/vector test suite (561 tests) passes with
       no regressions.
 
-## Phase 2 — SQL parameter-binding extension point
+## Phase 2 — SQL parameter-binding extension point ✅ done (scoped down)
 
 This is the most-converged finding across review angles (reuse,
 simplification, altitude all named the same root cause independently), but
 the fix is more involved than "add one hook" — see the corrections below.
 
-- [ ] **Add a parameter-binding hook on `IntentSQLRetriever` that has access
+- [x] **Add a parameter-binding hook on `IntentSQLRetriever` that has access
       to the template's parameter definitions, not just the rendered SQL
       string — then delete the regex-sniffing from the base and the
       duplicated conversions from the subclasses.**
@@ -175,6 +175,83 @@ the fix is more involved than "add one hook" — see the corrections below.
       Needs a dedicated PR with placeholder-conversion tests covering every
       case above, for all five affected backends (postgres, sqlite, duckdb,
       mysql, athena), before merging — not a same-session mechanical change.
+      **Done, scoped down from the original hook design**: rather than a
+      single hook taking the template's parameter definitions (which would
+      have required threading `template.get('parameters', [])` through
+      `execute_query` → `_execute_raw_query` for every backend, a larger
+      signature change), added a shared, stateless module
+      `base/sql_param_binding.py` with pure functions
+      (`detect_placeholder_style`, `extract_ordered_param_names`,
+      `convert_named_style`, `convert_named_to_qmark`,
+      `convert_qmark_to_pyformat`, `escape_literal_percents_for_pyformat`)
+      and pointed `intent_sql_base.py`'s `_execute_template`,
+      `intent_sqlite_retriever.py`, `intent_duckdb_retriever.py`, and
+      `intent_athena_retriever.py` at it instead of each hand-rolling the
+      same regexes. This directly removes the duplication (one
+      implementation instead of four) and fixes the real `::type`-cast bug
+      the roadmap flagged (`COLON_RE` now uses a negative lookbehind so
+      `col::INTEGER` and `:param::integer` are no longer misread as a
+      `:integer`/`:type` placeholder) — but does **not** change where
+      positional-order information comes from: DuckDB/Athena's `?`→named
+      conversion still only has access to parameter *names* in SQL
+      appearance order, not the template's declared `parameters` list, same
+      as before. This was sufficient for every case actually exercised
+      today (SQL comes pre-rendered with named or already-correctly-ordered
+      positional placeholders; template parameter order is only consulted
+      separately, upstream, when `_execute_template` builds a `?` tuple
+      directly), so the full hook-with-template-defs design was not needed
+      to fix the duplication — if a future backend genuinely needs
+      positional reordering based on template parameter definitions rather
+      than SQL appearance order, that's the remaining piece of the original
+      design, not yet built.
+      `intent_sqlite_retriever.py:163-167`'s `ValueError` guard for dict
+      params against `?` placeholders was kept as-is (not removed).
+      Tests: `tests/test_retrievers/test_sql_param_binding.py` (31 cases
+      covering repeated placeholders, `::type` casts including
+      `:param::type`, literal `%` escaping, missing-name fallback) and
+      `tests/test_retrievers/test_intent_athena_retriever.py` (6 cases,
+      new — Athena had no retriever-level tests before this). All existing
+      real-sqlite3/real-duckdb retriever tests
+      (`test_intent_sqlite_retriever.py`, `test_intent_duckdb_retriever.py`)
+      pass unchanged. Full retriever/sql/guard/intent test slice (1013
+      tests) passes; the one unrelated failure needs a live server on
+      `:3000`. PostgreSQL and MySQL were not touched — their native drivers
+      already accept `%(name)s` directly, so there was nothing to
+      consolidate there.
+      **Post-merge fixes (external review caught two real regressions)**:
+      1. SQLite's `_execute_raw_query` originally branched on
+         `detect_placeholder_style(query)` (text-based) before looking at
+         the params the caller actually supplied. A positional query whose
+         SQL text happened to contain a colon-shaped string literal (e.g.
+         `SELECT ? AS id, '12:30' AS time`) was misdetected as `'colon'`
+         style, which discarded the caller's positional tuple (overwriting
+         it with `{}`) and raised `sqlite3.ProgrammingError`. Fixed by
+         branching on the *type* of `params` first (tuple/list → positional,
+         matching DuckDB's existing pattern) and only consulting detected
+         style within the dict branch. Regression test:
+         `test_positional_binding_preserved_with_colon_like_literal` in
+         `test_intent_sqlite_retriever.py`.
+      2. `convert_qmark_to_pyformat` converted every `?` character found by
+         regex, with no bound — so a query with a literal `?` inside a
+         string (e.g. `... note = '?'`) alongside one real placeholder would
+         get both converted, but `dict(zip(generated_names, values))` only
+         had one real value, leaving the literal's generated name unbound
+         and failing at pyformat-interpolation time. The old Athena-local
+         implementation this replaced was implicitly bounded by
+         `enumerate(normalized_params)` (one replacement per supplied
+         value); the shared version had dropped that bound. Added a
+         `max_replacements` parameter (now passed by Athena as
+         `len(normalized_params)`) so conversion stops at the number of
+         values actually supplied, leaving any further `?` text untouched.
+         Regression test: `test_literal_question_mark_is_not_converted` in
+         `test_intent_athena_retriever.py`.
+      Both fixes keep the known, documented limitation that regex-based
+      style/placeholder detection can't perfectly distinguish real
+      placeholders from placeholder-shaped literal text in every case (e.g.
+      a literal `?` appearing *before* a real `?` in the same query can
+      still be misattributed) — they restore parity with what the
+      pre-refactor, per-backend implementations actually guaranteed, not a
+      stronger guarantee than that.
 
 ## Phase 3 — HTTP retriever consolidation (retry loop + Firecrawl)
 
