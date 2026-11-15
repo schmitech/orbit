@@ -99,6 +99,7 @@ class IntentAgentRetriever(IntentHTTPRetriever):
         # Cache for loaded function tools
         self._function_tools: Optional[list[ToolDefinition]] = None
         self._function_tools_map: Optional[dict[str, ToolDefinition]] = None
+        self._openai_tools: Optional[list[dict[str, Any]]] = None
 
         logger.info(
             f"IntentAgentRetriever configured with "
@@ -258,17 +259,19 @@ class IntentAgentRetriever(IntentHTTPRetriever):
             self._function_tools = []
             self._function_tools_map = {}
 
+        # Built once here, alongside _function_tools: this is the only place
+        # _function_tools is (re)populated, so the cache can never go stale.
+        self._openai_tools = [tool.to_openai_tool() for tool in self._function_tools]
+
     def _build_openai_tools(self) -> list[dict[str, Any]]:
         """
-        Build OpenAI-compatible tool schemas for function calling.
+        Return the cached OpenAI-compatible tool schemas for function calling,
+        built once in `_load_function_tools` rather than rebuilt per call.
 
         Returns:
             List of tool definitions in OpenAI format
         """
-        if not self._function_tools:
-            return []
-
-        return [tool.to_openai_tool() for tool in self._function_tools]
+        return self._openai_tools or []
 
     async def get_relevant_context(
         self,

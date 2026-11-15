@@ -1,7 +1,9 @@
 """Regression tests for intent-domain parameter extraction."""
 
 import os
+import re
 import sys
+import unittest.mock
 from unittest.mock import AsyncMock
 
 import pytest
@@ -35,6 +37,41 @@ def test_value_extractor_picks_explicit_year_for_integer_param():
     )
 
     assert value == 2024
+
+
+def test_extract_from_context_caches_compiled_patterns():
+    """
+    `_extract_from_context`'s "field: value" / "field is value" patterns are
+    compiled once per term and cached, not recompiled on every call (Phase 5
+    of docs/roadmap/retrievers-implementations-cleanup.md).
+    """
+    domain_config = DomainConfig({
+        "entities": {"incident": {}},
+        "fields": {"incident": {"severity": {"type": "string"}}},
+    })
+    extractor = ValueExtractor(domain_config, patterns={}, domain_strategy=GenericDomainStrategy(domain_config))
+
+    original_compile = re.compile
+    compile_calls = []
+
+    def _counting_compile(pattern, *args, **kwargs):
+        compile_calls.append(pattern)
+        return original_compile(pattern, *args, **kwargs)
+
+    with unittest.mock.patch(
+        "retrievers.implementations.intent.domain.extraction.value_extractor.re.compile",
+        side_effect=_counting_compile,
+    ):
+        first = extractor._extract_from_context("severity: high", "incident", "severity", "string")
+        second = extractor._extract_from_context("severity: high", "incident", "severity", "string")
+        third = extractor._extract_from_context("severity is high", "incident", "severity", "string")
+
+    assert first == "high"
+    assert second == "high"
+    assert third == "high"
+    # Only the first call should have compiled anything; the second and third
+    # (same term "severity") reuse the cached compiled patterns.
+    assert len(compile_calls) == 2  # the two context-pattern variants, compiled once
 
 
 @pytest.mark.asyncio

@@ -344,8 +344,29 @@ the fix is more involved than "add one hook" — see the corrections below.
 
 ## Phase 4 — Cross-hierarchy connection duplication (intent/ vs relational/)
 
-- [ ] **Factor a shared per-DB connection mixin, extracted one backend at a
-      time, with pooling/timeout changes handled as a separate step.**
+- [ ] **Not started — premise needs correcting again before this is
+      attempted.** Investigated 2026-11-15: the "start with SQLite, the
+      simplest" plan below doesn't work as written. `relational/sqlite_retriever.py`
+      has no `create_connection()` at all — it's purely datasource-registry-based
+      (connection injected by the registry), unlike
+      `intent/intent_sqlite_retriever.py`, which manages its own raw
+      `sqlite3.connect()`. There is no connection-creation duplication to
+      extract for SQLite; the premise only holds for Postgres and MySQL, and
+      even there the two variants aren't behaviorally identical: intent's
+      Postgres variant adds connection pooling (`psycopg_pool`), an
+      `_is_connection_alive()` check before every query, and pool-aware
+      `_close_connection()`, none of which the relational variant has.
+      Unifying them means either adding pooling to the relational variant (a
+      real behavior change, not a pure dedup) or a mixin with pooling made
+      optional — exactly the kind of live-connection change this item already
+      says needs dedicated reconnection/transaction/shutdown tests per
+      backend before merging, and no such test harness exists yet. Given that
+      risk relative to Phases 1-3 (pure logic, unit-testable without a live
+      DB), this phase is deliberately left unimplemented rather than rushed.
+      If picked up later: re-scope to Postgres or MySQL (not SQLite) as the
+      starting backend, decide the pooling question explicitly up front, and
+      build the reconnection/transaction/shutdown test harness before any
+      extraction.
       `implementations/intent/intent_postgresql_retriever.py` (`create_connection`
       L59-122, `_execute_raw_query` L144-168, default port/database/test-query
       methods) and `implementations/relational/postgresql_retriever.py`
@@ -373,8 +394,9 @@ the fix is more involved than "add one hook" — see the corrections below.
       statement_timeout, reconnection behavior) rather than assumed from the
       first pass's read.
       Driver-specific reuse is still worth doing, but:
-      1. Extract one backend's connection mixin at a time (start with
-         SQLite, the simplest), not all three/four at once.
+      1. Extract one backend's connection mixin at a time — not SQLite (see
+         the correction above: no duplication exists there), start with
+         whichever of Postgres/MySQL is judged lower-risk — not all at once.
       2. Treat any pooling/timeout/statement_timeout capability change as a
          separate, explicit step from the structural extraction — i.e. first
          make `intent/` and `relational/` share identical connection code
@@ -410,9 +432,9 @@ the fix is more involved than "add one hook" — see the corrections below.
       Fold into the same per-backend PRs as the connection-mixin extraction
       above, rather than a separate mechanical sweep.
 
-## Phase 5 — Efficiency: caching and concurrency
+## Phase 5 — Efficiency: caching and concurrency ✅ done
 
-- [ ] **Cache `_build_openai_tools`'s output instead of rebuilding it per
+- [x] **Cache `_build_openai_tools`'s output instead of rebuilding it per
       request.** `intent/intent_agent_retriever.py:349` rebuilds the full
       OpenAI tool-schema list (`tool.to_openai_tool()` per cached
       `ToolDefinition`) on every call to `_try_native_function_calling`, even
@@ -420,10 +442,16 @@ the fix is more involved than "add one hook" — see the corrections below.
       in `_load_function_tools`. Fix: build once alongside
       `_load_function_tools` / `initialize()`, cache as
       `self._openai_tools`, and invalidate only when templates/tools reload.
-      Deferred because: needs the invalidation path confirmed against
-      whatever template-reload mechanism exists today, so a stale cached
-      tool list is never served after a reload — not verified this session.
-- [ ] **Precompute/cache compiled regex patterns in
+      **Done**: confirmed `_function_tools` has no reload path in this class
+      (only ever set in `__init__`, to `None`, and populated once,
+      idempotently, in `_load_function_tools`), so building `_openai_tools`
+      at the same point can never go stale. `_build_openai_tools` now just
+      returns the cached list. Added
+      `test_build_openai_tools_is_cached_not_rebuilt` in
+      `tests/test_retrievers/test_intent_agent_retriever.py`, spying on
+      `ToolDefinition.to_openai_tool` to confirm it's never called from
+      `_build_openai_tools` itself.
+- [x] **Precompute/cache compiled regex patterns in
       `intent/domain/extraction/value_extractor.py`.**
       `_extract_from_context` (L117-118) calls
       `re.compile(pattern_str, re.IGNORECASE)` inside a nested
@@ -433,11 +461,16 @@ the fix is more involved than "add one hook" — see the corrections below.
       compiled patterns per field at domain-config load time (e.g. in
       `DomainConfig` or an `lru_cache`/dict keyed by `term`) instead of
       recompiling per request.
-      Deferred because: low individual risk, but bundled here rather than
-      applied directly since it touches the extraction hot path shared by
-      every intent query and deserves a quick before/after extraction-
-      accuracy check (same patterns, just compiled once) rather than being
-      folded into an already-large same-session diff.
+      **Done**: added `self._context_pattern_cache: dict[str, list[re.Pattern]]`
+      to `ValueExtractor.__init__`, keyed by `term` (field name or synonym);
+      `_extract_from_context` now compiles the two context-pattern variants
+      once per term and reuses them on every subsequent call for the same
+      term, instead of recompiling per query. Added
+      `test_extract_from_context_caches_compiled_patterns` in
+      `tests/test_retrievers/test_domain_parameter_extraction.py`, which
+      spies on `re.compile` to confirm only the first of three calls (two
+      with the same term, one with a different matching phrase but same
+      term) actually compiles, and that extraction results are unchanged.
 
 ## Phase 6 — Vector retriever follow-ups
 

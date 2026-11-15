@@ -12,7 +12,7 @@ import pytest
 import sys
 import os
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
 from datetime import datetime
 
 # Add the server directory to path
@@ -30,6 +30,7 @@ from retrievers.implementations.intent.agent.tool_definitions import (
 )
 from retrievers.implementations.intent.agent.tool_executor import ToolExecutor, BuiltinTools
 from retrievers.implementations.intent.agent.response_synthesizer import ResponseSynthesizer
+from retrievers.implementations.intent.intent_agent_retriever import IntentAgentRetriever
 
 
 # ============================================================================
@@ -859,6 +860,79 @@ Output format: <start_function_call>call:function_name{{param:<escape>value<esca
         assert "<start_of_turn>user" in prompt
         assert "What's the weather in Paris?" in prompt
         assert "<start_of_turn>model" in prompt
+
+
+class TestOpenAIToolsCaching:
+    """
+    `_build_openai_tools` is cached in `_load_function_tools` instead of
+    rebuilding the OpenAI tool-schema list on every call (Phase 5 of
+    docs/roadmap/retrievers-implementations-cleanup.md).
+    """
+
+    @pytest.fixture
+    def test_config(self, tmp_path):
+        return {
+            "datasources": {"http": {"base_url": "http://localhost:8080", "timeout": 30}},
+            "general": {},
+            "inference": {"ollama": {"enabled": True, "base_url": "http://localhost:11434", "model": "llama3"}},
+            "embedding": {"provider": "ollama"},
+            "embeddings": {"ollama": {"enabled": True, "base_url": "http://localhost:11434", "model": "nomic-embed-text"}},
+            "stores": {
+                "vector_stores": {
+                    "chroma": {
+                        "enabled": True,
+                        "type": "chroma",
+                        "connection_params": {"persist_directory": str(tmp_path / "chroma_db")},
+                    }
+                }
+            },
+            "adapter_config": {
+                "domain_config_path": "examples/intent-templates/agent-template/domain.yaml",
+                "template_library_path": ["examples/intent-templates/agent-template/tools.yaml"],
+                "template_collection_name": "test_agent_tools_caching",
+                "store_name": "chroma",
+                "confidence_threshold": 0.4,
+                "max_templates": 5,
+                "return_results": 10,
+                "enable_builtin_tools": True,
+                "synthesize_response": True,
+                "function_output_format": "json",
+                "reload_templates_on_start": False,
+                "force_reload_templates": False,
+                "base_url": "http://localhost:8080",
+                "default_timeout": 30,
+                "verbose": False,
+            },
+            "inference_provider": "ollama",
+        }
+
+    @pytest.mark.asyncio
+    async def test_build_openai_tools_is_cached_not_rebuilt(self, test_config):
+        domain_adapter = Mock()
+        domain_adapter.get_all_templates.return_value = [{
+            "id": "calc_percentage",
+            "tool_type": "function",
+            "description": "Calculate percentage",
+            "parameters": [
+                {"name": "value", "type": "number", "required": True},
+                {"name": "total", "type": "number", "required": True},
+            ],
+            "execution": {"type": "builtin", "builtin_function": "calculator", "operation": "percentage"},
+        }]
+
+        retriever = IntentAgentRetriever(config=test_config, domain_adapter=domain_adapter)
+        retriever.tool_executor = ToolExecutor(verbose=False)
+
+        await retriever._load_function_tools()
+        assert retriever._function_tools, "fixture template must produce at least one tool"
+
+        with patch.object(ToolDefinition, "to_openai_tool", wraps=ToolDefinition.to_openai_tool, autospec=True) as spy:
+            first = retriever._build_openai_tools()
+            second = retriever._build_openai_tools()
+            third = retriever._build_openai_tools()
+
+        assert first == second == third
+        spy.assert_not_called()  # cache was built in _load_function_tools, before this patch
 
 
 if __name__ == "__main__":

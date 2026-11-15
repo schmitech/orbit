@@ -19,6 +19,10 @@ class ValueExtractor:
         self.domain_config = domain_config
         self.patterns = patterns
         self.domain_strategy = domain_strategy
+        # Compiled "term: value" / "term is value" context patterns, cached per
+        # term since terms come from static domain-config field names/synonyms
+        # and are reused across every query (see _extract_from_context).
+        self._context_pattern_cache: dict[str, list[re.Pattern]] = {}
 
     def extract_value(self, user_query: str, entity_name: str, field_name: str,
                       data_type: str) -> Optional[Any]:
@@ -108,14 +112,16 @@ class ValueExtractor:
         search_terms = [field_name] + field_synonyms
 
         for term in search_terms:
-            # Look for patterns like "field_name: value" or "field_name = value"
-            context_patterns = [
-                rf"{term}\s*[:=]\s*([^\s,]+)",
-                rf"{term}\s+(?:is|equals?|of)\s+([^\s,]+)"
-            ]
+            compiled_patterns = self._context_pattern_cache.get(term)
+            if compiled_patterns is None:
+                # Look for patterns like "field_name: value" or "field_name = value"
+                compiled_patterns = [
+                    re.compile(rf"{term}\s*[:=]\s*([^\s,]+)", re.IGNORECASE),
+                    re.compile(rf"{term}\s+(?:is|equals?|of)\s+([^\s,]+)", re.IGNORECASE),
+                ]
+                self._context_pattern_cache[term] = compiled_patterns
 
-            for pattern_str in context_patterns:
-                pattern = re.compile(pattern_str, re.IGNORECASE)
+            for pattern in compiled_patterns:
                 match = pattern.search(user_query)
                 if match:
                     value_str = match.group(1)
