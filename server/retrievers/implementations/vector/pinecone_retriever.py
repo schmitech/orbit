@@ -184,94 +184,16 @@ class PineconeRetriever(AbstractVectorRetriever):
         """
         Convert Pinecone score to similarity score.
         Pinecone returns similarity scores directly (higher is better).
-        
+
         Args:
             distance: Not used - Pinecone returns scores directly
-            
+
         Returns:
             Similarity score between 0 and 1
         """
         # This method won't be called for Pinecone since we use scores directly
         # But we implement it for interface compatibility
         return distance
-
-    async def get_relevant_context(self, 
-                           query: str, 
-                           api_key: Optional[str] = None, 
-                           collection_name: Optional[str] = None,
-                           **kwargs) -> list[dict[str, Any]]:
-        """
-        Override to handle Pinecone's score-based results instead of distance-based.
-        """
-        try:
-            # Call the parent's collection resolution logic
-            await super().get_relevant_context(query, api_key, collection_name, **kwargs)
-
-            # Check for embeddings
-            if not self.embeddings:
-                logger.warning("Embeddings are disabled, no vector search can be performed")
-                return []
-
-            # 1. Generate embedding for query
-            query_embedding = await self.embed_query(
-                query, usage_sink=kwargs.get("usage_sink")
-            )
-
-            if not query_embedding or len(query_embedding) == 0:
-                logger.error("Received empty embedding, cannot perform vector search")
-                return []
-
-            logger.debug(f"Generated {len(query_embedding)}-dimensional embedding for query")
-
-            # 2. Perform vector search
-            search_results = await self.vector_search(query_embedding, self.max_results)
-
-            logger.debug(f"Vector search returned {len(search_results)} results")
-            
-            # 3. Process and filter results (Pinecone-specific)
-            context_items = []
-            
-            for result in search_results:
-                # Extract data from result
-                doc = result.get('document', '')
-                metadata = result.get('metadata', {})
-                score = result.get('score', 0.0)  # Pinecone returns similarity scores
-                
-                # Use score directly (no conversion needed)
-                similarity = float(score)
-                
-                # Only include results that meet threshold
-                if similarity >= self.confidence_threshold:
-                    # Format document using domain adapter
-                    item = self.format_document(doc, metadata)
-                    item["confidence"] = similarity
-                    item["metadata"]["source"] = self._get_datasource_name()
-                    item["metadata"]["collection"] = self.collection
-                    item["metadata"]["similarity"] = similarity
-                    item["metadata"]["score"] = score
-                    
-                    context_items.append(item)
-
-                    logger.debug(f"Accepted result with confidence: {similarity:.4f}")
-                else:
-                    logger.debug(f"Rejected result with confidence: {similarity:.4f} (threshold: {self.confidence_threshold})")
-            
-            # 4. Sort by confidence (highest first)
-            context_items = sorted(context_items, key=lambda x: x.get("confidence", 0), reverse=True)
-            
-            # 5. Apply domain-specific filtering
-            context_items = self.apply_domain_filtering(context_items, query)
-            
-            # 6. Apply final limit
-            context_items = context_items[:self.return_results]
-
-            logger.debug(f"Retrieved {len(context_items)} relevant context items")
-
-            return context_items
-                
-        except Exception as e:  # noqa: BLE001 - pinecone client boundary
-            logger.error(f"Error retrieving context: {e!s}")
-            return []
 
 # Register the retriever with the factory
 RetrieverFactory.register_retriever('pinecone', PineconeRetriever)

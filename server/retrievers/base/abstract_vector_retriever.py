@@ -449,6 +449,9 @@ class AbstractVectorRetriever(BaseRetriever):
                     item["metadata"]["collection"] = self.collection
                     item["metadata"]["similarity"] = similarity
 
+                    if score is not None:
+                        item["metadata"]["score"] = score
+
                     if distance != float('inf'):
                         item["metadata"]["distance"] = distance
 

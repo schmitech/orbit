@@ -51,9 +51,9 @@ notes per item).
 
 ---
 
-## Phase 1 — Pinecone: eliminate the duplicate embed+search pipeline
+## Phase 1 — Pinecone: eliminate the duplicate embed+search pipeline ✅ done
 
-- [ ] **Delete Pinecone's redundant `get_relevant_context` override, after
+- [x] **Delete Pinecone's redundant `get_relevant_context` override, after
       defining the output contract it must preserve.**
       `vector/pinecone_retriever.py:197-276` doesn't just duplicate the base
       pipeline's logic — it structurally double-executes it: the override's
@@ -99,6 +99,17 @@ notes per item).
       bug worth fixing now, not just a style cleanup — and it can be verified
       with mocks (asserting call counts), so a live index isn't a blocker.
       Moved to Phase 1 and given top priority as a result.
+      **Done**: added `item["metadata"]["score"] = score` to the base
+      pipeline's `score is not None` branch
+      (`base/abstract_vector_retriever.py`), deleted
+      `PineconeRetriever.get_relevant_context` entirely (it now uses the
+      inherited base implementation unchanged), and added
+      `tests/test_retrievers/test_pinecone_retriever.py` asserting
+      `embed_query`/`vector_search` are each called exactly once per request,
+      that output metadata includes both `score` and the base pipeline's
+      truncation/diagnostic fields, and that confidence-threshold filtering
+      still works. Full retriever/vector test suite (561 tests) passes with
+      no regressions.
 
 ## Phase 2 — SQL parameter-binding extension point
 
