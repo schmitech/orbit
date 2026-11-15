@@ -62,7 +62,24 @@ class AbstractVectorRetriever(BaseRetriever):
 
         # Vector database client will be obtained from datasource when needed
         self._vector_client = None
-    
+
+    def _resolve_collection_name(self, config: dict[str, Any]) -> Optional[str]:
+        """
+        Resolve the configured collection/index name: adapter config takes
+        precedence over datasource config, matching the fallback chain
+        previously hand-rolled in each vector retriever's `__init__`.
+        """
+        adapter_config = config.get('adapter_config', {})
+        if adapter_config and 'collection' in adapter_config:
+            collection_name = adapter_config['collection']
+            logger.debug(f"{self.__class__.__name__} using collection from adapter config: {collection_name}")
+            return collection_name
+        elif 'collection' in self.datasource_config:
+            collection_name = self.datasource_config['collection']
+            logger.debug(f"{self.__class__.__name__} using collection from datasource config: {collection_name}")
+            return collection_name
+        return None
+
     @property
     def vector_client(self) -> Any:
         """

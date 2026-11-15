@@ -162,17 +162,7 @@ class QdrantRetriever(AbstractVectorRetriever):
         self.distance_metric = self.datasource_config.get('distance_metric', 'Cosine').lower()
         
         # Store collection
-        self.collection_name = None
-        
-        # Get collection name from adapter config during initialization
-        adapter_config = config.get('adapter_config', {})
-        if adapter_config and 'collection' in adapter_config:
-            self.collection_name = adapter_config['collection']
-            logger.debug(f"QdrantRetriever using collection from adapter config: {self.collection_name}")
-        elif 'collection' in self.datasource_config:
-            # Fallback to datasource config
-            self.collection_name = self.datasource_config['collection']
-            logger.debug(f"QdrantRetriever using collection from datasource config: {self.collection_name}")
+        self.collection_name = self._resolve_collection_name(config)
         
         # Qdrant client
         self.qdrant_client = None

@@ -472,19 +472,25 @@ the fix is more involved than "add one hook" — see the corrections below.
       with the same term, one with a different matching phrase but same
       term) actually compiles, and that extraction results are unchanged.
 
-## Phase 6 — Vector retriever follow-ups
+## Phase 6 — Vector retriever follow-ups ✅ done
 
-- [ ] **Hoist duplicated collection-name resolution into
+- [x] **Hoist duplicated collection-name resolution into
       `AbstractVectorRetriever`.** `chroma_retriever.py:46-54` and
       `qdrant_retriever.py:167-175` (and similar in other vector retrievers)
       repeat the same "check `adapter_config['collection']` else
       `datasource_config['collection']`" fallback chain. Fix: a shared
       `_resolve_collection_name()` on the abstract base, since it's
       datasource-agnostic.
-      Small and low-risk — left for a follow-up pass rather than this
-      session only because it wasn't part of the convergent findings applied
-      directly and the session's edit budget was spent on the
-      higher-confidence collection-not-found dedup instead.
+      **Done**: added `_resolve_collection_name(config)` to
+      `AbstractVectorRetriever` (`base/abstract_vector_retriever.py`); only
+      Chroma and Qdrant had this exact fallback-chain pattern (Pinecone,
+      Milvus, Elasticsearch, Redis resolve their collection/index name
+      differently — via `set_collection` or a direct config key — so they
+      weren't touched). Both retrievers' `__init__` now call the shared
+      helper instead of repeating the if/elif. Added
+      `tests/test_retrievers/test_vector_collection_resolution.py` (6 tests:
+      adapter-config precedence, datasource-config fallback, and
+      neither-configured for each of Chroma and Qdrant).
 
 ---
 
