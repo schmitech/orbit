@@ -36,11 +36,12 @@ behavior verification this session couldn't do safely, so it's phased for
 independent follow-up rather than folded into the same-session pass.
 
 **Priority order: Phase 1 (Pinecone) → Phase 2 (SQL binding contract) →
-Phase 3 (HTTP consolidation) → Phase 4 (connection-layer dedup) → Phase 5
-(efficiency).** This order was corrected after an external review of the
-first draft of this doc found that draft's own Phase 1/2/3 ordering and
+Phase 3 (HTTP retry-loop consolidation) → Phase 5 (efficiency) → Phase 6
+(vector follow-ups).** This order was corrected after an external review of
+the first draft of this doc found that draft's own Phase 1/2/3 ordering and
 several of its root-cause claims didn't hold up — see the per-item notes
-below for what changed and why.
+below for what changed and why. (The original Phase 3's Firecrawl half and
+Phase 4 were split out before completion — see the note after Phase 3.)
 
 Reference: review findings were produced by four parallel agent passes
 (reuse, simplification, efficiency, altitude) over
@@ -253,7 +254,7 @@ the fix is more involved than "add one hook" — see the corrections below.
       pre-refactor, per-backend implementations actually guaranteed, not a
       stronger guarantee than that.
 
-## Phase 3 — HTTP retriever consolidation (retry loop + Firecrawl)
+## Phase 3 — HTTP retriever consolidation (retry loop) ✅ done
 
 - [x] **done — retry loop.** **Add retry support to `IntentHTTPRetriever._execute_http_request** and
       have the three HTTP-backed retrievers use it instead of hand-rolling
@@ -282,155 +283,13 @@ the fix is more involved than "add one hook" — see the corrections below.
       `TestSharedRetryBehavior` (3 tests: no retry on 4xx, retry-then-succeed
       on 5xx, raises after exhausting retries) in
       `tests/test_retrievers/test_intent_http_json_retriever.py`.
-- [ ] **Not done — Firecrawl reconciliation needs an explicit product
-      decision first, so it's left for a follow-up.** Treat Firecrawl's `_get_relevant_context_impl` consolidation as
-      behavior reconciliation, not a pure formatter swap.**
-      `intent_firecrawl_retriever.py:212-311` was originally described here
-      as differing from the base's `_get_relevant_context_impl`
-      (`base/intent_http_base.py:781-978`) only in using an async formatter.
-      On closer comparison that's not the only difference — confirmed by
-      reading both implementations side by side:
-      - **Cancellation**: the base checks `cancel_event` before template
-        search and between each template attempt
-        (`base/intent_http_base.py:785, 814`); Firecrawl's version has no
-        `cancel_event` handling at all.
-      - **Required-parameter checks**: the base explicitly skips a template
-        if any `required` parameter is still missing after extraction
-        (`base/intent_http_base.py:843-855`), with a comment explaining why
-        (avoids a doomed live call with an unfilled placeholder); Firecrawl
-        has no equivalent check.
-      - **Follow-up storage**: the base calls
-        `self._store_followup_turn(kwargs.get('session_id'), ...)` on success
-        (`base/intent_http_base.py:908, 920`); Firecrawl's version never
-        calls it.
-      - **Failure metadata**: the base tracks `failed_templates` with
-        per-template error strings and includes them in the final
-        below-threshold/all-failed response metadata
-        (`base/intent_http_base.py:811-812, 851, 862, 940-963`); Firecrawl
-        tracks only `any_above_threshold` and a bare `candidates` list with
-        template id + similarity, no per-template failure reasons.
-      - **Response-generator fallback**: the base has an entire
-        `self.response_generator`-driven formatting branch
-        (`base/intent_http_base.py:881-918`) that builds LLM-context content
-        from a domain-aware formatter before falling back to
-        `_format_http_results`; Firecrawl has no equivalent branch — it only
-        ever calls its own async formatter.
-      - **What the formatter hook needs**: Firecrawl's call already passes
-        `query=query` and `usage_sink=usage_sink` to
-        `_format_http_results_async` for chunk ranking
-        (`intent_firecrawl_retriever.py:275-282`) — any async-formatter hook
-        added to the base must forward both of these, not just
-        `results`/`template`/`parameters`/`similarity`.
-      Fix: before touching code, write down explicitly which of the five
-      behavioral differences above should survive consolidation (e.g.
-      cancellation and required-parameter checks are very likely bugs in
-      Firecrawl's version that should simply be adopted from the base;
-      follow-up-turn storage and failed-template metadata need a product
-      decision on whether Firecrawl should support follow-up questions the
-      same way; the response-generator branch may or may not apply to
-      scraped content). Only then extend the base method with an
-      async-formatter hook (forwarding `query`/`usage_sink`) and reconcile
-      Firecrawl onto it.
-      Corrected from external review: the original item understated this as
-      "solely to swap in an async formatter" and proposed deleting
-      Firecrawl's override outright. Don't delete it until the behavioral
-      differences above are each explicitly kept, adopted from the base, or
-      deliberately dropped — a mechanical hook-and-delete would silently
-      change cancellation, required-parameter, follow-up, and failure-
-      metadata behavior for every Firecrawl query.
-      Needs the full no-match/below-threshold/rerank test matrix run against
-      all four affected retrievers (graphql, http_json, firecrawl, and the
-      base's direct consumers) before merging.
-
-## Phase 4 — Cross-hierarchy connection duplication (intent/ vs relational/)
-
-- [ ] **Not started — premise needs correcting again before this is
-      attempted.** Investigated 2026-11-15: the "start with SQLite, the
-      simplest" plan below doesn't work as written. `relational/sqlite_retriever.py`
-      has no `create_connection()` at all — it's purely datasource-registry-based
-      (connection injected by the registry), unlike
-      `intent/intent_sqlite_retriever.py`, which manages its own raw
-      `sqlite3.connect()`. There is no connection-creation duplication to
-      extract for SQLite; the premise only holds for Postgres and MySQL, and
-      even there the two variants aren't behaviorally identical: intent's
-      Postgres variant adds connection pooling (`psycopg_pool`), an
-      `_is_connection_alive()` check before every query, and pool-aware
-      `_close_connection()`, none of which the relational variant has.
-      Unifying them means either adding pooling to the relational variant (a
-      real behavior change, not a pure dedup) or a mixin with pooling made
-      optional — exactly the kind of live-connection change this item already
-      says needs dedicated reconnection/transaction/shutdown tests per
-      backend before merging, and no such test harness exists yet. Given that
-      risk relative to Phases 1-3 (pure logic, unit-testable without a live
-      DB), this phase is deliberately left unimplemented rather than rushed.
-      If picked up later: re-scope to Postgres or MySQL (not SQLite) as the
-      starting backend, decide the pooling question explicitly up front, and
-      build the reconnection/transaction/shutdown test harness before any
-      extraction.
-      `implementations/intent/intent_postgresql_retriever.py` (`create_connection`
-      L59-122, `_execute_raw_query` L144-168, default port/database/test-query
-      methods) and `implementations/relational/postgresql_retriever.py`
-      (`create_connection` L47-73, `_execute_raw_query` L83+) are near
-      line-for-line copies of the same psycopg connect / `SELECT version()`
-      liveness check / cursor-commit-rollback logic. The same duplicate pair
-      exists for MySQL (`intent_mysql_retriever.py` vs
-      `relational/mysql_retriever.py`) and SQLite (`intent_sqlite_retriever.py`
-      vs `relational/sqlite_retriever.py`).
-      Corrected from external review: the original draft called
-      `IntentSQLRetriever` and `BaseSQLDatabaseRetriever` "two unrelated base
-      contracts" — they are not. `IntentSQLRetriever` already extends
-      `BaseSQLDatabaseRetriever` directly
-      (`base/intent_sql_base.py:27`:
-      `class IntentSQLRetriever(IntentDomainComponentsMixin,
-      BaseSQLDatabaseRetriever)`), so the two hierarchies already share a
-      base — the duplication is in the *driver-specific* `create_connection`/
-      `_execute_raw_query` bodies within that shared hierarchy, not a split
-      between two disconnected class trees. The original draft also claimed
-      the `relational/` Postgres variant lacks SSL support that the `intent/`
-      variant has; that's also wrong — `relational/postgresql_retriever.py`
-      already resolves `sslmode` from config (line 28) and passes it to the
-      connection call (line 57). The actual capability gap (if any) between
-      the two Postgres variants needs re-auditing per-feature (pooling,
-      statement_timeout, reconnection behavior) rather than assumed from the
-      first pass's read.
-      Driver-specific reuse is still worth doing, but:
-      1. Extract one backend's connection mixin at a time — not SQLite (see
-         the correction above: no duplication exists there), start with
-         whichever of Postgres/MySQL is judged lower-risk — not all at once.
-      2. Treat any pooling/timeout/statement_timeout capability change as a
-         separate, explicit step from the structural extraction — i.e. first
-         make `intent/` and `relational/` share identical connection code
-         with identical behavior, then decide separately (and visibly) if one
-         variant's extra capability (if confirmed to exist after re-auditing)
-         should be added to the other.
-      3. Each backend's extraction needs explicit tests for reconnection
-         (does a dropped connection get re-established the same way),
-         transaction behavior (commit/rollback semantics preserved), and
-         shutdown (connection cleanup on `close()`), not just a "connects
-         successfully" smoke test.
-- [ ] **Collapse the repeated small SQL helpers across sibling DB retrievers**
-      once the mixin above exists, since several of these are instances of
-      the same problem at smaller scale:
-      - `_is_connection_alive` reimplemented identically in
-        `intent_postgresql_retriever.py:128-142`,
-        `intent_sqlite_retriever.py:117-128`,
-        `intent_duckdb_retriever.py:160-169`,
-        `intent_athena_retriever.py:56-67` — belongs once on
-        `BaseSQLDatabaseRetriever` using the existing `get_test_query()`.
-      - SELECT/WITH dispatch duplicated 5x across
-        `intent_postgresql_retriever.py:155-156`,
-        `intent_mysql_retriever.py:101-102`,
-        `intent_sqlite_retriever.py:177-178`,
-        `intent_duckdb_retriever.py:221-222`,
-        `intent_athena_retriever.py:102-103` — one shared `_is_select_query()`
-        helper.
-      - `SQLQueryExecutionMixin.execute_query_with_retry`
-        (`base/base_sql_database.py:177-200`) is defined but unused — every
-        retriever reimplements its own retry/rollback instead of calling it;
-        worth checking why it was never adopted before wiring retrievers up
-        to it (may have been superseded by something else).
-      Fold into the same per-backend PRs as the connection-mixin extraction
-      above, rather than a separate mechanical sweep.
+**Firecrawl's `_get_relevant_context_impl` reconciliation** (originally the
+second half of this phase) and **Phase 4 — cross-hierarchy connection
+duplication (`intent/` vs `relational/`)** were both investigated but left
+unimplemented, since each needs an explicit product/design decision and new
+test infrastructure before any code should move. Both are split out into
+their own standalone plan:
+`docs/roadmap/sql-connection-dedup-and-firecrawl-reconciliation.md`.
 
 ## Phase 5 — Efficiency: caching and concurrency ✅ done
 
