@@ -129,19 +129,20 @@ class QASSQLRetriever(SQLiteRetriever):
             
             logger.debug(f"Using QA search fields: {self.default_search_fields}")
 
-    def _get_search_query(self, query: str, collection_name: str) -> dict[str, Any]:
+    def _get_search_query(self, query: str, collection_name: str, query_tokens: Optional[list[str]] = None) -> dict[str, Any]:
         """
         Generate QA-optimized search query.
-        
+
         Args:
             query: The user's query
             collection_name: The collection/table name
-            
+            query_tokens: Pre-tokenized query, to avoid re-tokenizing when the caller already has it
+
         Returns:
             Dict with SQL query, parameters, and fields
         """
-        # Tokenize the query using parent method
-        query_tokens = self._tokenize_text(query)
+        if query_tokens is None:
+            query_tokens = self._tokenize_text(query)
         
         logger.debug(f"Generating QA search query for: '{query}'")
         logger.debug(f"Tokenized query: {query_tokens}")
@@ -332,7 +333,7 @@ class QASSQLRetriever(SQLiteRetriever):
                 rows = token_results
             else:
                 # Get QA-optimized search query
-                search_config = self._get_search_query(query, self.collection)
+                search_config = self._get_search_query(query, self.collection, query_tokens=query_tokens)
                 rows = await self.execute_query(search_config["sql"], search_config["params"])
             
             # QA-specific result processing

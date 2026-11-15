@@ -258,7 +258,25 @@ class AbstractVectorRetriever(BaseRetriever):
                 accumulate_usage_sink(usage_sink, local_usage)
             return result
         return await self.embeddings.embed_query(query)
-    
+
+    def _raise_collection_not_found(self, collection_name: str, default_message: Optional[str] = None) -> None:
+        """
+        Raise an HTTPException(404) for a missing collection/index, using the
+        adapter-configured message when available.
+
+        Args:
+            collection_name: Name of the collection/index that was not found
+            default_message: Fallback message if config doesn't define one
+
+        Raises:
+            HTTPException: Always raised with status 404
+        """
+        from fastapi import HTTPException
+        if default_message is None:
+            default_message = "Collection not found. Please ensure the collection exists before querying."
+        custom_msg = self.config.get('messages', {}).get('collection_not_found', default_message)
+        raise HTTPException(status_code=404, detail=custom_msg)
+
     def format_document(self, doc: str, metadata: dict[str, Any]) -> dict[str, Any]:
         """
         Format document using domain adapter if available.

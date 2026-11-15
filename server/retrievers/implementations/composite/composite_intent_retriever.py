@@ -13,6 +13,7 @@ Multi-stage selection significantly improves accuracy when routing across
 many templates with similar vocabulary across different business domains.
 """
 
+import asyncio
 import logging
 import traceback
 from typing import Any, Optional
@@ -238,18 +239,24 @@ class CompositeIntentRetriever(BaseCompositeRetriever):
             }
         }
 
-        for name, adapter in self._child_adapters.items():
+        async def _get_adapter_stats(name: str, adapter: Any) -> tuple[str, dict[str, Any]]:
             try:
                 if hasattr(adapter, 'template_store') and adapter.template_store:
                     adapter_stats = await adapter.template_store.get_statistics()
-                    stats["child_adapters"][name] = {
+                    return name, {
                         "total_templates": adapter_stats.get('total_templates', 0),
                         "collection_name": adapter_stats.get('collection_name', 'unknown')
                     }
                 else:
-                    stats["child_adapters"][name] = {"error": "No template store"}
+                    return name, {"error": "No template store"}
             except Exception as e:  # noqa: BLE001 - per-adapter statistics probing must not abort the whole report
-                stats["child_adapters"][name] = {"error": str(e)}
+                return name, {"error": str(e)}
+
+        adapter_results = await asyncio.gather(
+            *(_get_adapter_stats(name, adapter) for name, adapter in self._child_adapters.items())
+        )
+        for name, adapter_result in adapter_results:
+            stats["child_adapters"][name] = adapter_result
 
         # Cross-adapter template statistics
         stats["cross_adapter_templates"] = {

@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Maintenance
+- **Retrievers implementations cleanup**: Removed two dead unused base classes (`VectorDBRetriever`, `SQLRetriever`). Deduplicated file-database-path resolution (SQLite/DuckDB) and "collection not found" error handling (Chroma/Qdrant/Pinecone/Milvus) into shared helpers. Removed a redundant query re-tokenization in the QA SQL retriever, and parallelized per-adapter stats collection in the composite retriever's routing-statistics call. No behavior change. Remaining findings (SQL parameter-binding contract, intent/relational connection duplication, HTTP retriever consolidation, a double embed+search in the Pinecone retriever, and caching opportunities) are phased in `docs/roadmap/retrievers-implementations-cleanup.md`.
+
 ## [2.21.2] - 2026-11-09
 
 ### Core Features

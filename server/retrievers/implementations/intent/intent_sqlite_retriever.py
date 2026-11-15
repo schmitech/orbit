@@ -59,18 +59,7 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
                 raise ImportError("sqlite3 not available")
 
             # SQLite uses a file path instead of host/port
-            # Get database path from multiple possible config locations
-            # Priority: database_path > database > db_path > default
-            if 'database_path' in self.datasource_config:
-                self.database_path = self.datasource_config['database_path']
-            elif 'database' in self.datasource_config:
-                self.database_path = self.datasource_config['database']
-            elif 'db_path' in self.datasource_config:
-                self.database_path = self.datasource_config['db_path']
-            elif 'database' in self.connection_params:
-                self.database_path = self.connection_params['database']
-            else:
-                self.database_path = self.get_default_database()
+            self.database_path = self.resolve_file_database_path(self.datasource_config, self.connection_params)
 
             # Create connection
             connection = sqlite3.connect(

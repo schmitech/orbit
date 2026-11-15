@@ -55,7 +55,31 @@ class SQLConnectionMixin:
                 return default
         
         return value
-    
+
+    def resolve_file_database_path(self, datasource_config: dict[str, Any], connection_params: dict[str, Any]) -> str:
+        """
+        Resolve a file-backed database path (SQLite, DuckDB) from config.
+
+        Priority: database_path > database > db_path > connection_params['database'] > default.
+
+        Args:
+            datasource_config: Datasource-level configuration
+            connection_params: Resolved connection parameters
+
+        Returns:
+            Resolved database file path (or ':memory:'/default for in-memory engines)
+        """
+        if 'database_path' in datasource_config:
+            return datasource_config['database_path']
+        elif 'database' in datasource_config:
+            return datasource_config['database']
+        elif 'db_path' in datasource_config:
+            return datasource_config['db_path']
+        elif 'database' in connection_params:
+            return connection_params['database']
+        else:
+            return self.get_default_database()
+
     def extract_connection_params(self, config: dict[str, Any]) -> dict[str, Any]:
         """
         Extract common database connection parameters.

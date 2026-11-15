@@ -100,9 +100,7 @@ class PineconeRetriever(AbstractVectorRetriever):
             if collection_name not in index_names:
                 error_msg = f"Index '{collection_name}' does not exist in Pinecone"
                 logger.error(error_msg)
-                custom_msg = self.config.get('messages', {}).get('collection_not_found',
-                            "Collection not found. Please ensure the collection exists before querying.")
-                raise HTTPException(status_code=404, detail=custom_msg)
+                self._raise_collection_not_found(collection_name)
 
             # Connect to the index using modern API
             self.index_name = collection_name

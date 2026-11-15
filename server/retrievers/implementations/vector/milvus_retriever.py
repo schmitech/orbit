@@ -98,10 +98,8 @@ class MilvusRetriever(AbstractVectorRetriever):
             if not utility.has_collection(collection_name):
                 error_msg = f"Collection '{collection_name}' does not exist in Milvus"
                 logger.error(error_msg)
-                custom_msg = self.config.get('messages', {}).get('collection_not_found', 
-                            "Collection not found. Please ensure the collection exists before querying.")
-                raise HTTPException(status_code=404, detail=custom_msg)
-            
+                self._raise_collection_not_found(collection_name)
+
             # Load the collection
             self.collection_name = collection_name
             self.collection = Collection(collection_name)

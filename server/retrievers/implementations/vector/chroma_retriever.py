@@ -134,9 +134,10 @@ class ChromaRetriever(AbstractVectorRetriever):
                     logger.warning(f"[{class_name}] Collection '{collection_name}' not found. Available: [{available}]")
                     
                     # Raise error with user-friendly message
-                    custom_msg = self.config.get('messages', {}).get('collection_not_found', 
-                                f"Collection '{collection_name}' not found. Available collections: {available}")
-                    raise HTTPException(status_code=404, detail=custom_msg)
+                    self._raise_collection_not_found(
+                        collection_name,
+                        default_message=f"Collection '{collection_name}' not found. Available collections: {available}"
+                    )
             
             # Collection exists, proceed to get it
             self.collection = self.chroma_client.get_collection(name=collection_name)
