@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.21.3] - 2026-11-15
 
 ### Bug Fixes
 - **Pinecone retriever embedded and searched twice per query**: `PineconeRetriever.get_relevant_context` called the shared base pipeline, discarded its result, then independently re-embedded the query and re-ran the vector search — doubling embedding-provider and Pinecone request volume (and cost) for every query. It now uses the shared base pipeline directly; results also gain the base pipeline's truncation/diagnostic metadata alongside Pinecone's `score`.
