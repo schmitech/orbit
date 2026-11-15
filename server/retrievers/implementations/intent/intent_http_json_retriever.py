@@ -402,49 +402,23 @@ class IntentHTTPJSONRetriever(IntentHTTPRetriever):
         Returns:
             HTTP response
         """
-        retries = 0
-        last_error = None
+        # Merge headers with existing client headers
+        merged_headers = dict(self.http_client.headers)
+        if headers:
+            merged_headers.update(headers)
 
-        while retries <= (self.max_retries if self.enable_retries else 0):
-            try:
-                # Merge headers with existing client headers
-                merged_headers = dict(self.http_client.headers)
-                if headers:
-                    merged_headers.update(headers)
-
-                response = await self.http_client.request(
-                    method=method,
-                    url=endpoint,
-                    params=params,
-                    headers=merged_headers,
-                    json=json_data,
-                    timeout=timeout
-                )
-                response.raise_for_status()
-                return response
-
-            except httpx.HTTPStatusError as e:
-                # Don't retry client errors (4xx), only server errors (5xx)
-                if e.response.status_code < 500:
-                    raise
-                last_error = e
-                retries += 1
-                if retries <= self.max_retries:
-                    logger.warning(f"Request failed with {e.response.status_code}, retrying ({retries}/{self.max_retries})...")
-                    import asyncio
-                    await asyncio.sleep(self.retry_delay * retries)
-            except Exception as e:  # noqa: BLE001 - HTTP client boundary; caught to drive the retry loop
-                last_error = e
-                retries += 1
-                if retries <= self.max_retries:
-                    logger.warning(f"Request failed: {e}, retrying ({retries}/{self.max_retries})...")
-                    import asyncio
-                    await asyncio.sleep(self.retry_delay * retries)
-
-        # All retries failed
-        if last_error:
-            raise last_error
-        raise Exception("Request failed after all retries")
+        # Retry loop is shared via the base class
+        # (base/intent_http_base.py:_execute_http_request).
+        return await self._execute_http_request(
+            method=method,
+            url=endpoint,
+            max_retries=self.max_retries if self.enable_retries else 0,
+            retry_delay=self.retry_delay,
+            params=params,
+            headers=merged_headers,
+            json=json_data,
+            timeout=timeout,
+        )
 
     def _parse_response(self, response: httpx.Response, template: dict[str, Any]) -> list[dict[str, Any]]:
         """

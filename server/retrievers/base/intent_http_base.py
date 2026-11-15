@@ -1234,22 +1234,46 @@ JSON:"""
         """
         pass
 
-    async def _execute_http_request(self, method: str, url: str, **kwargs) -> httpx.Response:
+    async def _execute_http_request(self, method: str, url: str,
+                                     max_retries: int = 0, retry_delay: float = 1.0,
+                                     **kwargs) -> httpx.Response:
         """
-        Execute HTTP request using the configured client.
+        Execute HTTP request using the configured client, with optional retry.
 
-        This is a helper method that can be used by subclasses.
+        This is a helper method that can be used by subclasses. Defaults to no
+        retries so existing call sites that don't pass max_retries are unaffected.
+        Retries on 5xx responses and other transient errors; never retries 4xx.
         """
-        try:
-            response = await self.http_client.request(method, url, **kwargs)
-            response.raise_for_status()
-            return response
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
-            raise
-        except Exception as e:
-            logger.error(f"HTTP request failed: {e}")
-            raise
+        retries = 0
+        last_error: Optional[Exception] = None
+
+        while retries <= max_retries:
+            try:
+                response = await self.http_client.request(method=method, url=url, **kwargs)
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code < 500:
+                    logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
+                    raise
+                last_error = e
+                retries += 1
+                if retries <= max_retries:
+                    logger.warning(f"HTTP request failed with {e.response.status_code}, "
+                                   f"retrying ({retries}/{max_retries})...")
+                    await asyncio.sleep(retry_delay * retries)
+                else:
+                    logger.error(f"HTTP error {e.response.status_code}: {e.response.text}")
+            except Exception as e:  # noqa: BLE001 - httpx retry loop must retry on any transient failure
+                last_error = e
+                retries += 1
+                if retries <= max_retries:
+                    logger.warning(f"HTTP request failed: {e}, retrying ({retries}/{max_retries})...")
+                    await asyncio.sleep(retry_delay * retries)
+                else:
+                    logger.error(f"HTTP request failed: {e}")
+
+        raise last_error
 
     async def set_collection(self, collection_name: str) -> None:
         """

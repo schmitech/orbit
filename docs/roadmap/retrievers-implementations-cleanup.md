@@ -255,7 +255,7 @@ the fix is more involved than "add one hook" — see the corrections below.
 
 ## Phase 3 — HTTP retriever consolidation (retry loop + Firecrawl)
 
-- [ ] **Add retry support to `IntentHTTPRetriever._execute_http_request** and
+- [x] **done — retry loop.** **Add retry support to `IntentHTTPRetriever._execute_http_request** and
       have the three HTTP-backed retrievers use it instead of hand-rolling
       their own loop.** `intent_graphql_retriever.py:206-248`,
       `intent_http_json_retriever.py:400-443`, and
@@ -270,7 +270,20 @@ the fix is more involved than "add one hook" — see the corrections below.
       delete the three duplicated loops.
       Needs retry-behavior tests (including the 4xx/5xx distinction) before
       the three call sites switch over.
-- [ ] **Treat Firecrawl's `_get_relevant_context_impl` consolidation as
+      **Done**: `_execute_http_request` (base/intent_http_base.py) now takes
+      `max_retries`/`retry_delay` (both default to 0/no-retry, so the
+      Elasticsearch/Agent call sites that don't pass them are unaffected),
+      retries only on 5xx and other transient errors, never on 4xx. The
+      three duplicated loops in `intent_graphql_retriever.py`,
+      `intent_http_json_retriever.py`, and `intent_firecrawl_retriever.py`
+      were deleted; each now just calls the shared method with its own
+      `max_retries=self.max_retries if self.enable_retries else 0` and
+      `retry_delay=self.retry_delay`. Added
+      `TestSharedRetryBehavior` (3 tests: no retry on 4xx, retry-then-succeed
+      on 5xx, raises after exhausting retries) in
+      `tests/test_retrievers/test_intent_http_json_retriever.py`.
+- [ ] **Not done — Firecrawl reconciliation needs an explicit product
+      decision first, so it's left for a follow-up.** Treat Firecrawl's `_get_relevant_context_impl` consolidation as
       behavior reconciliation, not a pure formatter swap.**
       `intent_firecrawl_retriever.py:212-311` was originally described here
       as differing from the base's `_get_relevant_context_impl`

@@ -217,44 +217,16 @@ class IntentGraphQLRetriever(IntentHTTPRetriever):
         Returns:
             HTTP response
         """
-        retries = 0
-        last_error = None
-
-        while retries <= (self.max_retries if self.enable_retries else 0):
-            try:
-                # GraphQL requests are always POST
-                response = await self.http_client.request(
-                    method='POST',
-                    url=self.graphql_endpoint,
-                    json=request_body,
-                    timeout=timeout
-                )
-                response.raise_for_status()
-                return response
-
-            except httpx.HTTPStatusError as e:
-                # Don't retry client errors (4xx), only server errors (5xx)
-                if e.response.status_code < 500:
-                    raise
-                last_error = e
-                retries += 1
-                if retries <= self.max_retries:
-                    logger.warning(f"GraphQL request failed with {e.response.status_code}, "
-                                 f"retrying ({retries}/{self.max_retries})...")
-                    import asyncio
-                    await asyncio.sleep(self.retry_delay * retries)
-            except Exception as e:  # noqa: BLE001 - httpx retry loop must retry on any transient failure
-                last_error = e
-                retries += 1
-                if retries <= self.max_retries:
-                    logger.warning(f"GraphQL request failed: {e}, retrying ({retries}/{self.max_retries})...")
-                    import asyncio
-                    await asyncio.sleep(self.retry_delay * retries)
-
-        # All retries failed
-        if last_error:
-            raise last_error
-        raise Exception("GraphQL request failed after all retries")
+        # GraphQL requests are always POST. Retry loop is shared via the base
+        # class (base/intent_http_base.py:_execute_http_request).
+        return await self._execute_http_request(
+            method='POST',
+            url=self.graphql_endpoint,
+            max_retries=self.max_retries if self.enable_retries else 0,
+            retry_delay=self.retry_delay,
+            json=request_body,
+            timeout=timeout,
+        )
 
     def _parse_graphql_response(self, response: httpx.Response,
                                  template: dict[str, Any]) -> tuple[list[dict[str, Any]], Optional[str]]:

@@ -10,7 +10,7 @@ import pytest
 import sys
 import os
 import json
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock, AsyncMock, patch
 import httpx
 
 # Add the server directory to path
@@ -692,3 +692,74 @@ class TestErrorHandling:
         assert "response" in results[0]
         assert "Invalid JSON" in results[0]["response"]
 
+
+
+class TestSharedRetryBehavior:
+    """
+    Tests for the shared retry loop in IntentHTTPRetriever._execute_http_request
+    (base/intent_http_base.py), exercised here via IntentHTTPJSONRetriever since
+    it's one of the three call sites consolidated onto it (Phase 3 of
+    docs/roadmap/retrievers-implementations-cleanup.md).
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_retry_on_4xx(self, test_config):
+        retriever = IntentHTTPJSONRetriever(config=test_config)
+        await retriever._initialize_http_client()
+
+        response_404 = Mock(spec=httpx.Response)
+        response_404.status_code = 404
+        response_404.text = "Not Found"
+        error = httpx.HTTPStatusError("404", request=Mock(), response=response_404)
+
+        retriever.http_client.request = AsyncMock(side_effect=error)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await retriever._execute_http_request(
+                method="GET", url="/missing", max_retries=3, retry_delay=0.01
+            )
+
+        assert retriever.http_client.request.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_retries_on_5xx_then_succeeds(self, test_config):
+        retriever = IntentHTTPJSONRetriever(config=test_config)
+        await retriever._initialize_http_client()
+
+        response_500 = Mock(spec=httpx.Response)
+        response_500.status_code = 500
+        response_500.text = "Internal Server Error"
+        error = httpx.HTTPStatusError("500", request=Mock(), response=response_500)
+
+        success_response = Mock(spec=httpx.Response)
+        success_response.raise_for_status = Mock()
+
+        retriever.http_client.request = AsyncMock(side_effect=[error, success_response])
+
+        with patch("asyncio.sleep", new=AsyncMock()):
+            result = await retriever._execute_http_request(
+                method="GET", url="/flaky", max_retries=3, retry_delay=0.01
+            )
+
+        assert result is success_response
+        assert retriever.http_client.request.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_raises_after_exhausting_retries(self, test_config):
+        retriever = IntentHTTPJSONRetriever(config=test_config)
+        await retriever._initialize_http_client()
+
+        response_503 = Mock(spec=httpx.Response)
+        response_503.status_code = 503
+        response_503.text = "Service Unavailable"
+        error = httpx.HTTPStatusError("503", request=Mock(), response=response_503)
+
+        retriever.http_client.request = AsyncMock(side_effect=error)
+
+        with patch("asyncio.sleep", new=AsyncMock()):
+            with pytest.raises(httpx.HTTPStatusError):
+                await retriever._execute_http_request(
+                    method="GET", url="/down", max_retries=2, retry_delay=0.01
+                )
+
+        assert retriever.http_client.request.call_count == 3

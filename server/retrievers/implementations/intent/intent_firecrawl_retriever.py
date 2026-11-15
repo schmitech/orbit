@@ -438,42 +438,16 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         Returns:
             HTTP response
         """
-        retries = 0
-        last_error = None
-
-        while retries <= (self.max_retries if self.enable_retries else 0):
-            try:
-                # Execute the scrape request
-                response = await self.http_client.post(
-                    '/scrape',
-                    json=params,
-                    timeout=self.default_timeout
-                )
-                response.raise_for_status()
-                return response
-
-            except httpx.HTTPStatusError as e:
-                # Don't retry client errors (4xx), only server errors (5xx)
-                if e.response.status_code < 500:
-                    raise
-                last_error = e
-                retries += 1
-                if retries <= self.max_retries:
-                    logger.warning(f"Request failed with {e.response.status_code}, retrying ({retries}/{self.max_retries})...")
-                    import asyncio
-                    await asyncio.sleep(self.retry_delay * retries)
-            except Exception as e:  # noqa: BLE001 - httpx retry loop must retry on any transient failure
-                last_error = e
-                retries += 1
-                if retries <= self.max_retries:
-                    logger.warning(f"Request failed: {e}, retrying ({retries}/{self.max_retries})...")
-                    import asyncio
-                    await asyncio.sleep(self.retry_delay * retries)
-
-        # All retries failed
-        if last_error:
-            raise last_error
-        raise Exception("Request failed after all retries")
+        # Retry loop is shared via the base class
+        # (base/intent_http_base.py:_execute_http_request).
+        return await self._execute_http_request(
+            method='POST',
+            url='/scrape',
+            max_retries=self.max_retries if self.enable_retries else 0,
+            retry_delay=self.retry_delay,
+            json=params,
+            timeout=self.default_timeout,
+        )
 
     def _parse_firecrawl_response(self, response: httpx.Response, formats: list[str]) -> list[dict[str, Any]]:
         """
