@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.21.4] - 2026-11-16
 
 ### Bug Fixes
 - **SQL retriever `initialize()` could crash on a fresh connection**: `connection` had no setter, so assigning a newly created connection to it raised `AttributeError` instead of storing it. Fixed on the shared base class for all SQL backends.
