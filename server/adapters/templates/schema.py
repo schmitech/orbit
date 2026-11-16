@@ -119,6 +119,12 @@ class TemplateSpec(BaseModel):
     # Firecrawl / web
     url_mapping: Optional[dict[str, Any]] = None
     formats: Optional[list[str]] = None
+    wait_for: Optional[float] = None
+    wait_time: Optional[float] = None  # deprecated alias for wait_for; see IntentFirecrawlRetriever
+    mobile: Optional[bool] = None
+    screenshot: Optional[bool] = None
+    include_tags: Optional[list[str]] = None
+    exclude_tags: Optional[list[str]] = None
 
     # Agent / tool-calling
     tool_type: Optional[str] = None

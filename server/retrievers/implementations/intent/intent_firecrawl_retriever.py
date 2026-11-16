@@ -117,6 +117,19 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         # Call parent initialization
         await super().initialize()
 
+        # The base class's initialize() unconditionally calls
+        # _rebuild_domain_components(), which overwrites parameter_extractor
+        # and response_generator with domain-aware versions -- undoing the
+        # __init__ above. Firecrawl needs its own simpler _extract_parameters
+        # (the domain extractor's LLM fallback only asks for a literal value
+        # copied from the query, e.g. "find the url value in the user's
+        # text" -- it was never built to synthesize a URL from a template
+        # pattern/parameter description, which is what a parameterized
+        # Firecrawl template's "url" parameter needs) and its own Firecrawl-
+        # aware formatting, so re-clear both here.
+        self.response_generator = None
+        self.parameter_extractor = None
+
         # Retrieval-context budget for formatted output (both the chunked
         # path and the raw-content fallback), independent of whether
         # chunking itself is enabled -- no LLM tokenizer is plumbed through
@@ -394,7 +407,7 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                         formats = request_data.get('formats', self.default_formats)
                     except json.JSONDecodeError:
                         formats = self.default_formats
-            elif not formats:
+            if not formats:
                 formats = self.default_formats
 
             if isinstance(formats, str):
@@ -445,16 +458,20 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         # Add optional parameters from template
         if 'mobile' in template:
             params['mobile'] = template['mobile']
-        
-        if 'wait_for' in template:
-            params['waitFor'] = template['wait_for']
-        
-        if 'wait_time' in template:
-            params['waitTime'] = template['wait_time']
-        
-        if 'screenshot' in template:
-            params['screenshot'] = template['screenshot']
-        
+
+        # v2 API: a single `waitFor` (ms) delay; v1's separate `waitTime` key
+        # is gone (a v2 scrape request with it is rejected outright with
+        # "Unrecognized key: waitTime"). Templates that still set wait_time
+        # fall back onto the same waitFor delay.
+        wait_for_ms = template.get('wait_for', template.get('wait_time'))
+        if wait_for_ms is not None:
+            params['waitFor'] = wait_for_ms
+
+        # v2 API: no top-level `screenshot` boolean -- a screenshot is
+        # requested as an entry in `formats` instead.
+        if template.get('screenshot') and 'screenshot' not in params['formats']:
+            params['formats'] = [*params['formats'], 'screenshot']
+
         if 'include_tags' in template:
             params['includeTags'] = template['include_tags']
         

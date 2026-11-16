@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 - **SQL retriever `initialize()` could crash on a fresh connection**: `connection` had no setter, so assigning a newly created connection to it raised `AttributeError` instead of storing it. Fixed on the shared base class for all SQL backends.
+- **Firecrawl templates with a parameter always failed silently**: a base-class step meant to stay off for Firecrawl was re-enabling itself and extracting empty parameters, so every template candidate "failed" with no useful error.
+- **Firecrawl template schema and v2 API support**: the template schema rejected several fields the retriever legitimately uses (`wait_for`, `mobile`, `screenshot`, etc.), and scrape requests used v1-only fields (`waitTime`, a top-level `screenshot` flag) that Firecrawl's v2 API now rejects.
 
 ### Maintenance
 - **SQL connection-handling cleanup (MySQL/Postgres)**: Audited production reachability of each SQL retriever's connection-lifecycle methods, extracted shared `MySQLConnectionMixin`/`PostgreSQLConnectionMixin` so the `intent/`/`relational/` variants of each backend no longer duplicate connection setup/teardown, and deduplicated the repeated SELECT/WITH query-type check across all 8 SQL retrievers. No behavior change except one documented fix: Postgres's pooled path now always reuses its existing pool instead of silently falling back to an unpooled connection. Added 48 new regression tests. Full details: `docs/roadmap/complete/sql-connection-dedup-and-firecrawl-reconciliation.md`.
