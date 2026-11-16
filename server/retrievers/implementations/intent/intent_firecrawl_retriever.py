@@ -226,8 +226,18 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
         Returns:
             List of context dictionaries with scraped and chunked content
         """
+        cancel_event = kwargs.pop('cancel_event', None)
+
         try:
             logger.debug(f"Processing Firecrawl query with chunking: {query}")
+
+            # Check cancellation before starting (reconciled onto the base
+            # IntentHTTPRetriever's behavior -- see
+            # docs/roadmap/sql-connection-dedup-and-firecrawl-reconciliation.md
+            # Item 2; Firecrawl previously had no cancel_event handling at all).
+            if cancel_event and cancel_event.is_set():
+                logger.debug("Firecrawl query cancelled before template search")
+                return []
 
             # Find best matching templates
             usage_sink = kwargs.get("usage_sink")
@@ -248,6 +258,12 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
             # Try templates in order of relevance
             any_above_threshold = False
             for template_info in templates:
+                # Check cancellation between template attempts (reconciled
+                # onto the base's behavior -- see Item 2 above).
+                if cancel_event and cancel_event.is_set():
+                    logger.debug("Firecrawl query cancelled during template iteration")
+                    return []
+
                 template = template_info['template']
                 similarity = template_info['similarity']
 
@@ -267,6 +283,22 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                 else:
                     parameters = await self._extract_parameters(query, template)
 
+                # Skip template if any required parameter is still missing
+                # after extraction (reconciled onto the base's behavior --
+                # see Item 2 above; otherwise this falls through to a doomed
+                # scrape request with an unfilled placeholder).
+                missing_required = [
+                    p['name'] for p in template.get('parameters', [])
+                    if p.get('required', False)
+                    and (p['name'] not in parameters or parameters[p['name']] is None)
+                ]
+                if missing_required:
+                    logger.debug(
+                        "Template %s missing required params %s, trying next candidate",
+                        template.get('id'), missing_required,
+                    )
+                    continue
+
                 # Execute template (scrape content)
                 results, error = await self._execute_template(template, parameters)
 
@@ -284,9 +316,12 @@ class IntentFirecrawlRetriever(IntentHTTPRetriever):
                     usage_sink=usage_sink,
                 )
 
-                logger.debug("Successfully processed Firecrawl query")
-
-                return formatted_results
+                # Empty-result handling reconciled onto the base's behavior
+                # (try the next template candidate instead of stopping on an
+                # empty result) -- see Item 2 above.
+                if formatted_results:
+                    logger.debug("Successfully processed Firecrawl query")
+                    return formatted_results
 
             # If no template succeeded
             candidates = [

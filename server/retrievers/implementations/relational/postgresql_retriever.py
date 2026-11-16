@@ -5,16 +5,15 @@ Significantly reduced code duplication.
 
 import logging
 from typing import Any, Optional
-import psycopg
-from psycopg.rows import dict_row
 
-from retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
 from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
+from retrievers.base.postgresql_connection_mixin import PostgreSQLConnectionMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
+class PostgreSQLRetriever(BaseSQLDatabaseRetriever, PostgreSQLConnectionMixin):
     """
     PostgreSQL-specific implementation using unified base.
     Demonstrates significant code reduction while maintaining functionality.
@@ -47,34 +46,11 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
     
     async def create_connection(self) -> Any:
         """Create PostgreSQL connection."""
-        try:
-            connection = psycopg.connect(
-                host=self.connection_params['host'],
-                port=self.connection_params['port'],
-                dbname=self.connection_params['database'],
-                user=self.connection_params['username'],
-                password=self.connection_params['password'],
-                sslmode=self.sslmode,
-                row_factory=dict_row
-            )
-            
-            # Test connection
-            cursor = connection.cursor()
-            cursor.execute("SELECT version();")
-            version = cursor.fetchone()
-            cursor.close()
-
-            if version:
-                logger.debug(f"PostgreSQL connection successful: {version['version']}")
-
-            return connection
-            
-        except ImportError:
-            logger.error("psycopg not available. Install with: pip install 'psycopg[binary]'")
-            raise
-        except Exception as e:
-            logger.error(f"Failed to connect to PostgreSQL: {e}")
-            raise
+        return await self._create_postgresql_connection(
+            sslmode=self.sslmode,
+            use_pool=False,
+            install_extras='binary',
+        )
     
     def get_test_query(self) -> str:
         """PostgreSQL test query."""
@@ -98,8 +74,7 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
                 cursor.execute(query)
             
             # Handle different query types
-            query_upper = query.strip().upper()
-            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
+            if self.is_select_query(query):
                 results = cursor.fetchall()
                 return results
             else:
@@ -117,8 +92,7 @@ class PostgreSQLRetriever(BaseSQLDatabaseRetriever):
     
     async def _close_connection(self) -> None:
         """Close PostgreSQL connection."""
-        if self.connection:
-            self.connection.close()
+        await self._close_postgresql_connection(use_pool=False)
     
     async def initialize(self) -> None:
         """Initialize PostgreSQL database."""

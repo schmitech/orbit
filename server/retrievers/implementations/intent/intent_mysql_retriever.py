@@ -7,18 +7,19 @@ import logging
 from typing import Any, Optional
 
 try:
-    import mysql.connector
+    import mysql.connector  # noqa: F401 - import itself is the availability probe
     MYSQL_AVAILABLE = True
 except ImportError:
     MYSQL_AVAILABLE = False
 
-from retrievers.base.intent_sql_base import IntentSQLRetriever
 from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.intent_sql_base import IntentSQLRetriever
+from retrievers.base.mysql_connection_mixin import MySQLConnectionMixin
 
 logger = logging.getLogger(__name__)
 
 
-class IntentMySQLRetriever(IntentSQLRetriever):
+class IntentMySQLRetriever(IntentSQLRetriever, MySQLConnectionMixin):
     """
     MySQL-specific intent retriever using unified base.
     Minimal code required for a fully functional intent retriever.
@@ -52,36 +53,13 @@ class IntentMySQLRetriever(IntentSQLRetriever):
         """Create MySQL connection."""
         if not MYSQL_AVAILABLE:
             raise ImportError("mysql-connector-python not available. Install with: pip install mysql-connector-python")
-            
-        try:
-            config = {
-                'host': self.connection_params['host'],
-                'port': self.connection_params['port'],
-                'database': self.connection_params['database'],
-                'user': self.connection_params['username'],
-                'password': self.connection_params['password'],
-                'autocommit': self.autocommit
-            }
-            
-            if not self.ssl_disabled:
-                config['use_ssl'] = True
-            
-            connection = mysql.connector.connect(**config)
-            
-            # Test connection
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT VERSION() as version")
-            version = cursor.fetchone()
-            cursor.close()
 
-            if version:
-                logger.debug(f"MySQL connection successful: {version['version']}")
-
-            return connection
-            
-        except Exception as e:
-            logger.error(f"Failed to connect to MySQL: {e}")
-            raise
+        return await self._create_mysql_connection(
+            ssl_disabled=self.ssl_disabled,
+            autocommit=self.autocommit,
+            use_dictionary_cursor=True,
+            allow_pymysql_fallback=False,
+        )
     
     def get_test_query(self) -> str:
         """MySQL test query."""
@@ -98,8 +76,7 @@ class IntentMySQLRetriever(IntentSQLRetriever):
             else:
                 cursor.execute(query)
             
-            query_upper = query.strip().upper()
-            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
+            if self.is_select_query(query):
                 return cursor.fetchall()
             else:
                 if not self.autocommit:
@@ -116,8 +93,7 @@ class IntentMySQLRetriever(IntentSQLRetriever):
     
     async def _close_connection(self) -> None:
         """Close MySQL connection."""
-        if self.connection:
-            self.connection.close()
+        await self._close_mysql_connection()
 
 
 # Register the MySQL intent retriever

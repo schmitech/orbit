@@ -66,8 +66,7 @@ class SQLiteRetriever(BaseSQLDatabaseRetriever):
             cursor.execute(query, params)
             
             # Handle different query types
-            query_upper = query.strip().upper()
-            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
+            if self.is_select_query(query):
                 results = cursor.fetchall()
                 # Convert SQLite rows to dictionaries
                 return [{key: row[key] for key in row.keys()} for row in results]

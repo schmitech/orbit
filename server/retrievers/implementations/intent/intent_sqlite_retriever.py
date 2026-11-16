@@ -161,8 +161,7 @@ class IntentSQLiteRetriever(IntentSQLRetriever):
                 else:
                     cursor.execute(query)
 
-            query_upper = query.strip().upper()
-            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
+            if self.is_select_query(query):
                 # Convert Row objects to dictionaries
                 rows = cursor.fetchall()
                 return [dict(row) for row in rows]

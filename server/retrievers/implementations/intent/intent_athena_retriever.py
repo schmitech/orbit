@@ -103,8 +103,7 @@ class IntentAthenaRetriever(IntentSQLRetriever):
             else:
                 cursor.execute(normalized_query, normalized_params)
 
-            query_upper = normalized_query.strip().upper()
-            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
+            if self.is_select_query(normalized_query):
                 rows = cursor.fetchall()
                 if rows and isinstance(rows[0], dict):
                     return rows

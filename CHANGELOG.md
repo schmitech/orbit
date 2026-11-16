@@ -1,5 +1,14 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Bug Fixes
+- **SQL retriever `initialize()` could crash on a fresh connection**: `connection` had no setter, so assigning a newly created connection to it raised `AttributeError` instead of storing it. Fixed on the shared base class for all SQL backends.
+
+### Maintenance
+- **SQL connection-handling cleanup (MySQL/Postgres)**: Audited production reachability of each SQL retriever's connection-lifecycle methods, extracted shared `MySQLConnectionMixin`/`PostgreSQLConnectionMixin` so the `intent/`/`relational/` variants of each backend no longer duplicate connection setup/teardown, and deduplicated the repeated SELECT/WITH query-type check across all 8 SQL retrievers. No behavior change except one documented fix: Postgres's pooled path now always reuses its existing pool instead of silently falling back to an unpooled connection. Added 48 new regression tests. Full details: `docs/roadmap/complete/sql-connection-dedup-and-firecrawl-reconciliation.md`.
+- **Firecrawl retriever reconciled with the base HTTP intent retriever**: Adopted search-cancellation support and a missing-required-parameter check (both were bugs in Firecrawl's version), and now tries the next template candidate on an empty result instead of stopping. Added 17 new regression tests.
+
 ## [2.21.3] - 2026-11-15
 
 ### Bug Fixes

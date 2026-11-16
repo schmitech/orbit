@@ -6,12 +6,13 @@ Significantly reduced code duplication.
 import logging
 from typing import Any, Optional
 
-from retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
 from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.base_sql_database import BaseSQLDatabaseRetriever
+from retrievers.base.mysql_connection_mixin import MySQLConnectionMixin
 
 logger = logging.getLogger(__name__)
 
-class MySQLRetriever(BaseSQLDatabaseRetriever):
+class MySQLRetriever(BaseSQLDatabaseRetriever, MySQLConnectionMixin):
     """
     MySQL-specific implementation using unified base.
     Demonstrates significant code reduction while maintaining functionality.
@@ -46,49 +47,16 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
     async def create_connection(self) -> Any:
         """Create MySQL connection."""
         try:
-            # Try to import mysql-connector-python first
-            try:
-                import mysql.connector
-                connection = mysql.connector.connect(
-                    host=self.connection_params['host'],
-                    port=self.connection_params['port'],
-                    database=self.connection_params['database'],
-                    user=self.connection_params['username'],
-                    password=self.connection_params['password'],
-                    charset=self.charset,
-                    sql_mode=self.sql_mode
-                )
-            except ImportError:
-                # Fallback to PyMySQL
-                try:
-                    import pymysql
-                    connection = pymysql.connect(
-                        host=self.connection_params['host'],
-                        port=self.connection_params['port'],
-                        database=self.connection_params['database'],
-                        user=self.connection_params['username'],
-                        password=self.connection_params['password'],
-                        charset=self.charset,
-                        cursorclass=pymysql.cursors.DictCursor
-                    )
-                except ImportError:
-                    logger.error("Neither mysql-connector-python nor PyMySQL available. Install with: pip install mysql-connector-python or pip install PyMySQL")
-                    raise
-            
-            # Test connection
-            cursor = connection.cursor()
-            cursor.execute("SELECT VERSION()")
-            version = cursor.fetchone()
-            cursor.close()
-
-            if version:
-                version_str = version.get('VERSION()') if isinstance(version, dict) else version[0]
-                logger.debug(f"MySQL connection successful: {version_str}")
-
-            return connection
-            
-        except Exception as e:
-            logger.error(f"Failed to connect to MySQL: {e}")
+            return await self._create_mysql_connection(
+                charset=self.charset,
+                sql_mode=self.sql_mode,
+                ssl_disabled=True,
+                autocommit=None,
+                use_dictionary_cursor=False,
+                allow_pymysql_fallback=True,
+            )
+        except ImportError:
+            logger.error("Neither mysql-connector-python nor PyMySQL available. Install with: pip install mysql-connector-python or pip install PyMySQL")
             raise
     
     def get_test_query(self) -> str:
@@ -113,8 +81,7 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
                 cursor.execute(query)
             
             # Handle different query types
-            query_upper = query.strip().upper()
-            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
+            if self.is_select_query(query):
                 results = cursor.fetchall()
                 return results
             else:
@@ -132,8 +99,7 @@ class MySQLRetriever(BaseSQLDatabaseRetriever):
     
     async def _close_connection(self) -> None:
         """Close MySQL connection."""
-        if self.connection:
-            self.connection.close()
+        await self._close_mysql_connection()
 
     async def initialize(self) -> None:
         """Initialize MySQL database."""

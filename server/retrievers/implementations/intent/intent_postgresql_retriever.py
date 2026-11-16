@@ -8,24 +8,20 @@ from typing import Any, Optional
 
 try:
     import psycopg
-    from psycopg.rows import dict_row
-    import psycopg_pool
     _OperationalError = psycopg.OperationalError
 except ImportError:  # pragma: no cover - optional dependency for tests
-    psycopg = None
-    dict_row = None
-    psycopg_pool = None
 
     class _OperationalError(Exception):
         """Fallback when psycopg is unavailable."""
 
-from retrievers.base.intent_sql_base import IntentSQLRetriever
 from retrievers.base.base_retriever import RetrieverFactory
+from retrievers.base.intent_sql_base import IntentSQLRetriever
+from retrievers.base.postgresql_connection_mixin import PostgreSQLConnectionMixin
 
 logger = logging.getLogger(__name__)
 
 
-class IntentPostgreSQLRetriever(IntentSQLRetriever):
+class IntentPostgreSQLRetriever(IntentSQLRetriever, PostgreSQLConnectionMixin):
     """
     PostgreSQL-specific intent retriever using unified base.
     Inherits all intent functionality and PostgreSQL connection handling.
@@ -58,68 +54,15 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
     
     async def create_connection(self) -> Any:
         """Create PostgreSQL connection or connection pool."""
-        try:
-            if psycopg is None:
-                raise ImportError("psycopg not available. Install with: pip install 'psycopg[binary,pool]'")
-
-            if self.use_connection_pool and not self.connection_pool:
-                # Build conninfo string for the pool
-                conninfo = psycopg.conninfo.make_conninfo(
-                    host=self.connection_params['host'],
-                    port=self.connection_params['port'],
-                    dbname=self.connection_params['database'],
-                    user=self.connection_params['username'],
-                    password=self.connection_params['password'],
-                    sslmode=self.sslmode,
-                    connect_timeout=self.connection_timeout,
-                    options=f'-c statement_timeout={self.statement_timeout}'
-                )
-
-                # Create connection pool
-                self.connection_pool = psycopg_pool.ConnectionPool(
-                    conninfo=conninfo,
-                    min_size=2,
-                    max_size=self.pool_size,
-                    kwargs={"row_factory": dict_row},
-                )
-
-                logger.debug(f"Created PostgreSQL connection pool with size {self.pool_size}")
-
-                # Get a connection from the pool
-                connection = self.connection_pool.getconn()
-            else:
-                # Create single connection
-                connection = psycopg.connect(
-                    host=self.connection_params['host'],
-                    port=self.connection_params['port'],
-                    dbname=self.connection_params['database'],
-                    user=self.connection_params['username'],
-                    password=self.connection_params['password'],
-                    sslmode=self.sslmode,
-                    row_factory=dict_row,
-                    connect_timeout=self.connection_timeout
-                )
-
-                # Set autocommit to False to manage transactions properly
-                connection.autocommit = False
-            
-            # Test connection
-            cursor = connection.cursor()
-            cursor.execute("SELECT version();")
-            version = cursor.fetchone()
-            cursor.close()
-            
-            if version:
-                logger.debug(f"PostgreSQL connection successful: {version['version']}")
-            
-            return connection
-            
-        except ImportError:
-            logger.error("psycopg not available. Install with: pip install 'psycopg[binary,pool]'")
-            raise
-        except Exception as e:
-            logger.error(f"Failed to connect to PostgreSQL: {e}")
-            raise
+        return await self._create_postgresql_connection(
+            sslmode=self.sslmode,
+            connect_timeout=self.connection_timeout,
+            statement_timeout=self.statement_timeout,
+            autocommit=False,
+            use_pool=self.use_connection_pool,
+            pool_size=self.pool_size,
+            install_extras='binary,pool',
+        )
     
     def get_test_query(self) -> str:
         """PostgreSQL test query."""
@@ -127,19 +70,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
     
     def _is_connection_alive(self) -> bool:
         """Check if PostgreSQL connection is still alive."""
-        try:
-            if not self.connection:
-                return False
-            # Check if connection is closed
-            if self.connection.closed:
-                return False
-            # Try a simple query to verify connection is working
-            cursor = self.connection.cursor()
-            cursor.execute("SELECT 1")
-            cursor.close()
-            return True
-        except Exception:  # noqa: BLE001 - psycopg driver boundary; liveness check must fail safe
-            return False
+        return self._is_postgresql_connection_alive()
 
     async def _execute_raw_query(self, query: str, params: Optional[Any] = None) -> list[Any]:
         """Execute PostgreSQL query with intent-specific handling."""
@@ -152,8 +83,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
             cursor = self.connection.cursor()
             cursor.execute(query, params)
             
-            query_upper = query.strip().upper()
-            if query_upper.startswith("SELECT") or query_upper.startswith("WITH"):
+            if self.is_select_query(query):
                 return cursor.fetchall()
             else:
                 self.connection.commit()
@@ -169,20 +99,7 @@ class IntentPostgreSQLRetriever(IntentSQLRetriever):
     
     async def _close_connection(self) -> None:
         """Close PostgreSQL connection or return to pool."""
-        if self.connection:
-            if self.use_connection_pool and self.connection_pool:
-                # Return connection to pool
-                self.connection_pool.putconn(self.connection)
-                logger.debug("Returned connection to pool")
-            else:
-                # Close single connection
-                self.connection.close()
-        
-        # Close the pool if needed
-        if self.connection_pool:
-            self.connection_pool.close()
-            self.connection_pool = None
-            logger.debug("Closed PostgreSQL connection pool")
+        await self._close_postgresql_connection(use_pool=self.use_connection_pool)
 
 
 # Register the new intent PostgreSQL retriever

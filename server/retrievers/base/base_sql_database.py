@@ -171,7 +171,19 @@ class SQLTypeConversionMixin:
 
 class SQLQueryExecutionMixin:
     """Mixin for handling query execution and result processing."""
-    
+
+    @staticmethod
+    def is_select_query(query: str) -> bool:
+        """
+        Return True if query is a read query (SELECT or a WITH/CTE query).
+
+        Extracted per docs/roadmap/sql-connection-dedup-and-firecrawl-reconciliation.md
+        Item 1, step 6 -- was duplicated identically across every SQL
+        retriever's _execute_raw_query (both intent/ and relational/).
+        """
+        query_upper = query.strip().upper()
+        return query_upper.startswith(("SELECT", "WITH"))
+
     def dump_results_to_file(self, results: list[dict[str, Any]], prefix: str = "query_results"):
         """
         Dump query results to a timestamped JSON file for debugging.

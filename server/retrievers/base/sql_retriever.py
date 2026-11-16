@@ -91,6 +91,10 @@ class AbstractSQLRetriever(BaseRetriever):
             self._connection = self._datasource.get_connection()
         return self._connection
 
+    @connection.setter
+    def connection(self, value: Any) -> None:
+        self._connection = value
+
     async def _ensure_datasource_initialized(self) -> None:
         """
         Ensure the datasource is initialized before use.
