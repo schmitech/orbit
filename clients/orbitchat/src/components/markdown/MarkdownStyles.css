@@ -520,7 +520,6 @@
 .markdown-content td:has(a) {
   white-space: nowrap;
   word-break: normal;
-  display: inline-block;
   max-width: none;
 }
 
