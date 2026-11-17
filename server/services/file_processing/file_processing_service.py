@@ -25,6 +25,7 @@ from services.file_processing.chunking import (
     SemanticChunker,
     TableAwareChunker,
     TokenChunker,
+    add_context_metadata,
 )
 from services.file_processing.magika_detector import (
     FileValidationError,
@@ -1507,6 +1508,7 @@ class FileProcessingService:
             logger.debug(f"  Text length: {len(text)} characters")
 
         chunks = self.chunker.chunk_text(text, file_id, metadata)
+        add_context_metadata(chunks)
 
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"  Created {len(chunks)} chunks from file {file_id}")

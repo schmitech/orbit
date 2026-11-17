@@ -11,6 +11,7 @@ from .recursive_chunker import RecursiveChunker, RecursiveLevel, RecursiveRules
 from .semantic_chunker import SemanticChunker
 from .table_aware_chunker import TableAwareChunker, detect_table_blocks
 from .token_chunker import TokenChunker
+from .utils import add_context_metadata
 
 __all__ = [
     'Chunk',
@@ -23,5 +24,6 @@ __all__ = [
     'TableAwareChunker',
     'TextChunker',
     'TokenChunker',
+    'add_context_metadata',
     'detect_table_blocks',
 ]

@@ -15,6 +15,7 @@ This document tracks a broader toolkit of text-chunking techniques against what 
 | 10 | Token Based Chunking | `TokenChunker` (`token_chunker.py`), plus token-based mode (`use_tokens=True`) on `FixedSizeChunker` |
 | 11 | Document Structure-Aware Chunking | `MarkdownHeaderChunker` (`markdown_header_chunker.py`) — splits on markdown headers (H1-H6) before falling back to paragraphs/sentences/words |
 | 12 | Sliding Window Chunking | Achieved via the `overlap` parameter on `FixedSizeChunker`/`TokenChunker` (fixed step, fixed window) |
+| 7 | Context Enriched Chunking | `add_context_metadata()` (`chunking/utils.py`) — post-processing pass wired into `FileProcessingService._chunk_content()`; adds `preceding_context`/`following_context` snippets and `word_count`/`char_count` to every chunk's metadata, across all 5 strategies at once. Absent neighbor context is stored as `""` rather than `None`, since some vector stores (e.g. Pinecone) reject null metadata values |
 
 ## Pending
 
@@ -442,7 +443,7 @@ chunks = adaptive_threshold_chunking(text, base_chunk_size=800, adaptation_facto
 
 Ordered by effort-to-value ratio, given ORBIT's existing chunker infrastructure (`TextChunker` base class, `RecursiveRules`/`RecursiveLevel` hierarchical splitting, and the `chunking_strategy` if/elif dispatch in `file_processing_service.py:_init_chunker`):
 
-1. **Context Enriched Chunking (7)** — Lowest effort, highest immediate value. No new chunker class needed: `Chunk.metadata` already exists on every strategy, so this is a post-processing pass applied after any existing chunker runs (add `preceding_context`/`following_context`/word counts into `metadata`). Works across all 5 current strategies at once instead of being its own strategy.
+1. ~~**Context Enriched Chunking (7)**~~ — ✅ Done. See the Implemented table above.
 2. **Recursive Sentence Chunking (9)** — Medium effort. Same pattern used for `MarkdownHeaderChunker`: a thin `RecursiveChunker` subclass with a custom `RecursiveRules` that puts sentences ahead of paragraphs, plus a clause-level (`,`/`;`) fallback level for the rare oversized single sentence. No changes to the base `RecursiveChunker` needed beyond what already exists.
 3. **Hierarchical Chunking (13)** — Medium-high effort, biggest design decision of the pending set. The current `Chunk` dataclass and `chunk_index` model a flat list, not a tree — this needs either a new output shape (parent/child chunk IDs in metadata) or a wrapper that runs the same chunker at multiple `chunk_size` values and links results by containment. Worth scoping deliberately before starting, since it's the one technique that doesn't fit the existing single-chunker/single-output contract.
 4. **Density-Based Chunking (14)** — Medium effort, uncertain ROI. Straightforward to implement as a standalone chunker (lexical diversity + word length heuristic), but the "when to use" cases are narrower (mixed-density academic/technical text) and the density heuristic itself is unproven relative to ORBIT's current retrieval quality bar. Prototype and evaluate before committing to production use.

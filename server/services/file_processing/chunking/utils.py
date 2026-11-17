@@ -258,3 +258,31 @@ def split_by_regex(
             merged.append(carry)
 
     return merged
+
+
+def add_context_metadata(chunks: list, snippet_chars: int = 200) -> list:
+    """
+    Enrich each chunk's metadata with neighbor-context snippets and basic stats.
+
+    Applies uniformly across chunking strategies as a post-processing pass,
+    rather than being its own strategy. Adds `preceding_context`/`following_context`
+    (tail/head snippet of the adjacent chunk, or "" at the file's edges) plus
+    `word_count` and `char_count`. All added fields are flat, non-null scalars,
+    since several vector stores (e.g. Pinecone) reject null metadata values.
+
+    Args:
+        chunks: Chunks produced for a single file, in chunk_index order
+        snippet_chars: Max characters taken from the neighbor chunk's edge
+
+    Returns:
+        The same list, with each chunk's metadata updated in place
+    """
+    for i, chunk in enumerate(chunks):
+        preceding = chunks[i - 1].text[-snippet_chars:] if i > 0 else ""
+        following = chunks[i + 1].text[:snippet_chars] if i < len(chunks) - 1 else ""
+        chunk.metadata['preceding_context'] = preceding
+        chunk.metadata['following_context'] = following
+        chunk.metadata['word_count'] = len(chunk.text.split())
+        chunk.metadata['char_count'] = len(chunk.text)
+
+    return chunks

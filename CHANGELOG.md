@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **Context-enriched chunk metadata**: Every chunking strategy now stamps each chunk's metadata with `preceding_context`/`following_context` snippets from its neighboring chunks, plus `word_count`/`char_count`, via a new post-processing pass (`add_context_metadata()`) applied after chunking regardless of strategy. Improves retrieval context and debugging without requiring a new chunker. See `docs/roadmap/chunking/chunking-strategies.md`.
+
 ## [2.21.4] - 2026-11-16
 
 ### Bug Fixes
