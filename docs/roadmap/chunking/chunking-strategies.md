@@ -16,6 +16,7 @@ This document tracks a broader toolkit of text-chunking techniques against what 
 | 11 | Document Structure-Aware Chunking | `MarkdownHeaderChunker` (`markdown_header_chunker.py`) — splits on markdown headers (H1-H6) before falling back to paragraphs/sentences/words |
 | 12 | Sliding Window Chunking | Achieved via the `overlap` parameter on `FixedSizeChunker`/`TokenChunker` (fixed step, fixed window) |
 | 7 | Context Enriched Chunking | `add_context_metadata()` (`chunking/utils.py`) — post-processing pass wired into `FileProcessingService._chunk_content()`; adds `preceding_context`/`following_context` snippets and `word_count`/`char_count` to every chunk's metadata, across all 5 strategies at once. Absent neighbor context is stored as `""` rather than `None`, since some vector stores (e.g. Pinecone) reject null metadata values |
+| 9 | Recursive Sentence Chunking | `RecursiveSentenceChunker` (`recursive_sentence_chunker.py`) — `RecursiveChunker` subclass (same pattern as `MarkdownHeaderChunker`) with sentence boundaries ahead of paragraphs, falling back to clause-level (`,`/`;`) splitting and then words. Selected via `chunking_strategy: "recursive_sentence"` |
 
 ## Pending
 
@@ -122,74 +123,6 @@ chunks = context_enriched_chunking(text, chunk_size=600, document_metadata=metad
 **Pros:** Rich metadata lends itself to better retrieval options and is beneficial for debugging and analysis.
 
 **Cons:** Higher storage requirement and data structures are more complex.
-
----
-
-### 9. Recursive Sentence Chunking
-
-This strategy places a priority on sentence boundaries, and recursively processes any content that cannot fit size-wise. Distinct from `RecursiveChunker`, which prioritizes paragraphs first — this technique starts at the sentence level and falls back to clause-level splitting (on `,`/`;`) for a single sentence too long to fit.
-
-```python
-import re
-from nltk.tokenize import sent_tokenize
-
-def recursive_sentence_chunking(text, max_chunk_size=1000, min_chunk_size=100):
-    """Recursively chunk text at sentence boundaries"""
-    def split_sentences(text, max_size, min_size):
-        if len(text) <= max_size:
-            return [text]
-        sentences = sent_tokenize(text)
-        if len(sentences) == 1:
-            # Single long sentence - split at clause boundaries
-            clauses = re.split(r'[,;]', sentences[0])
-            chunks = []
-            current_chunk = ""
-            for clause in clauses:
-                test_chunk = current_chunk + clause if current_chunk else clause
-                if len(test_chunk) <= max_size:
-                    current_chunk = test_chunk
-                else:
-                    if current_chunk and len(current_chunk) >= min_size:
-                        chunks.append(current_chunk.strip())
-                    current_chunk = clause
-            if current_chunk:
-                chunks.append(current_chunk.strip())
-            return chunks
-        # Multiple sentences - group them
-        chunks = []
-        current_chunk = ""
-        for sentence in sentences:
-            test_chunk = current_chunk + " " + sentence if current_chunk else sentence
-            if len(test_chunk) <= max_size:
-                current_chunk = test_chunk
-            else:
-                if current_chunk and len(current_chunk) >= min_size:
-                    chunks.append(current_chunk.strip())
-                if len(sentence) > max_size:
-                    chunks.extend(split_sentences(sentence, max_size, min_size))
-                    current_chunk = ""
-                else:
-                    current_chunk = sentence
-        if current_chunk and len(current_chunk) >= min_size:
-            chunks.append(current_chunk.strip())
-        return chunks
-    return split_sentences(text, max_chunk_size, min_chunk_size)
-
-# Usage
-chunks = recursive_sentence_chunking(text, max_chunk_size=700, min_chunk_size=50)
-```
-
-**What it does:** Intelligent text handling by prioritizing sentence boundaries and recursive processing of anything that cannot fit size-wise, with fallback strategies for complex sentences.
-
-**When to use:**
-- When you need high quality text processing when the integrity of sentences is important
-- Academic/technical documents
-- Legal documents
-- Content where grammatical structure could change the meaning
-
-**Pros:** Great balance of structural preservation and size control.
-
-**Cons:** More complex logic, and chance of receiving very small chunks of text with complex content.
 
 ---
 
@@ -444,7 +377,7 @@ chunks = adaptive_threshold_chunking(text, base_chunk_size=800, adaptation_facto
 Ordered by effort-to-value ratio, given ORBIT's existing chunker infrastructure (`TextChunker` base class, `RecursiveRules`/`RecursiveLevel` hierarchical splitting, and the `chunking_strategy` if/elif dispatch in `file_processing_service.py:_init_chunker`):
 
 1. ~~**Context Enriched Chunking (7)**~~ — ✅ Done. See the Implemented table above.
-2. **Recursive Sentence Chunking (9)** — Medium effort. Same pattern used for `MarkdownHeaderChunker`: a thin `RecursiveChunker` subclass with a custom `RecursiveRules` that puts sentences ahead of paragraphs, plus a clause-level (`,`/`;`) fallback level for the rare oversized single sentence. No changes to the base `RecursiveChunker` needed beyond what already exists.
+2. ~~**Recursive Sentence Chunking (9)**~~ — ✅ Done. See the Implemented table above.
 3. **Hierarchical Chunking (13)** — Medium-high effort, biggest design decision of the pending set. The current `Chunk` dataclass and `chunk_index` model a flat list, not a tree — this needs either a new output shape (parent/child chunk IDs in metadata) or a wrapper that runs the same chunker at multiple `chunk_size` values and links results by containment. Worth scoping deliberately before starting, since it's the one technique that doesn't fit the existing single-chunker/single-output contract.
 4. **Density-Based Chunking (14)** — Medium effort, uncertain ROI. Straightforward to implement as a standalone chunker (lexical diversity + word length heuristic), but the "when to use" cases are narrower (mixed-density academic/technical text) and the density heuristic itself is unproven relative to ORBIT's current retrieval quality bar. Prototype and evaluate before committing to production use.
 5. **Adaptive Threshold Chunking (15)** — Higher effort, narrow benefit over `RecursiveChunker`'s existing size/merge logic. The complexity-scoring formula needs tuning per content type, which cuts against ORBIT's "works out of the box, no required deps" design principle for the other chunkers.

@@ -22,6 +22,7 @@ from services.file_processing.chunking import (
     FixedSizeChunker,
     MarkdownHeaderChunker,
     RecursiveChunker,
+    RecursiveSentenceChunker,
     SemanticChunker,
     TableAwareChunker,
     TokenChunker,
@@ -334,6 +335,16 @@ class FileProcessingService:
                 tokenizer=tokenizer
             )
             logger.debug(f"  Recursive chunker configured: min_characters_per_chunk={min_characters}")
+            return chunker
+        elif strategy == 'recursive_sentence':
+            # Sentence-first recursive chunking, with clause/word fallback
+            min_characters = chunking_options.get('min_characters_per_chunk', 24)
+            chunker = RecursiveSentenceChunker(
+                chunk_size=chunk_size,
+                min_characters_per_chunk=min_characters,
+                tokenizer=tokenizer
+            )
+            logger.debug(f"  Recursive sentence chunker configured: min_characters_per_chunk={min_characters}")
             return chunker
         elif strategy == 'markdown_header':
             # Markdown-header-aware recursive chunking

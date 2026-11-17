@@ -747,8 +747,8 @@ No benchmark numbers are published here -- the previous figures in this section 
 
 ```yaml
 files:
-  default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive" (recommended), "markdown_header", "table_aware"
-  default_chunk_size: 2048  # Tokens for recursive/token/markdown_header/table_aware when `tokenizer` is set, characters otherwise (fixed/semantic are always characters unless use_tokens/chunk_size_tokens is set)
+  default_chunking_strategy: "recursive"  # Options: "fixed", "semantic", "token", "recursive" (recommended), "recursive_sentence", "markdown_header", "table_aware"
+  default_chunk_size: 2048  # Tokens for recursive/recursive_sentence/token/markdown_header/table_aware when `tokenizer` is set, characters otherwise (fixed/semantic are always characters unless use_tokens/chunk_size_tokens is set)
   default_chunk_overlap: 200
 
   # Optional tokenizer configuration
@@ -757,7 +757,7 @@ files:
 
   # Strategy-specific options
   chunking_options:
-    # Recursive / markdown_header / table_aware chunking options
+    # Recursive / recursive_sentence / markdown_header / table_aware chunking options
     min_characters_per_chunk: 24
 
     # Semantic chunking options
@@ -866,7 +866,7 @@ See `CHUNKING_REVIEW_REPORT.md` for full details on:
 
 Keep these systems **separate** because they serve different purposes:
 
-1. **File Chunking** - General-purpose, multiple strategies (fixed, semantic, token, recursive, markdown_header, table_aware), for uploaded files
+1. **File Chunking** - General-purpose, multiple strategies (fixed, semantic, token, recursive, recursive_sentence, markdown_header, table_aware), for uploaded files
 2. **Web Content Chunking** - Specialized, token/structure-based, for web scraping
 
 ### Recommended Default Strategy
