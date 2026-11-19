@@ -69,7 +69,7 @@ class FileVectorRetriever(AbstractVectorRetriever):
         self._encryptor = FileEncryptor.from_env() if encryption_config.get('enabled', False) else None
 
         # Hierarchical-chunking parent-expansion budgets (see HierarchicalChunker
-        # and docs/roadmap/chunking/hierarchical-chunking.md). Both cap by
+        # and docs/roadmap/complete/hierarchical-chunking.md). Both cap by
         # characters of attached parent text; degrade by truncation, never error.
         self.hierarchy_parent_char_limit = adapter_config.get('hierarchy_parent_char_limit')
         if self.hierarchy_parent_char_limit is None:

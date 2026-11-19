@@ -17,6 +17,7 @@ This document tracks a broader toolkit of text-chunking techniques against what 
 | 12 | Sliding Window Chunking | Achieved via the `overlap` parameter on `FixedSizeChunker`/`TokenChunker` (fixed step, fixed window) |
 | 7 | Context Enriched Chunking | `add_context_metadata()` (`chunking/utils.py`) — post-processing pass wired into `FileProcessingService._chunk_content()`; adds `preceding_context`/`following_context` snippets and `word_count`/`char_count` to every chunk's metadata, across all 5 strategies at once. Absent neighbor context is stored as `""` rather than `None`, since some vector stores (e.g. Pinecone) reject null metadata values |
 | 9 | Recursive Sentence Chunking | `RecursiveSentenceChunker` (`recursive_sentence_chunker.py`) — `RecursiveChunker` subclass (same pattern as `MarkdownHeaderChunker`) with sentence boundaries ahead of paragraphs, falling back to clause-level (`,`/`;`) splitting and then words. Selected via `chunking_strategy: "recursive_sentence"` |
+| 13 | Hierarchical Chunking | `HierarchicalChunker` (`hierarchical_chunker.py`) — one or more nested parent levels (optionally more than two, via `chunking_options.intermediate_chunk_sizes`) narrowing down to leaf sentences; only leaves are embedded/searched, and a leaf hit's immediate parent text is attached as extra context at query time. Selected via `chunking_strategy: "hierarchical"`. Full design and phased implementation notes in `docs/roadmap/complete/hierarchical-chunking.md` |
 
 ## Pending
 
@@ -378,18 +379,18 @@ Ordered by effort-to-value ratio, given ORBIT's existing chunker infrastructure 
 
 1. ~~**Context Enriched Chunking (7)**~~ — ✅ Done. See the Implemented table above.
 2. ~~**Recursive Sentence Chunking (9)**~~ — ✅ Done. See the Implemented table above.
-3. **Hierarchical Chunking (13)** — Implementation-ready design, not yet implemented. Phased plan in `docs/roadmap/chunking/hierarchical-chunking.md`: leaf-only-embed / parent-expand-on-retrieval model; hierarchy links live in `db_metadata` (reusing the table-grid encryption/re-keying/persistence path verbatim) rather than `metadata`, since `metadata` is wholesale-replaced by an encrypted envelope before indexing and the budget-splitter's `parent_chunk_id` field would otherwise collide; global chunk-id reassignment across per-parent sub-chunking calls; expansion runs after `return_results` truncation and lands in prompt-visible `content`, not just metadata.
+3. ~~**Hierarchical Chunking (13)**~~ — ✅ Done. See the Implemented table above; full design and phased implementation notes in `docs/roadmap/complete/hierarchical-chunking.md`.
 4. **Density-Based Chunking (14)** — Medium effort, uncertain ROI. Straightforward to implement as a standalone chunker (lexical diversity + word length heuristic), but the "when to use" cases are narrower (mixed-density academic/technical text) and the density heuristic itself is unproven relative to ORBIT's current retrieval quality bar. Prototype and evaluate before committing to production use.
 5. **Adaptive Threshold Chunking (15)** — Higher effort, narrow benefit over `RecursiveChunker`'s existing size/merge logic. The complexity-scoring formula needs tuning per content type, which cuts against ORBIT's "works out of the box, no required deps" design principle for the other chunkers.
 6. **Agentic Chunking (5)** — Highest cost, lowest priority. Requires a classifier or LLM call per sentence, which is slow and expensive at file-upload scale (ORBIT already has an LLM inference pipeline, but running it per-sentence during chunking would be a very different cost profile than the current chunkers, all of which are dependency-optional and run in milliseconds). Only worth it if a specific customer need for topic-aware chunking outweighs the added latency/cost.
 
 ## Choosing the Right Chunking Strategy
 
-- **For RAG systems:** Context Enriched Chunking or Hierarchical Chunking give the best retrieval-quality upside among the pending techniques; Overlapping Chunking (already implemented) covers most of what's needed today.
+- **For RAG systems:** Context Enriched Chunking and Hierarchical Chunking (both already implemented) give the best retrieval-quality upside; Overlapping Chunking (already implemented) covers most of what's needed today.
 - **For LLM integrated applications:** Token Based Chunking (already implemented as `TokenChunker`) remains the standard for minimizing token costs.
 - **For document analysis:** Advanced Semantic Chunking (already implemented as `SemanticChunker` advanced mode) and Document Structure-Aware Chunking (already implemented as `MarkdownHeaderChunker`) cover the highest-quality cases; Agentic Chunking is the only one left unimplemented here, and it's the most expensive.
 - **For structured content:** Paragraph Chunking and Recursive Character Chunking (already implemented) cover most structured/mixed content; Document Structure-Aware Chunking adds markdown-header awareness on top.
-- **For research and analysis:** Hierarchical Chunking and Density-Based Chunking remain pending and are the ones to prioritize for multi-scale or density-sensitive analysis use cases.
+- **For research and analysis:** Hierarchical Chunking (already implemented) is the one to reach for first for multi-scale use cases; Density-Based Chunking remains pending for density-sensitive analysis.
 - **For adaptive systems:** Adaptive Threshold Chunking is pending and the lowest-priority item for this use case today.
 
 It is important to remember that chunking is often the basis of your NLP pipeline; time spent determining the correct type of chunk and setting it up properly for your specific use case is well worth the cost and effort when you consider potential downstream applications.

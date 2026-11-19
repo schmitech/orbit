@@ -3,7 +3,7 @@
 ## [UNRELEASED]
 
 ### Core Features
-- **Hierarchical chunking strategy**: Added `HierarchicalChunker`, selectable via `chunking_strategy: "hierarchical"`. Chunks each document into coarse parent sections containing fine-grained leaf sentences; only leaves are embedded/searched, and a leaf hit's parent text is attached as extra context at query time. See `docs/roadmap/chunking/hierarchical-chunking.md`.
+- **Hierarchical chunking strategy**: Added `HierarchicalChunker`, selectable via `chunking_strategy: "hierarchical"`. Chunks each document into one or more nested parent levels (optionally more than two, via `chunking_options.intermediate_chunk_sizes`) narrowing down to fine-grained leaf sentences; only leaves are embedded/searched, and a leaf hit's immediate parent text is attached as extra context at query time. See `docs/roadmap/complete/hierarchical-chunking.md`.
 - **Context-enriched chunk metadata**: Every chunking strategy now stamps each chunk's metadata with `preceding_context`/`following_context` snippets from its neighboring chunks, plus `word_count`/`char_count`, via a new post-processing pass (`add_context_metadata()`) applied after chunking regardless of strategy. Improves retrieval context and debugging without requiring a new chunker. See `docs/roadmap/chunking/chunking-strategies.md`.
 - **Recursive sentence chunking strategy**: Added `RecursiveSentenceChunker`, selectable via `chunking_strategy: "recursive_sentence"`. Prioritizes sentence boundaries ahead of paragraphs, falling back to clause-level (`,`/`;`) splitting and then words for an oversized single sentence — better suited than the default `recursive` strategy for prose-heavy or legal/academic documents with few paragraph breaks.
 

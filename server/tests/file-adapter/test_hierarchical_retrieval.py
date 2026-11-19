@@ -1,6 +1,6 @@
 """
 Tests for hierarchical-chunking retrieval: FileVectorRetriever.get_chunk()
-and parent-expansion (Phase 2/3 of docs/roadmap/chunking/hierarchical-chunking.md).
+and parent-expansion (Phase 2/3 of docs/roadmap/complete/hierarchical-chunking.md).
 """
 
 import sys

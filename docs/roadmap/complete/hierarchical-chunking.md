@@ -4,11 +4,17 @@ Tracks item #13 (Hierarchical Chunking) from `chunking-strategies.md`, the next
 item in that document's suggested implementation sequence after Context
 Enriched Chunking and Recursive Sentence Chunking (both done).
 
-**Status: implementation-ready design.** Earlier drafts assumed parent-chunk
-storage/lookup already existed, that containment could be tracked through two
-independent chunking passes, and that attaching context to a result's
-metadata was sufficient. All three were wrong; this version fixes them
-against the actual code, cited throughout.
+**Status: done.** Phases 1–3 and the chunker-side generalization in Phase 4
+are implemented (`server/services/file_processing/chunking/hierarchical_chunker.py`,
+wired into `FileProcessingService`/`FileVectorRetriever`). The one deferred
+piece is noted in Phase 4 below: retrieval-time expansion still attaches
+only a leaf's immediate parent, not a full chain up to the root.
+
+Earlier drafts of this plan assumed parent-chunk storage/lookup already
+existed, that containment could be tracked through two independent
+chunking passes, and that attaching context to a result's metadata was
+sufficient. All three were wrong; this version fixed them against the
+actual code, cited throughout.
 
 ## Decision: leaf-only embed, parent-expand on retrieval
 
@@ -274,13 +280,29 @@ for Phase 1 (see Phase 4). Wire in as `chunking_strategy: "hierarchical"` in
   total-request budget truncates/omits the excess rather than growing
   unbounded.
 
-### Phase 4 (optional, only if Phase 1–3 prove out) — More than two levels
+### Phase 4 — More than two levels
 
-Generalize beyond two levels (grandparent chaining) and/or beyond one parent
-hop in expansion. Deferred: the two-level case covers the dominant "broad
-section + precise sentence" use case, and multi-level chaining adds real
-complexity (cache strategy, deeper expansion-budget accounting) that should
-only be taken on once there's a concrete need for it.
+**Done, scoped to the chunker side.** `HierarchicalChunker` takes an optional
+`intermediate_chunk_sizes: list[int]` (non-increasing from `parent_chunk_size`,
+each `>= leaf_chunk_size`) to insert one or more additional parent levels
+between the top parent and the leaf level. Every non-leaf level uses the same
+`metadata['level'] = 'parent'` string (so `file_processing_service.py`'s
+`== 'parent'` check and the never-embedded/never-vector-deleted handling in
+Phase 2 apply uniformly to all of them, with no changes needed there), and
+carries `db_metadata = {'text': ..., 'hierarchy_parent_id': <its own
+parent's chunk_id>}` — except the top level, which omits
+`hierarchy_parent_id` since it has no parent. ids are assigned level by
+level: each level is globally re-indexed immediately after being built
+(before being used as the parent for the next level), generalizing
+contract #1's two-level re-indexing.
+
+**Not done — beyond one parent hop in expansion.** Retrieval-time expansion
+(`_expand_hierarchical_parents`) still only attaches a leaf's *immediate*
+parent (whatever level that is), one `get_chunk()` call per unique
+immediate parent, as it already did for two levels. Grandparent chaining
+(attaching the immediate parent's own parent too) is still deferred —
+revisit only once there's a concrete need for it, since it adds expansion-
+budget accounting across more than one level.
 
 ## Out of scope for this plan
 
