@@ -20,6 +20,7 @@ from services.file_metadata.metadata_store import FileMetadataStore
 from services.file_processing.chunking import (
     Chunk,
     FixedSizeChunker,
+    HierarchicalChunker,
     MarkdownHeaderChunker,
     RecursiveChunker,
     RecursiveSentenceChunker,
@@ -345,6 +346,22 @@ class FileProcessingService:
                 tokenizer=tokenizer
             )
             logger.debug(f"  Recursive sentence chunker configured: min_characters_per_chunk={min_characters}")
+            return chunker
+        elif strategy == 'hierarchical':
+            # Two-level hierarchical chunking: parent sections, leaf sentences
+            min_characters = chunking_options.get('min_characters_per_chunk', 24)
+            parent_chunk_size = chunking_options.get('parent_chunk_size', chunk_size * 4)
+            leaf_chunk_size = chunking_options.get('leaf_chunk_size', chunk_size)
+            chunker = HierarchicalChunker(
+                parent_chunk_size=parent_chunk_size,
+                leaf_chunk_size=leaf_chunk_size,
+                min_characters_per_chunk=min_characters,
+                tokenizer=tokenizer
+            )
+            logger.debug(
+                f"  Hierarchical chunker configured: parent_chunk_size={parent_chunk_size}, "
+                f"leaf_chunk_size={leaf_chunk_size}"
+            )
             return chunker
         elif strategy == 'markdown_header':
             # Markdown-header-aware recursive chunking

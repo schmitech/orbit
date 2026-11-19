@@ -6,6 +6,7 @@ Provides different text chunking approaches for file content.
 
 from .base_chunker import Chunk, TextChunker
 from .fixed_chunker import FixedSizeChunker
+from .hierarchical_chunker import HierarchicalChunker
 from .markdown_header_chunker import MarkdownHeaderChunker
 from .recursive_chunker import RecursiveChunker, RecursiveLevel, RecursiveRules
 from .recursive_sentence_chunker import RecursiveSentenceChunker
@@ -17,6 +18,7 @@ from .utils import add_context_metadata
 __all__ = [
     'Chunk',
     'FixedSizeChunker',
+    'HierarchicalChunker',
     'MarkdownHeaderChunker',
     'RecursiveChunker',
     'RecursiveLevel',
