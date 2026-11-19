@@ -966,6 +966,14 @@ class FileProcessingService:
                 if tables:
                     chunks.extend(self._extract_tables_as_chunks(tables, file_id, len(chunks)))
 
+                # Hierarchical chunking produces parent chunks (coarse, never
+                # embedded/searched - see HierarchicalChunker) alongside the
+                # leaves that actually get indexed. A no-op for every other
+                # strategy, none of which set level to the string 'parent'.
+                # Read before _encrypt_chunk_metadata() wholesale-replaces
+                # chunk.metadata with its encrypted envelope.
+                embedded_chunk_ids = {c.chunk_id for c in chunks if c.metadata.get('level') != 'parent'}
+
                 # A user can cancel while an async processor is extracting content.
                 # Serialize persistence with deletion so we either observe the missing
                 # file and stop, or finish atomically before deletion cleans it up.
@@ -980,11 +988,13 @@ class FileProcessingService:
                     requires_encryption = bool(file_info.get('metadata', {}).get('encrypted', False))
                     self._encrypt_chunk_metadata(chunks, requires_encryption)
 
+                    chunks_to_embed = [c for c in chunks if c.chunk_id in embedded_chunk_ids]
+
                     # Index chunks into vector store.
                     index_result = await self._index_chunks_in_vector_store(
                         file_id=file_id,
                         api_key=api_key,
-                        chunks=chunks,
+                        chunks=chunks_to_embed,
                         requires_encryption=requires_encryption,
                         filename=filename,
                     )
@@ -997,11 +1007,12 @@ class FileProcessingService:
 
                     # Record chunks in metadata store (with collection name).
                     for chunk in chunks:
+                        is_embedded = chunk.chunk_id in embedded_chunk_ids
                         await self.metadata_store.record_chunk(
                             chunk_id=chunk.chunk_id,
                             file_id=file_id,
                             chunk_index=chunk.chunk_index,
-                            vector_store_id=chunk.chunk_id,
+                            vector_store_id=chunk.chunk_id if is_embedded else None,
                             collection_name=collection_name,
                             metadata=chunk.db_metadata if chunk.db_metadata is not None else chunk.metadata
                         )
@@ -1244,13 +1255,23 @@ class FileProcessingService:
             if tables:
                 chunks.extend(self._extract_tables_as_chunks(tables, file_id, len(chunks)))
 
+            # Hierarchical chunking produces parent chunks (coarse, never
+            # embedded/searched - see HierarchicalChunker) alongside the leaves
+            # that actually get indexed. A no-op for every other strategy, none
+            # of which set level to the string 'parent'. Read before
+            # _encrypt_chunk_metadata() wholesale-replaces chunk.metadata with
+            # its encrypted envelope.
+            embedded_chunk_ids = {c.chunk_id for c in chunks if c.metadata.get('level') != 'parent'}
+
             self._encrypt_chunk_metadata(chunks, requires_encryption)
+
+            chunks_to_embed = [c for c in chunks if c.chunk_id in embedded_chunk_ids]
 
             # 7. Index chunks into vector store
             index_result = await self._index_chunks_in_vector_store(
                 file_id=file_id,
                 api_key=api_key,
-                chunks=chunks,
+                chunks=chunks_to_embed,
                 requires_encryption=requires_encryption,
                 filename=filename,
             )
@@ -1264,11 +1285,12 @@ class FileProcessingService:
 
             # 8. Record chunks in metadata store (with collection name)
             for chunk in chunks:
+                is_embedded = chunk.chunk_id in embedded_chunk_ids
                 await self.metadata_store.record_chunk(
                     chunk_id=chunk.chunk_id,
                     file_id=file_id,
                     chunk_index=chunk.chunk_index,
-                    vector_store_id=chunk.chunk_id,  # Use chunk_id as vector_store_id
+                    vector_store_id=chunk.chunk_id if is_embedded else None,
                     collection_name=collection_name,
                     metadata=chunk.db_metadata if chunk.db_metadata is not None else chunk.metadata
                 )

@@ -68,6 +68,16 @@ class FileVectorRetriever(AbstractVectorRetriever):
         encryption_config = files_config.get('encryption', {})
         self._encryptor = FileEncryptor.from_env() if encryption_config.get('enabled', False) else None
 
+        # Hierarchical-chunking parent-expansion budgets (see HierarchicalChunker
+        # and docs/roadmap/chunking/hierarchical-chunking.md). Both cap by
+        # characters of attached parent text; degrade by truncation, never error.
+        self.hierarchy_parent_char_limit = adapter_config.get('hierarchy_parent_char_limit')
+        if self.hierarchy_parent_char_limit is None:
+            self.hierarchy_parent_char_limit = files_config.get('hierarchy_parent_char_limit', 2000)
+        self.hierarchy_total_parent_char_limit = adapter_config.get('hierarchy_total_parent_char_limit')
+        if self.hierarchy_total_parent_char_limit is None:
+            self.hierarchy_total_parent_char_limit = files_config.get('hierarchy_total_parent_char_limit', 8000)
+
         # Initialize store manager for vector operations
         self.store_manager = None
         self._default_store = None
@@ -233,10 +243,64 @@ class FileVectorRetriever(AbstractVectorRetriever):
             logger.info(f"FileVectorRetriever: Truncating results from {len(formatted_results)} to {return_limit} (return_results config)")
             formatted_results = formatted_results[:return_limit]
 
+        # Expand hierarchical leaf hits with their parent's context. Must run
+        # after return_results truncation (see docs/roadmap/chunking/
+        # hierarchical-chunking.md contract #5): expanding before truncation
+        # risks dropping the one representative result a shared parent's
+        # context was attached to.
+        await self._expand_hierarchical_parents(formatted_results)
+
         logger.debug(f"FileVectorRetriever: Final formatted results: {len(formatted_results)} chunks")
         logger.debug("=" * 80)
 
         return formatted_results
+
+    async def _expand_hierarchical_parents(self, formatted_results: list[dict[str, Any]]) -> None:
+        """
+        Attach each hierarchical leaf hit's parent text as extra context,
+        in place, on `formatted_results` (the final, already-truncated list).
+
+        Groups by `hierarchy_parent_id`, looks up each unique parent once via
+        get_chunk(), and attaches its (length-capped) text to only the
+        highest-confidence result in that group - not to every sibling
+        redundantly. A result with no `hierarchy_parent_id` (non-hierarchical
+        file) is left untouched, with zero get_chunk() calls.
+        """
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for item in formatted_results:
+            chunk_metadata = item.get('file_metadata', {}).get('chunk_metadata')
+            if not isinstance(chunk_metadata, dict):
+                continue
+            parent_id = chunk_metadata.get('hierarchy_parent_id')
+            if not parent_id:
+                continue
+            groups.setdefault(parent_id, []).append(item)
+
+        if not groups:
+            return
+
+        remaining_total_budget = self.hierarchy_total_parent_char_limit
+        for parent_id, group in groups.items():
+            if remaining_total_budget <= 0:
+                break
+            try:
+                parent_data = await self.get_chunk(parent_id)
+            except Exception as e:  # noqa: BLE001 - best-effort expansion must not fail the query
+                logger.warning(f"FileVectorRetriever: Failed to expand parent {parent_id}: {e}")
+                continue
+            if not parent_data or not isinstance(parent_data.get('text'), str):
+                continue
+
+            parent_text = parent_data['text'][:self.hierarchy_parent_char_limit]
+            parent_text = parent_text[:remaining_total_budget]
+            if not parent_text:
+                continue
+            remaining_total_budget -= len(parent_text)
+
+            representative = max(group, key=lambda r: r.get('metadata', {}).get('confidence', 0.0))
+            representative['content'] = (
+                f"[Parent context]\n{parent_text}\n[/Parent context]\n\n{representative['content']}"
+            )
     
     
     async def _get_collections_multiple(self, file_ids: list[str] | None, api_key: str | None,
@@ -797,10 +861,26 @@ class FileVectorRetriever(AbstractVectorRetriever):
             return False
     
     async def get_chunk(self, chunk_id: str) -> dict[str, Any] | None:
-        """Retrieve a specific chunk by ID."""
-        # This would query the vector store for a specific chunk
-        # For now, return None as this requires vector store ID lookup
-        return None
+        """
+        Retrieve a chunk's own stored metadata by id (e.g. a hierarchical
+        parent's `{'text': ...}`, or a table's cell grid), decrypting it if
+        needed.
+
+        Using the given `chunk_id` as the decryption AAD is correct even for
+        a budget-split piece: index_file_chunks() always re-keys a split
+        piece's db_metadata envelope under its own final chunk_id before
+        persisting it (see the AAD-mismatch handling there), so every stored
+        envelope is AAD-bound to the chunk_id it's stored under.
+        """
+        chunk_info = await self.metadata_store.get_chunk_info(chunk_id)
+        if not chunk_info:
+            return None
+        metadata = chunk_info.get('chunk_metadata')
+        if isinstance(metadata, dict) and metadata.get('encrypted'):
+            if self._encryptor is None:
+                return None
+            metadata = self._decrypt_chunk_metadata_envelope(metadata, chunk_id.encode('utf-8'))
+        return metadata
     
     async def delete_file_chunks(self, file_id: str) -> bool:
         """Delete all chunks for a file from both vector store and metadata store."""
@@ -830,11 +910,14 @@ class FileVectorRetriever(AbstractVectorRetriever):
                 # No chunks to delete, but return True to indicate successful operation
                 return True
             
-            # Delete from vector store if store is available
+            # Delete from vector store if store is available. Chunks with no
+            # vector_store_id (e.g. hierarchical parents - see
+            # HierarchicalChunker) were never embedded, so skip them rather
+            # than issuing a pointless delete call.
             if self._default_store:
                 await self.ensure_initialized()
 
-                chunk_ids = [c['chunk_id'] for c in chunks]
+                chunk_ids = [c['chunk_id'] for c in chunks if c.get('vector_store_id') is not None]
                 logger.debug(f"Deleting {len(chunk_ids)} chunks from vector store for file {file_id}")
 
                 # Delete each chunk from vector store.

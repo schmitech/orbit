@@ -864,6 +864,7 @@ async def test_delete_file_chunks(mock_retriever):
             chunk_id=chunk_id,
             file_id=file_id,
             chunk_index=i,
+            vector_store_id=chunk_id,
             collection_name=collection_name
         )
     
@@ -1642,6 +1643,7 @@ async def test_delete_file_chunks_partial_vector_store_failure(mock_retriever):
             chunk_id=chunk_id,
             file_id=file_id,
             chunk_index=int(chunk_id.split('_')[1]),
+            vector_store_id=chunk_id,
             collection_name=collection_name
         )
     
