@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.21.5] - 2026-11-19
 
 ### Core Features
 - **Hierarchical chunking strategy**: Added `HierarchicalChunker`, selectable via `chunking_strategy: "hierarchical"`. Chunks each document into one or more nested parent levels (optionally more than two, via `chunking_options.intermediate_chunk_sizes`) narrowing down to fine-grained leaf sentences; only leaves are embedded/searched, and a leaf hit's immediate parent text is attached as extra context at query time. See `docs/roadmap/complete/hierarchical-chunking.md`.
