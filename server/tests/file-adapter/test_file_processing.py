@@ -4,6 +4,7 @@ Tests for File Processing Pipeline
 Tests file processors, processing service, and processor registry.
 """
 
+import asyncio
 import pytest
 import pytest_asyncio
 import sys
@@ -2464,3 +2465,92 @@ def test_assign_page_attribution_does_not_match_prose_to_masked_table_text(tmp_p
 
     assert prose_chunk.metadata["page_number"] == 2
     cleanup_metadata_store(test_db_path)
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for two bugs introduced (and fixed) by a /simplify pass:
+# docs/roadmap/file-processing-service-simplification.md
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_init_chunker_handles_null_chunking_options(tmp_path):
+    """An explicit YAML null for files.chunking_options (e.g. `chunking_options:`
+    with no value) must not crash chunker construction for strategies that
+    don't use chunking_options, such as 'fixed'."""
+    config, test_db_path = create_test_config(
+        tmp_path,
+        db_name="test_null_chunking_options.db",
+        chunking_strategy='fixed',
+        chunk_size=100,
+        chunk_overlap=20,
+        files={'chunking_options': None},
+    )
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    assert isinstance(service.chunker, FixedSizeChunker)
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
+class _RacyProcessor(FileProcessor):
+    """A fake processor that mimics a processor like Docling: it stashes
+    per-extraction results (tables/page segments) on shared instance
+    attributes, written during extract_text and read back by the caller
+    after extract_metadata returns."""
+
+    def __init__(self, events: list[str]):
+        super().__init__()
+        self._events = events
+        self._last_tables = None
+        self._last_page_segments = None
+
+    def supports_mime_type(self, mime_type: str) -> bool:
+        return mime_type == "application/x-racy-test"
+
+    async def extract_text(self, file_data: bytes, filename: str | None = None) -> str:
+        marker = file_data.decode()
+        self._events.append(f"text_start:{marker}")
+        self._last_tables = [{"marker": marker}]
+        await asyncio.sleep(0.02)
+        self._events.append(f"text_end:{marker}")
+        return f"text-{marker}"
+
+    async def extract_metadata(self, file_data: bytes, filename: str | None = None) -> dict:
+        marker = file_data.decode()
+        self._events.append(f"metadata_start:{marker}")
+        await asyncio.sleep(0.02)
+        self._last_page_segments = [{"marker": marker}]
+        self._events.append(f"metadata_end:{marker}")
+        return {"marker": marker}
+
+
+@pytest.mark.asyncio
+async def test_extract_content_runs_text_then_metadata_sequentially(processing_service):
+    """extract_text and extract_metadata must not run concurrently via
+    asyncio.gather: a processor that stashes per-call results on shared
+    instance attributes (_last_tables/_last_page_segments) between the two
+    calls would otherwise let a second in-flight extraction clobber the
+    first's results before they're read back."""
+    events: list[str] = []
+    processor = _RacyProcessor(events)
+    processing_service.processor_registry.register(processor)
+
+    text, metadata, tables, page_segments = await processing_service._extract_content(
+        file_data=b"A",
+        filename="racy.bin",
+        mime_type="application/x-racy-test",
+        api_key="test_api_key",
+    )
+
+    assert text == "text-A"
+    assert metadata == {"marker": "A"}
+    assert tables == [{"marker": "A"}]
+    assert page_segments == [{"marker": "A"}]
+    # extract_text must fully complete before extract_metadata starts
+    assert events == ["text_start:A", "text_end:A", "metadata_start:A", "metadata_end:A"]

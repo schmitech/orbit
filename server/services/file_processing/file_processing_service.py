@@ -5,6 +5,7 @@ Main service for processing uploaded files: extraction, chunking, and storage pr
 """
 
 import asyncio
+import copy
 import hashlib
 import json
 import logging
@@ -280,8 +281,9 @@ class FileProcessingService:
         use_tokens = self.config.get('use_tokens', False) or files_config.get('use_tokens', False)
         
         # Get strategy-specific options
-        chunking_options = self.config.get('chunking_options', {}) or files_config.get('chunking_options', {})
-        
+        chunking_options = self.config.get('chunking_options') or files_config.get('chunking_options') or {}
+        min_characters = chunking_options.get('min_characters_per_chunk', 24)
+
         # Log chunking strategy initialization
         logger.debug(f"Initializing chunking strategy: '{strategy}' (chunk_size={chunk_size}, overlap={overlap})")
         
@@ -329,7 +331,6 @@ class FileProcessingService:
             return chunker
         elif strategy == 'recursive':
             # Recursive chunking
-            min_characters = chunking_options.get('min_characters_per_chunk', 24)
             chunker = RecursiveChunker(
                 chunk_size=chunk_size,
                 min_characters_per_chunk=min_characters,
@@ -339,7 +340,6 @@ class FileProcessingService:
             return chunker
         elif strategy == 'recursive_sentence':
             # Sentence-first recursive chunking, with clause/word fallback
-            min_characters = chunking_options.get('min_characters_per_chunk', 24)
             chunker = RecursiveSentenceChunker(
                 chunk_size=chunk_size,
                 min_characters_per_chunk=min_characters,
@@ -351,7 +351,6 @@ class FileProcessingService:
             # N-level hierarchical chunking: one or more parent levels (coarse
             # sections, optionally narrowing through intermediate_chunk_sizes),
             # down to leaf sentences.
-            min_characters = chunking_options.get('min_characters_per_chunk', 24)
             parent_chunk_size = chunking_options.get('parent_chunk_size', chunk_size * 4)
             leaf_chunk_size = chunking_options.get('leaf_chunk_size', chunk_size)
             intermediate_chunk_sizes = chunking_options.get('intermediate_chunk_sizes')
@@ -369,7 +368,6 @@ class FileProcessingService:
             return chunker
         elif strategy == 'markdown_header':
             # Markdown-header-aware recursive chunking
-            min_characters = chunking_options.get('min_characters_per_chunk', 24)
             chunker = MarkdownHeaderChunker(
                 chunk_size=chunk_size,
                 min_characters_per_chunk=min_characters,
@@ -379,7 +377,6 @@ class FileProcessingService:
             return chunker
         elif strategy == 'table_aware':
             # Table-aware recursive chunking: keeps markdown tables intact
-            min_characters = chunking_options.get('min_characters_per_chunk', 24)
             chunker = TableAwareChunker(
                 chunk_size=chunk_size,
                 min_characters_per_chunk=min_characters,
@@ -1394,8 +1391,7 @@ class FileProcessingService:
             raise ValueError(f"No processor available for MIME type: {mime_type}")
 
         # Try each processor in priority order, falling back on failure
-        last_error = None
-        for processor in processors:
+        for index, processor in enumerate(processors):
             processor_name = processor.__class__.__name__
             try:
                 if logger.isEnabledFor(logging.DEBUG):
@@ -1423,13 +1419,10 @@ class FileProcessingService:
 
                 return text, metadata, tables, page_segments
             except Exception as e:
-                last_error = e
-                if len(processors) > 1:
+                if index < len(processors) - 1:
                     logger.warning(f"{processor_name} failed for '{filename}', trying next processor: {e}")
-                else:
-                    raise
-
-        raise last_error
+                    continue
+                raise
     
     async def _extract_image_content(
         self,
@@ -1442,8 +1435,6 @@ class FileProcessingService:
         current_user_email: str | None = None
     ) -> tuple[str, dict[str, Any]]:
         """Extract content from image using vision services."""
-        import asyncio
-
         try:
             # Get adapter-specific vision provider (or fallback to default)
             vision_provider = await self._get_vision_provider_for_api_key(
@@ -1892,60 +1883,56 @@ class FileProcessingService:
                 fallback_reason = "app_state not available"
             elif not hasattr(self.app_state, 'adapter_manager'):
                 fallback_reason = "adapter_manager not in app_state"
+            elif not hasattr(self.app_state, 'api_key_service'):
+                fallback_reason = "api_key_service not in app_state"
             else:
                 adapter_manager = self.app_state.adapter_manager
+                api_key_service = self.app_state.api_key_service
 
-                # Get API key service to lookup which adapter this API key uses
-                if not hasattr(self.app_state, 'api_key_service'):
-                    fallback_reason = "api_key_service not in app_state"
+                # Get adapter name for this API key (pass adapter_manager to check live configs)
+                adapter_name, _ = await api_key_service.get_adapter_for_api_key(
+                    api_key, adapter_manager, current_user_id=current_user_id, current_user_email=current_user_email
+                )
+
+                if not adapter_name:
+                    fallback_reason = f"no adapter found for api_key {api_key[:8]}..."
                 else:
-                    api_key_service = self.app_state.api_key_service
+                    # Get adapter config from adapter manager
+                    adapter_config = adapter_manager.get_adapter_config(adapter_name)
 
-                    # Get adapter name for this API key (pass adapter_manager to check live configs)
-                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(
-                        api_key, adapter_manager, current_user_id=current_user_id, current_user_email=current_user_email
-                    )
-
-                    if not adapter_name:
-                        fallback_reason = f"no adapter found for api_key {api_key[:8]}..."
+                    if not adapter_config:
+                        fallback_reason = f"adapter '{adapter_name}' has no config"
                     else:
-                        # Get adapter config from adapter manager
-                        adapter_config = adapter_manager.get_adapter_config(adapter_name)
+                        logger.debug(f"Using adapter-specific config for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
 
-                        if not adapter_config:
-                            fallback_reason = f"adapter '{adapter_name}' has no config"
+                        # Merge adapter config with global config using deep copy to avoid modifying global config
+                        merged_config = copy.deepcopy(self.config)
+
+                        # Override embedding provider if specified in adapter
+                        if 'embedding_provider' in adapter_config:
+                            if 'embedding' not in merged_config:
+                                merged_config['embedding'] = {}
+                            merged_config['embedding']['provider'] = adapter_config['embedding_provider']
+                            logger.debug(f"Using adapter embedding provider: {adapter_config['embedding_provider']}")
                         else:
-                            logger.debug(f"Using adapter-specific config for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+                            # Log what embedding provider will be used
+                            default_provider = merged_config.get('embedding', {}).get('provider', 'ollama')
+                            logger.debug(f"Adapter '{adapter_name}' has no embedding_provider override, using default: {default_provider}")
 
-                            # Merge adapter config with global config using deep copy to avoid modifying global config
-                            import copy
-                            merged_config = copy.deepcopy(self.config)
+                        # Override embedding model if specified in adapter
+                        if 'embedding_model' in adapter_config:
+                            embedding_provider = adapter_config.get('embedding_provider') or merged_config.get('embedding', {}).get('provider', 'ollama')
+                            if 'embeddings' not in merged_config:
+                                merged_config['embeddings'] = {}
+                            if embedding_provider not in merged_config['embeddings']:
+                                merged_config['embeddings'][embedding_provider] = {}
+                            merged_config['embeddings'][embedding_provider]['model'] = adapter_config['embedding_model']
+                            logger.debug(f"Using adapter embedding model: {adapter_config['embedding_model']} (provider: {embedding_provider})")
 
-                            # Override embedding provider if specified in adapter
-                            if 'embedding_provider' in adapter_config:
-                                if 'embedding' not in merged_config:
-                                    merged_config['embedding'] = {}
-                                merged_config['embedding']['provider'] = adapter_config['embedding_provider']
-                                logger.debug(f"Using adapter embedding provider: {adapter_config['embedding_provider']}")
-                            else:
-                                # Log what embedding provider will be used
-                                default_provider = merged_config.get('embedding', {}).get('provider', 'ollama')
-                                logger.debug(f"Adapter '{adapter_name}' has no embedding_provider override, using default: {default_provider}")
+                        # Pass adapter-specific config to retriever
+                        merged_config['adapter_config'] = adapter_config.get('config', {})
 
-                            # Override embedding model if specified in adapter
-                            if 'embedding_model' in adapter_config:
-                                embedding_provider = adapter_config.get('embedding_provider') or merged_config.get('embedding', {}).get('provider', 'ollama')
-                                if 'embeddings' not in merged_config:
-                                    merged_config['embeddings'] = {}
-                                if embedding_provider not in merged_config['embeddings']:
-                                    merged_config['embeddings'][embedding_provider] = {}
-                                merged_config['embeddings'][embedding_provider]['model'] = adapter_config['embedding_model']
-                                logger.debug(f"Using adapter embedding model: {adapter_config['embedding_model']} (provider: {embedding_provider})")
-
-                            # Pass adapter-specific config to retriever
-                            merged_config['adapter_config'] = adapter_config.get('config', {})
-
-                            return merged_config
+                        return merged_config
 
         except Exception as e:  # noqa: BLE001 - best-effort adapter-specific config lookup; falls back to the default merged config
             fallback_reason = f"exception: {e}"
