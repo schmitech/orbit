@@ -3,11 +3,11 @@
 ## [2.21.6] - 2026-11-22
 
 ### Maintenance
-- **File processing service cleanup**: Flattened a deeply nested adapter-config lookup, hoisted a repeated default-options lookup and a misplaced `import copy` out of a hot path, and simplified a processor-fallback loop. No behavior change otherwise. Remaining, higher-risk cleanups (merging the two near-duplicate processing pipelines, provider-lookup dedup, registry-based vision/audio dispatch, chunker abstraction) are tracked in `docs/roadmap/file-processing-service-simplification.md`.
+- **File processing service cleanup**: Simplified adapter-config lookup and processor-fallback logic in the hot path. No behavior change.
+- **Completed the UberLLM → MartLLM rename**: Finished renaming the provider's module, class, and test file (previously only user-facing strings were renamed). No behavior change.
 
 ### Bug Fixes
-
-- **OpenAI text-to-speech migration**. Streaming and downloads now use `gpt-realtime-2.1-mini` through the Realtime API, and existing OpenAI configurations using retired TTS model IDs migrate automatically. MP3 remains the default and uses system FFmpeg or the optional `openai-tts` install profile. ([#449](https://github.com/schmitech/orbit/issues/449))
+- **OpenAI text-to-speech migration**: Streaming and downloads now use `gpt-realtime-2.1-mini` via the Realtime API; existing configs on retired TTS model IDs migrate automatically. ([#449](https://github.com/schmitech/orbit/issues/449))
 
 ## [2.21.5] - 2026-11-19
 
@@ -39,7 +39,7 @@
 
 ### Core Features
 - **Atlas Cloud provider**: Added the OpenAI-compatible `atlascloud` inference provider. Configure it in `config/inference.yaml` with `ATLASCLOUD_API_KEY`.
-- **UberLLM provider**: Added the OpenAI-compatible `uberllm` inference provider. Configure it in `config/inference.yaml` with `UBERLLM_API_KEY`.
+- **MartLLM provider**: Added the OpenAI-compatible `martllm` inference provider. Configure it in `config/inference.yaml` with `MARTLLM_API_KEY`.
 
 ### Maintenance
 - **Multimodal passthrough config cleanup**: Simplified redundant config construction when initializing the file retriever in the multimodal conversational implementation, with no behavior change.

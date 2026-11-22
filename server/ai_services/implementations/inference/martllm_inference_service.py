@@ -14,11 +14,11 @@ from ...providers.usage_reporting import UsageReportingMixin
 from ...services import InferenceService
 
 
-class UberLLMInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibleBaseService):
+class MartLLMInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibleBaseService):
     """MartLLM inference service using unified architecture."""
 
     def __init__(self, config: dict[str, Any]):
-        InferenceService.__init__(self, config, "uberllm")
+        InferenceService.__init__(self, config, "martllm")
 
         self.temperature = self._get_temperature(default=0.7)
         self.max_tokens = self._get_max_tokens(default=1024)

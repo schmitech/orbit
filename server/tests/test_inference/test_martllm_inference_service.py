@@ -12,19 +12,19 @@ import pytest
 server_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(server_dir)
 
-from ai_services.implementations.inference.uberllm_inference_service import (
-    UberLLMInferenceService,
+from ai_services.implementations.inference.martllm_inference_service import (
+    MartLLMInferenceService,
 )
 
 
-class TestUberLLMInferenceService:
+class TestMartLLMInferenceService:
     """Test cases for MartLLM inference service."""
 
     @pytest.fixture
     def mock_config(self) -> dict[str, Any]:
         return {
             "inference": {
-                "uberllm": {
+                "martllm": {
                     "api_key": "test-api-key",
                     "model": "deepseek/deepseek-v4.1-flash",
                     "temperature": 0.1,
@@ -51,11 +51,11 @@ class TestUberLLMInferenceService:
         return client
 
     def test_configuration_extraction(self, mock_config, monkeypatch):
-        monkeypatch.delenv("UBERLLM_API_KEY", raising=False)
+        monkeypatch.delenv("MARTLLM_API_KEY", raising=False)
 
-        service = UberLLMInferenceService(mock_config)
+        service = MartLLMInferenceService(mock_config)
 
-        assert service.provider_name == "uberllm"
+        assert service.provider_name == "martllm"
         assert service.api_key == "test-api-key"
         assert service.base_url == "https://api.martllm.com/v1"
         assert service.model == "deepseek/deepseek-v4.1-flash"
@@ -65,7 +65,7 @@ class TestUberLLMInferenceService:
 
     @pytest.mark.asyncio
     async def test_generate(self, mock_config, mock_client):
-        service = UberLLMInferenceService(mock_config)
+        service = MartLLMInferenceService(mock_config)
         service.initialized = True
         service.client = mock_client
 
@@ -96,7 +96,7 @@ class TestUberLLMInferenceService:
         client.chat.completions = Mock()
         client.chat.completions.create = AsyncMock(return_value=mock_stream())
 
-        service = UberLLMInferenceService(mock_config)
+        service = MartLLMInferenceService(mock_config)
         service.initialized = True
         service.client = client
 
