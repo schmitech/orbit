@@ -2498,6 +2498,32 @@ async def test_init_chunker_handles_null_chunking_options(tmp_path):
     cleanup_metadata_store(test_db_path)
 
 
+@pytest.mark.asyncio
+async def test_init_chunker_falls_back_to_fixed_for_non_string_strategy(tmp_path):
+    """A malformed config (e.g. a YAML list/mapping for chunking_strategy)
+    must still fall back to the fixed chunker, matching the old if/elif
+    chain's behavior, instead of raising from an unhashable dict lookup -
+    a startup error here disables file processing entirely."""
+    config, test_db_path = create_test_config(
+        tmp_path,
+        db_name="test_non_string_chunking_strategy.db",
+        chunking_strategy=['fixed'],
+        chunk_size=100,
+        chunk_overlap=20,
+    )
+
+    from services.file_metadata.metadata_store import FileMetadataStore
+    FileMetadataStore.reset_instance()
+
+    service = FileProcessingService(config)
+    service.metadata_store = FileMetadataStore(config=config)
+
+    assert isinstance(service.chunker, FixedSizeChunker)
+
+    service.metadata_store.close()
+    cleanup_metadata_store(test_db_path)
+
+
 class _RacyProcessor(FileProcessor):
     """A fake processor that mimics a processor like Docling: it stashes
     per-extraction results (tables/page segments) on shared instance

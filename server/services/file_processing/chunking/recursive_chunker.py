@@ -116,6 +116,28 @@ class RecursiveChunker(TextChunker):
         self.chunk_size = chunk_size
         self.min_characters_per_chunk = min_characters_per_chunk
         self.rules = rules if rules is not None else RecursiveRules.default()
+
+    @classmethod
+    def from_config(
+        cls,
+        chunk_size: int,
+        overlap: int,
+        tokenizer: str | TokenizerProtocol | None,
+        options: dict[str, Any],
+    ) -> "RecursiveChunker":
+        """
+        Build from the chunker-construction options _init_chunker assembles.
+
+        `overlap` is accepted for signature uniformity with other chunkers'
+        from_config, but unused here - RecursiveChunker (and its
+        RecursiveSentenceChunker/MarkdownHeaderChunker/TableAwareChunker
+        subclasses, which inherit this unchanged) has no overlap parameter.
+        """
+        return cls(
+            chunk_size=chunk_size,
+            min_characters_per_chunk=options.get('min_characters_per_chunk', 24),
+            tokenizer=tokenizer,
+        )
     
     def _split_text(self, text: str, level: RecursiveLevel) -> list[str]:
         """

@@ -14,7 +14,7 @@ import uuid
 import weakref
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from services.api_key_service import hash_api_key_for_storage
 from services.file_metadata.metadata_store import FileMetadataStore
@@ -265,6 +265,20 @@ class FileProcessingService:
             return None
         return FileEncryptor.from_env()
     
+    # Strategy name -> Chunker class, each built via its from_config(chunk_size,
+    # overlap, tokenizer, options) classmethod. 'fixed' is the default for any
+    # unrecognized strategy name (matches the previous if/elif chain's `else`).
+    _CHUNKER_REGISTRY: ClassVar[dict[str, type]] = {
+        'semantic': SemanticChunker,
+        'token': TokenChunker,
+        'recursive': RecursiveChunker,
+        'recursive_sentence': RecursiveSentenceChunker,
+        'hierarchical': HierarchicalChunker,
+        'markdown_header': MarkdownHeaderChunker,
+        'table_aware': TableAwareChunker,
+        'fixed': FixedSizeChunker,
+    }
+
     def _init_chunker(self):
         """Initialize chunking strategy."""
         # Get from adapter config first, then global files config, then defaults
@@ -275,127 +289,28 @@ class FileProcessingService:
                     files_config.get('default_chunk_size', 1000)
         overlap = self.config.get('chunk_overlap') or \
                  files_config.get('default_chunk_overlap', 200)
-        
+
         # Get optional tokenizer configuration
         tokenizer = self.config.get('tokenizer') or files_config.get('tokenizer')
         use_tokens = self.config.get('use_tokens', False) or files_config.get('use_tokens', False)
-        
+
         # Get strategy-specific options
         chunking_options = self.config.get('chunking_options') or files_config.get('chunking_options') or {}
-        min_characters = chunking_options.get('min_characters_per_chunk', 24)
+        # FixedSizeChunker.from_config reads use_tokens from options - not part
+        # of chunking_options itself, so fold it in here for that one lookup.
+        options = {**chunking_options, 'use_tokens': use_tokens}
 
         # Log chunking strategy initialization
         logger.debug(f"Initializing chunking strategy: '{strategy}' (chunk_size={chunk_size}, overlap={overlap})")
-        
-        if strategy == 'semantic':
-            # Semantic chunking options
-            model_name = chunking_options.get('model_name')
-            use_advanced = chunking_options.get('use_advanced', False)
-            chunk_size_tokens = chunking_options.get('chunk_size_tokens')
-            threshold = chunking_options.get('threshold', 0.8)
-            similarity_window = chunking_options.get('similarity_window', 3)
-            min_sentences_per_chunk = chunking_options.get('min_sentences_per_chunk', 1)
-            min_characters_per_sentence = chunking_options.get('min_characters_per_sentence', 24)
-            skip_window = chunking_options.get('skip_window', 0)
-            filter_window = chunking_options.get('filter_window', 5)
-            filter_polyorder = chunking_options.get('filter_polyorder', 3)
-            filter_tolerance = chunking_options.get('filter_tolerance', 0.2)
-            
-            chunker = SemanticChunker(
-                chunk_size=chunk_size,
-                overlap=overlap,
-                model_name=model_name,
-                use_advanced=use_advanced,
-                threshold=threshold,
-                similarity_window=similarity_window,
-                min_sentences_per_chunk=min_sentences_per_chunk,
-                min_characters_per_sentence=min_characters_per_sentence,
-                skip_window=skip_window,
-                filter_window=filter_window,
-                filter_polyorder=filter_polyorder,
-                filter_tolerance=filter_tolerance,
-                tokenizer=tokenizer,
-                chunk_size_tokens=chunk_size_tokens
-            )
-            logger.debug(f"  Semantic chunker configured: use_advanced={use_advanced}, model={model_name or 'none'}")
-            return chunker
 
-        elif strategy == 'token':
-            # Token-based chunking
-            chunker = TokenChunker(
-                chunk_size=chunk_size,
-                overlap=overlap,
-                tokenizer=tokenizer or 'character'
-            )
-            logger.debug(f"  Token chunker configured: tokenizer={tokenizer or 'character'}")
-            return chunker
-        elif strategy == 'recursive':
-            # Recursive chunking
-            chunker = RecursiveChunker(
-                chunk_size=chunk_size,
-                min_characters_per_chunk=min_characters,
-                tokenizer=tokenizer
-            )
-            logger.debug(f"  Recursive chunker configured: min_characters_per_chunk={min_characters}")
-            return chunker
-        elif strategy == 'recursive_sentence':
-            # Sentence-first recursive chunking, with clause/word fallback
-            chunker = RecursiveSentenceChunker(
-                chunk_size=chunk_size,
-                min_characters_per_chunk=min_characters,
-                tokenizer=tokenizer
-            )
-            logger.debug(f"  Recursive sentence chunker configured: min_characters_per_chunk={min_characters}")
-            return chunker
-        elif strategy == 'hierarchical':
-            # N-level hierarchical chunking: one or more parent levels (coarse
-            # sections, optionally narrowing through intermediate_chunk_sizes),
-            # down to leaf sentences.
-            parent_chunk_size = chunking_options.get('parent_chunk_size', chunk_size * 4)
-            leaf_chunk_size = chunking_options.get('leaf_chunk_size', chunk_size)
-            intermediate_chunk_sizes = chunking_options.get('intermediate_chunk_sizes')
-            chunker = HierarchicalChunker(
-                parent_chunk_size=parent_chunk_size,
-                leaf_chunk_size=leaf_chunk_size,
-                min_characters_per_chunk=min_characters,
-                tokenizer=tokenizer,
-                intermediate_chunk_sizes=intermediate_chunk_sizes
-            )
-            logger.debug(
-                f"  Hierarchical chunker configured: parent_chunk_size={parent_chunk_size}, "
-                f"intermediate_chunk_sizes={intermediate_chunk_sizes}, leaf_chunk_size={leaf_chunk_size}"
-            )
-            return chunker
-        elif strategy == 'markdown_header':
-            # Markdown-header-aware recursive chunking
-            chunker = MarkdownHeaderChunker(
-                chunk_size=chunk_size,
-                min_characters_per_chunk=min_characters,
-                tokenizer=tokenizer
-            )
-            logger.debug(f"  Markdown header chunker configured: min_characters_per_chunk={min_characters}")
-            return chunker
-        elif strategy == 'table_aware':
-            # Table-aware recursive chunking: keeps markdown tables intact
-            chunker = TableAwareChunker(
-                chunk_size=chunk_size,
-                min_characters_per_chunk=min_characters,
-                tokenizer=tokenizer
-            )
-            logger.debug(f"  Table-aware chunker configured: min_characters_per_chunk={min_characters}")
-            return chunker
-        else:
-            # Fixed-size chunking (default)
-            chunker = FixedSizeChunker(
-                chunk_size=chunk_size,
-                overlap=overlap,
-                use_tokens=use_tokens,
-                tokenizer=tokenizer
-            )
-            if logger.isEnabledFor(logging.DEBUG):
-                mode = "token-based" if use_tokens else "character-based"
-                logger.debug(f"  Fixed-size chunker configured: mode={mode}")
-            return chunker
+        # strategy is normally a string, but a malformed config (e.g. a YAML
+        # list/mapping) must still fall back to the fixed chunker rather than
+        # raising from an unhashable dict lookup - a startup error here
+        # disables file processing entirely.
+        chunker_cls = self._CHUNKER_REGISTRY.get(strategy, FixedSizeChunker) if isinstance(strategy, str) else FixedSizeChunker
+        chunker = chunker_cls.from_config(chunk_size, overlap, tokenizer, options)
+        logger.debug(f"  {chunker_cls.__name__} configured from strategy '{strategy}'")
+        return chunker
 
     def _resolve_supported_type(self, mime_type: str | None, label: str | None = None) -> str | None:
         """Resolve a MIME type or Magika label to one of the configured supported types."""
@@ -625,20 +540,29 @@ class FileProcessingService:
             {'visions': live_config.get('visions', {})}
         )
 
-    async def _get_vision_provider_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> str:
+    async def _get_provider_for_api_key(
+        self,
+        api_key: str,
+        config_key: str,
+        default_provider: str,
+        current_user_id: str | None = None,
+        current_user_email: str | None = None,
+    ) -> str:
         """
-        Get the vision provider for a given API key by looking up its adapter configuration.
+        Get the provider for a given API key by looking up its adapter configuration.
 
-        This enables adapter-specific vision provider overrides (e.g., adapter A uses OpenAI, adapter B uses Gemini).
+        This enables adapter-specific provider overrides (e.g., adapter A uses OpenAI, adapter B uses Gemini).
 
         Args:
             api_key: The API key to lookup
+            config_key: Adapter config field to check for an override (e.g. 'vision_provider', 'stt_provider')
+            default_provider: Provider to fall back to when there is no override
             current_user_id: ORBIT user id of the caller who was already authorized at the
                 route boundary, so an allowlisted key resolves here too instead of being
                 rejected again for lack of identity
 
         Returns:
-            Vision provider name (e.g., 'openai', 'gemini', 'anthropic')
+            Provider name (e.g., 'openai', 'gemini', 'anthropic')
         """
         try:
             # Try to get adapter manager from app state
@@ -660,68 +584,33 @@ class FileProcessingService:
                         adapter_config = adapter_manager.get_adapter_config(adapter_name)
 
                         if adapter_config:
-                            # Check if adapter has vision_provider override
-                            vision_provider = adapter_config.get('vision_provider')
+                            # Check if adapter has a provider override
+                            provider = adapter_config.get(config_key)
 
-                            if vision_provider:
-                                logger.info(f"Using adapter-specific vision provider '{vision_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
-                                return vision_provider
+                            if provider:
+                                logger.info(f"Using adapter-specific {config_key} '{provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
+                                return provider
 
-        except Exception as e:  # noqa: BLE001 - best-effort adapter-specific vision provider lookup; falls back to the default provider
-            logger.warning(f"Could not lookup adapter-specific vision provider for API key: {e}")
+        except Exception as e:  # noqa: BLE001 - best-effort adapter-specific provider lookup; falls back to the default provider
+            logger.warning(f"Could not lookup adapter-specific {config_key} for API key: {e}")
 
-        # Fall back to default vision provider
-        logger.debug(f"Using default vision provider '{self.default_vision_provider}' for api_key: {api_key[:8]}...")
-        return self.default_vision_provider
+        # Fall back to default provider
+        logger.debug(f"Using default {config_key} '{default_provider}' for api_key: {api_key[:8]}...")
+        return default_provider
+
+    async def _get_vision_provider_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> str:
+        """Get the vision provider for a given API key (adapter-specific override, or the default)."""
+        return await self._get_provider_for_api_key(
+            api_key, 'vision_provider', self.default_vision_provider,
+            current_user_id=current_user_id, current_user_email=current_user_email,
+        )
 
     async def _get_audio_provider_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> str:
-        """
-        Get the STT provider for a given API key by looking up its adapter configuration.
-
-        This enables adapter-specific STT provider overrides (e.g., adapter A uses Whisper, adapter B uses Gemini).
-
-        Args:
-            api_key: The API key to lookup
-            current_user_id: ORBIT user id of the caller who was already authorized at the
-                route boundary, so an allowlisted key resolves here too instead of being
-                rejected again for lack of identity
-
-        Returns:
-            STT provider name (e.g., 'whisper', 'openai', 'gemini')
-        """
-        try:
-            # Try to get adapter manager from app state
-            # Note: The adapter manager is stored as 'adapter_manager' in app.state (set by service_factory.py)
-            if self.app_state and hasattr(self.app_state, 'adapter_manager'):
-                adapter_manager = self.app_state.adapter_manager
-
-                # Get API key service to lookup which adapter this API key uses
-                if hasattr(self.app_state, 'api_key_service'):
-                    api_key_service = self.app_state.api_key_service
-
-                    # Get adapter name for this API key (pass adapter_manager to check live configs)
-                    adapter_name, _ = await api_key_service.get_adapter_for_api_key(
-                        api_key, adapter_manager, current_user_id=current_user_id, current_user_email=current_user_email
-                    )
-
-                    if adapter_name:
-                        # Get adapter config from adapter manager
-                        adapter_config = adapter_manager.get_adapter_config(adapter_name)
-
-                        if adapter_config:
-                            # Check if adapter has stt_provider override
-                            stt_provider = adapter_config.get('stt_provider')
-
-                            if stt_provider:
-                                logger.info(f"Using adapter-specific STT provider '{stt_provider}' for adapter '{adapter_name}' (api_key: {api_key[:8]}...)")
-                                return stt_provider
-
-        except Exception as e:  # noqa: BLE001 - best-effort adapter-specific STT provider lookup; falls back to the default provider
-            logger.warning(f"Could not lookup adapter-specific STT provider for API key: {e}")
-
-        # Fall back to default STT provider
-        logger.debug(f"Using default STT provider '{self.default_audio_provider}' for api_key: {api_key[:8]}...")
-        return self.default_audio_provider
+        """Get the STT provider for a given API key (adapter-specific override, or the default)."""
+        return await self._get_provider_for_api_key(
+            api_key, 'stt_provider', self.default_audio_provider,
+            current_user_id=current_user_id, current_user_email=current_user_email,
+        )
 
     async def _requires_encryption_for_api_key(self, api_key: str, current_user_id: str | None = None, current_user_email: str | None = None) -> bool:
         """
@@ -842,6 +731,133 @@ class FileProcessingService:
                 db_payload = self._file_encryptor.encrypt(json.dumps(chunk.db_metadata).encode('utf-8'), aad)
                 chunk.db_metadata = {'encrypted': True, 'payload': db_payload.hex()}
 
+    async def _persist_and_index_chunks(
+        self,
+        file_id: str,
+        api_key: str,
+        chunks: list[Chunk],
+        requires_encryption: bool,
+        filename: str,
+    ) -> dict[str, Any]:
+        """
+        Encrypt (if required), index into the vector store, record each chunk,
+        and mark the file 'completed'. Shared by process_file_content and
+        process_file, which otherwise duplicated this verbatim.
+
+        The *decision* of whether encryption is required stays with each
+        caller (process_file_content re-reads the stored flag under its
+        file-operation lock; process_file reuses the value it computed at
+        upload time) - this only does the mechanics once that decision is
+        made.
+
+        Returns:
+            dict with collection_name/embedding_provider/embedding_dimensions/chunk_count.
+        """
+        # Hierarchical chunking produces parent chunks (coarse, never
+        # embedded/searched - see HierarchicalChunker) alongside the leaves
+        # that actually get indexed. A no-op for every other strategy, none
+        # of which set level to the string 'parent'. Read before
+        # _encrypt_chunk_metadata() wholesale-replaces chunk.metadata with
+        # its encrypted envelope.
+        embedded_chunk_ids = {c.chunk_id for c in chunks if c.metadata.get('level') != 'parent'}
+
+        self._encrypt_chunk_metadata(chunks, requires_encryption)
+
+        chunks_to_embed = [c for c in chunks if c.chunk_id in embedded_chunk_ids]
+
+        index_result = await self._index_chunks_in_vector_store(
+            file_id=file_id,
+            api_key=api_key,
+            chunks=chunks_to_embed,
+            requires_encryption=requires_encryption,
+            filename=filename,
+        )
+
+        collection_name = None
+        embedding_provider = None
+        embedding_dimensions = None
+        if index_result:
+            collection_name, embedding_provider, embedding_dimensions = index_result
+
+        for chunk in chunks:
+            is_embedded = chunk.chunk_id in embedded_chunk_ids
+            await self.metadata_store.record_chunk(
+                chunk_id=chunk.chunk_id,
+                file_id=file_id,
+                chunk_index=chunk.chunk_index,
+                vector_store_id=chunk.chunk_id if is_embedded else None,
+                collection_name=collection_name,
+                metadata=chunk.db_metadata if chunk.db_metadata is not None else chunk.metadata
+            )
+
+        await self.metadata_store.update_processing_status(
+            file_id,
+            'completed',
+            chunk_count=len(chunks),
+            collection_name=collection_name,
+            embedding_provider=embedding_provider,
+            embedding_dimensions=embedding_dimensions
+        )
+
+        return {
+            'collection_name': collection_name,
+            'embedding_provider': embedding_provider,
+            'embedding_dimensions': embedding_dimensions,
+            'chunk_count': len(chunks),
+        }
+
+    async def _store_and_record_upload(
+        self,
+        file_id: str,
+        file_data: bytes,
+        filename: str,
+        mime_type: str,
+        api_key: str,
+        current_user_id: str | None = None,
+        current_user_email: str | None = None,
+    ) -> tuple[bool, dict[str, Any]]:
+        """
+        Validate, store, and record a new upload; mark it 'processing'.
+
+        Shared by quick_upload and process_file, which otherwise duplicated
+        this validate/store/record/mark-processing sequence verbatim.
+
+        Returns:
+            (requires_encryption, metadata) for the caller to reuse downstream.
+        """
+        if not self._validate_file(file_data, mime_type):
+            raise ValueError(f"Unsupported file type: {mime_type}")
+
+        storage_key = f"{self._storage_key_namespace(api_key)}/{file_id}/{filename}"
+        requires_encryption = await self._requires_encryption_for_api_key(
+            api_key, current_user_id=current_user_id, current_user_email=current_user_email
+        )
+        metadata = {
+            'filename': filename,
+            'mime_type': mime_type,
+            'file_size': len(file_data),
+            'upload_time': datetime.now(UTC).isoformat(),
+            'encrypted': requires_encryption,
+        }
+
+        storage = self._select_storage_for_upload(requires_encryption)
+        await storage.put_file(file_data, storage_key, metadata)
+
+        await self.metadata_store.record_file_upload(
+            file_id=file_id,
+            api_key=api_key,
+            filename=filename,
+            mime_type=mime_type,
+            file_size=len(file_data),
+            storage_key=storage_key,
+            storage_type='vector',
+            metadata=metadata,
+        )
+
+        await self.metadata_store.update_processing_status(file_id, 'processing')
+
+        return requires_encryption, metadata
+
     async def quick_upload(
         self,
         file_data: bytes,
@@ -871,43 +887,13 @@ class FileProcessingService:
         # Generate unique file ID
         file_id = str(uuid.uuid4())
 
-        # Validate file
-        if not self._validate_file(file_data, mime_type):
-            raise ValueError(f"Unsupported file type: {mime_type}")
-
-        # Store file
-        storage_key = f"{self._storage_key_namespace(api_key)}/{file_id}/{filename}"
-        requires_encryption = await self._requires_encryption_for_api_key(
-            api_key, current_user_id=current_user_id, current_user_email=current_user_email
-        )
-        metadata = {
-            'filename': filename,
-            'mime_type': mime_type,
-            'file_size': len(file_data),
-            'upload_time': datetime.now(UTC).isoformat(),
-            'encrypted': requires_encryption,
-        }
-
-        storage = self._select_storage_for_upload(requires_encryption)
-        await storage.put_file(file_data, storage_key, metadata)
-
-        # Record in metadata store with status 'processing'
-        await self.metadata_store.record_file_upload(
-            file_id=file_id,
-            api_key=api_key,
-            filename=filename,
-            mime_type=mime_type,
-            file_size=len(file_data),
-            storage_key=storage_key,
-            storage_type='vector',
-            metadata=metadata,
+        await self._store_and_record_upload(
+            file_id, file_data, filename, mime_type, api_key,
+            current_user_id=current_user_id, current_user_email=current_user_email,
         )
 
-        # Set status to processing
-        await self.metadata_store.update_processing_status(file_id, 'processing')
-        
         return file_id
-    
+
     def _get_file_operation_lock(self, file_id: str) -> asyncio.Lock:
         """Return the lock shared by processing and deletion for a file."""
         lock = self._file_operation_locks.get(file_id)
@@ -967,14 +953,6 @@ class FileProcessingService:
                 if tables:
                     chunks.extend(self._extract_tables_as_chunks(tables, file_id, len(chunks)))
 
-                # Hierarchical chunking produces parent chunks (coarse, never
-                # embedded/searched - see HierarchicalChunker) alongside the
-                # leaves that actually get indexed. A no-op for every other
-                # strategy, none of which set level to the string 'parent'.
-                # Read before _encrypt_chunk_metadata() wholesale-replaces
-                # chunk.metadata with its encrypted envelope.
-                embedded_chunk_ids = {c.chunk_id for c in chunks if c.metadata.get('level') != 'parent'}
-
                 # A user can cancel while an async processor is extracting content.
                 # Serialize persistence with deletion so we either observe the missing
                 # file and stop, or finish atomically before deletion cleans it up.
@@ -987,44 +965,12 @@ class FileProcessingService:
                         return
 
                     requires_encryption = bool(file_info.get('metadata', {}).get('encrypted', False))
-                    self._encrypt_chunk_metadata(chunks, requires_encryption)
-
-                    chunks_to_embed = [c for c in chunks if c.chunk_id in embedded_chunk_ids]
-
-                    # Index chunks into vector store.
-                    index_result = await self._index_chunks_in_vector_store(
+                    await self._persist_and_index_chunks(
                         file_id=file_id,
                         api_key=api_key,
-                        chunks=chunks_to_embed,
+                        chunks=chunks,
                         requires_encryption=requires_encryption,
                         filename=filename,
-                    )
-
-                    collection_name = None
-                    embedding_provider = None
-                    embedding_dimensions = None
-                    if index_result:
-                        collection_name, embedding_provider, embedding_dimensions = index_result
-
-                    # Record chunks in metadata store (with collection name).
-                    for chunk in chunks:
-                        is_embedded = chunk.chunk_id in embedded_chunk_ids
-                        await self.metadata_store.record_chunk(
-                            chunk_id=chunk.chunk_id,
-                            file_id=file_id,
-                            chunk_index=chunk.chunk_index,
-                            vector_store_id=chunk.chunk_id if is_embedded else None,
-                            collection_name=collection_name,
-                            metadata=chunk.db_metadata if chunk.db_metadata is not None else chunk.metadata
-                        )
-
-                    await self.metadata_store.update_processing_status(
-                        file_id,
-                        'completed',
-                        chunk_count=len(chunks),
-                        collection_name=collection_name,
-                        embedding_provider=embedding_provider,
-                        embedding_dimensions=embedding_dimensions
                     )
 
             logger.debug(f"File content processed successfully: {file_id} ({len(chunks)} chunks)")
@@ -1204,38 +1150,11 @@ class FileProcessingService:
         file_id = str(uuid.uuid4())
         
         try:
-            # 1. Validate file
-            if not self._validate_file(file_data, mime_type):
-                raise ValueError(f"Unsupported file type: {mime_type}")
-            
-            # 2. Store file
-            storage_key = f"{self._storage_key_namespace(api_key)}/{file_id}/{filename}"
-            requires_encryption = await self._requires_encryption_for_api_key(api_key, current_user_id=current_user_id)
-            metadata = {
-                'filename': filename,
-                'mime_type': mime_type,
-                'file_size': len(file_data),
-                'upload_time': datetime.now(UTC).isoformat(),
-                'encrypted': requires_encryption,
-            }
-
-            storage = self._select_storage_for_upload(requires_encryption)
-            await storage.put_file(file_data, storage_key, metadata)
-
-            # 3. Record in metadata store
-            await self.metadata_store.record_file_upload(
-                file_id=file_id,
-                api_key=api_key,
-                filename=filename,
-                mime_type=mime_type,
-                file_size=len(file_data),
-                storage_key=storage_key,
-                storage_type='vector',
-                metadata=metadata,
+            # 1-4. Validate, store, and record the upload (shared with quick_upload)
+            requires_encryption, _metadata = await self._store_and_record_upload(
+                file_id, file_data, filename, mime_type, api_key,
+                current_user_id=current_user_id,
             )
-
-            # 4. Update status to processing
-            await self.metadata_store.update_processing_status(file_id, 'processing')
 
             # 5. Extract text, metadata, any structured tables, and any page segments
             extracted_text, file_metadata, tables, page_segments = await self._extract_content(
@@ -1256,65 +1175,25 @@ class FileProcessingService:
             if tables:
                 chunks.extend(self._extract_tables_as_chunks(tables, file_id, len(chunks)))
 
-            # Hierarchical chunking produces parent chunks (coarse, never
-            # embedded/searched - see HierarchicalChunker) alongside the leaves
-            # that actually get indexed. A no-op for every other strategy, none
-            # of which set level to the string 'parent'. Read before
-            # _encrypt_chunk_metadata() wholesale-replaces chunk.metadata with
-            # its encrypted envelope.
-            embedded_chunk_ids = {c.chunk_id for c in chunks if c.metadata.get('level') != 'parent'}
-
-            self._encrypt_chunk_metadata(chunks, requires_encryption)
-
-            chunks_to_embed = [c for c in chunks if c.chunk_id in embedded_chunk_ids]
-
-            # 7. Index chunks into vector store
-            index_result = await self._index_chunks_in_vector_store(
+            # 7-9. Encrypt (if required), index, record chunks, and mark completed
+            # (shared with process_file_content)
+            persist_result = await self._persist_and_index_chunks(
                 file_id=file_id,
                 api_key=api_key,
-                chunks=chunks_to_embed,
+                chunks=chunks,
                 requires_encryption=requires_encryption,
                 filename=filename,
             )
 
-            # Extract collection info
-            collection_name = None
-            embedding_provider = None
-            embedding_dimensions = None
-            if index_result:
-                collection_name, embedding_provider, embedding_dimensions = index_result
-
-            # 8. Record chunks in metadata store (with collection name)
-            for chunk in chunks:
-                is_embedded = chunk.chunk_id in embedded_chunk_ids
-                await self.metadata_store.record_chunk(
-                    chunk_id=chunk.chunk_id,
-                    file_id=file_id,
-                    chunk_index=chunk.chunk_index,
-                    vector_store_id=chunk.chunk_id if is_embedded else None,
-                    collection_name=collection_name,
-                    metadata=chunk.db_metadata if chunk.db_metadata is not None else chunk.metadata
-                )
-
-            # 9. Update metadata store with chunk count, collection name, and provider info
-            await self.metadata_store.update_processing_status(
-                file_id,
-                'completed',
-                chunk_count=len(chunks),
-                collection_name=collection_name,
-                embedding_provider=embedding_provider,
-                embedding_dimensions=embedding_dimensions
-            )
-            
             # 10. Prepare response
             return {
                 'file_id': file_id,
                 'status': 'completed',
-                'chunk_count': len(chunks),
+                'chunk_count': persist_result['chunk_count'],
                 'filename': filename,
                 'mime_type': mime_type,
                 'file_size': len(file_data),
-                'collection_name': collection_name,
+                'collection_name': persist_result['collection_name'],
                 'chunks': chunks,
                 'metadata': file_metadata,
             }

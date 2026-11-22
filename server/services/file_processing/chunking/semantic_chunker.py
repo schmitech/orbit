@@ -115,7 +115,33 @@ class SemanticChunker(TextChunker):
             except Exception as e:  # noqa: BLE001 - sentence-transformers model loading has no documented, stable exception hierarchy
                 logger.warning(f"Could not load model {model_name}: {e}")
                 self.use_advanced = False
-    
+
+    @classmethod
+    def from_config(
+        cls,
+        chunk_size: int,
+        overlap: int,
+        tokenizer: str | TokenizerProtocol | None,
+        options: dict[str, Any],
+    ) -> "SemanticChunker":
+        """Build from the chunker-construction options _init_chunker assembles."""
+        return cls(
+            chunk_size=chunk_size,
+            overlap=overlap,
+            model_name=options.get('model_name'),
+            use_advanced=options.get('use_advanced', False),
+            threshold=options.get('threshold', 0.8),
+            similarity_window=options.get('similarity_window', 3),
+            min_sentences_per_chunk=options.get('min_sentences_per_chunk', 1),
+            min_characters_per_sentence=options.get('min_characters_per_sentence', 24),
+            skip_window=options.get('skip_window', 0),
+            filter_window=options.get('filter_window', 5),
+            filter_polyorder=options.get('filter_polyorder', 3),
+            filter_tolerance=options.get('filter_tolerance', 0.2),
+            tokenizer=tokenizer,
+            chunk_size_tokens=options.get('chunk_size_tokens'),
+        )
+
     def _split_sentences(self, text: str) -> list[str]:
         """Split text into sentences using improved splitting."""
         return split_sentences(

@@ -1,5 +1,25 @@
 # File Processing Service — Deferred Simplification Work
 
+**Status: done**, except where explicitly split off below.
+
+- **Item 1** (merge the two processing pipelines) — done. Characterization
+  tests landed in `server/tests/file-adapter/test_file_processing_pipeline_characterization.py`,
+  then `process_file_content`/`process_file` were merged at the persistence
+  boundary into a shared `_persist_and_index_chunks` helper, preserving the
+  lock/encryption-decision split each wrapper owns.
+- **Item 2** (provider-lookup + upload/store dedup) — done. Collapsed into
+  `_get_provider_for_api_key` and `_store_and_record_upload`.
+- **Item 3** (registry-based dispatch for vision/audio) — behavior-pinning
+  tests landed (`test_file_processing_dispatch_characterization.py`), but the
+  full rewrite (unified per-extraction result object + registry dispatch) was
+  split into its own tracked plan,
+  [`file-processing-unified-extraction-result.md`](../file-processing-unified-extraction-result.md),
+  since it requires changing the shared `FileProcessor` interface across all
+  ~10 existing processors — out of scope for this doc.
+- **Item 4** (chunker `from_config` registry) — done. Each `Chunker` subclass
+  now has a `from_config(chunk_size, overlap, tokenizer, options)`
+  classmethod; `_init_chunker` is a `{strategy: ChunkerClass}` lookup + call.
+
 ## Summary
 
 A `/simplify` pass over `server/services/file_processing/file_processing_service.py`
@@ -108,6 +128,19 @@ Cover with unit tests on the new helpers before switching the call sites.
 ---
 
 ## 3. Registry-based dispatch for vision/audio processing
+
+**Status:** behavior-pinning tests landed
+(`server/tests/file-adapter/test_file_processing_dispatch_characterization.py`).
+The "standardize tables/page_segments/usage/provider/model as part of a
+single per-extraction result object" sub-item below turned out to require
+rewriting the shared `FileProcessor` interface across all ~10 existing
+processors — too large to bundle into this item. That full-scope redesign is
+now tracked separately in
+[`file-processing-unified-extraction-result.md`](../file-processing-unified-extraction-result.md).
+The registry-dispatch piece (wrapping vision/audio as processors, folding
+`_ai_ocr_is_priority()` into a registry eligibility rule) can still land
+independently once attempted — it doesn't require the result-object rewrite
+first, despite the original ordering below.
 
 `_extract_content` (~1376-1431) and `_validate_file` (~1353-1359, see also
 `file_processing_service.py:1340`) both special-case

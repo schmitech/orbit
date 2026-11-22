@@ -51,7 +51,23 @@ class FixedSizeChunker(TextChunker):
         self.chunk_size = chunk_size
         self.overlap = overlap
         self.use_tokens = use_tokens
-    
+
+    @classmethod
+    def from_config(
+        cls,
+        chunk_size: int,
+        overlap: int,
+        tokenizer: str | TokenizerProtocol | None,
+        options: dict[str, Any],
+    ) -> "FixedSizeChunker":
+        """Build from the chunker-construction options _init_chunker assembles."""
+        return cls(
+            chunk_size=chunk_size,
+            overlap=overlap,
+            use_tokens=options.get('use_tokens', False),
+            tokenizer=tokenizer,
+        )
+
     def chunk_text(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text into fixed-size pieces.

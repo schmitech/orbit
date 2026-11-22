@@ -85,6 +85,30 @@ class HierarchicalChunker(TextChunker):
             tokenizer=tokenizer
         )
 
+    @classmethod
+    def from_config(
+        cls,
+        chunk_size: int,
+        overlap: int,
+        tokenizer: str | TokenizerProtocol | None,
+        options: dict[str, Any],
+    ) -> "HierarchicalChunker":
+        """
+        Build from the chunker-construction options _init_chunker assembles.
+
+        `overlap` is accepted for signature uniformity with other chunkers'
+        from_config, but unused here - HierarchicalChunker has no overlap
+        parameter. `parent_chunk_size`/`leaf_chunk_size` default relative to
+        `chunk_size` (4x and 1x respectively) unless overridden in options.
+        """
+        return cls(
+            parent_chunk_size=options.get('parent_chunk_size', chunk_size * 4),
+            leaf_chunk_size=options.get('leaf_chunk_size', chunk_size),
+            min_characters_per_chunk=options.get('min_characters_per_chunk', 24),
+            tokenizer=tokenizer,
+            intermediate_chunk_sizes=options.get('intermediate_chunk_sizes'),
+        )
+
     def chunk_text(self, text: str, file_id: str, metadata: dict[str, Any]) -> list[Chunk]:
         """
         Chunk text into one or more nested parent levels, narrowing down to leaves.

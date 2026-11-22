@@ -1,5 +1,10 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Maintenance
+- **File processing service: merged duplicate pipelines and chunker construction**: `process_file_content`/`process_file` now share one persistence/indexing helper instead of ~150 lines of copy-pasted logic each, and vision/STT provider lookup and upload storage/recording are similarly deduplicated. Chunker construction is now a `{strategy: ChunkerClass}` registry lookup instead of a 7-branch if/elif chain. No behavior change; covered by new characterization tests. Vision/audio dispatch unification is tracked separately as larger, deferred follow-up work. Full details: `docs/roadmap/complete/file-processing-service-simplification.md`.
+
 ## [2.21.6] - 2026-11-22
 
 ### Maintenance

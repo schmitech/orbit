@@ -82,6 +82,17 @@ class TokenChunker(TextChunker):
                 safety_margin=1.0,
             )
 
+    @classmethod
+    def from_config(
+        cls,
+        chunk_size: int,
+        overlap: int,
+        tokenizer: str | TokenizerProtocol | None,
+        options: dict[str, Any],
+    ) -> "TokenChunker":
+        """Build from the chunker-construction options _init_chunker assembles."""
+        return cls(chunk_size=chunk_size, overlap=overlap, tokenizer=tokenizer or 'character')
+
     def count_tokens(self, text: str) -> int:
         if self._is_character_mode or isinstance(self.tokenizer, SimpleTokenizer):
             cnt = self.budget.count(text)
