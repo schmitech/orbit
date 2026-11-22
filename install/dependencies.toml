@@ -172,12 +172,17 @@ dependencies = [
 # ============================================================================
 [profiles.audio]
 description = "Audio processing (Whisper transcription, TTS)"
+extends = ["openai-tts"]
 dependencies = [
     "openai-whisper>=20250625",
     "supertonic>=1.3.1",
     "snac>=1.2.1",  # SNAC codec for Orpheus TTS audio token decoding
     "sphn>=0.2.1" # Used by personaplex adapters
 ]
+
+[profiles.openai-tts]
+description = "FFmpeg encoder for OpenAI Realtime text-to-speech"
+dependencies = ["imageio-ffmpeg>=0.6.0"]
 
 # ============================================================================
 # TORCH - PyTorch and Hugging Face inference (no vLLM; use profile vllm for vLLM)
@@ -323,6 +328,7 @@ extends = [
     "auth-providers",
     "memcached",
     "messaging",
+    "openai-tts",
 ]
 dependencies = []
 

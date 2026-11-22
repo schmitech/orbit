@@ -19,12 +19,14 @@ tts_providers:
     api_key: ${OPENAI_API_KEY}
     api_base: "https://api.openai.com/v1"
     # TTS configuration
-    tts_model: "gpt-4o-mini-tts"  # OpenAI TTS model: tts-1, tts-1-hd, gpt-4o-mini-tts
-    tts_voice: "coral"  # Voice options: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse
+    tts_model: "gpt-realtime-2.1-mini"  # Uses the OpenAI Realtime API
+    tts_voice: "coral"  # Voice options: alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar
+    # Legacy voice names are mapped to Realtime voices: fable to ballad, nova to coral, onyx to echo
     tts_format: "mp3"  # Output format: mp3, opus, aac, flac, pcm, wav
-    # For streaming use pcm or wav for fastest time-to-first-byte
+    # Encoded formats require FFmpeg on PATH or the openai-tts install profile
+    # Use pcm for the lowest streaming latency
     # tts_format: "pcm"
-    # Voice instructions (gpt-4o-mini-tts only) — controls tone, emotion, pacing
+    # Voice instructions control tone, emotion, and pacing
     # tts_instructions: "Speak in a cheerful and positive tone."
     # Timeout configuration
     timeout:

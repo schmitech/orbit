@@ -5,6 +5,10 @@
 ### Maintenance
 - **File processing service cleanup**: Flattened a deeply nested adapter-config lookup, hoisted a repeated default-options lookup and a misplaced `import copy` out of a hot path, and simplified a processor-fallback loop. No behavior change otherwise. Remaining, higher-risk cleanups (merging the two near-duplicate processing pipelines, provider-lookup dedup, registry-based vision/audio dispatch, chunker abstraction) are tracked in `docs/roadmap/file-processing-service-simplification.md`.
 
+### Bug Fixes
+
+- **OpenAI text-to-speech migration**. Streaming and downloads now use `gpt-realtime-2.1-mini` through the Realtime API, and existing OpenAI configurations using retired TTS model IDs migrate automatically. MP3 remains the default and uses system FFmpeg or the optional `openai-tts` install profile. ([#449](https://github.com/schmitech/orbit/issues/449))
+
 ## [2.21.5] - 2026-11-19
 
 ### Core Features
