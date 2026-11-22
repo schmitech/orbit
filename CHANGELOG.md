@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.21.6] - 2026-11-22
 
 ### Maintenance
 - **File processing service cleanup**: Flattened a deeply nested adapter-config lookup, hoisted a repeated default-options lookup and a misplaced `import copy` out of a hot path, and simplified a processor-fallback loop. No behavior change otherwise. Remaining, higher-risk cleanups (merging the two near-duplicate processing pipelines, provider-lookup dedup, registry-based vision/audio dispatch, chunker abstraction) are tracked in `docs/roadmap/file-processing-service-simplification.md`.
