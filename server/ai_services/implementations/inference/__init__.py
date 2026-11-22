@@ -45,7 +45,7 @@ Available providers:
     - FuguInferenceService: Sakana AI (Fugu) inference
     - CheaperInferenceInferenceService: Cheaper Inference OpenAI-compatible gateway
     - AtlasCloudInferenceService: Atlas Cloud OpenAI-compatible gateway
-    - UberLLMInferenceService: UberLLM OpenAI-compatible gateway
+    - UberLLMInferenceService: MartLLM OpenAI-compatible gateway
 """
 
 import logging

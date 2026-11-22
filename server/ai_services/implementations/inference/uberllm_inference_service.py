@@ -1,7 +1,7 @@
 """
-UberLLM inference service implementation.
+MartLLM inference service implementation.
 
-UberLLM is an OpenAI-compatible gateway at https://api.uberllm.dev/v1.
+MartLLM is an OpenAI-compatible gateway at https://api.martllm.com/v1.
 One API key gives access to chat models from many labs (DeepSeek, Qwen,
 Kimi, GLM, Claude, ...); model ids are namespaced, e.g. ``deepseek/deepseek-v4.1-flash``.
 """
@@ -15,7 +15,7 @@ from ...services import InferenceService
 
 
 class UberLLMInferenceService(UsageReportingMixin, InferenceService, OpenAICompatibleBaseService):
-    """UberLLM inference service using unified architecture."""
+    """MartLLM inference service using unified architecture."""
 
     def __init__(self, config: dict[str, Any]):
         InferenceService.__init__(self, config, "uberllm")

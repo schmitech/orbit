@@ -1,5 +1,5 @@
 """
-Test UberLLM inference service implementation.
+Test MartLLM inference service implementation.
 """
 
 import os
@@ -18,7 +18,7 @@ from ai_services.implementations.inference.uberllm_inference_service import (
 
 
 class TestUberLLMInferenceService:
-    """Test cases for UberLLM inference service."""
+    """Test cases for MartLLM inference service."""
 
     @pytest.fixture
     def mock_config(self) -> dict[str, Any]:
@@ -44,7 +44,7 @@ class TestUberLLMInferenceService:
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message = Mock()
-        mock_response.choices[0].message.content = "Test response from UberLLM"
+        mock_response.choices[0].message.content = "Test response from MartLLM"
         mock_response.usage = None
 
         client.chat.completions.create = AsyncMock(return_value=mock_response)
@@ -57,7 +57,7 @@ class TestUberLLMInferenceService:
 
         assert service.provider_name == "uberllm"
         assert service.api_key == "test-api-key"
-        assert service.base_url == "https://api.uberllm.dev/v1"
+        assert service.base_url == "https://api.martllm.com/v1"
         assert service.model == "deepseek/deepseek-v4.1-flash"
         assert service.temperature == 0.1
         assert service.max_tokens == 2000
@@ -71,7 +71,7 @@ class TestUberLLMInferenceService:
 
         result = await service.generate("Hello")
 
-        assert result == "Test response from UberLLM"
+        assert result == "Test response from MartLLM"
 
         call_args = mock_client.chat.completions.create.call_args[1]
         assert call_args["model"] == "deepseek/deepseek-v4.1-flash"
@@ -86,7 +86,7 @@ class TestUberLLMInferenceService:
             chunks = [
                 Mock(choices=[Mock(delta=Mock(content="Hello"))]),
                 Mock(choices=[Mock(delta=Mock(content=" from"))]),
-                Mock(choices=[Mock(delta=Mock(content=" UberLLM"))]),
+                Mock(choices=[Mock(delta=Mock(content=" MartLLM"))]),
             ]
             for chunk in chunks:
                 yield chunk
@@ -104,7 +104,7 @@ class TestUberLLMInferenceService:
         async for chunk in service.generate_stream("Hello"):
             chunks.append(chunk)
 
-        assert chunks == ["Hello", " from", " UberLLM"]
+        assert chunks == ["Hello", " from", " MartLLM"]
         call_args = client.chat.completions.create.call_args[1]
         assert call_args["stream"] is True
         assert call_args["stream_options"] == {"include_usage": True}
