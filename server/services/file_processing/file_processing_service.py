@@ -1276,27 +1276,25 @@ class FileProcessingService:
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug(f"Processing file '{filename}' (MIME: {mime_type}) with {processor_name}")
 
-                text = await processor.extract_text(file_data, filename)
-                metadata = await processor.extract_metadata(file_data, filename)
-                tables = getattr(processor, "_last_tables", None) or []
-                page_segments = getattr(processor, "_last_page_segments", None) or []
+                result = await processor.extract(file_data, filename)
 
                 if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"Extraction complete for '{filename}': {len(text)} chars extracted by {processor_name}")
+                    logger.debug(
+                        f"Extraction complete for '{filename}': {len(result.text)} chars extracted by {processor_name}"
+                    )
 
                 # AI OCR (AIDocumentProcessor) is the only processor that makes a
                 # billable API call — record it if it reported usage. Other
-                # processors (Docling, MarkItDown) never set `last_usage`.
-                last_usage = getattr(processor, "last_usage", None)
-                if last_usage:
+                # processors (Docling, MarkItDown) never report usage.
+                if result.usage:
                     await self._log_extraction_usage(
                         api_key, filename,
-                        getattr(processor, "provider", None), getattr(processor, "last_model", None),
-                        last_usage,
+                        result.provider, result.model,
+                        result.usage,
                         call_type="document",
                     )
 
-                return text, metadata, tables, page_segments
+                return result.text, result.metadata, result.tables, result.page_segments
             except Exception as e:
                 if index < len(processors) - 1:
                     logger.warning(f"{processor_name} failed for '{filename}', trying next processor: {e}")

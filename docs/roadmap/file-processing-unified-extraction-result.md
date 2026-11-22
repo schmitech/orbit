@@ -1,5 +1,30 @@
 # File Processing Service — Unified Extraction Result & Registry Dispatch
 
+## Status
+
+**Partially implemented.**
+
+- Step 2a (compatibility bridge: `ExtractionResult`, `FileProcessor.extract()`
+  default bridge, `extract_text` made non-abstract, `_FailingProcessor` fix,
+  `_extract_content` switched to `processor.extract(...)`) — **done**.
+- `DoclingProcessor.extract()` and `AIDocumentProcessor.extract()` — **done**,
+  migrated directly (single conversion for Docling; local-variable
+  usage/model capture for AI-OCR), with the concurrency/billing-attribution
+  tests this doc specifies.
+- The native format-specific processors (`text`, `pdf`, `docx`, `csv`,
+  `json`, `html`, `pptx`, `xlsx`, `vtt`) and `MarkItDownProcessor` — **not
+  migrated**; they have no instance-attribute state, so the step-2a bridge
+  already produces identical, correct `ExtractionResult`s for them. There is
+  no bug to fix there, so migrating them individually was deprioritized in
+  favor of the two processors with real concurrency bugs (Docling, AI-OCR).
+  Migrate them opportunistically whenever one of those files is touched for
+  another reason; it's a mechanical override of `extract()`, not urgent.
+- Step 2c (remove the bridge, make `extract()` the sole abstract method,
+  delete `extract_text`/`extract_metadata`) — **not done**, and can't be
+  until every processor above overrides `extract()` directly. Existing tests
+  also still call `extract_text`/`extract_metadata` directly on native
+  processors and Docling, so those methods stay in place regardless.
+
 ## Summary
 
 This is the deferred, full-scope version of item 3 in

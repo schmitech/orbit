@@ -14,7 +14,7 @@ import logging
 import mimetypes
 from typing import Any
 
-from .base_processor import FileProcessor
+from .base_processor import ExtractionResult, FileProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,56 @@ class AIDocumentProcessor(FileProcessor):
         metadata['ocr_provider'] = self.provider
         metadata['page_count'] = self._count_pages(file_data, mime_type)
         return metadata
+
+    async def extract(self, file_data: bytes, filename: str | None = None) -> ExtractionResult:
+        """Extract via the OCR service, capturing usage/model into local
+        variables instead of reading them back off `self` after the await —
+        avoids attributing a concurrent call's usage/model to this one."""
+        if not self._enabled:
+            raise ValueError("AI document processor is disabled")
+
+        mime_type = self._detect_mime_type(file_data, filename)
+        service = self._get_ocr_service()
+        if not service.initialized:
+            await service.initialize()
+        resolved_model = getattr(service, "model", None) or self.model_override
+
+        usage: dict[str, Any] | None = None
+        if getattr(service, "SUPPORTS_USAGE_REPORTING", False):
+            usage_sink: dict[str, Any] = {}
+            result = await service.extract_document(file_data, mime_type, filename, usage_sink=usage_sink)
+            if usage_sink.get("reported"):
+                usage = usage_sink
+        else:
+            result = await service.extract_document(file_data, mime_type, filename)
+
+        if usage is None:
+            media_usage = result.get("media_usage")
+            if media_usage:
+                usage = {
+                    "reported": True,
+                    "usage_unit": media_usage.get("unit"),
+                    "usage_quantity": media_usage.get("quantity"),
+                }
+
+        # Keep legacy instance attributes in sync for any caller still using
+        # the extract_text()/extract_metadata() two-call contract directly.
+        self.last_usage = usage
+        self.last_model = resolved_model
+
+        metadata = self._base_metadata(file_data, filename)
+        metadata['processed_by'] = 'ai_ocr'
+        metadata['extraction_method'] = 'ai_ocr'
+        metadata['ocr_provider'] = self.provider
+        metadata['page_count'] = self._count_pages(file_data, mime_type)
+
+        return ExtractionResult(
+            text=result.get('text', ''),
+            metadata=metadata,
+            usage=usage,
+            provider=self.provider,
+            model=resolved_model,
+        )
 
     def _get_ocr_service(self):
         """Create (or fetch the cached) OCR service for the configured provider."""

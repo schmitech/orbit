@@ -8,7 +8,7 @@ Supports: PDF, DOCX, PPTX, XLSX, HTML, Markdown, AsciiDoc, XML, images, VTT, and
 import logging
 from typing import Any
 
-from .base_processor import FileProcessor
+from .base_processor import ExtractionResult, FileProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -351,6 +351,55 @@ class DoclingProcessor(FileProcessor):
         
         return metadata
     
+    async def extract(self, file_data: bytes, filename: str | None = None) -> ExtractionResult:
+        """Extract text, tables, page segments, and metadata from one Docling
+        conversion, instead of the two independent conversions
+        `extract_text`/`extract_metadata` each perform."""
+        if not self._enabled:
+            raise ValueError("Docling processor is disabled")
+        if not DOCLING_AVAILABLE:
+            raise ImportError("docling not available")
+
+        self._ensure_initialized()
+        if not self._converter:
+            raise RuntimeError("Docling converter failed to initialize")
+
+        suffix = ''
+        if filename:
+            _, ext = os.path.splitext(filename)
+            if ext:
+                suffix = ext
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_file.write(file_data)
+            temp_path = temp_file.name
+
+        try:
+            result = self._converter.convert(temp_path)
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+        text = ""
+        tables: list[dict[str, Any]] = []
+        page_segments: list[dict[str, Any]] = []
+        doc = getattr(result, 'document', None)
+        if doc is not None:
+            text, page_segments = self._extract_page_segments(doc)
+            tables = self._extract_tables(doc)
+
+        metadata = self._base_metadata(file_data, filename)
+        try:
+            if doc is not None:
+                if hasattr(doc, 'page_count'):
+                    metadata['page_count'] = doc.page_count
+                metadata['has_structure'] = True
+                metadata['processed_by'] = 'docling'
+        except Exception as e:  # noqa: BLE001 - best-effort metadata derivation, must not discard extracted content
+            logger.warning(f"Error deriving Docling metadata: {e}")
+
+        return ExtractionResult(text=text, metadata=metadata, tables=tables, page_segments=page_segments)
+
     def get_converter_config(self) -> dict[str, Any]:
         """
         Get Docling converter configuration.

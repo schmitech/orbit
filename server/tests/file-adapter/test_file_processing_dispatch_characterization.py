@@ -144,6 +144,9 @@ class _FailingProcessor:
     async def extract_metadata(self, file_data, filename=None):
         return {}
 
+    async def extract(self, file_data, filename=None):
+        raise RuntimeError("simulated OCR failure")
+
 
 @pytest.mark.asyncio
 async def test_ai_ocr_priority_skips_generic_vision_even_on_ocr_failure(tmp_path, monkeypatch):

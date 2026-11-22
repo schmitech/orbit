@@ -4,6 +4,7 @@
 
 ### Maintenance
 - **File processing service: merged duplicate pipelines and chunker construction**: `process_file_content`/`process_file` now share one persistence/indexing helper instead of ~150 lines of copy-pasted logic each, and vision/STT provider lookup and upload storage/recording are similarly deduplicated. Chunker construction is now a `{strategy: ChunkerClass}` registry lookup instead of a 7-branch if/elif chain. No behavior change; covered by new characterization tests. Vision/audio dispatch unification is tracked separately as larger, deferred follow-up work. Full details: `docs/roadmap/complete/file-processing-service-simplification.md`.
+- **Document processors: unified extraction result, fixed a stale-usage billing bug**: Document processors now return a single `ExtractionResult` instead of two separate calls plus ad-hoc instance attributes. Docling now converts a document once instead of twice per extraction. The AI-OCR processor now captures usage/model data locally per call instead of reading shared instance state, closing a bug where a fast request could be billed for a slower concurrent request's usage. Covered by new concurrency tests. Full details: `docs/roadmap/file-processing-unified-extraction-result.md`.
 
 ## [2.21.6] - 2026-11-22
 
