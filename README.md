@@ -7,8 +7,8 @@
 
   **Open Retrieval-Based Inference Toolkit**
 
-  Connect your data and tools to local or hosted models through one API.
-  Deploy on your own infrastructure.
+  Ask questions about a PDF, query a SQL database, or call an MCP tool through one OpenAI-compatible API.
+  Self-host ORBIT with local or hosted models.
 
   <p>
     <a href="#quick-start">Quick start</a>
@@ -21,6 +21,15 @@
   <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=social" alt="GitHub stars" /></a>
   <a href="https://github.com/schmitech/orbit/releases/latest"><img src="https://img.shields.io/github/v/release/schmitech/orbit?label=release" alt="Latest release" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
+</p>
+
+<p align="center">
+  <strong>Chat with your documents and images</strong>
+  <br />
+  <img width="700" alt="ORBIT multimodal agent answering questions about uploaded documents and images" src="https://github.com/user-attachments/assets/8526017b-756c-420d-b880-8ebe1a5dd33e" />
+  <br />
+  <sub>Upload files and ask questions in plain language to find answers in your documents and images.</sub>
+  <br />
 </p>
 
 <p align="center">
@@ -55,16 +64,6 @@ See [who ORBIT is for](docs/ORBIT_AUDIENCE_MATRIX.md) for organization types, ne
 
 <br/>
 
-<p align="center">
-  <strong>Chat with your documents and images</strong>
-  <br />
-  <img width="700" alt="ORBIT multimodal agent answering questions about uploaded documents and images" src="https://github.com/user-attachments/assets/8526017b-756c-420d-b880-8ebe1a5dd33e" />
-  <br />
-  <sub>Upload files and ask questions in plain language to find answers in your documents and images.</sub>
-  <br />
-</p>
-
-<br/>
 
 <p align="center">
   <strong>Chat with your data</strong>
