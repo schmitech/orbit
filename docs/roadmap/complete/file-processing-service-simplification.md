@@ -13,7 +13,7 @@
   tests landed (`test_file_processing_dispatch_characterization.py`), but the
   full rewrite (unified per-extraction result object + registry dispatch) was
   split into its own tracked plan,
-  [`file-processing-unified-extraction-result.md`](../file-processing-unified-extraction-result.md),
+  [`file-processing-unified-extraction-result.md`](./file-processing-unified-extraction-result.md),
   since it requires changing the shared `FileProcessor` interface across all
   ~10 existing processors — out of scope for this doc.
 - **Item 4** (chunker `from_config` registry) — done. Each `Chunker` subclass
@@ -136,7 +136,7 @@ single per-extraction result object" sub-item below turned out to require
 rewriting the shared `FileProcessor` interface across all ~10 existing
 processors — too large to bundle into this item. That full-scope redesign is
 now tracked separately in
-[`file-processing-unified-extraction-result.md`](../file-processing-unified-extraction-result.md).
+[`file-processing-unified-extraction-result.md`](./file-processing-unified-extraction-result.md).
 The registry-dispatch piece (wrapping vision/audio as processors, folding
 `_ai_ocr_is_priority()` into a registry eligibility rule) can still land
 independently once attempted — it doesn't require the result-object rewrite

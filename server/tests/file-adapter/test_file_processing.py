@@ -164,6 +164,46 @@ async def test_text_processor_utf8_encoding():
     assert "äöü" in extracted_text
 
 
+@pytest.mark.asyncio
+async def test_text_processor_extract_honors_subclass_metadata_override():
+    """A subclass overriding extract_metadata() must have that override
+    honored by extract(), not bypassed by the single-decode fast path that
+    only applies to the base, unmodified extract_metadata()."""
+
+    class _TaggedTextProcessor(TextProcessor):
+        async def extract_metadata(self, file_data, filename=None):
+            metadata = await super().extract_metadata(file_data, filename)
+            metadata['custom_field'] = 'custom_value'
+            return metadata
+
+    processor = _TaggedTextProcessor()
+    result = await processor.extract(b"hello world", filename="test.txt")
+
+    assert result.text == "hello world"
+    assert result.metadata['custom_field'] == 'custom_value'
+    assert result.metadata['line_count'] == 1
+
+
+@pytest.mark.asyncio
+async def test_text_processor_extract_honors_subclass_page_segments():
+    """A subclass that stashes _last_page_segments/_last_tables (the
+    getattr-based bridge contract) during extract_metadata() must still
+    have those surfaced on the returned ExtractionResult, not just its
+    metadata dict field."""
+
+    class _SegmentingTextProcessor(TextProcessor):
+        async def extract_metadata(self, file_data, filename=None):
+            metadata = await super().extract_metadata(file_data, filename)
+            self._last_page_segments = [{"start": 0, "end": 5, "page_numbers": [1]}]
+            return metadata
+
+    processor = _SegmentingTextProcessor()
+    result = await processor.extract(b"hello world", filename="test.txt")
+
+    assert result.text == "hello world"
+    assert result.page_segments == [{"start": 0, "end": 5, "page_numbers": [1]}]
+
+
 def test_processor_registry_initialization():
     """Test processor registry initialization"""
     registry = FileProcessorRegistry()

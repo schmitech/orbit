@@ -7,7 +7,7 @@ Handles PowerPoint PPTX files using python-pptx.
 import logging
 from typing import Any
 
-from .base_processor import FileProcessor
+from .base_processor import ExtractionResult, FileProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -117,3 +117,9 @@ class PPTXProcessor(FileProcessor):
             logger.warning(f"Error extracting PPTX metadata: {e}")
 
         return metadata
+
+    async def extract(self, file_data: bytes, filename: str | None = None) -> ExtractionResult:
+        """Combine extract_text/extract_metadata into one ExtractionResult."""
+        text = await self.extract_text(file_data, filename)
+        metadata = await self.extract_metadata(file_data, filename)
+        return ExtractionResult(text=text, metadata=metadata)

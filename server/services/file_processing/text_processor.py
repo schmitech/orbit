@@ -7,7 +7,7 @@ Handles plain text files (TXT, MD, etc.).
 import logging
 from typing import Any
 
-from .base_processor import FileProcessor
+from .base_processor import ExtractionResult, FileProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -83,5 +83,27 @@ class TextProcessor(FileProcessor):
             'character_count': len(text),
             'mime_type': 'text/plain',
         })
-        
+
         return metadata
+
+    async def extract(self, file_data: bytes, filename: str | None = None) -> ExtractionResult:
+        """Extract text once and derive metadata from it directly, instead
+        of extract_metadata() decoding the same bytes again - but only for
+        the unmodified extract_metadata(). A subclass that overrides
+        extract_metadata() must have its override honored, so fall back to
+        calling it (the old bridge's behavior) in that case."""
+        if type(self).extract_metadata is not TextProcessor.extract_metadata:
+            # A subclass override may also rely on the bridge's getattr
+            # dance (e.g. stashing _last_page_segments for the bridge to
+            # pick up), so delegate to the full bridge rather than just
+            # calling the override and assembling a plain ExtractionResult.
+            return await super().extract(file_data, filename)
+
+        text = await self.extract_text(file_data, filename)
+        metadata = self._base_metadata(file_data, filename)
+        metadata.update({
+            'line_count': len(text.splitlines()),
+            'character_count': len(text),
+            'mime_type': 'text/plain',
+        })
+        return ExtractionResult(text=text, metadata=metadata)

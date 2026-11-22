@@ -2,33 +2,36 @@
 
 ## Status
 
-**Partially implemented.**
+**Done — with the bridge kept intentionally, not removed.**
 
 - Step 2a (compatibility bridge: `ExtractionResult`, `FileProcessor.extract()`
   default bridge, `extract_text` made non-abstract, `_FailingProcessor` fix,
   `_extract_content` switched to `processor.extract(...)`) — **done**.
-- `DoclingProcessor.extract()` and `AIDocumentProcessor.extract()` — **done**,
-  migrated directly (single conversion for Docling; local-variable
-  usage/model capture for AI-OCR), with the concurrency/billing-attribution
-  tests this doc specifies.
-- The native format-specific processors (`text`, `pdf`, `docx`, `csv`,
-  `json`, `html`, `pptx`, `xlsx`, `vtt`) and `MarkItDownProcessor` — **not
-  migrated**; they have no instance-attribute state, so the step-2a bridge
-  already produces identical, correct `ExtractionResult`s for them. There is
-  no bug to fix there, so migrating them individually was deprioritized in
-  favor of the two processors with real concurrency bugs (Docling, AI-OCR).
-  Migrate them opportunistically whenever one of those files is touched for
-  another reason; it's a mechanical override of `extract()`, not urgent.
-- Step 2c (remove the bridge, make `extract()` the sole abstract method,
-  delete `extract_text`/`extract_metadata`) — **not done**, and can't be
-  until every processor above overrides `extract()` directly. Existing tests
-  also still call `extract_text`/`extract_metadata` directly on native
-  processors and Docling, so those methods stay in place regardless.
+- Every in-tree processor now overrides `extract()` directly: `DoclingProcessor`
+  and `AIDocumentProcessor` (the two with real concurrency bugs — single
+  conversion for Docling, local-variable usage/model capture for AI-OCR,
+  with the concurrency/billing-attribution tests this doc specifies), plus
+  the native format-specific processors (`text`, `pdf`, `docx`, `csv`,
+  `json`, `html`, `pptx`, `xlsx`, `vtt`) and `MarkItDownProcessor` (no
+  instance state, so their `extract()` is a straightforward
+  `extract_text()` + `extract_metadata()` combine — no behavior change).
+- **Step 2c (removing the bridge, making `extract()` the sole abstract
+  method) is explicitly NOT done, by decision, not by omission.**
+  `FileProcessorRegistry.register()` is a public extension point: a custom
+  `FileProcessor` subclass that only implements `extract_text`/
+  `extract_metadata` (see `CustomProcessor` in
+  `test_file_processing.py::test_processor_registry_register_custom`) relies
+  on the bridge to be instantiable at all, and `_RacyProcessor`
+  (`test_file_processing.py:2527`) specifically tests the bridge's own
+  sequential-call guarantee. Removing the bridge would be a breaking change
+  to that public contract, not an internal cleanup — so it stays in
+  `FileProcessor` permanently as a supported extension path for processors
+  that don't need tables/page_segments/usage/provider/model.
 
 ## Summary
 
 This is the deferred, full-scope version of item 3 in
-[`file-processing-service-simplification.md`](./complete/file-processing-service-simplification.md).
+[`file-processing-service-simplification.md`](./file-processing-service-simplification.md).
 That doc's item 3 turned out to split into two independently-sizeable pieces:
 
 - **Registry-based dispatch for vision/audio** (narrower, lower risk) — wrap

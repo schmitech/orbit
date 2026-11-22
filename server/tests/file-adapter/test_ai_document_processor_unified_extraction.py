@@ -1,8 +1,8 @@
 """
 Tests for AIDocumentProcessor.extract() — the unified extraction path added by
-docs/roadmap/file-processing-unified-extraction-result.md, specifically its
+docs/roadmap/complete/file-processing-unified-extraction-result.md, specifically its
 usage/model billing-attribution guarantee under concurrency
-(docs/roadmap/file-processing-unified-extraction-result.md#ai-ocr-usagemodel-attribution-under-concurrency).
+(docs/roadmap/complete/file-processing-unified-extraction-result.md#ai-ocr-usagemodel-attribution-under-concurrency).
 """
 
 import asyncio

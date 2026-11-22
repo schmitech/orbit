@@ -84,7 +84,7 @@ class FileProcessor(ABC):
     async def extract(self, file_data: bytes, filename: str | None = None) -> ExtractionResult:
         """Default bridge: legacy extract_text/extract_metadata -> ExtractionResult.
         Processors override this directly once migrated; see migration order in
-        docs/roadmap/file-processing-unified-extraction-result.md."""
+        docs/roadmap/complete/file-processing-unified-extraction-result.md."""
         text = await self.extract_text(file_data, filename)
         metadata = await self.extract_metadata(file_data, filename)
         return ExtractionResult(
