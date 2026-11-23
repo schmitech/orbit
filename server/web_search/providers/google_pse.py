@@ -5,9 +5,11 @@ import logging
 
 import httpx
 
-from ..base import SearchResult, get_filtered_results
+from ..base import SearchResult, get_filtered_results, resolve_endpoint_url
 
 log = logging.getLogger(__name__)
+
+DEFAULT_ENDPOINT_URL = 'https://www.googleapis.com/customsearch/v1'
 
 
 async def search_google_pse(
@@ -17,13 +19,15 @@ async def search_google_pse(
     count: int,
     filter_list: list[str | None] | None = None,
     referer: str | None = None,
+    *,
+    endpoint_url: str | None = None,
 ) -> list[SearchResult]:
     """Query Google Programmable Search Engine with automatic pagination.
 
     The PSE API returns at most 10 results per request; this function
     issues multiple requests when count > 10.
     """
-    url = 'https://www.googleapis.com/customsearch/v1'
+    url = resolve_endpoint_url(endpoint_url, DEFAULT_ENDPOINT_URL, provider='google_pse')
     headers: dict[str, str] = {'Content-Type': 'application/json'}
     if referer:
         headers['Referer'] = referer

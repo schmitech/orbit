@@ -262,7 +262,7 @@ preserving SearXNG's "no hardcoded default" property from Design §1.)
       Enforces Design §3: omitted → `default`; blank → raise; not an
       absolute `http(s)` URL with a hostname → raise. One shared
       implementation, not reimplemented per provider.
-- [ ] Add `DEFAULT_ENDPOINT_URL` + keyword-only `endpoint_url` param (via
+- [x] Add `DEFAULT_ENDPOINT_URL` + keyword-only `endpoint_url` param (via
       `resolve_endpoint_url()`) to every `httpx`-based provider in
       `server/web_search/providers/`: `brave.py`, `deepseek.py`,
       `google_pse.py`, `serper.py`, `tavily.py`, `webz.py`. `webz.py`'s

@@ -6,11 +6,13 @@ import logging
 
 import httpx
 
-from ..base import SearchResult, get_filtered_results
+from ..base import SearchResult, get_filtered_results, resolve_endpoint_url
 
 log = logging.getLogger(__name__)
 
 _RATE_LIMIT_RETRY_DELAY = 1.0
+
+DEFAULT_ENDPOINT_URL = 'https://api.search.brave.com/res/v1/web/search'
 
 
 async def search_brave(
@@ -18,9 +20,11 @@ async def search_brave(
     query: str,
     count: int,
     filter_list: list[str | None] | None = None,
+    *,
+    endpoint_url: str | None = None,
 ) -> list[SearchResult]:
     """Query the Brave Web Search API. Retries once on HTTP 429."""
-    url = 'https://api.search.brave.com/res/v1/web/search'
+    url = resolve_endpoint_url(endpoint_url, DEFAULT_ENDPOINT_URL, provider='brave')
     headers = {
         'Accept': 'application/json',
         'Accept-Encoding': 'gzip',

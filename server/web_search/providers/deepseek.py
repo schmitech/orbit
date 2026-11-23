@@ -5,9 +5,11 @@ import logging
 
 import httpx
 
-from ..base import SearchResult, get_filtered_results
+from ..base import SearchResult, get_filtered_results, resolve_endpoint_url
 
 log = logging.getLogger(__name__)
+
+DEFAULT_ENDPOINT_URL = 'https://api.deepseek.com/v1/tools/search'
 
 
 async def search_deepseek(
@@ -15,10 +17,12 @@ async def search_deepseek(
     query: str,
     count: int,
     filter_list: list[str | None] | None = None,
+    *,
+    endpoint_url: str | None = None,
 ) -> list[SearchResult]:
     """Query the DeepSeek Search API and return normalised results."""
     log.debug("search_deepseek invoked: query=%r count=%d", query, count)
-    url = 'https://api.deepseek.com/v1/tools/search'
+    url = resolve_endpoint_url(endpoint_url, DEFAULT_ENDPOINT_URL, provider='deepseek')
     headers = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
 
     async with httpx.AsyncClient() as client:

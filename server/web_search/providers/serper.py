@@ -5,9 +5,11 @@ import logging
 
 import httpx
 
-from ..base import SearchResult, get_filtered_results
+from ..base import SearchResult, get_filtered_results, resolve_endpoint_url
 
 log = logging.getLogger(__name__)
+
+DEFAULT_ENDPOINT_URL = 'https://google.serper.dev/search'
 
 
 async def search_serper(
@@ -15,9 +17,11 @@ async def search_serper(
     query: str,
     count: int,
     filter_list: list[str | None] | None = None,
+    *,
+    endpoint_url: str | None = None,
 ) -> list[SearchResult]:
     """Query the serper.dev Google Search API and return normalised results."""
-    url = 'https://google.serper.dev/search'
+    url = resolve_endpoint_url(endpoint_url, DEFAULT_ENDPOINT_URL, provider='serper')
     headers = {'X-API-KEY': api_key, 'Content-Type': 'application/json'}
 
     async with httpx.AsyncClient() as client:

@@ -5,9 +5,11 @@ import logging
 
 import httpx
 
-from ..base import SearchResult, get_filtered_results
+from ..base import SearchResult, get_filtered_results, resolve_endpoint_url
 
 log = logging.getLogger(__name__)
+
+DEFAULT_ENDPOINT_URL = 'https://api.webz.io/newsApiLite'
 
 
 async def search_webz(
@@ -15,9 +17,11 @@ async def search_webz(
     query: str,
     count: int,
     filter_list: list[str | None] | None = None,
+    *,
+    endpoint_url: str | None = None,
 ) -> list[SearchResult]:
     """Query the Webz.io News API Lite and return normalised results."""
-    url = 'https://api.webz.io/newsApiLite'
+    url = resolve_endpoint_url(endpoint_url, DEFAULT_ENDPOINT_URL, provider='webz')
     params = {'token': api_key, 'q': query}
 
     async with httpx.AsyncClient() as client:

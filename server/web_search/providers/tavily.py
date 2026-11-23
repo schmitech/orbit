@@ -5,9 +5,11 @@ import logging
 
 import httpx
 
-from ..base import SearchResult, get_filtered_results
+from ..base import SearchResult, get_filtered_results, resolve_endpoint_url
 
 log = logging.getLogger(__name__)
+
+DEFAULT_ENDPOINT_URL = 'https://api.tavily.com/search'
 
 
 async def search_tavily(
@@ -15,9 +17,11 @@ async def search_tavily(
     query: str,
     count: int,
     filter_list: list[str | None] | None = None,
+    *,
+    endpoint_url: str | None = None,
 ) -> list[SearchResult]:
     """Search using the Tavily Search API."""
-    url = 'https://api.tavily.com/search'
+    url = resolve_endpoint_url(endpoint_url, DEFAULT_ENDPOINT_URL, provider='tavily')
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {api_key}',
