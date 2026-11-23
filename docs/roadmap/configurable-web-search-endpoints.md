@@ -257,7 +257,7 @@ preserving SearXNG's "no hardcoded default" property from Design §1.)
 
 ## Tasks
 
-- [ ] Implement `resolve_endpoint_url(value, default, *, provider)` in
+- [x] Implement `resolve_endpoint_url(value, default, *, provider)` in
       `server/web_search/base.py` first — every other task depends on it.
       Enforces Design §3: omitted → `default`; blank → raise; not an
       absolute `http(s)` URL with a hostname → raise. One shared
