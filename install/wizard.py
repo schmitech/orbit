@@ -44,7 +44,7 @@ PROVIDERS = [
     {
         "label": "Google Gemini",
         "key": "gemini",
-        "model": "gemini-2.0-flash",
+        "model": "gemini-3.6-flash",
         "env_var": "GOOGLE_API_KEY",
         "description": "Cloud API — needs API key",
         "needs_key": True,
