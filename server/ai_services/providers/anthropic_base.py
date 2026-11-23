@@ -69,7 +69,7 @@ class AnthropicBaseService(ProviderAIService):
         self.base_url = self._get_base_url(self.DEFAULT_BASE_URL)
 
         # Get model
-        self.model = self._get_model("claude-sonnet-4-20250514")  # Default model
+        self.model = self._get_model("claude-sonnet-5-5")  # Default model
 
         # Get endpoint
         self.endpoint = self._get_endpoint("/v1/messages")  # Default

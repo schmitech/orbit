@@ -64,7 +64,7 @@ class AnthropicModerationService(ModerationService, AnthropicBaseService):
 
         # Get moderation-specific configuration
         provider_config = self._extract_provider_config()
-        self.model = provider_config.get('model', 'claude-3-haiku-20240307')
+        self.model = provider_config.get('model', 'claude-haiku-5-5')
         self.temperature = provider_config.get('temperature', 0.0)
         self.max_tokens = provider_config.get('max_tokens', 200)
         self.batch_size = provider_config.get('batch_size', 5)
