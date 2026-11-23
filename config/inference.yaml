@@ -316,12 +316,12 @@ inference:
     top_p: 0.8
     max_tokens: 1024
     stream: true
-  vertex:
+  vertexai:
     enabled: false
     project_id: "your-project-id"
     location: "us-central1"
-    model: "gemini-1.5-pro"
-    context_window: 1000000  # Gemini 1.5 Pro on Vertex supports up to 1M tokens
+    model: "gemini-3.8-flash"
+    context_window: 1000000  # Gemini supports up to 1M tokens (input context)
     temperature: 0.1
     top_p: 0.8
     top_k: 20
