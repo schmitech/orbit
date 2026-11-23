@@ -134,7 +134,7 @@ Choose **one** flavor:
 | **OpenRouter** | `schmitech/orbit-openrouter:latest` | `OPENROUTER_API_KEY` exported in your shell. Free models. |
 | **Cohere** | `schmitech/orbit-cohere:latest` | `COHERE_API_KEY` exported in your shell. |
 
-Each image is also published with a version tag (e.g. `schmitech/orbit-ollama:2.21.6`) if you want to pin to a specific release instead of `:latest`.
+Each image is also published with a version tag (e.g. `schmitech/orbit-ollama:2.21.7`) if you want to pin to a specific release instead of `:latest`.
 
 **Ollama**
 
@@ -213,8 +213,8 @@ See the [Docker guide](docker/README.md#flavor-images-recommended-pull-and-run) 
 **Prerequisites:** Python 3.12+, an internet connection for downloads, and [Ollama](https://ollama.com/) installed and running. If needed, run `ollama serve` in a separate terminal. On Windows, follow the [installation guide](install/windows.md).
 
 ```bash
-curl -LO https://github.com/schmitech/orbit/releases/download/v2.21.6/orbit-2.21.6.tar.gz
-tar -xzf orbit-2.21.6.tar.gz && cd orbit-2.21.6
+curl -LO https://github.com/schmitech/orbit/releases/download/v2.21.7/orbit-2.21.7.tar.gz
+tar -xzf orbit-2.21.7.tar.gz && cd orbit-2.21.7
 ./install/setup.sh --profile default
 
 ollama pull gemma4:e2b

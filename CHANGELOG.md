@@ -1,10 +1,11 @@
 # Changelog
 
-## [UNRELEASED]
+## [2.21.7] - 2026-11-23
 
 ### Maintenance
 - Consolidated shared file-processing logic and simplified chunker setup. [Details](docs/roadmap/complete/file-processing-service-simplification.md)
 - Unified extraction results while preserving compatibility with custom processors. Docling now converts each document once per extraction, and AI-OCR usage is billed to the correct request during concurrent extraction. [Details](docs/roadmap/complete/file-processing-unified-extraction-result.md)
+- PRs: #454 (vertexai), #451 (claude models)
 
 ## [2.21.6] - 2026-11-22
 
