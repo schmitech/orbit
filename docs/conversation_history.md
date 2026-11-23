@@ -348,7 +348,7 @@ inference:
     context_window: 32768    # Universal parameter
   azure:
     context_window: 32768    # Universal parameter
-  vertex:
+  vertexai:
     context_window: 48000    # Universal parameter
   aws:
     context_window: 8192     # Universal parameter

@@ -60,7 +60,7 @@ EXPECTED_DEFAULT_CONTEXT_WINDOWS = {
     'tensorrt': 4096,
     'shimmy': 65536,
     'azure': 128000,
-    'vertex': 1000000,
+    'vertexai': 1000000,
     'aws': 200000,
     'huggingface': 2048,
     'mistral': 32768,
