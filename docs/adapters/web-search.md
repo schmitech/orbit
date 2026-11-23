@@ -13,7 +13,7 @@ ORBIT has two distinct web search mechanisms. They are complementary and solve d
 | **Who does the searching** | The LLM provider (Gemini, OpenAI, xAI) | A dedicated external search API |
 | **Who synthesizes the answer** | Same LLM, in the same call | Any configured LLM, in a follow-up step |
 | **Supported LLM providers** | Gemini, OpenAI, xAI only | Any (Anthropic, Ollama, OpenAI, …) |
-| **Available search backends** | Provider's own index | DuckDuckGo, Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity |
+| **Available search backends** | Provider's own index | DuckDuckGo, Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity, DeepSeek, Webz.io |
 | **Citation style** | Provider-native grounding | Numbered snippet list in context |
 | **Free tier** | Depends on provider | DuckDuckGo and SearXNG (self-hosted) are free |
 | **Pipeline step** | `LLMInferenceStep` (native tool) | `WebSearchStep` → `LLMInferenceStep` |
@@ -117,6 +117,7 @@ Because searching and synthesis are decoupled, you can mix and match freely — 
 | `google_pse` | Limited | Yes | Google Programmable Search Engine |
 | `perplexity` | No | Yes | Structured results via [/search endpoint](https://docs.perplexity.ai/docs/search/quickstart) |
 | `deepseek` | No | Yes | [DeepSeek Search API](https://api-docs.deepseek.com/guides/search/) |
+| `webz` | Limited | Yes | News/web results via [Webz.io News API Lite](https://webz.io/products/news-api) |
 
 ### Configuration
 
@@ -152,7 +153,7 @@ adapters:
 | `provider` | Yes | Provider name (see table above) |
 | `result_count` | No | Max results to fetch (default: `5`) |
 | `filter_list` | No | List of domain substrings — only matching results are kept |
-| `api_key` | Depends | Required by Brave, Serper, Tavily, Google PSE, Perplexity |
+| `api_key` | Depends | Required by Brave, Serper, Tavily, Google PSE, Perplexity, Webz |
 | `query_url` | SearXNG only | Base URL of your SearXNG instance |
 | `search_engine_id` | Google PSE only | Programmable Search Engine ID |
 | `api_url` | Perplexity only | Override for custom deployments |
@@ -169,6 +170,7 @@ adapters:
 | Google PSE | `GOOGLE_PSE_API_KEY`, `GOOGLE_PSE_ENGINE_ID` |
 | Perplexity | `PERPLEXITY_API_KEY` |
 | DeepSeek | `DEEPSEEK_API_KEY` |
+| Webz.io | `WEBZ_API_KEY` |
 
 All variables are defined in `env.example`.
 

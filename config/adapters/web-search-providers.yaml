@@ -17,6 +17,7 @@
 #   google_pse   — requires GOOGLE_PSE_API_KEY + GOOGLE_PSE_ENGINE_ID
 #   perplexity   — requires PERPLEXITY_API_KEY
 #   deepseek     — requires DEEPSEEK_API_KEY
+#   webz         — requires WEBZ_API_KEY
 #
 # ALTERNATIVE: for provider-native search (Gemini GoogleSearch grounding,
 #   OpenAI web_search_preview, xAI Grok search) in a single API call, see:
@@ -28,7 +29,7 @@
 #   provider:          Required. One of the provider keys listed above.
 #   result_count:      Number of results to fetch (default: 5)
 #   filter_list:       Optional domain substring whitelist
-#   api_key:           Required for Brave, Serper, Tavily, Google PSE, Perplexity
+#   api_key:           Required for Brave, Serper, Tavily, Google PSE, Perplexity, Webz
 #   query_url:         SearXNG only — base URL of your instance
 #   search_engine_id:  Google PSE only
 #   api_url:           Perplexity only — override for custom deployments
@@ -62,7 +63,7 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     inference_provider: "anthropic"
-    model: "claude-haiku-4-5-20251001"
+    model: "claude-sonnet-5-5"
     # Lets a client pick which search backend this adapter uses at runtime (mirrors
     # allowed_image_models/allowed_video_models/allowed_audio_models). Unlike those,
     # there's no separate LLM to pick here — the backend itself is the selectable
@@ -101,6 +102,10 @@ adapters:
         provider: "deepseek"
         api_key: "${DEEPSEEK_API_KEY}"
         result_count: 5
+      - name: "webz"
+        provider: "webz"
+        api_key: "${WEBZ_API_KEY}"
+        result_count: 5
     web_search:
       provider: "duckduckgo"
       result_count: 5
@@ -123,7 +128,7 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     inference_provider: "anthropic"
-    model: "claude-haiku-4-5-20251001"
+    model: "claude-sonnet-5-5"
     web_search:
       provider: "brave"
       api_key: "${BRAVE_SEARCH_API_KEY}"
@@ -146,7 +151,7 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     inference_provider: "anthropic"
-    model: "claude-haiku-4-5-20251001"
+    model: "claude-sonnet-5-5"
     web_search:
       provider: "searxng"
       query_url: "${SEARXNG_URL}"   # e.g. http://localhost:8080
@@ -195,7 +200,7 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     inference_provider: "anthropic"
-    model: "claude-haiku-4-5-20251001"
+    model: "claude-sonnet-5-5"
     web_search:
       provider: "tavily"
       api_key: "${TAVILY_API_KEY}"
@@ -219,7 +224,7 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     inference_provider: "anthropic"
-    model: "claude-haiku-4-5-20251001"
+    model: "claude-sonnet-5-5"
     web_search:
       provider: "perplexity"
       api_key: "${PERPLEXITY_API_KEY}"
@@ -244,7 +249,7 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     inference_provider: "anthropic"
-    model: "claude-haiku-4-5-20251001"
+    model: "claude-sonnet-5-5"
     web_search:
       provider: "google_pse"
       api_key: "${GOOGLE_PSE_API_KEY}"
@@ -259,6 +264,29 @@ adapters:
       formatting_style: "standard"
       requires_api_key_validation: false
 
+  # ── Webz.io News API Lite ────────────────────────────────────────────────────
+  # Requires a Webz.io API key (https://webz.io/products/news-api).
+  - name: "web-search-webz"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-sonnet-5-5"
+    web_search:
+      provider: "webz"
+      api_key: "${WEBZ_API_KEY}"
+      result_count: 5
+    capabilities:
+      supports_threading: false  # Conversational/web-search adapters do not thread conversations on a retrieved dataset
+      expose_as_skill: true
+      skill_name: "web-search-webz"
+      skill_description: "Search news and web content using the Webz.io News API"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
   # ── DeepSeek Search ──────────────────────────────────────────────────────────
   # Requires a DeepSeek API key (https://api-docs.deepseek.com/guides/search/).
   - name: "web-search-deepseek"
@@ -268,7 +296,7 @@ adapters:
     adapter: "conversational"
     implementation: "implementations.passthrough.conversational.ConversationalImplementation"
     inference_provider: "anthropic"
-    model: "claude-haiku-4-5-20251001"
+    model: "claude-sonnet-5-5"
     web_search:
       provider: "deepseek"
       api_key: "${DEEPSEEK_API_KEY}"

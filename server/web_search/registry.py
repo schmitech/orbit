@@ -17,6 +17,7 @@ from .providers.perplexity import search_perplexity
 from .providers.searxng import search_searxng
 from .providers.serper import search_serper
 from .providers.tavily import search_tavily
+from .providers.webz import search_webz
 
 PROVIDERS: dict[str, callable] = {
     "duckduckgo": search_duckduckgo,
@@ -27,6 +28,7 @@ PROVIDERS: dict[str, callable] = {
     "tavily": search_tavily,
     "google_pse": search_google_pse,
     "perplexity": search_perplexity,
+    "webz": search_webz,
 }
 
 
