@@ -333,7 +333,7 @@ inference:
     access_key: ${AWS_BEDROCK_ACCESS_KEY}
     secret_access_key: ${AWS_SECRET_ACCESS_KEY}
     region: "ca-central-1"
-    model: "claude-sonnet-4-5-20250929"
+    model: "claude-sonnet-5-5"
     context_window: 200000  # Claude on Bedrock supports 200K context
     content_type: "application/json"
     accept: "application/json"
