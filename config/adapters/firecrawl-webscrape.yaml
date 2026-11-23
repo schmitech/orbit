@@ -134,7 +134,7 @@ adapters:
         effort: "low"
       - name: "claude"
         provider: "anthropic"
-        model: "claude-sonnet-4-5-20250929"
+        model: "claude-sonnet-5-5"
         context_window: 1000000
         max_tokens: 64000
         effort: "low"           # Ignored for Claude models that don't support the effort parameter
