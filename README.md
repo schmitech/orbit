@@ -21,6 +21,7 @@
   <a href="https://github.com/schmitech/orbit/stargazers"><img src="https://img.shields.io/github/stars/schmitech/orbit?style=social" alt="GitHub stars" /></a>
   <a href="https://github.com/schmitech/orbit/releases/latest"><img src="https://img.shields.io/github/v/release/schmitech/orbit?label=release" alt="Latest release" /></a>
   <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0 license" /></a>
+  <a href="https://deepwiki.com/schmitech/orbit"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki about the ORBIT codebase" /></a>
 </p>
 
 <p align="center">
