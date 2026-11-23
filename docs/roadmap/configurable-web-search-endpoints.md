@@ -273,7 +273,7 @@ preserving SearXNG's "no hardcoded default" property from Design §1.)
       only on the new example adapter's `endpoint_url`, never as the
       provider's default.
       `duckduckgo.py` is excluded (SDK-based, no URL — see Design §1).
-- [ ] `perplexity.py`: add keyword-only `endpoint_url`, resolved via
+- [x] `perplexity.py`: add keyword-only `endpoint_url`, resolved via
       `resolve_endpoint_url()`. Preserve `api_url`'s existing fifth
       positional slot and default unchanged — do not move it or make it
       keyword-only — so existing positional callers (if any) and the
