@@ -1025,10 +1025,10 @@ echo "----------------------------------------"
 PYTHON_MINOR_VERSION=$(python -c "import sys; print(sys.version_info.minor)")
 if [ "$PYTHON_MINOR_VERSION" -ge "13" ] && [ "$OS_TYPE" = "Darwin" ]; then
     print_message "yellow" "\n⚠  Python 3.13+ on macOS detected - PyTorch wheels not yet available for cp313."
-    print_message "yellow" "   Skipping torch-dependent packages (torch, docling, sentence-transformers)."
+    print_message "yellow" "   Skipping torch-dependent packages (torch, docling, sentence-transformers, laya)."
     print_message "yellow" "   Use Python 3.12 for full ML/AI support on macOS.\n"
     # Remove torch-dependent packages from requirements
-    grep -v -E "^(torch|torchvision|docling|sentence-transformers)" "$TEMP_REQUIREMENTS" > "${TEMP_REQUIREMENTS}.tmp" && mv "${TEMP_REQUIREMENTS}.tmp" "$TEMP_REQUIREMENTS"
+    grep -v -E "^(torch|torchvision|docling|sentence-transformers|laya)" "$TEMP_REQUIREMENTS" > "${TEMP_REQUIREMENTS}.tmp" && mv "${TEMP_REQUIREMENTS}.tmp" "$TEMP_REQUIREMENTS"
 elif [ "$PYTHON_MINOR_VERSION" -ge "13" ]; then
     print_message "blue" "\nPython 3.13+ on Linux detected - PyTorch should install normally."
 fi

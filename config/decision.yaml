@@ -5,7 +5,7 @@
 # with probabilities, typically in ~100ms. Used by adapters of type `decision_model`
 # (see config/adapters/decision.yaml).
 decision:
-  provider: "ollama"   # Default decision provider: ollama, typesafe, openai
+  provider: "ollama"   # Default decision provider: ollama, typesafe, openai, laya
   enabled: true        # Whether decision models are enabled globally
 
 # Provider-specific configurations
@@ -55,3 +55,11 @@ decision_models:
       initial_wait_ms: 500
       max_wait_ms: 5000
       exponential_base: 2
+
+  # Local, in-process Laya model (https://github.com/nandhakishorm/laya). Unlike ollama/typesafe/
+  # openai, this is not an HTTP call: `pip install laya` (profile: torch) loads the checkpoint
+  # into this process the first time the adapter is used.
+  laya:
+    enabled: true
+    model: "english"              # english (repo root), multilingual, typed-decisions
+    device: null                  # null lets laya choose (cuda/mps if available, else cpu)

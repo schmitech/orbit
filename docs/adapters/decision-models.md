@@ -2,15 +2,16 @@
 
 Decision models (also called "System One" or Jev-style models) are a different kind of model from the chat LLMs used by most ORBIT adapters. They **do not generate text**. You give them some context (the `state`) and a set of typed questions, and they return typed answers with a probability for every candidate. Because they only score a fixed set of answers instead of writing a reply, they are fast (roughly 100 ms per decision on a local GPU or Apple Silicon) and predictable. That makes them a good fit for light, real-time decisions inside an application: ticket triage, content moderation, request routing, and similar checks.
 
-ORBIT exposes these models through the `decision_model` adapter type, with three providers:
+ORBIT exposes these models through the `decision_model` adapter type, with four providers:
 
 | Provider | Where it runs | Models | How ORBIT calls it |
 |----------|---------------|--------|--------------------|
 | `ollama` | Local, Ollama 0.35+ | `nimble` (9B, Bespoke Labs), `tev1` (4B), `tev1:0.8b` (0.8B, Together AI) | Plain HTTP to `POST /v1/systemone` (no extra dependency) |
 | `typesafe` | Hosted by [TypeSafe](https://docs.typesafe.ai) | `jev-latest` (resolves to a version such as `jev-1.13.0`) | The official `typesafe-sdk` (`AsyncTypeSafeClient`) |
 | `openai` | Hosted by OpenAI | `gpt-6-luna` | Plain HTTP to `POST /v1/decisions` (no extra dependency) |
+| `laya` | Local, in-process | `english`, `multilingual`, `typed-decisions` ([convaiinnovations/laya](https://huggingface.co/convaiinnovations/laya)) | The `laya` package (`pip install laya`, profile `torch`) — the checkpoint is loaded into this process, no HTTP call |
 
-All three speak the same `choice` / `noul` / `score` question shape at the adapter level — ORBIT translates to and from each provider's own wire format (OpenAI's Decisions API calls `noul` a `predicate`, and uses `choices` / `levels` instead of `criteria`) — so an adapter can switch providers by changing one line.
+All four speak the same `choice` / `noul` / `score` question shape at the adapter level. `ollama` and `laya` use that shape natively; ORBIT translates to and from the other providers' own wire formats (OpenAI's Decisions API calls `noul` a `predicate`, and uses `choices` / `levels` instead of `criteria`). An adapter can switch providers by changing one line.
 
 A decision model can also pick which *chat* model handles a turn — see
 [Automatic Model Selection](auto-model-selection.md) ("auto" routing).
@@ -86,7 +87,7 @@ And the typed result:
 
 ```yaml
 decision:
-  provider: "ollama"   # Default decision provider: ollama, typesafe, openai
+  provider: "ollama"   # Default decision provider: ollama, typesafe, openai, laya
   enabled: true        # Whether decision models are enabled globally
 
 decision_models:
@@ -126,11 +127,17 @@ decision_models:
       initial_wait_ms: 500
       max_wait_ms: 5000
       exponential_base: 2
+
+  laya:
+    enabled: true
+    model: "english"               # english (repo root), multilingual, typed-decisions
+    device: null                   # null lets laya choose (cuda/mps if available, else cpu)
 ```
 
 - **Ollama retries**: only connection errors, timeouts, HTTP 429 and HTTP 5xx are retried. Any other error (for example a 404 for a model that isn't pulled, or a 422 for an invalid question) fails right away and returns the provider's own error message.
 - **TypeSafe retries**: handled by the SDK.
 - **OpenAI retries**: same policy as Ollama — only connection errors, timeouts, 429 and 5xx are retried.
+- **Laya**: no retries — it's an in-process call, not a network request, so there's no transient transport failure to retry.
 - Setting `decision.enabled: false` turns off every decision provider. Setting `decision_models.<provider>.enabled: false` turns off just that one.
 
 ### 2. Get a model
@@ -168,6 +175,14 @@ If the SDK isn't installed, ORBIT skips the `typesafe` provider at startup and `
 
 **Hosted (OpenAI):** uses the same `OPENAI_API_KEY` as ORBIT's other OpenAI services (chat, embeddings, etc.) — no extra dependency is needed, since the `openai` decision provider is called over plain HTTP. If the key is missing, requests to an OpenAI decision adapter fail with `OpenAI API key not configured (set OPENAI_API_KEY)`.
 
+**Local, in-process (Laya):** install the package (pulls in `torch`/`transformers`; also available via `./install/setup.sh --profile torch`):
+
+```bash
+pip install "laya>=0.4.22,<0.5"
+```
+
+There's no model to pull separately — `laya.load("english")` downloads and caches the checkpoint from [huggingface.co/convaiinnovations/laya](https://huggingface.co/convaiinnovations/laya) the first time the adapter is used, then keeps it loaded in memory in this process. If `laya` isn't installed, ORBIT skips the `laya` provider at startup and the other providers keep working.
+
 ### 3. Enable the adapters
 
 The example adapters live in `config/adapters/decision.yaml`. Enable them in `config/adapters.yaml`:
@@ -191,7 +206,7 @@ adapters:
     datasource: "none"
     adapter: "multimodal"
     implementation: "implementations.passthrough.multimodal.MultimodalImplementation"
-    decision_provider: "ollama"      # ollama | typesafe (defaults to decision.provider)
+    decision_provider: "ollama"      # ollama | typesafe | openai | laya (defaults to decision.provider)
     model: "nimble"                  # optional; defaults to the provider's configured model
     capabilities:
       retrieval_behavior: "none"
@@ -223,7 +238,7 @@ adapters:
 |-------|----------|-------------|
 | `type` | Yes | Must be `decision_model` |
 | `decision_provider` | No | Provider for this adapter. Defaults to `decision.provider` in `decision.yaml` |
-| `model` | No | Model override for this adapter. Defaults to the provider's `model` |
+| `model` | No | Model override for this adapter. Defaults to the provider's `model`. For `laya`, this must match `decision_models.laya.model` — the agent is loaded once per process and can't swap checkpoints per request |
 | `config.questions` | Yes | The questions to ask (see [Question Types](#question-types)) |
 | `config.state_key` | No | Key the plain-text message is stored under in `state`. Default: `input` |
 | `config.allow_question_override` | No | When `true`, a request can replace the questions for that call. Default: `false` |
@@ -353,6 +368,9 @@ Decision services are cached per provider and preloaded when an adapter sets `de
 | An `openai` answer comes back with `"refused": true` and a null `choice`/`noul`/`score` | OpenAI's Decisions API refused that one question (for example a safety filter on the input text) — a documented possibility, not an error. ORBIT logs a warning and degrades just that question to an empty answer of its own declared type; the other questions in the same call are unaffected. Treat a low/zero-confidence `refused` answer like any other low-confidence one (e.g. route to a person) |
 | `Choice question 'x' requires a non-empty 'criteria' mapping…` | Fix the question definition (see [Question Types](#question-types)) |
 | Request questions are ignored | Set `allow_question_override: true` on the adapter |
+| `Decision provider 'laya' is unavailable` right after startup | `laya` isn't installed (`pip install "laya>=0.4.22,<0.5"`, or `./install/setup.sh --profile torch`), or `decision_models.laya.enabled` is `false` |
+| First `laya` request is slow | The checkpoint downloads from the Hugging Face Hub and loads into memory on first use; later requests reuse the already-loaded agent |
+| `laya` logs "ignoring per-call override" | The adapter or request asked for a different `model` than `decision_models.laya.model` — Laya loads one fixed checkpoint per process, so change the config instead |
 
 ---
 
@@ -364,6 +382,7 @@ Decision services are cached per provider and preloaded when an adapter sets `de
 | Ollama provider | `server/ai_services/implementations/decision/ollama_decision_service.py` | HTTP client for `/v1/systemone`, restricted retries |
 | TypeSafe provider | `server/ai_services/implementations/decision/typesafe_decision_service.py` | `typesafe-sdk` client, question conversion, response normalization |
 | OpenAI provider | `server/ai_services/implementations/decision/openai_decision_service.py` | HTTP client for `/v1/decisions`, question/answer conversion, restricted retries |
+| Laya provider | `server/ai_services/implementations/decision/laya_decision_service.py` | In-process `laya` agent, loaded once via `laya.load()`; inference runs in a thread executor |
 | Service registration | `server/ai_services/registry.py` | `register_decision_services()` |
 | Service cache | `server/services/cache/decision_cache_manager.py` | Per-provider caching; used by `DynamicAdapterManager.get_decision_service()` |
 | Pipeline step | `server/inference/pipeline/steps/decision_model.py` | `DecisionModelStep`, `validate_questions()` |

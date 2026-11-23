@@ -4,6 +4,7 @@ and the DecisionCacheManager / DynamicAdapterManager lifecycle wiring.
 """
 
 import importlib
+import importlib.util
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -22,22 +23,29 @@ def _registered(config):
     return {call.args[1]: call.args[2] for call in register.call_args_list if call.args[0] == ServiceType.DECISION}
 
 
-def _config(enabled=True, ollama=True, typesafe=True, openai=True):
+def _config(enabled=True, ollama=True, typesafe=True, openai=True, laya=True):
     return {
         "decision": {"enabled": enabled, "provider": "ollama"},
         "decision_models": {
             "ollama": {"enabled": ollama},
             "typesafe": {"enabled": typesafe},
             "openai": {"enabled": openai},
+            "laya": {"enabled": laya},
         },
     }
 
 
 def test_registers_all_providers_when_enabled():
+    # `laya` is an optional (profile: torch) dependency, unlike typesafe-sdk, so whether it
+    # registers here just reflects whether it happens to be installed in this environment.
     registered = _registered(_config())
     assert registered["ollama"].__name__ == "OllamaDecisionService"
     assert registered["typesafe"].__name__ == "TypeSafeDecisionService"
     assert registered["openai"].__name__ == "OpenAIDecisionService"
+    if importlib.util.find_spec("laya") is not None:
+        assert registered["laya"].__name__ == "LayaDecisionService"
+    else:
+        assert "laya" not in registered
 
 
 def test_globally_disabled_registers_nothing():
@@ -45,7 +53,7 @@ def test_globally_disabled_registers_nothing():
 
 
 def test_disabled_provider_is_skipped():
-    assert set(_registered(_config(typesafe=False))) == {"ollama", "openai"}
+    assert set(_registered(_config(typesafe=False, laya=False))) == {"ollama", "openai"}
 
 
 def test_missing_sdk_skips_typesafe_but_keeps_ollama(monkeypatch):
@@ -54,6 +62,7 @@ def test_missing_sdk_skips_typesafe_but_keeps_ollama(monkeypatch):
         if name.startswith(package):
             monkeypatch.delitem(sys.modules, name)
     monkeypatch.setitem(sys.modules, "typesafe_sdk", None)  # makes `import typesafe_sdk` raise ImportError
+    monkeypatch.setitem(sys.modules, "laya", None)  # makes `import laya` raise ImportError too
     try:
         assert set(_registered(_config())) == {"ollama", "openai"}
     finally:

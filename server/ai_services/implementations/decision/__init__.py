@@ -5,6 +5,7 @@ Available providers:
     - OllamaDecisionService: local decision models via Ollama's /v1/systemone
     - TypeSafeDecisionService: TypeSafe hosted API via the typesafe-sdk
     - OpenAIDecisionService: OpenAI hosted Decisions API (/v1/decisions)
+    - LayaDecisionService: local, in-process decision model via the laya package
 """
 
 import logging
@@ -17,6 +18,7 @@ _implementations = [
     ('ollama_decision_service', 'OllamaDecisionService'),
     ('typesafe_decision_service', 'TypeSafeDecisionService'),
     ('openai_decision_service', 'OpenAIDecisionService'),
+    ('laya_decision_service', 'LayaDecisionService'),
 ]
 
 for module_name, class_name in _implementations:

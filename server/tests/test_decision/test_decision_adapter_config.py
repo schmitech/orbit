@@ -29,7 +29,7 @@ def test_each_example_adapter_is_valid():
     for adapter in _adapters():
         names.add(adapter["name"])
         assert adapter["type"] == "decision_model"
-        assert adapter["decision_provider"] in {"ollama", "typesafe", "openai"}
+        assert adapter["decision_provider"] in {"ollama", "typesafe", "openai", "laya"}
         assert validate_structure(adapter) == []
         assert validate_questions(adapter["config"]["questions"]) is None
         assert adapter["capabilities"]["retrieval_behavior"] == "none"
@@ -44,6 +44,7 @@ def test_each_example_adapter_is_valid():
         "lane-choice",
         "lane-choice-openai",
         "lane-choice-typesafe",
+        "lane-choice-laya",
     }
 
 

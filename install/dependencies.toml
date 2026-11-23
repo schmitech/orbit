@@ -193,8 +193,11 @@ description = "PyTorch and Hugging Face inference (transformers, accelerate; GPU
 dependencies = [
     "numpy>=1.24.0,<2.0.0; python_version < '3.13'",  # torch 2.2.x wheel was built against NumPy 1.x
     "numpy>=2.0.0; python_version >= '3.13'",           # no NumPy 1.x wheel for Python 3.13+
-    # Same range as docling/files: Apple Silicon gets current torch; Intel macOS is capped at last PyPI wheel (2.2.2).
-    "torch>=2.2.2,<3.0.0",
+    # Intel macOS is capped at the last PyPI wheel (2.2.2). Everywhere else, floor is 2.4: newer
+    # transformers releases (see below) disable their PyTorch backend below that, which would
+    # otherwise let Laya (below) install and register but fail to construct its encoder.
+    "torch>=2.2.2,<3.0.0; platform_system == 'Darwin' and platform_machine == 'x86_64'",
+    "torch>=2.4.0,<3.0.0; platform_system != 'Darwin' or platform_machine != 'x86_64'",
     "torchvision>=0.17.0,<1",
     "transformers>=4.56.0",
     "accelerate>=0.27.2",
@@ -202,6 +205,10 @@ dependencies = [
     "protobuf>=5.27.2,<6.0.0",
     "safetensors>=0.4.0",  # Fast, safe model loading (HF models)
     "huggingface_hub>=0.26.0",  # Model download and HF Inference API client
+    # Local in-process decision model ("laya" decision provider). Needs torch>=2.4 to use
+    # transformers' PyTorch backend, guaranteed by the floor above; excluded on Intel macOS,
+    # which is capped at torch 2.2.2 and can't satisfy that floor.
+    "laya>=0.4.22,<0.5; platform_system != 'Darwin' or platform_machine != 'x86_64'",
 ]
 
 # ============================================================================

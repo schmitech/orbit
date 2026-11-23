@@ -1,5 +1,13 @@
 # Changelog
 
+## [UNRELEASED]
+
+### Core Features
+- **Laya decision provider**: Added `laya` as a fourth `decision_model` provider, alongside `ollama`/`typesafe`/`openai`. Unlike the others, it runs in-process (`pip install laya`, profile `torch`) rather than over HTTP — the checkpoint loads lazily in-process on first use, with concurrent/cancelled requests sharing one load instead of duplicating it. See `docs/adapters/decision-models.md`.
+
+### Maintenance
+- PRs: #455 (wizard gemini model)
+
 ## [2.21.7] - 2026-11-23
 
 ### Maintenance
