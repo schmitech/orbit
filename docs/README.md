@@ -2,6 +2,8 @@
 
 Welcome to the official documentation for ORBIT — an open-source AI gateway and retrieval engine that connects your AI models to your data sources.
 
+New to the codebase? [Ask DeepWiki](https://deepwiki.com/schmitech/orbit) for a conversational walkthrough. Start with a question like “Where does ORBIT choose which model handles a request?”
+
 <p align="center">
   <a href="https://github.com/schmitech/orbit">GitHub</a> •
   <a href="https://github.com/schmitech/orbit/issues">Report an Issue</a>

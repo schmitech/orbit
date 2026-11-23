@@ -305,7 +305,7 @@ OrbitChat opens at [http://localhost:5173](http://localhost:5173). See the [exam
 | **Run in production** | [Authentication](docs/authentication.md) · [Cost tracking](docs/token-usage-and-cost-tracking.md) · [Rate limiting](docs/rate-limiting-architecture.md) · [Fault tolerance](docs/fault-tolerance/fault-tolerance-architecture.md) |
 | **Use a client** | [OrbitChat](clients/orbitchat/) · [Realtime Voice](clients/realtime-voice/) · [Node.js SDK](clients/node-api/) · [Python API example](examples/openai-compatible-api/chat_completions.py) |
 
-See the [documentation index](docs/README.md) for every guide and architecture deep dive.
+To understand how ORBIT works, start with [Ask DeepWiki](https://deepwiki.com/schmitech/orbit). Try “How does a chat request get from the API to a retrieval adapter?” and ask follow-up questions about the code. For setup instructions and architecture guides, browse the [documentation index](docs/README.md).
 
 ## Contributing
 
