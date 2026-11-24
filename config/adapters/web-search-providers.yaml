@@ -17,7 +17,9 @@
 #   google_pse   — requires GOOGLE_PSE_API_KEY + GOOGLE_PSE_ENGINE_ID
 #   perplexity   — requires PERPLEXITY_API_KEY
 #   deepseek     — requires DEEPSEEK_API_KEY
-#   webz         — requires WEBZ_API_KEY
+#   webz         — requires WEBZ_API_KEY; endpoint_url selects among its posts-shaped
+#                  endpoints only — News API Lite (default), Blogs, Forums. Other
+#                  Webz.io endpoints (Reviews, Dark Web, etc.) are not supported.
 #
 # ALTERNATIVE: for provider-native search (Gemini GoogleSearch grounding,
 #   OpenAI web_search_preview, xAI Grok search) in a single API call, see:
@@ -30,10 +32,23 @@
 #   result_count:      Number of results to fetch (default: 5)
 #   filter_list:       Optional domain substring whitelist
 #   api_key:           Required for Brave, Serper, Tavily, Google PSE, Perplexity, Webz
-#   query_url:         SearXNG only — base URL of your instance
+#   endpoint_url:      All httpx-based providers (not DuckDuckGo) — overrides the
+#                      provider's default request URL. Full URL, path included.
+#                      Takes precedence over a provider's legacy alias (api_url/
+#                      query_url) whenever set, even if blank — a blank endpoint_url
+#                      is a config error, not a fallback to a working legacy value.
+#   query_url:         SearXNG only — DEPRECATED alias for endpoint_url. Base URL of
+#                      your instance. SearXNG requires at least one of endpoint_url/
+#                      query_url — neither has a hardcoded default. Both may be set
+#                      at once during a migration; endpoint_url wins.
 #   search_engine_id:  Google PSE only
-#   api_url:           Perplexity only — override for custom deployments
+#   api_url:           Perplexity only — DEPRECATED alias for endpoint_url. Override
+#                      for custom deployments.
 #   backend:           DuckDuckGo only — auto, google, brave, etc.
+#
+# NOTE on allowed_search_providers: a runtime-selected entry REPLACES the adapter's
+# static web_search block entirely — endpoint_url is not inherited from it. Set
+# endpoint_url on each allowed_search_providers entry that needs a non-default URL.
 #
 # TEST EXAMPLE (DuckDuckGo — no API key needed):
 #   curl -X POST http://localhost:3000/v1/chat \
@@ -283,6 +298,37 @@ adapters:
       expose_as_skill: true
       skill_name: "web-search-webz"
       skill_description: "Search news and web content using the Webz.io News API"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
+  # ── Webz.io Blogs (endpoint_url override example) ───────────────────────────
+  # Points at Webz.io's Blogs endpoint instead of the default News API Lite
+  # endpoint — demonstrates endpoint_url. Blogs is documented by Webz.io as
+  # posts-shaped, the same response shape webz.py already parses, so no new
+  # parsing code is needed for this example.
+  # NOTE: WEBZ_API_KEY must be a token with Blogs product access — Webz.io
+  # grants access per product/endpoint, so a token that only has News API
+  # Lite access will be rejected (or return no results) when pointed here,
+  # even though the same env var name is reused for convenience.
+  - name: "web-search-webz-blogs"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-sonnet-5-5"
+    web_search:
+      provider: "webz"
+      api_key: "${WEBZ_API_KEY}"
+      endpoint_url: "${WEBZ_BLOGS_API_URL:-https://api.webz.io/api/blogs}"
+      result_count: 5
+    capabilities:
+      supports_threading: false  # Conversational/web-search adapters do not thread conversations on a retrieved dataset
+      expose_as_skill: true
+      skill_name: "web-search-webz-blogs"
+      skill_description: "Search blog content using the Webz.io Blogs API"
       retrieval_behavior: "none"
       formatting_style: "standard"
       requires_api_key_validation: false

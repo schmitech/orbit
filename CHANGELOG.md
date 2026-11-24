@@ -5,6 +5,7 @@
 ### Core Features
 - **Laya decision provider**: Added `laya` as a fourth `decision_model` provider, alongside `ollama`/`typesafe`/`openai`. Unlike the others, it runs in-process (`pip install laya`, profile `torch`) rather than over HTTP — the checkpoint loads lazily in-process on first use, with concurrent/cancelled requests sharing one load instead of duplicating it. See `docs/adapters/decision-models.md`.
 - **Webz.io web search provider**: Added `webz` as a new external search backend (`server/web_search/providers/webz.py`, registered in `registry.py`), with a `web-search-webz` adapter following the existing DuckDuckGo/Brave/Tavily/etc. pattern. Requires `WEBZ_API_KEY`. See `docs/adapters/web-search.md`. ([#453](https://github.com/schmitech/orbit/issues/453))
+- **Configurable web search endpoints**: All `httpx`-based web search providers now accept an `endpoint_url` config option to override their default request URL — e.g. selecting Webz.io's Blogs endpoint instead of News API Lite. Perplexity's `api_url` and SearXNG's `query_url` remain as deprecated aliases. See `docs/roadmap/complete/configurable-web-search-endpoints.md`.
 
 ### Maintenance
 - PRs: #455 (wizard gemini model)

@@ -293,13 +293,13 @@ preserving SearXNG's "no hardcoded default" property from Design §1.)
       `TypeError` on a still-required `query_url` before validation ever
       runs. Keep the `<query>`-placeholder-stripping behavior unchanged for
       whichever of the two URL keys resolves.
-- [ ] Update `docs/adapters/web-search.md` and the
+- [x] Update `docs/adapters/web-search.md` and the
       `config/adapters/web-search-providers.yaml` header comment per
       "Documentation" above, including the runtime-selection caveat.
-- [ ] `env.example`: add `WEBZ_BLOGS_API_URL=https://api.webz.io/api/blogs`
+- [x] `env.example`: add `WEBZ_BLOGS_API_URL=https://api.webz.io/api/blogs`
       as the example override var, paired with a `${VAR:-default}` fallback
       so plain `WEBZ_API_KEY` users see no change.
-- [ ] Tests — `webz.py`, `perplexity.py`, **and** `searxng.py` each need
+- [x] Tests — `webz.py`, `perplexity.py`, **and** `searxng.py` each need
       their own coverage; the two alias providers have different
       compatibility requirements (a defaulted positional `api_url` vs. a
       required-with-no-default `query_url`), so testing only one leaves a

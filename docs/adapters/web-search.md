@@ -117,7 +117,7 @@ Because searching and synthesis are decoupled, you can mix and match freely — 
 | `google_pse` | Limited | Yes | Google Programmable Search Engine |
 | `perplexity` | No | Yes | Structured results via [/search endpoint](https://docs.perplexity.ai/docs/search/quickstart) |
 | `deepseek` | No | Yes | [DeepSeek Search API](https://api-docs.deepseek.com/guides/search/) |
-| `webz` | Limited | Yes | News/web results via [Webz.io News API Lite](https://webz.io/products/news-api) |
+| `webz` | Limited | Yes | News/web results via [Webz.io News API Lite](https://webz.io/products/news-api). Exposes several distinct endpoints under the same key; `endpoint_url` only selects **among `posts`-shaped ones** — News API Lite (default) and Blogs/Forums are supported. **Reviews and Dark Web are not supported**: `search_webz` only parses the `posts` field, while those return `reviews`/`cyberDocs` respectively, so pointing `endpoint_url` at them silently returns zero results. |
 
 ### Configuration
 
@@ -154,10 +154,33 @@ adapters:
 | `result_count` | No | Max results to fetch (default: `5`) |
 | `filter_list` | No | List of domain substrings — only matching results are kept |
 | `api_key` | Depends | Required by Brave, Serper, Tavily, Google PSE, Perplexity, Webz |
-| `query_url` | SearXNG only | Base URL of your SearXNG instance |
+| `endpoint_url` | No | All `httpx`-based providers (not DuckDuckGo) — overrides the provider's default request URL. The full request URL, path included. |
+| `query_url` | SearXNG only | **Deprecated alias for `endpoint_url`.** Base URL of your SearXNG instance. SearXNG requires at least one of `endpoint_url`/`query_url` — neither has a hardcoded default. Both may be set at once during a migration; `endpoint_url` wins. |
 | `search_engine_id` | Google PSE only | Programmable Search Engine ID |
-| `api_url` | Perplexity only | Override for custom deployments |
+| `api_url` | Perplexity only | **Deprecated alias for `endpoint_url`.** Override for custom deployments. |
 | `backend` | DuckDuckGo only | Backend to use: `auto`, `google`, `brave`, etc. |
+
+`endpoint_url` takes precedence whenever it's set alongside a provider's legacy alias (`api_url`/`query_url`), including when it's explicitly blank — an explicitly-set-but-empty `endpoint_url` is a configuration error, not a reason to fall back to a working legacy value. An omitted `endpoint_url` key falls through to the legacy alias (if set) or the provider's default.
+
+Webz.io in particular exposes several distinct endpoints under the same API key, each a different path. `endpoint_url` only selects among the `posts`-shaped ones that `search_webz` can parse — News API Lite, Blogs, and Forums. Other Webz.io endpoints (Reviews, Dark Web, etc.) return a different response shape and are not supported. See the `web-search-webz-blogs` example below.
+
+#### Runtime-selected providers and `endpoint_url`
+
+An `allowed_search_providers` entry **replaces** the adapter's static `web_search` block entirely at request time — it does not inherit from it. If a runtime-selected provider needs a non-default URL, set `endpoint_url` on that `allowed_search_providers` entry itself, not only on the adapter's static `web_search` block:
+
+```yaml
+allowed_search_providers:
+  - name: "webz-blogs"
+    provider: "webz"
+    api_key: "${WEBZ_API_KEY}"
+    endpoint_url: "https://api.webz.io/api/blogs"   # must be repeated here
+    result_count: 5
+web_search:
+  provider: "webz"
+  api_key: "${WEBZ_API_KEY}"
+  endpoint_url: "https://api.webz.io/api/blogs"      # does NOT carry over to the entry above
+  result_count: 5
+```
 
 ### Required environment variables
 
@@ -242,6 +265,11 @@ Multiple skills can be listed. If `available_skills` is omitted, no skills can b
    async def search_<name>(query: str, count: int, api_key: str, ...) -> list[SearchResult]:
        ...
    ```
+   Define a module-level `DEFAULT_ENDPOINT_URL` constant and accept a keyword-only
+   `endpoint_url: str | None = None` parameter, resolved via
+   `resolve_endpoint_url(endpoint_url, DEFAULT_ENDPOINT_URL, provider="<name>")`
+   from `server/web_search/base.py` — this is the one shared implementation for
+   the omitted/blank/malformed validation contract, so don't reimplement it.
 2. Register it in `server/web_search/registry.py`:
    ```python
    from .providers.<name> import search_<name>

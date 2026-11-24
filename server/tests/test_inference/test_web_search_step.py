@@ -199,6 +199,85 @@ class TestWebSearchStepSuccess:
         assert call_kwargs.get('count') == 3
 
     @pytest.mark.asyncio
+    async def test_static_block_endpoint_url_forwarded_without_runtime_override(self):
+        """With no runtime_search_provider_overrides set, the static web_search
+        block's own endpoint_url is forwarded as-is."""
+        step = WebSearchStep(
+            _FakeContainer(
+                ws_config={
+                    'provider': 'webz',
+                    'result_count': 5,
+                    'endpoint_url': 'https://static-block.example.com/search',
+                }
+            )
+        )
+        ctx = ProcessingContext(message='test', adapter_name='my-adapter')
+
+        search_fn = AsyncMock(return_value=_make_results(1))
+        with patch('web_search.registry.get_provider', return_value=search_fn):
+            await step.process(ctx)
+
+        call_kwargs = search_fn.call_args.kwargs
+        assert call_kwargs.get('endpoint_url') == 'https://static-block.example.com/search'
+
+    @pytest.mark.asyncio
+    async def test_runtime_override_endpoint_url_independent_of_static_block(self):
+        """An allowed_search_providers entry's own endpoint_url is honored even
+        when the adapter's static web_search block sets a different one — the
+        runtime override is not merged with the static block, it replaces it."""
+        step = WebSearchStep(
+            _FakeContainer(
+                ws_config={
+                    'provider': 'webz',
+                    'result_count': 5,
+                    'endpoint_url': 'https://static-block.example.com/search',
+                }
+            )
+        )
+        ctx = ProcessingContext(message='test', adapter_name='my-adapter')
+        ctx.runtime_search_provider_overrides = {
+            'provider': 'webz',
+            'api_key': 'webz-key',
+            'result_count': 3,
+            'endpoint_url': 'https://runtime-override.example.com/search',
+        }
+
+        search_fn = AsyncMock(return_value=_make_results(1))
+        with patch('web_search.registry.get_provider', return_value=search_fn):
+            await step.process(ctx)
+
+        call_kwargs = search_fn.call_args.kwargs
+        assert call_kwargs.get('endpoint_url') == 'https://runtime-override.example.com/search'
+
+    @pytest.mark.asyncio
+    async def test_runtime_override_without_endpoint_url_does_not_inherit_static(self):
+        """A runtime override that omits endpoint_url does NOT fall back to the
+        static web_search block's endpoint_url — the static block is replaced
+        wholesale, not merged."""
+        step = WebSearchStep(
+            _FakeContainer(
+                ws_config={
+                    'provider': 'webz',
+                    'result_count': 5,
+                    'endpoint_url': 'https://static-block.example.com/search',
+                }
+            )
+        )
+        ctx = ProcessingContext(message='test', adapter_name='my-adapter')
+        ctx.runtime_search_provider_overrides = {
+            'provider': 'webz',
+            'api_key': 'webz-key',
+            'result_count': 3,
+        }
+
+        search_fn = AsyncMock(return_value=_make_results(1))
+        with patch('web_search.registry.get_provider', return_value=search_fn):
+            await step.process(ctx)
+
+        call_kwargs = search_fn.call_args.kwargs
+        assert 'endpoint_url' not in call_kwargs
+
+    @pytest.mark.asyncio
     async def test_result_without_snippet_still_formats(self):
         from web_search.base import SearchResult
         step = WebSearchStep(_FakeContainer())
