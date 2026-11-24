@@ -280,7 +280,7 @@ preserving SearXNG's "no hardcoded default" property from Design §1.)
       existing `allowed_search_providers`/`web_search` kwarg usage keep
       working. Log a deprecation warning when `api_url` is set to a
       non-default value and `endpoint_url` is omitted.
-- [ ] `searxng.py`: make `query_url` optional (`str | None = None`, keeping
+- [x] `searxng.py`: make `query_url` optional (`str | None = None`, keeping
       its existing position so current positional callers are unaffected)
       and add keyword-only `endpoint_url`, same precedence rule. `query` and
       `count` must stay genuinely required even though they now sit after an
