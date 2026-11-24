@@ -20,6 +20,9 @@
 #   webz         — requires WEBZ_API_KEY; endpoint_url selects among its posts-shaped
 #                  endpoints only — News API Lite (default), Blogs, Forums. Other
 #                  Webz.io endpoints (Reviews, Dark Web, etc.) are not supported.
+#   keenable     — optional KEENABLE_API_KEY; without a key it uses Keenable's keyless
+#                  endpoint, rate limited per IP. app_title sets X-Keenable-Title
+#                  (default "orbit").
 #
 # ALTERNATIVE: for provider-native search (Gemini GoogleSearch grounding,
 #   OpenAI web_search_preview, xAI Grok search) in a single API call, see:
@@ -298,6 +301,30 @@ adapters:
       expose_as_skill: true
       skill_name: "web-search-webz"
       skill_description: "Search news and web content using the Webz.io News API"
+      retrieval_behavior: "none"
+      formatting_style: "standard"
+      requires_api_key_validation: false
+
+  # ── Keenable ─────────────────────────────────────────────────────────────────
+  # Works without an API key (keyless endpoint, rate limited per IP);
+  # KEENABLE_API_KEY lifts the keyless limits. https://docs.keenable.ai
+  - name: "web-search-keenable"
+    enabled: false
+    type: "web-search"
+    datasource: "none"
+    adapter: "conversational"
+    implementation: "implementations.passthrough.conversational.ConversationalImplementation"
+    inference_provider: "anthropic"
+    model: "claude-sonnet-5-5"
+    web_search:
+      provider: "keenable"
+      api_key: "${KEENABLE_API_KEY:-}"
+      result_count: 5
+    capabilities:
+      supports_threading: false  # Conversational/web-search adapters do not thread conversations on a retrieved dataset
+      expose_as_skill: true
+      skill_name: "web-search-keenable"
+      skill_description: "Search the web using Keenable"
       retrieval_behavior: "none"
       formatting_style: "standard"
       requires_api_key_validation: false

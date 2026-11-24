@@ -13,7 +13,7 @@ ORBIT has two distinct web search mechanisms. They are complementary and solve d
 | **Who does the searching** | The LLM provider (Gemini, OpenAI, xAI) | A dedicated external search API |
 | **Who synthesizes the answer** | Same LLM, in the same call | Any configured LLM, in a follow-up step |
 | **Supported LLM providers** | Gemini, OpenAI, xAI only | Any (Anthropic, Ollama, OpenAI, …) |
-| **Available search backends** | Provider's own index | DuckDuckGo, Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity, DeepSeek, Webz.io |
+| **Available search backends** | Provider's own index | DuckDuckGo, Brave, SearXNG, Serper, Tavily, Google PSE, Perplexity, DeepSeek, Webz.io, Keenable |
 | **Citation style** | Provider-native grounding | Numbered snippet list in context |
 | **Free tier** | Depends on provider | DuckDuckGo and SearXNG (self-hosted) are free |
 | **Pipeline step** | `LLMInferenceStep` (native tool) | `WebSearchStep` → `LLMInferenceStep` |
@@ -117,6 +117,7 @@ Because searching and synthesis are decoupled, you can mix and match freely — 
 | `google_pse` | Limited | Yes | Google Programmable Search Engine |
 | `perplexity` | No | Yes | Structured results via [/search endpoint](https://docs.perplexity.ai/docs/search/quickstart) |
 | `deepseek` | No | Yes | [DeepSeek Search API](https://api-docs.deepseek.com/guides/search/) |
+| `keenable` | Yes | No | [keenable.ai](https://keenable.ai/). Without `api_key` it calls the keyless `/v1/search/public` endpoint (1,000 requests an hour and 10 a second per IP, [docs](https://docs.keenable.ai/guides/keyless-access)); with a key, `/v1/search`. `app_title` sets the `X-Keenable-Title` app name (default `orbit`). Keenable logs requests with or without a key on its default data policy ([data privacy](https://docs.keenable.ai/data-privacy)) |
 | `webz` | Limited | Yes | News/web results via [Webz.io News API Lite](https://webz.io/products/news-api). Exposes several distinct endpoints under the same key; `endpoint_url` only selects **among `posts`-shaped ones** — News API Lite (default) and Blogs/Forums are supported. **Reviews and Dark Web are not supported**: `search_webz` only parses the `posts` field, while those return `reviews`/`cyberDocs` respectively, so pointing `endpoint_url` at them silently returns zero results. |
 
 ### Configuration
@@ -194,6 +195,7 @@ web_search:
 | Perplexity | `PERPLEXITY_API_KEY` |
 | DeepSeek | `DEEPSEEK_API_KEY` |
 | Webz.io | `WEBZ_API_KEY` |
+| Keenable | `KEENABLE_API_KEY` (optional) |
 
 All variables are defined in `env.example`.
 
