@@ -362,6 +362,10 @@ class FileVectorRetriever(AbstractVectorRetriever):
                     logger.warning(f"FileVectorRetriever: No metadata found for file_id: {file_id}")
                     continue
 
+                if not api_key or not self.metadata_store.verify_ownership(file_info, api_key):
+                    logger.warning(f"FileVectorRetriever: API key does not own file_id {file_id}; skipping")
+                    continue
+
                 logger.debug(f"FileVectorRetriever: File info: {file_info}")
 
                 if file_info.get('collection_name'):

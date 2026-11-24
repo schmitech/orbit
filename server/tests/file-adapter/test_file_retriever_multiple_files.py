@@ -99,7 +99,7 @@ async def test_get_collections_multiple_file_ids(retriever_with_metadata):
     target_file_ids = ['file_1', 'file_2']
     collections = await retriever_with_metadata._get_collections_multiple(
         file_ids=target_file_ids,
-        api_key=None,
+        api_key=api_key,
         collection_name=None
     )
 
@@ -108,6 +108,36 @@ async def test_get_collections_multiple_file_ids(retriever_with_metadata):
     assert 'files_test_3_collection_1' in collections
     assert 'files_test_3_collection_2' in collections
     assert 'files_test_3_collection_3' not in collections
+
+
+@pytest.mark.asyncio
+async def test_get_collections_multiple_rejects_cross_tenant_file_ids(retriever_with_metadata):
+    """A caller must not be able to resolve another tenant's file_id to its collection (GHSA-xxrm-2pxg-6j3f)"""
+    victim_key = 'victim_key'
+    attacker_key = 'attacker_key'
+
+    await retriever_with_metadata.metadata_store.record_file_upload(
+        file_id='victim_file',
+        api_key=victim_key,
+        filename='secret.txt',
+        mime_type='text/plain',
+        file_size=1024,
+        storage_key='key_victim_file',
+        storage_type='vector'
+    )
+    await retriever_with_metadata.metadata_store.update_processing_status(
+        file_id='victim_file',
+        status='completed',
+        collection_name='files_test_3_collection_victim'
+    )
+
+    collections = await retriever_with_metadata._get_collections_multiple(
+        file_ids=['victim_file'],
+        api_key=attacker_key,
+        collection_name=None
+    )
+
+    assert collections == []
 
 
 @pytest.mark.asyncio
@@ -423,7 +453,7 @@ async def test_get_collections_multiple_mixed_existence(retriever_with_metadata)
     file_ids = ['file_exists', 'file_not_exists', 'file_also_not_exists']
     collections = await retriever_with_metadata._get_collections_multiple(
         file_ids=file_ids,
-        api_key=None,
+        api_key=api_key,
         collection_name=None
     )
 

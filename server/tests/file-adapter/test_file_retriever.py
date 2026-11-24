@@ -167,10 +167,10 @@ async def test_get_collections_by_file_id(mock_retriever):
     
     collections = await mock_retriever._get_collections_multiple(
         file_ids=[file_id],
-        api_key=None,
+        api_key='test_key',
         collection_name=None
     )
-    
+
     assert len(collections) == 1
     assert collection_name in collections
 
@@ -996,10 +996,10 @@ async def test_get_collections_multiple_file_ids(mock_retriever):
     
     result_collections = await mock_retriever._get_collections_multiple(
         file_ids=file_ids,
-        api_key=None,
+        api_key='test_key',
         collection_name=None
     )
-    
+
     assert len(result_collections) == 3
     assert all(col in result_collections for col in collections)
 
@@ -1219,7 +1219,7 @@ async def test_get_collections_mixed_match_and_mismatch(mock_retriever):
     file_ids = ['file_match_1', 'file_mismatch', 'file_match_2']
     collections = await mock_retriever._get_collections_multiple(
         file_ids=file_ids,
-        api_key=None,
+        api_key='test_key',
         collection_name=None
     )
 
@@ -1293,7 +1293,7 @@ async def test_get_collections_no_embedding_provider_in_config(mock_retriever):
 
     collections = await mock_retriever._get_collections_multiple(
         file_ids=[file_id],
-        api_key=None,
+        api_key='test_key',
         collection_name=None
     )
 
