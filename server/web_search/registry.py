@@ -13,6 +13,7 @@ from .providers.brave import search_brave
 from .providers.deepseek import search_deepseek
 from .providers.duckduckgo import search_duckduckgo
 from .providers.google_pse import search_google_pse
+from .providers.keenable import search_keenable
 from .providers.perplexity import search_perplexity
 from .providers.searxng import search_searxng
 from .providers.serper import search_serper
@@ -29,6 +30,7 @@ PROVIDERS: dict[str, callable] = {
     "google_pse": search_google_pse,
     "perplexity": search_perplexity,
     "webz": search_webz,
+    "keenable": search_keenable,
 }
 
 
